@@ -64,6 +64,17 @@ Pipeline, lead-source and satisfaction reports also use the viewer’s line
 access. Pipeline and lead-source counts exclude trashed conversations.
 Satisfaction also excludes ratings attached to trashed jobs.
 
+Lead-source rankings count each contact’s first qualifying lead. Reports show
+returning conversations and crew outreach alongside the ranking. A returning
+conversation has an earlier qualifying lead for that contact or new inbound
+activity on a conversation opened before the selected window.
+
+The pipeline card links directly to the oldest actionable quotes and manually
+tracked opportunities in its window. Satisfaction links to the most recently
+answered jobs below the callback threshold and compares equally long windows.
+The outstanding-quote queue shows the full count of unexpired sent or viewed
+quotes and puts the oldest quotes first.
+
 ## A reopened thread is not measured again
 
 Someone who texts again three weeks later is a returning customer, not a new

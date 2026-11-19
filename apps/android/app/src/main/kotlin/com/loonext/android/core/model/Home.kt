@@ -221,6 +221,13 @@ data class SatisfactionBaseline(
 )
 
 @Serializable
+data class PoorRatedJob(
+    val task_id: String,
+    val score: Int,
+    val title: String? = null,
+)
+
+@Serializable
 data class SatisfactionReport(
     val window: ResponseTimeWindow = ResponseTimeWindow(),
     val asked: Int = 0,
@@ -231,6 +238,7 @@ data class SatisfactionReport(
     val distribution: Map<String, Int> = emptyMap(),
     /** Jobs that needed a call back. Each already woke somebody that day. */
     val poor: Int = 0,
+    val poor_jobs: List<PoorRatedJob> = emptyList(),
     val by_member: List<SatisfactionMember>? = null,
     val per_member_enabled: Boolean = false,
     val baseline: SatisfactionBaseline? = null,
@@ -428,6 +436,15 @@ data class NotificationPrefs(
  * own business.
  */
 @Serializable
+data class PipelineOpenItem(
+    val id: String,
+    val conversation_id: String,
+    val label: String? = null,
+    val amount_cents: Int? = null,
+    val currency: String? = null,
+)
+
+@Serializable
 data class PipelineReport(
     val quoted: Int = 0,
     val won: Int = 0,
@@ -435,6 +452,8 @@ data class PipelineReport(
     /** Quoted, and neither won nor lost yet. The money still outstanding. */
     val open: Int = 0,
     val median_days_to_win: Double? = null,
+    val open_items: List<PipelineOpenItem> = emptyList(),
+    val open_items_total: Int? = null,
 )
 
 /** Which tag each stage currently IS, so a rename never breaks a link. */

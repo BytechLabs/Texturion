@@ -67,9 +67,10 @@ export function satisfactionArc(
   const direction = satisfactionArcDirection(report.improved_by);
   if (!direction || report.baseline === null) return null;
   const then = formatSatisfaction(report.baseline.average);
+  const { days } = report.window;
   return direction === "better"
-    ? t("inbox.satisfactionArcUp", { then })
-    : t("inbox.satisfactionArcDown", { then });
+    ? t("inbox.satisfactionArcUp", { then, days })
+    : t("inbox.satisfactionArcDown", { then, days });
 }
 
 /**
@@ -146,15 +147,7 @@ export function SatisfactionCard() {
           <p className="text-[13px] text-app-muted-2">
             {satisfactionGap(report.data, t)}
           </p>
-          {report.data.poor > 0 ? (
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-1 text-[13px] font-medium text-app-ink underline-offset-2 hover:underline"
-            >
-              {poorRatingLine(report.data.poor, t)}
-              <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
-            </Link>
-          ) : null}
+          <PoorJobs report={report.data} t={t} />
         </div>
       ) : (
         <>
@@ -200,8 +193,8 @@ export function SatisfactionCard() {
                 return (
                   <p className="pt-1 text-[13px] text-app-muted-2">
                     {report.data.baseline === null
-                      ? t("inbox.satisfactionNoBaseline")
-                      : t("inbox.satisfactionSame")}
+                      ? t("inbox.satisfactionNoBaseline", { days })
+                      : t("inbox.satisfactionSame", { days })}
                   </p>
                 );
               }
@@ -221,22 +214,7 @@ export function SatisfactionCard() {
               );
             })()}
 
-            {/* The leak, named and linked. Every one of these already woke
-                somebody the day it happened; the count is here so a month
-                with three reads as a pattern. */}
-            {report.data.poor > 0 ? (
-              <Link
-                href="/inbox"
-                className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-app-ink underline-offset-2 hover:underline"
-              >
-                {poorRatingLine(report.data.poor, t)}
-                <ArrowRight
-                  className="size-3.5"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-              </Link>
-            ) : null}
+            <PoorJobs report={report.data} t={t} />
           </div>
 
           <div className="border-t border-app-line">
@@ -313,5 +291,30 @@ export function SatisfactionCard() {
         </>
       )}
     </MeasureCard>
+  );
+}
+
+function PoorJobs({ report, t }: { report: SatisfactionReport; t: Translate }) {
+  if (report.poor === 0) return null;
+  return (
+    <div className="mt-2 space-y-1 text-[13px]">
+      <p className="font-medium text-app-ink">{poorRatingLine(report.poor, t)}</p>
+      <ul>
+        {report.poor_jobs?.map((job) => (
+          <li key={job.task_id}>
+            <Link
+              href={`/tasks?task=${job.task_id}`}
+              className="flex items-center gap-2 py-1 text-primary hover:underline"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {job.title || t("inbox.satisfactionOpenJob")}
+              </span>
+              <span className="tabular-nums">{job.score}/5</span>
+              <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

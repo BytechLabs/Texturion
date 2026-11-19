@@ -257,6 +257,14 @@ struct SatisfactionBaseline: Codable, Sendable {
     var average: Double = 0
 }
 
+struct PoorRatedJob: Codable, Identifiable, Sendable {
+    let task_id: String
+    let score: Int
+    let title: String?
+
+    var id: String { task_id }
+}
+
 struct SatisfactionReport: Codable, Sendable {
     var window: ResponseTimeWindowInfo = ResponseTimeWindowInfo()
     var asked: Int = 0
@@ -267,6 +275,7 @@ struct SatisfactionReport: Codable, Sendable {
     var distribution: [String: Int] = [:]
     /// Jobs that needed a call back. Each already woke somebody that day.
     var poor: Int = 0
+    var poor_jobs: [PoorRatedJob]? = nil
     var by_member: [SatisfactionMember]? = nil
     var per_member_enabled: Bool = false
     var baseline: SatisfactionBaseline? = nil

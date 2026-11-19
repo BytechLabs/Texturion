@@ -639,6 +639,9 @@ function ratingWorld(
       const timestamp = new Date(now - rating.ago * 86_400_000).toISOString();
       return {
         id: `aaaaaaaa-0000-4000-8000-${String(ratings.length - index).padStart(12, "0")}`,
+        task_id: `job-${index}`,
+        conversation_id: `thread-${index}`,
+        tasks: { title: `Job ${index}` },
         score: rating.score,
         answered_at: rating.score === null ? null : timestamp,
         rated_user_id: rating.rated_user_id ?? null,
@@ -688,6 +691,8 @@ describe("#313 satisfaction reporting", () => {
     expect(query?.get("conversations.or")).toBe(`(phone_number_id.is.null,phone_number_id.not.in.(${HIDDEN_NUMBER_ID}))`);
     expect(query?.get("conversations.deleted_at")).toBe("is.null");
     expect(query?.get("tasks.deleted_at")).toBe("is.null");
+    expect(query?.get("conversations.purged_at")).toBe("is.null");
+    expect(query?.get("tasks.purged_at")).toBe("is.null");
   });
 
   it.each([1400, 5000, 5001])("counts %i same-time ratings up to the cap", async (count) => {
@@ -731,6 +736,7 @@ describe("#313 satisfaction reporting", () => {
     expect(body.average).toBe(4);
     expect(body.sample_too_small).toBe(false);
     expect(body.poor).toBe(1);
+    expect(body.poor_jobs).toEqual([{ task_id: "job-4", conversation_id: "thread-4", score: 2, title: "Job 4" }]);
   });
 
   it("SR-3: 'nobody answered' is not 'we asked nobody'", async () => {

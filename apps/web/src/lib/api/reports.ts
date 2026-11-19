@@ -217,6 +217,7 @@ export interface SatisfactionReport {
   minimum_sample: number;
   distribution: Record<string, number>;
   poor: number;
+  poor_jobs?: { task_id: string; conversation_id: string; score: number; title: string | null }[];
   /** Null when the owner has not turned per-person scores on. */
   by_member: SatisfactionMember[] | null;
   per_member_enabled: boolean;

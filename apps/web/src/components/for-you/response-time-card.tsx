@@ -123,6 +123,15 @@ function Row({
   );
 }
 
+function NoLeadHeadline({ report, t }: { report: ResponseTimeReport; t: Translate }) {
+  return (
+    <div className="px-4 py-4 text-[13px] text-app-muted-2">
+      <p>{t("inbox.responseNoLeads", { days: report.window.days })}</p>
+      {report.baseline_progress && <p className="mt-1">{noArcReason(report, t)}</p>}
+    </div>
+  );
+}
+
 export function ResponseTimeCard() {
   const t = useT();
   const [days, setDays] = useState<ResponseTimeWindow>(30);
@@ -164,20 +173,11 @@ export function ResponseTimeCard() {
           className="px-4 py-4"
         />
       ) : report.data.leads === 0 && !report.data.missed_callers?.total ? (
-        // Not a zero. A workspace with no new leads in the window has no
-        // response time, and "0 sec" would read as instant service.
-        <div className="px-4 py-4">
-          <p className="text-[13px] text-app-muted-2">
-            {t("inbox.responseNoLeads", { days })}
-          </p>
-          {report.data.baseline_progress && (
-            <p className="mt-1 text-[13px] text-app-muted-2">{noArcReason(report.data, t)}</p>
-          )}
-        </div>
+        <NoLeadHeadline report={report.data} t={t} />
       ) : (
         <>
           {report.data.leads === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-app-muted-2">{t("inbox.responseNoLeads", { days })}</p>
+            <NoLeadHeadline report={report.data} t={t} />
           ) : (
             <div className="px-4 pb-3 pt-4">
               <div className="flex items-baseline gap-2">

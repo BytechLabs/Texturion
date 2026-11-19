@@ -143,6 +143,7 @@ struct Quote: Codable, Sendable, Identifiable {
 
 struct QuotePage: Codable, Sendable {
     @Default<DefaultEmptyList<Quote>> var data: [Quote]
+    var total: Int? = nil
 }
 
 /// What `POST /v1/quotes/{id}/send` returns.

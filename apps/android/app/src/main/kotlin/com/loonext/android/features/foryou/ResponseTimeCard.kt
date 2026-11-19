@@ -158,22 +158,23 @@ fun ResponseTimeCard(
                         modifier = Modifier.padding(14.dp),
                     )
 
-                // Not a zero. A workspace with no new leads has no response time,
-                // and "0 sec" would read as instant service.
                 report.leads == 0 && (report.missed_callers?.total ?: 0) == 0 ->
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            t("inbox.responseNoLeads", "days" to days.toString()),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (report.baseline_progress != null) {
-                            Text(responseNoArcReason(report, LocalAppLocale.current), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
+                    NoLeadHeadline(report)
 
                 else -> ResponseTimeBody(report, onOpenUnanswered)
             }
+        }
+    }
+}
+
+@Composable
+private fun NoLeadHeadline(report: ResponseTimeReport) {
+    val caption = MaterialTheme.typography.bodySmall
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(Modifier.padding(14.dp)) {
+        Text(t("inbox.responseNoLeads", "days" to report.window.days.toString()), style = caption, color = muted)
+        if (report.baseline_progress != null) {
+            Text(responseNoArcReason(report, LocalAppLocale.current), style = caption, color = muted)
         }
     }
 }
@@ -187,12 +188,7 @@ private fun ResponseTimeBody(
     val locale = LocalAppLocale.current
 
     if (report.leads == 0) {
-        Text(
-            t("inbox.responseNoLeads", "days" to report.window.days.toString()),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(14.dp),
-        )
+        NoLeadHeadline(report)
     } else Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             // #540: how much of the week actually got answered, as a shape. The

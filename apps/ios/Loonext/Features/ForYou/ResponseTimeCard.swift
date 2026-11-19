@@ -115,18 +115,7 @@ struct ResponseTimeCard: View {
             PaperCard {
                 if let report {
                     if report.leads == 0 && (report.missed_callers?.total ?? 0) == 0 {
-                        // Not a zero. A workspace with no new leads has no
-                        // response time, and "0 sec" would read as instant
-                        // service.
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(AppStrings.translate(appLocale, "inbox.responseNoLeads", ["days": String(days)]))
-                            if report.baseline_progress != nil {
-                                Text(responseNoArcReason(report, appLocale))
-                            }
-                        }
-                        .font(.golos(13))
-                        .foregroundStyle(BrandColor.muted600)
-                        .padding(14)
+                        noLeadHeadline(report)
                     } else {
                         content(for: report)
                     }
@@ -141,13 +130,22 @@ struct ResponseTimeCard: View {
         .padding(.top, 14)
     }
 
+    private func noLeadHeadline(_ report: ResponseTimeReport) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(AppStrings.translate(appLocale, "inbox.responseNoLeads", ["days": String(report.window.days)]))
+            if report.baseline_progress != nil {
+                Text(responseNoArcReason(report, appLocale))
+            }
+        }
+        .font(.golos(13))
+        .foregroundStyle(BrandColor.muted600)
+        .padding(14)
+    }
+
     @ViewBuilder
     private func content(for report: ResponseTimeReport) -> some View {
         if report.leads == 0 {
-            Text(AppStrings.translate(appLocale, "inbox.responseNoLeads", ["days": String(days)]))
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted600)
-                .padding(14)
+            noLeadHeadline(report)
         } else {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .lastTextBaseline, spacing: 6) {

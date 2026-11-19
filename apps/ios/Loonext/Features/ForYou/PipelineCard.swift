@@ -1,5 +1,13 @@
 import SwiftUI
 
+struct PipelineOpenItem: Codable, Identifiable, Sendable {
+    let id: String
+    let conversation_id: String
+    let label: String?
+    let amount_cents: Int?
+    let currency: String?
+}
+
 /// #354 — one period's pipeline, as GET /v1/reports/pipeline returns it.
 ///
 /// Every figure is computed server-side: a win rate computed twice is a win rate
@@ -17,6 +25,8 @@ struct PipelineReport: Codable, Sendable {
     /// Quoted, and neither won nor lost yet. The money still outstanding.
     @Default<DefaultZero> var open: Int = 0
     var median_days_to_win: Double?
+    @Default<DefaultEmptyList<PipelineOpenItem>> var open_items: [PipelineOpenItem] = []
+    var open_items_total: Int? = nil
 }
 
 /// Which tag each stage currently IS, so a rename never breaks a link.
@@ -82,6 +92,7 @@ struct PipelineReportResponse: Codable, Sendable {
 struct PipelineCard: View {
     /// Nil while it loads. The card says nothing rather than showing zeroes.
     let report: PipelineReportResponse?
+    let onOpenConversation: @MainActor (String) -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -215,9 +226,36 @@ struct PipelineCard: View {
                             ]
                         )
                     )
+                    openItems(report.current)
                 }
                 .padding(16)
             }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func openItems(_ report: PipelineReport) -> some View {
+        if !report.open_items.isEmpty {
+            Text(AppStrings.translate(appLocale, "inbox.pipelineChase", [
+                "count": String(report.open_items_total ?? report.open_items.count),
+            ]))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            ForEach(report.open_items) { item in
+                Button {
+                    onOpenConversation(item.conversation_id)
+                } label: {
+                    HStack {
+                        Text(item.label ?? AppStrings.translate(appLocale, "inbox.pipelineOpenConversation"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let amount = item.amount_cents {
+                            let currency = BillingCurrency(rawValue: item.currency?.lowercased() ?? "") ?? .usd
+                            Text(formatMoneyIn(amount, currency, audience: currency, locale: appLocale))
+                                .monospacedDigit()
+                        }
+                    }
+                }
             }
         }
     }

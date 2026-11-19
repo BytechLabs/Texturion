@@ -367,6 +367,8 @@ enum InboxStrings {
             "inbox.pipelineQuoted": "Quoted",
             "inbox.pipelineWon": "Won",
             "inbox.pipelineStillOut": "Still out",
+            "inbox.pipelineChase": "Waiting for follow-up ({count})",
+            "inbox.pipelineOpenConversation": "Open conversation",
             "inbox.pipelineShareAria":
                 "Of {quoted} quoted, {won} won and {open} still out",
 
@@ -430,11 +432,11 @@ enum InboxStrings {
                 "Too few answers to average yet — {answered} of {minimum}",
             "inbox.satisfactionRingAria": "{score} out of 5, from {count} answers",
             "inbox.satisfactionOutOfFive": "out of 5, from {count} answers",
-            "inbox.satisfactionArcUp": "Up from {then} the month before",
-            "inbox.satisfactionArcDown": "Down from {then} the month before",
+            "inbox.satisfactionArcUp": "Up from {then} in the prior {days} days",
+            "inbox.satisfactionArcDown": "Down from {then} in the prior {days} days",
             "inbox.satisfactionNoBaseline":
-                "No month before this one to compare against yet",
-            "inbox.satisfactionSame": "About the same as the month before",
+                "No comparison data for the prior {days} days",
+            "inbox.satisfactionSame": "About the same as the prior {days} days",
             "inbox.satisfactionStarsOne": "1 star",
             "inbox.satisfactionStarsMany": "{count} stars",
             "inbox.satisfactionAsked": "Asked",
@@ -446,6 +448,7 @@ enum InboxStrings {
             "inbox.satisfactionMemberFallback": "Member",
             "inbox.satisfactionPoorOne": "1 job needed a call back",
             "inbox.satisfactionPoorMany": "{count} jobs needed a call back",
+            "inbox.satisfactionOpenJob": "Open job",
             "inbox.satisfactionByMember": "{name} · {count} answered",
             "inbox.satisfactionMemberTooFew": "Too few answers to average yet",
             "inbox.satisfactionPoorHint":
@@ -819,6 +822,8 @@ enum InboxStrings {
             "inbox.pipelineQuoted": "Envoyés",
             "inbox.pipelineWon": "Gagnés",
             "inbox.pipelineStillOut": "En attente",
+            "inbox.pipelineChase": "En attente de suivi ({count})",
+            "inbox.pipelineOpenConversation": "Ouvrir la conversation",
             "inbox.pipelineShareAria":
                 "Sur {quoted} devis envoyés, {won} gagnés et {open} en attente",
 
@@ -875,11 +880,11 @@ enum InboxStrings {
                 "Trop peu de réponses pour faire une moyenne — {answered} sur {minimum}",
             "inbox.satisfactionRingAria": "{score} sur 5, à partir de {count} réponses",
             "inbox.satisfactionOutOfFive": "sur 5, à partir de {count} réponses",
-            "inbox.satisfactionArcUp": "En hausse depuis {then} le mois précédent",
-            "inbox.satisfactionArcDown": "En baisse depuis {then} le mois précédent",
+            "inbox.satisfactionArcUp": "En hausse par rapport à {then} au cours des {days} jours précédents",
+            "inbox.satisfactionArcDown": "En baisse par rapport à {then} au cours des {days} jours précédents",
             "inbox.satisfactionNoBaseline":
-                "Aucun mois précédent auquel se comparer pour l'instant",
-            "inbox.satisfactionSame": "À peu près comme le mois précédent",
+                "Aucune donnée de comparaison pour les {days} jours précédents",
+            "inbox.satisfactionSame": "À peu près comme les {days} jours précédents",
             "inbox.satisfactionStarsOne": "1 étoile",
             "inbox.satisfactionStarsMany": "{count} étoiles",
             "inbox.satisfactionAsked": "Demandées",
@@ -892,6 +897,7 @@ enum InboxStrings {
             "inbox.satisfactionMemberFallback": "Membre",
             "inbox.satisfactionPoorOne": "1 travail a nécessité un rappel",
             "inbox.satisfactionPoorMany": "{count} travaux ont nécessité un rappel",
+            "inbox.satisfactionOpenJob": "Ouvrir le travail",
             "inbox.satisfactionByMember": "{name} · {count} avec réponse",
             "inbox.satisfactionMemberTooFew":
                 "Trop peu de réponses pour faire une moyenne",

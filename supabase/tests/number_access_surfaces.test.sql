@@ -55,6 +55,9 @@ declare
     -- read surface filtered and this one did not.
     'api_response_time_baseline',
     'api_response_time_stats',
+    'api_contact_timeline',
+    'api_lead_source_report',
+    'api_pipeline_report',
     'api_search_v2',
     -- Not in #368's list. It takes the parameter and filters on it correctly;
     -- it was simply missing from the enumeration the issue was written from.
@@ -731,6 +734,38 @@ begin
   end;
 
   raise notice 'NA-7 PASSED: the Trash cannot list, trash, restore or erase a denied number''s items';
+end $$;
+
+do $$
+declare
+  co uuid := '36800000-0000-4000-8000-000000000001';
+  visible_contact uuid := '36800000-0000-4000-8000-000000000020';
+  hidden_contact uuid := '36800000-0000-4000-8000-000000000021';
+  hidden_line uuid[] := array['36800000-0000-4000-8000-000000000011'::uuid];
+  since timestamptz := now() - interval '1 day';
+  until timestamptz := now() + interval '1 day';
+begin
+  insert into public.quotes (company_id, conversation_id, contact_id, amount_cents, currency,
+    description, status, expires_at, sent_at)
+  select co, id, contact_id, 15000, 'usd', 'Window repair', 'sent', now() + interval '5 days', now()
+  from public.conversations
+  where company_id = co;
+
+  if (select sum(new_customer) from public.api_lead_source_report(co, since, until)) is distinct from 2
+     or (select sum(new_customer) from public.api_lead_source_report(co, since, until, hidden_line)) is distinct from 1 then
+    raise exception 'NA-8: lead-source ranking did not omit the denied line';
+  end if;
+
+  if (public.api_pipeline_report(co, since, until)->>'open_items_total')::int is distinct from 2
+     or (public.api_pipeline_report(co, since, until, hidden_line)->>'open_items_total')::int is distinct from 1 then
+    raise exception 'NA-8: pipeline did not omit the denied line';
+  end if;
+
+  if not exists (select 1 from public.api_contact_timeline(co, hidden_contact))
+     or not exists (select 1 from public.api_contact_timeline(co, visible_contact, p_hidden_number_ids => hidden_line))
+     or exists (select 1 from public.api_contact_timeline(co, hidden_contact, p_hidden_number_ids => hidden_line)) then
+    raise exception 'NA-8: contact timeline did not omit the denied line';
+  end if;
 end $$;
 
 rollback;

@@ -491,10 +491,13 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
  */
 interface RatingRow {
   id: string;
+  task_id: string;
+  conversation_id: string;
   asked_at: string;
   score: number | null;
   answered_at: string | null;
   rated_user_id: string | null;
+  tasks: { title: string };
 }
 
 interface SatisfactionSlice {
@@ -629,11 +632,15 @@ reportsRoutes.get(
     while (rows.length <= MAX_ROWS) {
       let ratings = db
         .from("job_ratings")
-        .select("id,asked_at,score,answered_at,rated_user_id,conversations!inner(),tasks!inner()")
+        .select("id,task_id,conversation_id,asked_at,score,answered_at,rated_user_id,conversations!inner(),tasks!inner(title)")
         .eq("company_id", companyId)
         .is("conversations.deleted_at", null)
+        .is("conversations.purged_at", null)
+        .eq("conversations.is_spam", false)
         .is("tasks.deleted_at", null)
+        .is("tasks.purged_at", null)
         .gte("asked_at", priorSince.toISOString())
+        .lt("asked_at", until.toISOString())
         .order("asked_at", { ascending: false })
         .order("id", { ascending: false });
       if (hiddenNumberIds?.length) {
@@ -647,7 +654,10 @@ reportsRoutes.get(
         ratings = ratings.or(keysetFilter("asked_at", { ts: last.asked_at, id: last.id }));
       }
       const limit = Math.min(RATINGS_PAGE_SIZE, MAX_ROWS - rows.length + 1);
-      const page = unwrap<RatingRow[]>(await ratings.limit(limit), "satisfaction ratings");
+      const page = unwrap(
+        await ratings.limit(limit).overrideTypes<RatingRow[], { merge: false }>(),
+        "satisfaction ratings",
+      );
       rows.push(...page);
       if (page.length < limit) break;
     }
@@ -663,6 +673,18 @@ reportsRoutes.get(
 
     const now = sliceOf(current, truncated);
     const before = sliceOf(prior, truncated);
+    const poorJobs = current
+      .filter((row): row is RatingRow & { score: number } =>
+        row.score !== null && row.score <= SATISFACTION_POOR_AT_OR_BELOW,
+      )
+      .toSorted((a, b) => (b.answered_at ?? b.asked_at).localeCompare(a.answered_at ?? a.asked_at))
+      .slice(0, 5)
+      .map(({ task_id, conversation_id, score, tasks }) => ({
+        task_id,
+        conversation_id,
+        score,
+        title: tasks?.title ?? null,
+      }));
 
     // Per member, and only when the owner has said so. Same flag as #239's
     // response stats rather than a second toggle: they are the same decision —
@@ -698,6 +720,7 @@ reportsRoutes.get(
       // it happened; this is the count, so a month with three is visible as a
       // pattern rather than as three forgotten pushes.
       poor: now.poor,
+      poor_jobs: poorJobs,
       by_member: company.response_stats_per_member
         ? [...byMember.entries()]
             .map(([user_id, scores]) => ({
