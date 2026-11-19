@@ -32,10 +32,11 @@ import {
   shouldIdentify,
 } from "@loonext/shared";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
-import { assertNumberLevel } from "../auth/number-access";
+import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -152,6 +153,7 @@ async function resolveComposeContact(
     companyId: string;
     contactId?: string;
     destination: string;
+    origin: "app" | "api";
   },
 ): Promise<ContactRow> {
   // #274: address + timezone ride along on a query already running, so
@@ -193,15 +195,13 @@ async function resolveComposeContact(
     .insert({
       company_id: args.companyId,
       phone_e164: args.destination,
+      creation_origin: args.origin,
     })
     .select(columns);
   if (inserted.error) {
     if (isUniqueViolation(inserted.error)) {
       // Concurrent create won: re-select that row.
-      return resolveComposeContact(db, {
-        companyId: args.companyId,
-        destination: args.destination,
-      });
+      return resolveComposeContact(db, args);
     }
     throw new Error(`contact insert failed: ${inserted.error.message}`);
   }
@@ -339,17 +339,47 @@ async function createOrReuseConversation(
   return { conversation: row, created: false };
 }
 
+type ComposeBody = Omit<z.infer<typeof composeSchema>, "phone_number_id"> & { phone_number_id?: string };
+
+async function defaultComposeNumber(db: Db, actor: Parameters<typeof resolveNumberAccess>[1]) {
+  const access = await resolveNumberAccess(db, actor);
+  const numbers = unwrap<{ id: string }[]>(
+    await db.from("phone_numbers").select("id").eq("company_id", actor.companyId)
+      .eq("status", "active").not("number_e164", "is", null)
+      .order("created_at").order("id").limit(100),
+    "compose sending numbers",
+  );
+  const number = numbers.find(({ id }) => access.levelFor(id) === "text");
+  if (!number) {
+    throw new ApiError("conflict", "There is no active number available to send from.", {
+      key: "apiRefusals.noActiveSendingNumber",
+    });
+  }
+  return number.id;
+}
+
 export const composeRoutes = new Hono<AppEnv>();
 
 composeRoutes.post("/conversations", requireCapability("conversations.send"), async (c) => {
+  const idempotencyKey = requireIdempotencyKey(c);
+  assertBodyWithinLimit(c, MAX_OUTBOUND_MEDIA_BODY_BYTES);
+  const body = await parseJsonBody(c, composeSchema);
+  const result = await composeConversation(c, body, idempotencyKey);
+  return c.json(
+    { conversation: result.conversation, message: result.message },
+    result.created ? 201 : 200,
+  );
+});
+
+export async function composeConversation(
+  c: Context<AppEnv>,
+  body: ComposeBody,
+  idempotencyKey: string,
+  origin: "app" | "api" = "app",
+) {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const userId = c.get("userId");
-  const idempotencyKey = requireIdempotencyKey(c);
-  // Reject an oversized media payload on Content-Length BEFORE buffering the
-  // whole JSON body into Worker memory (SPEC §10; mirrors /messages/send).
-  assertBodyWithinLimit(c, MAX_OUTBOUND_MEDIA_BODY_BYTES);
-  const body = await parseJsonBody(c, composeSchema);
   const media = body.media ? decodeOutboundMedia(body.media) : [];
   const db = getDb(env);
 
@@ -374,17 +404,33 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
         .limit(1),
       "conversation lookup",
     )[0];
+    if (!conversation) {
+      throw new ApiError("not_found", "No such conversation.", {
+        key: "apiRefusals.conversationNotFound",
+      });
+    }
+    if (typeof conversation.phone_number_id === "string") {
+      await assertNumberLevel(db, {
+        companyId,
+        userId,
+        role: c.get("role"),
+        phoneNumberId: conversation.phone_number_id,
+        need: "text",
+      });
+    }
     const attachments = await loadAttachments(db, companyId, [replay.id]);
-    return c.json(
-      {
-        conversation,
-        message: messageJson(replay, attachments.get(replay.id) ?? []),
-      },
-      200,
-    );
+    return {
+      conversation,
+      message: messageJson(replay, attachments.get(replay.id) ?? []),
+      existing: true,
+      created: false,
+    };
   }
 
   // Sending number: must belong to the company and be usable.
+  const phoneNumberId = body.phone_number_id ?? await defaultComposeNumber(db, {
+    companyId, userId, role: c.get("role"),
+  });
   const number = unwrap<
     { id: string; number_e164: string | null; status: string }[]
   >(
@@ -392,7 +438,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       .from("phone_numbers")
       .select("id,number_e164,status")
       .eq("company_id", companyId)
-      .eq("id", body.phone_number_id)
+      .eq("id", phoneNumberId)
       .limit(1),
     "phone number lookup",
   )[0];
@@ -525,6 +571,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     companyId,
     contactId: body.contact_id,
     destination,
+    origin,
   });
   const { conversation, created } = await createOrReuseConversation(db, {
     companyId,
@@ -598,13 +645,12 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   if (existing) {
     // Concurrent duplicate replay landed between our fast-path and the RPC.
     const attachments = await loadAttachments(db, companyId, [message.id]);
-    return c.json(
-      {
-        conversation,
-        message: messageJson(message, attachments.get(message.id) ?? []),
-      },
-      200,
-    );
+    return {
+      conversation,
+      message: messageJson(message, attachments.get(message.id) ?? []),
+      existing: true,
+      created: false,
+    };
   }
 
   // Audit trail (§5): every gate-passing compose records a consent_attested
@@ -715,8 +761,5 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     }
   }
 
-  return c.json(
-    { conversation, message: messageJson(sent, attachments) },
-    created ? 201 : 200,
-  );
-});
+  return { conversation, message: messageJson(sent, attachments), existing: false, created };
+}

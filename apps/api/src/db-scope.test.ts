@@ -296,13 +296,8 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     why: "hosted-order poller: in-flight orders across all tenants",
   },
   "workspace/export.ts::data_exports": {
-    count: 2,
-    why:
-      "#378, both halves of the same platform-wide queue. `pruneExpiredExports` " +
-      "deletes exports past their seven-day promise; `buildDataExports` drains " +
-      "the pending queue. Each row is a full copy of a workspace, so neither " +
-      "may be scoped — a scoped reaper would leave every OTHER tenant's export " +
-      "sitting in storage past the promise we made about it",
+    count: 1,
+    why: "pruneExpiredExports finds expired copies across all workspaces",
   },
   "routes/team.ts::invites": {
     count: 1,

@@ -298,7 +298,8 @@ struct ContactMutations: Sendable {
         fileName: String,
         bytes: Data,
         consentAttested: Bool,
-        columns: [ContactImportColumnDeclaration]
+        columns: [ContactImportColumnDeclaration],
+        replaceDetails: Bool = false
     ) async throws -> ImportResult {
         let data = try await multipart.postFile(
             path: "/v1/contacts/import",
@@ -308,7 +309,8 @@ struct ContactMutations: Sendable {
                 columns: columns,
                 // A CSV has no vCard properties. Empty rather than absent: both
                 // doors go through the one function that knows the field names.
-                properties: []
+                properties: [],
+                replaceDetails: replaceDetails
             ),
             fileField: "file",
             fileName: fileName,
@@ -331,7 +333,8 @@ struct ContactMutations: Sendable {
         fileName: String,
         bytes: Data,
         consentAttested: Bool,
-        properties: [VCardPropertyDeclaration]
+        properties: [VCardPropertyDeclaration],
+        replaceDetails: Bool = false
     ) async throws -> ImportResult {
         let data = try await multipart.postFile(
             path: "/v1/contacts/import-vcard",
@@ -341,7 +344,8 @@ struct ContactMutations: Sendable {
                 // A .vcf has no columns. Empty rather than absent, for the same
                 // reason the CSV door sends no properties.
                 columns: [],
-                properties: properties
+                properties: properties,
+                replaceDetails: replaceDetails
             ),
             fileField: "file",
             fileName: fileName,

@@ -204,6 +204,16 @@ function retriedWith(): { code?: string } {
 }
 
 describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
+  it("opens the export step without submitting the closure", () => {
+    mount(<CloseWorkspaceCard company={COMPANY} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close this workspace" }));
+    const exportFirst = screen.getByRole("link", { name: "Export your data first" });
+    expect(exportFirst.getAttribute("href")).toBe("#export-data");
+    fireEvent.click(exportFirst);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   afterEach(() => {
     cleanup();
     // Both dialogs render through a Radix portal onto `document.body` rather than

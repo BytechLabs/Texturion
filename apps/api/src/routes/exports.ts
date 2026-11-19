@@ -17,6 +17,7 @@ import { z } from "zod";
 import { roleHasCapability, stateMachines } from '@loonext/shared';
 import type { Capability, MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
+import type { Context } from "hono";
 
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { recordAuditFromRequest } from "../audit/log";
@@ -27,7 +28,8 @@ import { getEnv } from "../env";
 import { ApiError,errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import { EXPORTS_BUCKET, listExportFileNames } from "../workspace/export";
-import { parseJsonBody,unwrap } from "./core/http";
+import { listWorkspaceMedia, signWorkspaceMedia } from "../workspace/export-media";
+import { parseJsonBody, parseWith, unwrap } from "./core/http";
 
 export const exportsRoutes = new Hono<AppEnv>();
 
@@ -42,6 +44,7 @@ interface ExportRow {
   kind: string;
   status: "pending" | "running" | "ready" | "failed";
   storage_prefix: string | null;
+  stored_files?: Record<string, string> | null;
   row_counts: Record<string, number>;
   error: string | null;
   requested_at: string;
@@ -51,7 +54,7 @@ interface ExportRow {
 
 /** Every column the list and detail routes read. Named once so they cannot diverge. */
 const EXPORT_COLUMNS =
-  "id,kind,status,storage_prefix,row_counts,error,requested_at,completed_at,expires_at";
+  "id,kind,status,storage_prefix,stored_files,row_counts,error,requested_at,completed_at,expires_at";
 
 /**
  * Who may COLLECT an export, decided per export.
@@ -337,6 +340,7 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
     rows.map(async (row) => ({
       ...exportActions(row, role),
       id: row.id,
+      kind: row.kind,
       status: row.status,
       row_counts: row.row_counts ?? {},
       error: row.error,
@@ -385,20 +389,24 @@ async function signFiles(
   if (!prefix) return [];
 
   const bucket = db.storage.from(EXPORTS_BUCKET);
-  const files = await listExportFileNames(db, prefix);
+  const files = row.stored_files
+    ? Object.entries(row.stored_files).sort(([left], [right]) => left.localeCompare(right))
+    : (await listExportFileNames(db, prefix)).map((name) => [name, name] as const);
   const links: { name: string; url: string }[] = [];
   for (let start = 0; start < files.length; start += FILE_SIGNING_BATCH) {
-    const names = files.slice(start, start + FILE_SIGNING_BATCH);
-    const paths = names.map((name) => `${prefix}/${name}`);
+    const batch = files.slice(start, start + FILE_SIGNING_BATCH);
+    const paths = batch.map(([, objectName]) => `${prefix}/${objectName}`);
     const { data, error } = await bucket.createSignedUrls(
       paths, DOWNLOAD_TTL_SECONDS, dispositionOptions("text/csv"),
     );
     if (error) throw new Error(`export file signing failed: ${error.message}`);
     const urls = new Map(data.map(({ path, signedUrl }) => [path, signedUrl]));
-    for (const name of names) {
-      const url = urls.get(`${prefix}/${name}`);
+    for (const [name, objectName] of batch) {
+      const url = urls.get(`${prefix}/${objectName}`);
       if (!url) throw new Error(`export file signing failed for ${name}`);
-      links.push({ name, url });
+      const download = new URL(url);
+      download.searchParams.set("download", name);
+      links.push({ name, url: download.toString() });
     }
   }
   return links;
@@ -426,6 +434,7 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
   return c.json({
     ...exportActions(row, role),
     id: row.id,
+    kind: row.kind,
     status: row.status,
     row_counts: row.row_counts ?? {},
     error: row.error,
@@ -435,3 +444,28 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
     files: await signFiles(db, row, role),
   });
 });
+
+async function workspaceExportCutoff(c: Context<AppEnv>) {
+  const db = getDb(getEnv(c.env));
+  const id = parseWith(z.uuid(), c.req.param("id"));
+  const [row] = unwrap<ExportRow[]>(
+    await db.from("data_exports").select(EXPORT_COLUMNS)
+      .eq("company_id", c.get("companyId"))
+      .eq("id", id).eq("kind", "workspace").eq("status", "ready").limit(1),
+    "workspace export lookup",
+  );
+  if (!row?.completed_at || !exportActions(row, c.get("role")).allowed_actions.includes("download")) {
+    throw new ApiError("not_found", "No ready workspace export with that ID.", {
+      key: "apiRefusals.workspaceExportNotReady",
+    });
+  }
+  return row.completed_at;
+}
+
+exportsRoutes.get("/exports/:id/media", requireCapability("contacts.bulk"), async (c) =>
+  listWorkspaceMedia(c, await workspaceExportCutoff(c)),
+);
+
+exportsRoutes.get("/exports/:id/media/:kind/:mediaId", requireCapability("contacts.bulk"), async (c) =>
+  signWorkspaceMedia(c, await workspaceExportCutoff(c)),
+);

@@ -510,10 +510,21 @@ export const settingsEn = {
     "somewhere else.",
   exportDataContents:
     "Contacts, conversations, messages, tasks, call history and voicemail " +
-    "transcripts, saved replies, tags and opt-outs. Photos and recordings are " +
-    "listed with where they live and how big they are, rather than copied.",
+    "transcripts, quotes, payments, members, saved replies, tags and opt-outs. " +
+    "Download photos and recordings from the files list.",
+  exportMediaTitle: "Photos, files and recordings",
+  exportMediaType: "File type",
+  exportMediaAttachments: "Attachments",
+  exportMediaMessages: "Text message files",
+  exportMediaVoicemail: "Voicemail recordings",
+  exportMediaLoading: "Loading files…",
+  exportMediaRetry: "Try loading files again",
+  exportMediaEmpty: "No files of this type in this export.",
+  exportMediaMore: "Load more files",
+  exportMediaDownloadFailed: "Could not download this file.",
+  closeWorkspaceExportFirst: "Export your data first",
   exportDataBuilding:
-    "Building your export. It usually takes a few minutes, and we'll email you " +
+    "Building your export. It's usually ready within 15 minutes. We'll email you " +
     "when it's ready — you can close this page.",
   exportDataAction: "Export my data",
   exportDataStarting: "Starting…",
@@ -1268,12 +1279,22 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "que vous pouvez charger ailleurs.",
   exportDataContents:
     "Clients, conversations, textos, tâches, historique d'appels et " +
-    "transcriptions de messages vocaux, réponses enregistrées, étiquettes et " +
-    "désabonnements. Les photos et les enregistrements sont listés avec leur " +
-    "emplacement et leur taille, plutôt que copiés.",
+    "transcriptions de messages vocaux, devis, paiements, membres, réponses enregistrées, " +
+    "étiquettes et désabonnements. Téléchargez les photos et les enregistrements depuis la liste des fichiers.",
+  exportMediaTitle: "Photos, fichiers et enregistrements",
+  exportMediaType: "Type de fichier",
+  exportMediaAttachments: "Pièces jointes",
+  exportMediaMessages: "Fichiers des messages texte",
+  exportMediaVoicemail: "Enregistrements des messages vocaux",
+  exportMediaLoading: "Chargement des fichiers…",
+  exportMediaRetry: "Réessayer de charger les fichiers",
+  exportMediaEmpty: "Cette exportation ne contient aucun fichier de ce type.",
+  exportMediaMore: "Charger plus de fichiers",
+  exportMediaDownloadFailed: "Impossible de télécharger ce fichier.",
+  closeWorkspaceExportFirst: "Exporter d’abord vos données",
   exportDataBuilding:
-    "Votre exportation est en préparation. Cela prend habituellement quelques " +
-    "minutes, et nous vous écrirons quand ce sera prêt — vous pouvez fermer " +
+    "Votre exportation est en préparation. Elle est généralement prête dans les " +
+    "15 minutes. Nous vous écrirons quand ce sera prêt — vous pouvez fermer " +
     "cette page.",
   exportDataAction: "Exporter mes données",
   exportDataStarting: "Démarrage…",

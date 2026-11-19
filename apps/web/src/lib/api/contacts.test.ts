@@ -135,6 +135,17 @@ describe("#248 the import attestation leaves this client", () => {
       CONTACT_IMPORT_CONSENT_VALUE,
     );
     expect(body.get("file")).not.toBeNull();
+    expect(body.has("replace_existing_details")).toBe(false);
+  });
+
+  it("sends replacement only when explicitly selected", () => {
+    const body = importFormData({
+      file: new Blob(["phone\r\n+14165550199"]),
+      consentAttested: true,
+      replaceExistingDetails: true,
+    });
+
+    expect(body.get("replace_existing_details")).toBe("true");
   });
 
   it("omits the field entirely when nobody attested", () => {

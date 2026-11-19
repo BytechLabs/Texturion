@@ -59,7 +59,7 @@ class VCardPropertiesTest {
     }
 
     @Test
-    fun `both answers match the shared module`() {
+    fun `property actions match the shared module`() {
         val body = Regex("""const VCARD_ACTIONS = new Set<string>\(\[([^\]]*)\]\)""")
             .find(contractSource())
             ?.groupValues?.get(1)
@@ -70,11 +70,18 @@ class VCardPropertiesTest {
             .filter { it != "" }
             .map { if (it.startsWith("\"")) it.trim('"') else stringConst(contractSource(), it) }
             .toSet()
-        assertEquals(shared, VCardProperties.ACTIONS.toSet())
-        // TWO answers, not the CSV's eight. A vCard property is present on a card
-        // or it is not — there is no field to route it into — so the answers that
-        // mean anything are "says nothing" and "do not text these".
-        assertEquals(2, VCardProperties.ACTIONS.size)
+        val profile = contractSource().substringAfter("const VCARD_PROFILE_PROPERTIES = [").substringBefore("]")
+            .split(",").map { it.trim().trim('"') }
+        for (property in profile) assertEquals(shared, VCardProperties.actions(property).toSet())
+        assertEquals(shared - VCardProperties.ACTION_IMPORT, VCardProperties.actions("TEL;TYPE").toSet())
+        assertEquals(null, VCardProperties.parse("TEL;TYPE:import"))
+    }
+
+    @Test
+    fun `review shows notes and parameters separately`() {
+        val data = "BEGIN:VCARD\nNOTE:Office side door\nTEL;TYPE=HOME:+14165550111\nEND:VCARD"
+        val values = VCardProperties.review(data.toByteArray()).associate { it.name to it.values }
+        assertEquals(mapOf("NOTE" to listOf("Office side door"), "TEL;TYPE" to listOf("HOME")), values)
     }
 
     @Test

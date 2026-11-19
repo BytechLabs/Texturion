@@ -468,7 +468,7 @@ final class ContactImportColumnsTests: XCTestCase {
         XCTAssertEqual(review.columns[0].guess, ContactImportField.phone)
         XCTAssertEqual(review.columns[1].guess, ContactImportField.name)
         XCTAssertNil(review.columns[2].guess)
-        XCTAssertNil(review.columns[3].guess)
+        XCTAssertEqual(review.columns[3].guess, ContactImportField.tags)
         XCTAssertNil(review.columns[4].guess)
     }
 
@@ -639,7 +639,7 @@ final class ContactImportColumnsTests: XCTestCase {
     func testTheGuessNeverAnswersAColumnItDidNotRecognise() {
         let columns = ContactColumns.review(
             """
-            Phone,Full Name,Marketing Status,Tags
+            Phone,Full Name,Marketing Status,Customer tier
             +14165550100,Dave Chen,DO NOT CALL,vip
             +14165550101,Sam Ali,active,
             """

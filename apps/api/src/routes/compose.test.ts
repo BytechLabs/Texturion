@@ -6,6 +6,7 @@
  * gate-rejection cleanup (reap of the just-created empty conversation, #48),
  * and the shared send path.
  */
+import { API_KEY_PREFIX } from "@loonext/shared";
 import { Hono } from "hono";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +22,7 @@ import type { Stub } from '../test/messaging-support';
 import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { FetchRoute, TestAuth } from '../test/support';
 import { composeRoutes } from "./compose";
+import { publicApiRoutes } from "./public-api";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -45,6 +47,7 @@ const app = new Hono<AppEnv>();
 app.use("/v1/*", jwtAuth());
 app.use("/v1/*", companyContext());
 app.route("/v1", composeRoutes);
+app.route("/", publicApiRoutes);
 app.onError((error, c) => {
   if (error instanceof ApiError) {
     return errorResponse(c, error.code, error.message);
@@ -367,6 +370,47 @@ const VALID_BODY = {
   body: "Hi! Following up on your quote.",
 };
 
+describe("POST /public/v1/messages by phone", () => {
+  it.each([true, undefined])("checks consent before composing a new conversation (%s)", async (consent) => {
+    const stubs = composeStubs();
+    const resolveKey = stubRoute(rpcMatch(env, "api_resolve_key"), () => [{
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      scopes: ["messages:send"],
+      created_by: CONTACT_ID,
+    }]);
+    stubFetch(resolveKey.route, ...stubs.all);
+
+    const response = await app.fetch(new Request("https://api.loonext.com/public/v1/messages", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${API_KEY_PREFIX}${"2".repeat(32)}`,
+        "Idempotency-Key": "public-by-phone",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        to: "(613) 555-1000",
+        body: "Thanks for asking us to follow up.",
+        consent_attested: consent,
+      }),
+    }), env);
+
+    expect(response.status, await response.clone().text()).toBe(consent ? 201 : 422);
+    expect(stubs.telnyx.calls).toHaveLength(consent ? 1 : 0);
+    if (consent) {
+      await expect(response.json()).resolves.toMatchObject({ id: MESSAGE_ID, conversation_id: CONVERSATION_ID });
+      expect(stubs.contactInsert.calls[0].body).toMatchObject({
+        phone_e164: "+16135551000",
+        creation_origin: "api",
+      });
+      expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
+      expect(stubs.contactPatch.calls[0].body).toMatchObject({ consent_source: "attested" });
+    } else {
+      expect(stubs.contactInsert.calls).toHaveLength(0);
+    }
+  });
+});
+
 describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
   it("threads a typed alternate number under its owner and sends to that number", async () => {
     const stubs = composeStubs({ existingContact: { ...contactRow(), phone_e164: "+16135551001" } });
@@ -427,6 +471,7 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
     expect(stubs.contactInsert.calls[0].body).toEqual({
       company_id: COMPANY_ID,
       phone_e164: "+16135551000",
+      creation_origin: "app",
     });
 
     // consent_attested event attached to the new conversation.

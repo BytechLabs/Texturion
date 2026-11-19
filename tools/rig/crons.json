@@ -43,6 +43,7 @@
       "cron": "*/15 * * * *",
       "class": "run-expect-refusal",
       "jobs": [
+        "job:build-data-exports",
         "job:daily-summary",
         "job:notify-due-tasks",
         "job:notify-overdue-tasks",
@@ -247,7 +248,6 @@
         "job:prune-public-link-access",
         "job:purge-trash",
         "job:purge-closed-workspaces",
-        "job:build-data-exports",
         "job:prune-expired-exports",
         "job:prune-abandoned-identity",
         "job:prune-contact-messages",

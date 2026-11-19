@@ -1681,6 +1681,8 @@ export interface OptOut {
 export interface ImportResult {
   imported: number;
   updated: number;
+  kept?: number;
+  detail_warnings?: { row: number; reason: string }[];
   skipped: number;
   errors: { row: number; reason: string }[];
   /**
@@ -2891,6 +2893,7 @@ export interface AccountDeletionResult {
  */
 export interface DataExport {
   id: string;
+  kind?: "workspace" | "conversation_history" | "tasks" | "usage_summary";
   status: "pending" | "running" | "ready" | "failed";
   /** Rows written per table — the receipt that it is whole, not truncated. */
   row_counts: Record<string, number>;

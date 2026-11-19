@@ -1,14 +1,13 @@
 import Foundation
 
-/// What a caller may say about ONE vCard property.
-///
-/// TWO ANSWERS, not the CSV's eight. A vCard property is not a column of values
-/// to route into a field — it is present on a card or it is not — so the
-/// answers that mean anything are "this says nothing about who may be texted"
-/// and "a card carrying this must not be texted".
 enum VCardPropertyAction: Hashable, Sendable, CaseIterable {
     case ignore
     case optedOut
+    case importDetail
+
+    static func canImport(_ property: String) -> Bool {
+        ["EMAIL", "ORG", "ADR", "NOTE"].contains(property)
+    }
 
     /// Both tokens off shipped constants: the CSV door's `ignore`, and the
     /// contact field's own wire name. Retyping either here is how the two doors
@@ -17,6 +16,7 @@ enum VCardPropertyAction: Hashable, Sendable, CaseIterable {
         switch self {
         case .ignore: return ContactImport.ignoreAction
         case .optedOut: return ContactImportField.optedOut.rawValue
+        case .importDetail: return "import"
         }
     }
 
@@ -33,6 +33,8 @@ enum VCardPropertyAction: Hashable, Sendable, CaseIterable {
         // person choosing it can see which cards carry it.
         case .optedOut:
             return AppStrings.translate(locale, "contactsTasks.importVCardOptedOut")
+        case .importDetail:
+            return AppStrings.translate(locale, "contactsTasks.vcardImportDetail")
         }
     }
 
@@ -40,6 +42,7 @@ enum VCardPropertyAction: Hashable, Sendable, CaseIterable {
         switch self {
         case .ignore: return "minus.circle"
         case .optedOut: return ContactImportField.optedOut.icon
+        case .importDetail: return "arrow.down.doc"
         }
     }
 }

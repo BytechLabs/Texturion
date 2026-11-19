@@ -18,7 +18,7 @@ import {
 } from "./webhook-events";
 
 describe("the event vocabulary", () => {
-  it("names exactly the events #243 asked for", () => {
+  it("matches the published event names", () => {
     // Set equality in BOTH directions. A one-way containment check passes when
     // a name is added that nobody meant to promise, and every name here is a
     // permanent commitment to somebody else's code.
@@ -26,6 +26,9 @@ describe("the event vocabulary", () => {
       [
         "call.completed",
         "call.deleted",
+        "payment.paid",
+        "payment.refunded",
+        "quote.accepted",
         "contact.created",
         "contact.deleted",
         "conversation.deleted",

@@ -196,6 +196,9 @@ let webhookEventTypes = [
     "message.deleted",
     "conversation.deleted",
     "call.deleted",
+    "payment.paid",
+    "payment.refunded",
+    "quote.accepted",
 ]
 
 /// The catalogue key for an event's human sentence. Mirrors the shared rule.

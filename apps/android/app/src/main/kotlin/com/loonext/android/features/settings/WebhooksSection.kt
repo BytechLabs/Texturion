@@ -229,6 +229,9 @@ private val EVENT_TYPES = listOf(
     "message.deleted",
     "conversation.deleted",
     "call.deleted",
+    "payment.paid",
+    "payment.refunded",
+    "quote.accepted",
 )
 
 @Composable

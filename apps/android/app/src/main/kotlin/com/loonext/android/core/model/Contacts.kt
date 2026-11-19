@@ -211,6 +211,8 @@ data class ImportResult(
      * whenever nothing was refused, which is how the server sends it.
      */
     val consent_refused_note: String? = null,
+    val kept: Int = 0,
+    val detail_warnings: List<ImportRowError> = emptyList(),
 ) {
     @Serializable
     data class ImportRowError(val row: Int, val reason: String)

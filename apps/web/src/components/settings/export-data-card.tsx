@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api/error";
 import type { DataExport } from "@/lib/api/types";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatAbsoluteDateTime, formatTimestamp } from "@/lib/format/time";
+import { ExportDataFiles } from "./export-data-files";
 
 /**
  * #227 — taking a copy of your workspace.
@@ -27,7 +28,7 @@ export function ExportDataCard() {
   const exports = useDataExports();
   const request = useRequestDataExport();
 
-  const rows = exports.data?.data ?? [];
+  const rows = (exports.data?.data ?? []).filter((row) => !row.kind || row.kind === "workspace");
   const building = rows.find(
     (row) => row.status === "pending" || row.status === "running",
   );
@@ -137,6 +138,7 @@ function ReadyExport({ row }: { row: DataExport }) {
               </li>
             ))}
           </ul>
+          <ExportDataFiles exportId={row.id} />
           {row.expires_at && (
             <p className="text-xs text-muted-foreground">
               {t("settings.exportDataLinksExpire", {

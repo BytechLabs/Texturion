@@ -109,7 +109,7 @@ class ImportConsentGateTest {
         )
         assertTrue(
             "Continue must be disabled until the box is ticked",
-            tab.contains("Button(enabled = attested, onClick = onAttested)"),
+            tab.contains("Button(enabled = attested, onClick = { onAttested(replaceDetails) })"),
         )
     }
 
@@ -235,7 +235,7 @@ class ImportConsentGateTest {
         )
         assertTrue(
             "and the vCard's properties likewise",
-            picked.contains("VCardProperties.undeclared(bytes)"),
+            picked.contains("VCardProperties.review(bytes)"),
         )
         // Every upload straight from the picker must be an EMPTY declaration —
         // this app declaring something on a person's behalf is the one thing the
@@ -326,7 +326,7 @@ class ImportConsentGateTest {
         assertTrue(
             "and only when one is actually in the list — a file carrying just " +
                 "CATEGORIES needs no lesson about punctuation that is not on it",
-            sheet.contains("step.properties.any { it.contains(';') }"),
+            sheet.contains("step.properties.any { it.name.contains(';') }"),
         )
     }
 
@@ -385,7 +385,7 @@ class ImportConsentGateTest {
         )
         assertTrue(
             "and the vCard sheet's exactly one property",
-            tab.contains("answers = answers + (property to it)"),
+            tab.contains("answers = answers + (property.name to it)"),
         )
         // No bulk dismissal on this surface. The shared design allows one only
         // when every column and its values are on screen as it is pressed, and a

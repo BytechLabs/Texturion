@@ -29,7 +29,7 @@ export const developersEn = {
   routeConversations: "The conversation list.",
   routeMessagesGet: "One conversation's messages.",
   routeMessagesPost:
-    "Send a text into an existing conversation. Requires an Idempotency-Key header.",
+    "Send a text using conversation_id or to. Sending by number requires consent_attested: true. Both require an Idempotency-Key header.",
   routeTasksGet: "The job list. Use contact_id to see work linked to a customer.",
   routeTasksPost: "Turn a message into a job.",
   routeWebhooksPost:
@@ -44,6 +44,8 @@ export const developersEn = {
     "and carries the delivery id so a retry is recognisably the same event. A failing address is retried",
   webhooksAfterRetries:
     "times with growing gaps, and one that keeps refusing is switched off so it stops costing you deliveries you are not receiving.",
+  webhookCreationOrigins:
+    "Creation events include origin. Contact imports group up to 200 contacts in data.contacts.",
   promisesTitleBefore: "What",
   promisesTitleAfter: "promises.",
   promisesLead:
@@ -114,7 +116,7 @@ export const developersFr: Translated<typeof developersEn> = {
   routeConversations: "La liste des fils de discussion.",
   routeMessagesGet: "Les messages d'un fil de discussion.",
   routeMessagesPost:
-    "Envoie un texto dans un fil existant. L'en-tête Idempotency-Key est obligatoire.",
+    "Envoie un texto avec conversation_id ou to. L'envoi par numéro exige consent_attested à true. L'en-tête Idempotency-Key est obligatoire dans les deux cas.",
   routeTasksGet: "La liste des travaux. Utilisez contact_id pour voir ceux qui sont liés à un client.",
   routeTasksPost: "Transforme un message en travail.",
   routeWebhooksPost:
@@ -129,6 +131,8 @@ export const developersFr: Translated<typeof developersEn> = {
     "et comprend l'identifiant de livraison pour qu'une nouvelle tentative soit reconnaissable comme le même événement. Une adresse en échec est réessayée",
   webhooksAfterRetries:
     "fois, avec des délais croissants. Une adresse qui refuse toujours est désactivée afin qu'elle ne vous coûte plus des livraisons que vous ne recevez pas.",
+  webhookCreationOrigins:
+    "Les événements de création incluent origin. Les importations regroupent jusqu'à 200 contacts dans data.contacts.",
   promisesTitleBefore: "Ce que",
   promisesTitleAfter: "promet.",
   promisesLead:

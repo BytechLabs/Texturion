@@ -1263,12 +1263,11 @@ describe("#725 calls by reason", () => {
 
   it("counts each reason once per call over the last 30 days", async () => {
     const sb = callsStub([], { role: "owner" });
-    sb.on("GET", "/rest/v1/calls", () => [
-      { routing: "after_hours", ended_reason: "left_voicemail" },
-      { routing: "after_hours", ended_reason: "caller_hung_up" },
-      { routing: "nobody_reachable", ended_reason: "nobody_reachable" },
-      { routing: "rang", ended_reason: "no_answer_in_time" },
-    ]);
+    sb.on("POST", "/rest/v1/rpc/api_call_effect_counts", () => ({
+      after_hours: 1_200,
+      left_voicemail: 500,
+      nobody_reachable: 1,
+    }));
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/effects", {
       companyId: COMPANY_ID,
@@ -1277,14 +1276,13 @@ describe("#725 calls by reason", () => {
     expect(await res.json()).toEqual({
       days: 30,
       counts: {
-        after_hours: 2,
-        left_voicemail: 1,
-        caller_hung_up: 1,
+        after_hours: 1_200,
+        left_voicemail: 500,
         nobody_reachable: 1,
-        rang: 1,
-        no_answer_in_time: 1,
       },
     });
+    expect(sb.find("POST", "/rest/v1/rpc/api_call_effect_counts")[0].body)
+      .toMatchObject({ p_company: COMPANY_ID, p_since: expect.any(String) });
   });
 
   it("is a settings read, so a member is refused", async () => {

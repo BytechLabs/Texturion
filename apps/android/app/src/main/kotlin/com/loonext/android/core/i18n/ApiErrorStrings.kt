@@ -62,6 +62,18 @@ object ApiErrorStrings : AppStrings.Section {
             "This number is already in service on Loonext and can't be text-enabled.",
         "apiRefusals.textEnablementWrongCode" to
             "That code didn't match. Request a new code and try again.",
+        "apiRefusals.contactImportInvalidCustomFields" to
+            "Custom fields must be a JSON object of text values.",
+        "apiRefusals.contactImportTooManyOtherNumbers" to
+            "Row {row} exceeds {limit} other phone numbers.",
+        "apiRefusals.exportFileNotFound" to
+            "No such export file.",
+        "apiRefusals.exportFileSizeUnavailable" to
+            "This file's size could not be read. Try again later.",
+        "apiRefusals.noActiveSendingNumber" to
+            "There is no active number available to send from.",
+        "apiRefusals.workspaceExportNotReady" to
+            "No ready workspace export with that ID.",
         "apiErrors.unauthorized" to "You're signed out. Sign in again to carry on.",
         "apiErrors.forbidden" to "You don't have access to that.",
         "apiErrors.subscription_inactive" to "Your subscription isn't active.",
@@ -151,6 +163,18 @@ object ApiErrorStrings : AppStrings.Section {
             "Ce numéro est déjà en service sur Loonext. Vous ne pouvez pas y activer les textos de cette façon.",
         "apiRefusals.textEnablementWrongCode" to
             "Ce code ne correspond pas. Demandez un nouveau code, puis réessayez.",
+        "apiRefusals.contactImportInvalidCustomFields" to
+            "Les champs personnalisés doivent être dans un objet JSON contenant des valeurs textuelles.",
+        "apiRefusals.contactImportTooManyOtherNumbers" to
+            "La ligne {row} contient plus de {limit} autres numéros de téléphone.",
+        "apiRefusals.exportFileNotFound" to
+            "Ce fichier d’exportation est introuvable.",
+        "apiRefusals.exportFileSizeUnavailable" to
+            "Impossible de lire la taille de ce fichier. Réessayez plus tard.",
+        "apiRefusals.noActiveSendingNumber" to
+            "Il n’y a aucun numéro actif pour envoyer ce texto.",
+        "apiRefusals.workspaceExportNotReady" to
+            "Aucune exportation prête ne correspond à cet identifiant.",
         "apiErrors.unauthorized" to "Vous êtes déconnecté. Reconnectez-vous pour continuer.",
         "apiErrors.forbidden" to "Vous n'avez pas accès à cela.",
         "apiErrors.subscription_inactive" to "Votre abonnement n'est pas actif.",

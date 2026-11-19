@@ -22,6 +22,12 @@ export const apiRefusalsEn = {
   textEnablementAlreadyPending: "This number already has a text-enablement in progress.",
   textEnablementNumberInUse: "This number is already in service on Loonext and can't be text-enabled.",
   textEnablementWrongCode: "That code didn't match. Request a new code and try again.",
+  contactImportInvalidCustomFields: "Custom fields must be a JSON object of text values.",
+  contactImportTooManyOtherNumbers: "Row {row} exceeds {limit} other phone numbers.",
+  exportFileNotFound: "No such export file.",
+  exportFileSizeUnavailable: "This file's size could not be read. Try again later.",
+  noActiveSendingNumber: "There is no active number available to send from.",
+  workspaceExportNotReady: "No ready workspace export with that ID.",
 } as const;
 
 export const apiRefusalsFr: Translated<typeof apiRefusalsEn> = {
@@ -46,4 +52,10 @@ export const apiRefusalsFr: Translated<typeof apiRefusalsEn> = {
   textEnablementAlreadyPending: "L’activation des textos est déjà en cours pour ce numéro.",
   textEnablementNumberInUse: "Ce numéro est déjà en service sur Loonext. Vous ne pouvez pas y activer les textos de cette façon.",
   textEnablementWrongCode: "Ce code ne correspond pas. Demandez un nouveau code, puis réessayez.",
+  contactImportInvalidCustomFields: "Les champs personnalisés doivent être dans un objet JSON contenant des valeurs textuelles.",
+  contactImportTooManyOtherNumbers: "La ligne {row} contient plus de {limit} autres numéros de téléphone.",
+  exportFileNotFound: "Ce fichier d’exportation est introuvable.",
+  exportFileSizeUnavailable: "Impossible de lire la taille de ce fichier. Réessayez plus tard.",
+  noActiveSendingNumber: "Il n’y a aucun numéro actif pour envoyer ce texto.",
+  workspaceExportNotReady: "Aucune exportation prête ne correspond à cet identifiant.",
 };

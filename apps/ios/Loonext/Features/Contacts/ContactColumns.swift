@@ -11,6 +11,11 @@ enum ContactImportField: String, CaseIterable, Sendable {
     case lastName = "last_name"
     case address
     case notes
+    case otherPhone = "other_phone"
+    case email
+    case businessName = "business_name"
+    case tags
+    case customFields = "custom_fields"
     case optedOut = "opted_out"
 
     /// What a person picking this off a menu reads.
@@ -34,6 +39,11 @@ enum ContactImportField: String, CaseIterable, Sendable {
             return AppStrings.translate(locale, "contactsTasks.importActionLastName")
         case .address: return AppStrings.translate(locale, "contactsTasks.address")
         case .notes: return AppStrings.translate(locale, "contactsTasks.notesField")
+        case .otherPhone: return AppStrings.translate(locale, "contactsTasks.importActionOtherPhone")
+        case .email: return AppStrings.translate(locale, "contactsTasks.importActionEmail")
+        case .businessName: return AppStrings.translate(locale, "contactsTasks.importActionBusinessName")
+        case .tags: return AppStrings.translate(locale, "contactsTasks.importActionTags")
+        case .customFields: return AppStrings.translate(locale, "contactsTasks.importActionCustomFields")
         case .optedOut:
             return AppStrings.translate(locale, "contactsTasks.importActionOptedOut")
         }
@@ -45,6 +55,11 @@ enum ContactImportField: String, CaseIterable, Sendable {
         case .name, .firstName, .lastName: return "person"
         case .address: return "mappin.and.ellipse"
         case .notes: return "text.alignleft"
+        case .otherPhone: return "phone"
+        case .email: return "envelope"
+        case .businessName: return "building.2"
+        case .tags: return "tag"
+        case .customFields: return "list.bullet.rectangle"
         case .optedOut: return "hand.raised"
         }
     }
@@ -405,6 +420,11 @@ enum ContactColumns {
         // the label comes FIRST. Patterns are tried in order and each scans the
         // columns left to right, so the loose one claimed the labels: every row's
         // number read "Mobile" and every row was unusable.
+        (.otherPhone, ["^otherphones?$", "^alternatephones?$", "^secondaryphone$"]),
+        (.email, ["^email$", "^emailaddress$", "^email[0-9]*value$"]),
+        (.businessName, ["^businessname$", "^companyname$", "^company$", "^organization$"]),
+        (.tags, ["^tags?$", "^labels?$", "^categories$"]),
+        (.customFields, ["^customfields$"]),
         (
             .phone,
             [
