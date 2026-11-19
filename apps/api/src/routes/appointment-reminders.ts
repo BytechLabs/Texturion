@@ -18,10 +18,11 @@
  * network call for the owner and a compliance exposure for us.
  */
 import {
-  DEFAULT_REMINDER_RULES,
+  copyFor,
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
   REMINDER_RULES_CAP,
+  resolveLocale,
   SCHEDULED_BODY_MAX,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -32,7 +33,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
-import { expectOk, parseJsonBody, unwrap } from "./core/http";
+import { expectOk, parseJsonBody, unwrap, unwrapOptional } from "./core/http";
 
 export const appointmentReminderRoutes = new Hono<AppEnv>();
 
@@ -75,11 +76,15 @@ appointmentReminderRoutes.get(
         .order("offset_minutes", { ascending: false }),
       "appointment reminder rules",
     );
+    const company = unwrapOptional<{ locale: string | null }>(
+      await db.from("companies").select("locale").eq("id", companyId).maybeSingle(),
+      "appointment reminder locale",
+    );
 
     return c.json({
       rules,
       // Offered, never applied. See the header.
-      suggested: DEFAULT_REMINDER_RULES,
+      suggested: copyFor(resolveLocale(null, company?.locale)).appointmentReminders,
       cap: REMINDER_RULES_CAP,
     });
   },

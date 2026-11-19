@@ -3,6 +3,7 @@
  * inserted, and the saved set returned.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { copyFor } from "@loonext/shared";
 
 import {
   apiRequest,
@@ -26,6 +27,21 @@ beforeAll(async () => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("suggests reminder text in the workspace's language", async () => {
+  const sb = supabaseStub(env);
+  sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(OWNER_ID, "owner"));
+  sb.on("GET", "/rest/v1/appointment_reminder_rules", () => []);
+  sb.on("GET", "/rest/v1/companies", () => [{ locale: "fr-CA" }]);
+  stubFetch(jwksRoute(auth), sb.route);
+
+  const res = await apiRequest(app, env, await auth.token(), "/v1/appointment-reminders", {
+    companyId: COMPANY_ID,
+  });
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ suggested: copyFor("fr-CA").appointmentReminders });
+});
 
 async function save(rules: { offset_minutes: number; body: string }[]) {
   const sb = supabaseStub(env);

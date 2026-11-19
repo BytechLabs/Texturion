@@ -29,6 +29,7 @@ import {
   estimateSegments,
   formatNanpNumber,
   isTollFreeDestination,
+  resolveLocale,
   shouldIdentify,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -129,6 +130,7 @@ interface ContactRow {
   address: string | null;
   /** #274: the contact's zone, so {job_day}/{job_time} read in THEIR day. */
   timezone: string | null;
+  locale: string | null;
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -156,7 +158,7 @@ async function resolveComposeContact(
   // literal, not a concatenation — PostgREST infers the row shape from the
   // literal type, and joining two pieces widens it to `string` and loses it.
   const columns =
-    "id,name,consent_source,first_identification_sent_at,address,timezone";
+    "id,name,consent_source,first_identification_sent_at,address,timezone,locale";
 
   const contactId = args.contactId ?? (await contactNumberOwner(db, args.companyId, args.destination))?.id;
   if (contactId) {
@@ -415,6 +417,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     {
       id: string;
       name: string;
+      locale: string | null;
       first_message_identification: boolean;
       quiet_hours_confirm_enabled?: boolean;
     }[]
@@ -422,7 +425,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     await db
       .from("companies")
       .select(
-        "id,name,first_message_identification,quiet_hours_confirm_enabled",
+        "id,name,locale,first_message_identification,quiet_hours_confirm_enabled",
       )
       .eq("id", companyId)
       .limit(1),
@@ -540,6 +543,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     conversationId: conversation.id as string,
     userId: c.get("userId"),
     timeZone: contact.timezone ?? null,
+    locale: resolveLocale(contact.locale, company.locale),
   });
   const merged = applySendMergeFields(body.body, {
     contactName: contact.name,

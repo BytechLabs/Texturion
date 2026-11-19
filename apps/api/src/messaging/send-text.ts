@@ -1,4 +1,4 @@
-import { estimateSegments, formatNanpNumber } from "@loonext/shared";
+import { estimateSegments, formatNanpNumber, resolveLocale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { assertNumberLevel } from "../auth/number-access";
@@ -56,9 +56,10 @@ export interface ConversationSendView {
     name: string | null;
     address: string | null;
     timezone: string | null;
+    locale: string | null;
   };
   phone_numbers: { id: string; number_e164: string | null; status: string };
-  companies: { id: string; name: string };
+  companies: { id: string; name: string; locale: string | null };
 }
 
 /** Conversation + contact + number + company, company-scoped (§10). */
@@ -74,9 +75,9 @@ export async function loadSendView(
         "id,contact_id,phone_number_id,contact_phone_e164," +
           // #274: address + timezone on a query already running, so
           // {address} and the visit day/time cost nothing extra.
-          "contacts(id,name,address,timezone)," +
+          "contacts(id,name,address,timezone,locale)," +
           "phone_numbers(id,number_e164,status)," +
-          "companies(id,name)",
+          "companies(id,name,locale)",
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)
@@ -179,6 +180,7 @@ export async function prepareSend(
     conversationId: view.id,
     userId: input.userId,
     timeZone: view.contacts.timezone ?? null,
+    locale: resolveLocale(view.contacts.locale, view.companies.locale),
   });
   const text = applySendMergeFields(input.body, {
     contactName: view.contacts.name,
