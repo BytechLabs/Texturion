@@ -502,6 +502,7 @@
     "api_expire_scheduled_messages": [[{"name":"p_now","hasDefault":false},{"name":"p_limit","hasDefault":true}]],
     "api_fail_scheduled_message": [[{"name":"p_id","hasDefault":false},{"name":"p_reason","hasDefault":false},{"name":"p_reason_key","hasDefault":false}]],
     "api_find_or_create_tag": [[{"name":"p_company_id","hasDefault":false},{"name":"p_name","hasDefault":false},{"name":"p_may_create","hasDefault":true}]],
+    "api_find_thread_messages": [[{"name":"p_company","hasDefault":false},{"name":"p_thread","hasDefault":false},{"name":"p_query","hasDefault":false}]],
     "api_finish_customer_erasure": [[{"name":"p_company","hasDefault":false},{"name":"p_contact","hasDefault":false}]],
     "api_fire_scheduled_message": [[{"name":"p_id","hasDefault":false},{"name":"p_segments_estimate","hasDefault":false}]],
     "api_for_you": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_now","hasDefault":false},{"name":"p_limit","hasDefault":true},{"name":"p_hidden_number_ids","hasDefault":true}]],
