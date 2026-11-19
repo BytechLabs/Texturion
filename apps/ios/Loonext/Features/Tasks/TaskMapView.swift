@@ -124,12 +124,19 @@ func taskDay(_ key: String, calendar: Calendar = Calendar(identifier: .gregorian
 
 private func orderedMapRows(_ rows: [TaskItem], day: Date?) -> [TaskItem] {
     let requestedDay = day.map { taskDateKey($0) }
-    return rows.filter { !$0.done }.map { task in
+    let stops: [(task: TaskItem, day: String, instant: Date)] = rows.compactMap { task in
+        guard !task.done else { return nil }
         let instant = parseWireTimestamp(task.due_at)
-        return (task, task.due_on ?? instant.map { taskDateKey($0) }, instant)
-    }.filter { requestedDay == nil || $0.1 == requestedDay }.sorted { a, b in
-        (a.1 ?? "9999", a.2 ?? .distantFuture, a.0.id) < (b.1 ?? "9999", b.2 ?? .distantFuture, b.0.id)
-    }.map { $0.0 }
+        let jobDay = task.due_on ?? instant.map { taskDateKey($0) }
+        guard requestedDay == nil || jobDay == requestedDay else { return nil }
+        return (task, jobDay ?? "9999", instant ?? .distantFuture)
+    }
+    let sorted = stops.sorted { left, right in
+        let leftKey = (left.day, left.instant, left.task.id)
+        let rightKey = (right.day, right.instant, right.task.id)
+        return leftKey < rightKey
+    }
+    return sorted.map { $0.task }
 }
 
 // MARK: - Map view
