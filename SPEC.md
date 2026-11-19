@@ -1089,6 +1089,8 @@ POST /v1/messages/send
    (+error_code) — status badges push live via message.status broadcasts
 ```
 
+An hourly job checks up to 40 outbound texts with a carrier ID and no final receipt after an hour. It reads at most ten days of history, the limit on Telnyx's message lookup. The job records completed receipts in the webhook ledger so they use the same delivery, opt-out, and billing handlers as live callbacks. It runs in production only. [Telnyx message lookup](https://developers.telnyx.com/api-reference/messages/retrieve-a-message)
+
 `POST /v1/scheduled-messages` accepts an optional `Idempotency-Key` up to 255 characters. A retry with the same workspace, member, key, conversation, text and send time returns the existing scheduled message with `200`, even if it was edited or canceled. Reusing the key for different content, time or conversation returns `409`. A new schedule still requires confirmation when the requested time falls in quiet hours.
 
 The scheduled strip lets members with text access expand the message, edit its wording or pick a new time. Rescheduling a held text releases its old claim and counts only later customer replies toward the reply hold. The member who canceled a text can undo that cancellation for five minutes while the original schedule is still valid and queue capacity is available.

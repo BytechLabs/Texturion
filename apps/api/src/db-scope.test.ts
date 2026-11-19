@@ -224,6 +224,10 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "Finds a bounded batch of pending alerts across workspaces. Every delivery uses the row's company ID for its audience and claim.",
   },
+  "messaging/receipt-reconcile.ts::messages": {
+    count: 1,
+    why: "Finds a bounded batch across workspaces. The claim uses each row's company ID.",
+  },
   // #294: not a table read at all. `db.storage.from("attachments")` is the
   // BUCKET api, and the scanner cannot tell the two `.from()` calls apart. The
   // path it signs came out of a row two statements earlier that WAS scoped by

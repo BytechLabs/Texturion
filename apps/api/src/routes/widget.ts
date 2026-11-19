@@ -353,7 +353,7 @@ widgetRoutes.post("/widget/start", async (c) => {
       `${code} is your code to text this business from their website. ` +
       `It expires in 10 minutes.`,
     clearance,
-    idempotencyKey: `widget-code:${claimed.id}`,
+    idempotencyKey: `widget-code-${claimed.id}`,
   });
   if (!sent.ok) {
     // The row stays. It has already spent its place in the budget, which is the
