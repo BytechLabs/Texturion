@@ -15,7 +15,9 @@ export function optionalIdempotencyKey(c: Context): string | null {
   if (header === undefined) return null;
   const key = header.trim();
   if (!key || key.length > 255) {
-    throw new ApiError("validation_failed", "Idempotency-Key must contain 1 to 255 characters.");
+    throw new ApiError("validation_failed", "Idempotency-Key must contain 1 to 255 characters.", {
+      key: "apiRefusals.idempotencyKeyLength",
+    });
   }
   return key;
 }

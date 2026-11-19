@@ -39,6 +39,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.contactUnmergeMainNumberInUse" to
             "Choose a different main number before undoing this merge.",
         "apiRefusals.conversationNotFound" to "No such conversation.",
+        "apiRefusals.idempotencyKeyLength" to "Idempotency-Key must contain 1 to 255 characters.",
         "apiRefusals.inviteAlreadyPending" to
             "A pending invite for this email already exists.",
         "apiRefusals.numberCountryMismatch" to
@@ -52,6 +53,8 @@ object ApiErrorStrings : AppStrings.Section {
             "This workspace has not set up payments yet.",
         "apiRefusals.portAlreadyPending" to
             "A transfer for this number is already in progress.",
+        "apiRefusals.scheduledTextKeyUsed" to
+            "Idempotency-Key was already used for a different scheduled text.",
         "apiRefusals.taskCreateKeyUsed" to "Idempotency-Key was already used for a task.",
         "apiRefusals.textEnablementAlreadyPending" to
             "This number already has a text-enablement in progress.",
@@ -125,6 +128,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.contactUnmergeMainNumberInUse" to
             "Choisissez un autre numéro principal avant d’annuler la fusion.",
         "apiRefusals.conversationNotFound" to "Cette conversation est introuvable.",
+        "apiRefusals.idempotencyKeyLength" to "L’en-tête Idempotency-Key doit contenir de 1 à 255 caractères.",
         "apiRefusals.inviteAlreadyPending" to
             "Une invitation à cette adresse courriel est déjà en attente.",
         "apiRefusals.numberCountryMismatch" to
@@ -138,6 +142,8 @@ object ApiErrorStrings : AppStrings.Section {
             "Les paiements ne sont pas encore configurés dans cet espace de travail.",
         "apiRefusals.portAlreadyPending" to
             "Un transfert est déjà en cours pour ce numéro.",
+        "apiRefusals.scheduledTextKeyUsed" to
+            "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
         "apiRefusals.taskCreateKeyUsed" to "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",
         "apiRefusals.textEnablementAlreadyPending" to
             "L’activation des textos est déjà en cours pour ce numéro.",

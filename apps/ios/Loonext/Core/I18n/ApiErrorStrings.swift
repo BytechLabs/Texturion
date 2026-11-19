@@ -40,6 +40,7 @@ enum ApiErrorStrings {
             "apiRefusals.contactUnmergeMainNumberInUse":
                 "Choose a different main number before undoing this merge.",
             "apiRefusals.conversationNotFound": "No such conversation.",
+            "apiRefusals.idempotencyKeyLength": "Idempotency-Key must contain 1 to 255 characters.",
             "apiRefusals.inviteAlreadyPending":
                 "A pending invite for this email already exists.",
             "apiRefusals.numberCountryMismatch":
@@ -53,6 +54,8 @@ enum ApiErrorStrings {
                 "This workspace has not set up payments yet.",
             "apiRefusals.portAlreadyPending":
                 "A transfer for this number is already in progress.",
+            "apiRefusals.scheduledTextKeyUsed":
+                "Idempotency-Key was already used for a different scheduled text.",
             "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
             "apiRefusals.textEnablementAlreadyPending":
                 "This number already has a text-enablement in progress.",
@@ -127,6 +130,7 @@ enum ApiErrorStrings {
             "apiRefusals.contactUnmergeMainNumberInUse":
                 "Choisissez un autre numéro principal avant d’annuler la fusion.",
             "apiRefusals.conversationNotFound": "Cette conversation est introuvable.",
+            "apiRefusals.idempotencyKeyLength": "L’en-tête Idempotency-Key doit contenir de 1 à 255 caractères.",
             "apiRefusals.inviteAlreadyPending":
                 "Une invitation à cette adresse courriel est déjà en attente.",
             "apiRefusals.numberCountryMismatch":
@@ -140,6 +144,8 @@ enum ApiErrorStrings {
                 "Les paiements ne sont pas encore configurés dans cet espace de travail.",
             "apiRefusals.portAlreadyPending":
                 "Un transfert est déjà en cours pour ce numéro.",
+            "apiRefusals.scheduledTextKeyUsed":
+                "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
             "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",
             "apiRefusals.textEnablementAlreadyPending":
                 "L’activation des textos est déjà en cours pour ce numéro.",

@@ -181,7 +181,9 @@ scheduledMessageRoutes.post(
         throw quietConfirmationError();
       }
       case "key_conflict": {
-        throw new ApiError("conflict", "Idempotency-Key was already used for a different scheduled text.");
+        throw new ApiError("conflict", "Idempotency-Key was already used for a different scheduled text.", {
+          key: "apiRefusals.scheduledTextKeyUsed",
+        });
       }
       case "not_found": {
         throw new ApiError("not_found", "That conversation is not here.");
