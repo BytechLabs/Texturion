@@ -644,6 +644,8 @@ func paymentEventLine(
  */
 func mediaRefusedLine(_ event: ConversationEvent, locale: String? = nil) -> String {
     switch event.payload["reason"]?.stringValue {
+    case "download_failed":
+        return AppStrings.translate(locale, "thread.sysMediaDownloadFailed")
     case "too_large":
         return AppStrings.translate(locale, "thread.sysMediaTooLarge")
     case "empty":

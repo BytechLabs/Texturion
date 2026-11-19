@@ -71,6 +71,8 @@ const COPY: Record<string, string> = {
  * deliberately does not send them back to try the same file again.
  */
 const SENTENCES: readonly string[] = [
+  "An attachment could not be downloaded. Ask the sender to resend it.",
+  "Impossible de télécharger une pièce jointe. Demandez à la personne de la renvoyer.",
   "A file this customer sent was too big to save — ask them to send a smaller one",
   "A file this customer sent arrived empty — ask them to send it again",
   "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved",

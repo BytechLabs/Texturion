@@ -598,6 +598,7 @@ val PAYMENT_EVENT_TYPES = setOf(
  */
 private fun mediaRefusedLine(event: ConversationEvent, locale: String?): String =
     when (event.payloadString("reason")) {
+        "download_failed" -> AppStrings.translate(locale, "thread.sysMediaDownloadFailed")
         "too_large" -> AppStrings.translate(locale, "thread.sysMediaTooLarge")
 
         "empty" -> AppStrings.translate(locale, "thread.sysMediaEmpty")
