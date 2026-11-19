@@ -315,7 +315,7 @@ function NewTaskForm({
           onClick={() => setMoreOpen((open) => !open)}
           aria-expanded={moreOpen}
           aria-controls="new-task-more"
-          className="flex items-center gap-1.5 self-start rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-11 items-center gap-1.5 self-start rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-0"
         >
           {t("tasks.newTaskMore")}
           <ChevronDown

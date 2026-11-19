@@ -1408,6 +1408,7 @@ jobs:
       - name: Build web against the local stack
         run: pnpm --filter @loonext/web build
         env:
+          LOONEXT_AUDIT_WEBRTC: "1"
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           # The Supabase CLI's published default local publishable key. Public
           # by design and identical on every machine running the local stack.

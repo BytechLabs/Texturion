@@ -19,6 +19,11 @@ const APP_VERSION: string = (
   ) as { version: string }
 ).version;
 
+const auditWebrtc = process.env.LOONEXT_AUDIT_WEBRTC === "1";
+if (auditWebrtc && !/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\/?$/.test(process.env.NEXT_PUBLIC_API_URL ?? "")) {
+  throw new Error("The softphone audit fixture needs a local Worker URL");
+}
+
 /**
  * #559 — public links whose HTML must never sit in a shared cache.
  *
@@ -111,6 +116,9 @@ const nextConfig: NextConfig = {
    * other's.
    */
   turbopack: {
+    ...(auditWebrtc ? {
+      resolveAlias: { "@telnyx/webrtc": "./test-support/audit-webrtc.ts" },
+    } : {}),
     rules: {
       "*.md": { loaders: ["./loaders/markdown-source-loader.mjs"], as: "*.js" },
     },

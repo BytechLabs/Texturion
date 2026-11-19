@@ -101,7 +101,6 @@ export function ReferralShare({
         value={note}
         onChange={(event) => setNote(event.target.value)}
         rows={3}
-        className="text-sm"
       />
       <p className="text-xs text-muted-foreground">
         {say(REFERRAL_SHARE_LINK_NOTE)}{" "}

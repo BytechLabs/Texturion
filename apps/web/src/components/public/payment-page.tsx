@@ -70,10 +70,11 @@ export function PaymentPage({
   locale?: string;
   notAvailable?: boolean;
 }) {
-  const t = makeTranslate(isLocale(locale) ? locale : DEFAULT_LOCALE);
+  const language = isLocale(locale) ? locale : DEFAULT_LOCALE;
+  const t = makeTranslate(language);
   if (notAvailable || !state || !amount) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("payments.linkUnavailableTitle")}
         </h1>
@@ -86,7 +87,7 @@ export function PaymentPage({
 
   if (state !== "requested" || !payUrl) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
           {settledHeading(state, t)}
         </h1>
@@ -98,7 +99,7 @@ export function PaymentPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+    <main lang={language} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
       {/* WHO is asking, first and largest of the three facts — a payment
           request from an unnamed sender is a phishing text. */}
       <p className="text-[15px] text-muted-foreground">

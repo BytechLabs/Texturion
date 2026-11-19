@@ -20,9 +20,8 @@
  * The issue asks for exactly this, and the reason is not effort. Two harnesses
  * would drift: they would log in differently, open the portals differently, and
  * eventually audit different pages while both reporting green. So the surface
- * list, the login, and the portal-opening moves are IMPORTED from
- * `theme-audit.mjs` — the same pages, in the same states, judged on a second
- * axis.
+ * list, account contexts, and portal-opening moves come from
+ * `audit-surfaces.mjs`.
  *
  * ## Why axe rather than hand-written assertions
  *
@@ -40,8 +39,7 @@
  *
  *   1. The 16px field rule, at mobile widths only (it is an iOS zoom defence).
  *   2. Reduced motion.
- *   3. 1.4.10 Reflow, at 320px: the page must not scroll sideways. Public
- *      surfaces only until the authenticated shell has been measured there.
+ *   3. 1.4.10 Reflow, at 320px: the page must not scroll sideways.
  *
  * FOCUS IS NOT HERE. `scripts/theme-audit.mjs` already walks it for 2.4.7,
  * 1.4.11 and 2.4.11, with a shared classifier and unit tests. I built a second
@@ -65,6 +63,13 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 
 import {
+  auditCoverage,
+  createAuditContexts,
+  navigateToAuditSurface,
+  openAuditSurface,
+  selectAuditSurfaces,
+} from "./audit-surfaces.mjs";
+import {
   MAX_REDUCED_TRANSITION_MS,
   reducedMotionTransitionProblem,
 } from "./reduced-motion-duration.mjs";
@@ -75,13 +80,7 @@ const PASSWORD = process.env.AUDIT_PASSWORD ?? "loonext-dev-1234";
 const publicOnly = process.argv.includes("--public");
 const authedOnly = process.argv.includes("--authed");
 
-/**
- * The surfaces, kept in step with the theme audit by construction.
- *
- * Imported rather than copied — a copy is how the two audits end up looking at
- * different pages while both report green.
- */
-const { SURFACES, navigateToAuditSurface } = await import("./audit-surfaces.mjs");
+auditCoverage();
 
 function axePath() {
   const direct = "node_modules/axe-core/axe.min.js";
@@ -97,48 +96,19 @@ function axePath() {
   throw new Error("axe-core is not installed — run `pnpm install`.");
 }
 
-async function login(context) {
+async function login(context, email = EMAIL) {
   const page = await context.newPage();
   await page.goto(`${base}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[type="email"]', EMAIL);
+  await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', PASSWORD);
   await page.$eval("form", (f) => f.requestSubmit());
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
   await page.close();
 }
 
-/**
- * Open whatever this surface wants open before it is judged.
- *
- * Returns a reason when it could not, rather than throwing. The account menu
- * lives in the desktop rail, which does not exist at 375px — the theme audit
- * runs at one width and never met this. A timeout there is not a finding about
- * the product, it is the harness asking a phone for a control phones do not
- * have.
- *
- * It is REPORTED rather than passed over. A surface that quietly audited its
- * closed state while claiming to have audited the portal is the shape of a
- * guard that reads as coverage and is not.
- */
-async function openExtras(page, surface, size) {
-  for (const move of surface.open ?? []) {
-    if (move === "__cmdk__") {
-      await page.keyboard.press("ControlOrMeta+k");
-      await page.waitForTimeout(500);
-      continue;
-    }
-    const target = page.locator(move).first();
-    if (!(await target.isVisible().catch(() => false))) {
-      return `${move} is not on screen at ${size.label} — audited closed`;
-    }
-    await target.click();
-    await page.waitForTimeout(500);
-  }
-  return null;
-}
-
 const problems = [];
 const notes = [];
+let audited = 0;
 
 /**
  * Both widths, because §7 is a MOBILE-FIRST spec and the two render differently.
@@ -161,14 +131,14 @@ const WIDTHS = [
 ];
 
 const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: WIDTHS[0] });
+const wanted = selectAuditSurfaces({ publicOnly, authedOnly });
+const capture = await createAuditContexts(browser, wanted, { viewport: WIDTHS[0] }, { login });
+const cases = wanted.flatMap((surface) =>
+  (surface.desktopOnly ? [WIDTHS[0]] : WIDTHS).map((size) => ({ surface, size })),
+);
 try {
-  const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
-  if (wanted.some((s) => s.auth)) await login(context);
-
-  for (const surface of wanted) {
-   for (const size of WIDTHS) {
-    const page = await context.newPage();
+  for (const { surface, size } of cases) {
+    const page = await capture.forSurface(surface).newPage();
     await page.setViewportSize({ width: size.width, height: size.height });
     const where = `${surface.label} @${size.label}`;
     try {
@@ -221,8 +191,13 @@ try {
         continue;
       }
 
-      const couldNotOpen = await openExtras(page, surface, size);
-      if (couldNotOpen) notes.push(`${where}: ${couldNotOpen}`);
+      await openAuditSurface(page, surface);
+      await page.evaluate(async () => {
+        const animations = document.getAnimations().filter((animation) =>
+          animation.playState === "running" && Number.isFinite(animation.effect?.getComputedTiming().endTime),
+        );
+        await Promise.allSettled(animations.map((animation) => animation.finished));
+      });
       await page.addScriptTag({ path: axePath() });
 
       const result = await page.evaluate(async () => {
@@ -315,7 +290,7 @@ try {
       //
       // The measured widths are printed so a pass shows what it measured: a
       // check that reports only "ok" cannot be told from one that read zero.
-      if (size.reflow && !surface.auth) {
+      if (size.reflow) {
         const reflow = await page.evaluate(() => {
           const root = document.documentElement;
           const client = root.clientWidth;
@@ -356,17 +331,20 @@ try {
       // Two implementations of one criterion is also the exact drift #238
       // asked to avoid when it said this work should share #320's capture
       // rather than be built twice.
+      audited += 1;
+    } catch (error) {
+      problems.push(`${where}: ${String(error?.message ?? error)}`);
     } finally {
       await page.close();
     }
-   }
   }
 } finally {
-  await context.close();
+  await capture.close();
   await browser.close();
 }
 
 for (const note of notes) console.log(`  note: ${note}`);
+console.log(`check-app-a11y: checked ${audited} surface/width combinations`);
 
 if (problems.length > 0) {
   console.error("\nAPP-LAYOUT-V2 §7 accessibility (#238):\n");
@@ -376,6 +354,6 @@ if (problems.length > 0) {
 
 console.log(
   `\ncheck-app-a11y: no serious or critical violations across the audited ` +
-    `surfaces; every visible text field is at least 16px, no public page scrolls sideways at 320px, and the rendered ` +
+    `surfaces; every visible text field is at least 16px, no page scrolls sideways at 320px, and the rendered ` +
     `reduced-motion probe is at most ${MAX_REDUCED_TRANSITION_MS}ms.`,
 );

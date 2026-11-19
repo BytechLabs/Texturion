@@ -1469,7 +1469,8 @@
     0 4px 10px rgb(15 23 20 / 0.1);
 }
 .cap-slider:focus-visible {
-  outline: none;
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 .cap-slider:disabled {
   opacity: 0.5;

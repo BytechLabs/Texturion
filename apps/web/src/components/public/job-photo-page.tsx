@@ -67,10 +67,11 @@ export function JobPhotoPage({
   locale?: string;
   notAvailable?: boolean;
 }) {
-  const t = makeTranslate(isLocale(locale) ? locale : DEFAULT_LOCALE);
+  const language = isLocale(locale) ? locale : DEFAULT_LOCALE;
+  const t = makeTranslate(language);
   if (notAvailable) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("misc.photoLinkUnavailableTitle")}
         </h1>
@@ -86,7 +87,7 @@ export function JobPhotoPage({
   const rest = photos.filter((photo) => photo.work_phase === null);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10 md:px-6">
+    <main lang={language} className="mx-auto w-full max-w-2xl px-4 py-10 md:px-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("misc.photosFrom", { business: businessName ?? "" })}

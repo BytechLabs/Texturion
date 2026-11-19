@@ -38,10 +38,19 @@
  *   node scripts/theme-audit.mjs --authed         # only the ones that do
  *   node scripts/theme-audit.mjs --base http://localhost:3100
  */
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { chromium } from "playwright";
 
+import { auditInboxNavigation } from "./audit-inbox-navigation.mjs";
+import {
+  appRoutes,
+  auditCoverage,
+  createAuditContexts,
+  navigateToAuditSurface,
+  openAuditSurface,
+  selectAuditSurfaces,
+} from "./audit-surfaces.mjs";
 import { classifyFocusStop } from "./focus-classify.mjs";
 
 const EMAIL = "dev@loonext.local";
@@ -57,20 +66,14 @@ const authedOnly = args.includes("--authed");
 const baseIndex = args.indexOf("--base");
 const base = baseIndex === -1 ? "http://localhost:3100" : args[baseIndex + 1];
 
-/**
- * The surfaces to audit. Deliberately SMALL — #320's devil's advocate is right
- * that a check covering everything is a check nobody reads. Each entry earns
- * its place by being a surface where a theme bug has actually happened or where
- * the token scope is genuinely at risk.
- */
-const { SURFACES, navigateToAuditSurface } = await import("./audit-surfaces.mjs");
+auditCoverage();
 
 /* ------------------------------------------------------------------------- */
 
 const problems = [];
 
 /** In-page: read every visible text node's effective colours and flag faults. */
-const AUDIT = () => {
+const AUDIT = (hasReadyCheck) => {
   const parse = (css) => {
     const m = css.match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
@@ -130,7 +133,7 @@ const AUDIT = () => {
   // tells you everything is fine.
   const painted = document.querySelectorAll("body *").length;
   const loading = /loading your workspace|loading…/i.test(document.body.innerText || "");
-  if (painted < 40 || loading) {
+  if ((!hasReadyCheck && painted < 40) || loading) {
     faults.push({
       kind: "EMPTY",
       what: `${painted} elements${loading ? ", still on a loading state" : ""}`,
@@ -829,40 +832,58 @@ async function focusFaults(page) {
   return faults;
 }
 
-async function login(context) {
+async function login(context, email = EMAIL) {
   const page = await context.newPage();
   await page.goto(`${base}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[type="email"]', EMAIL);
+  await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', PASSWORD);
   await page.$eval("form", (f) => f.requestSubmit());
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
-  await context.storageState({ path: STATE_FILE });
+  if (email === EMAIL) await context.storageState({ path: STATE_FILE });
   await page.close();
 }
 
-const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
-  if (wanted.length === 0) {
+const wanted = selectAuditSurfaces({ publicOnly, authedOnly });
+if (wanted.length === 0) {
   console.error("theme-audit: no surfaces selected — check the flags.");
   process.exit(1);
 }
 const needsAuth = wanted.some((s) => s.auth);
 
 for (const theme of ["light", "dark"]) {
-  const context = await browser.newContext({
+  const capture = await createAuditContexts(browser, wanted, {
     viewport: { width: 1440, height: 900 },
     colorScheme: theme,
+  }, {
+    login,
+    configure: (context) => context.addInitScript((t) => {
+      try {
+        window.localStorage.setItem("theme", t);
+      } catch {
+        // Initial documents can deny access to storage.
+      }
+    }, theme),
   });
-  await context.addInitScript((t) => {
+
+  if (needsAuth && theme === "light") {
+    const page = await capture.forSurface({ auth: true }).newPage();
     try {
-      window.localStorage.setItem("theme", t);
-    } catch {
-      // Initial documents can deny access to storage.
+      await auditInboxNavigation(page, base);
+    } catch (error) {
+      problems.push({
+        theme,
+        surface: "inbox navigation",
+        kind: "ERROR",
+        what: "/inbox",
+        detail: String(error?.message ?? error),
+      });
+    } finally {
+      await page.close();
     }
-  }, theme);
-  if (needsAuth) await login(context);
+  }
 
   for (const surface of wanted) {
-    const page = await context.newPage();
+    const page = await capture.forSurface(surface).newPage();
     try {
       await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
@@ -876,43 +897,9 @@ for (const theme of ["light", "dark"]) {
         await page.close();
         continue;
       }
-      // Open the overlay this surface exists to audit. The selector list is
-      // tried in order because the trigger's accessible name is the thing most
-      // likely to be renamed, and a missed click has to be LOUD rather than a
-      // silent pass over a surface that never opened.
-      if (surface.open) {
-        let opened = false;
-        for (const selector of surface.open) {
-          if (selector === "__cmdk__") {
-            await page.keyboard.press("ControlOrMeta+k");
-          } else {
-            const target = page.locator(selector).first();
-            if ((await target.count()) === 0) continue;
-            await target.click({ timeout: 5000 }).catch(() => {});
-          }
-          await page.waitForTimeout(600);
-          if ((await page.locator('[role="dialog"],[role="menu"]').count()) > 0) {
-            opened = true;
-            break;
-          }
-        }
-        if (!opened) {
-          problems.push({
-            theme,
-            surface: surface.label,
-            kind: "NOT-OPENED",
-            what: surface.open.join(" | "),
-            detail:
-              "no trigger matched, so this surface was never rendered. That is a " +
-              "failure, not a skip: a check that silently audits nothing is worse " +
-              "than no check.",
-          });
-          await page.close();
-          continue;
-        }
-      }
+      await openAuditSurface(page, surface);
       await page.waitForTimeout(400);
-      const faults = await page.evaluate(AUDIT);
+      const faults = await page.evaluate(AUDIT, Boolean(surface.ready));
       for (const fault of faults) problems.push({ theme, surface: surface.label, ...fault });
       // #714: an app page scrolls inside <main>, never the document. A
       // positioned element with no positioned ancestor once stretched the page
@@ -973,7 +960,7 @@ for (const theme of ["light", "dark"]) {
     }
     await page.close();
   }
-  await context.close();
+  await capture.close();
 }
 
 /**
@@ -987,37 +974,35 @@ for (const theme of ["light", "dark"]) {
  *
  * ONE THEME, not two. A button's box does not change colour scheme, so a second
  * pass would double the runtime to re-measure identical numbers.
- *
- * Overlay surfaces are skipped: their triggers are laid out for a wide shell
- * and the open sequence is unreliable at 375px, so including them would report
- * NOT-OPENED noise rather than tap-size facts.
  */
-{
-  const context = await browser.newContext({
-    viewport: { width: 375, height: 812 },
+for (const width of [375, 320]) {
+  const phone = `${width}px`;
+  const mobileSurfaces = wanted.filter((surface) => !surface.desktopOnly);
+  const capture = await createAuditContexts(browser, mobileSurfaces, {
+    viewport: { width, height: 812 },
     colorScheme: "light",
     isMobile: true,
     hasTouch: true,
-  });
-  if (needsAuth) await login(context);
+  }, { login });
 
-  for (const surface of wanted.filter((s) => !s.open)) {
-    const page = await context.newPage();
+  for (const surface of mobileSurfaces) {
+    const page = await capture.forSurface(surface).newPage();
     try {
       await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         await page.close();
         continue; // already reported by the desktop pass
       }
+      await openAuditSurface(page, surface);
       await page.waitForTimeout(400);
       const faults = await page.evaluate(A11Y, true);
       for (const fault of faults) {
         if (fault.kind !== "SMALL-TAP") continue; // names/alt already covered
-        problems.push({ theme: "375px", surface: surface.label, ...fault });
+        problems.push({ theme: phone, surface: surface.label, ...fault });
       }
     } catch (error) {
       problems.push({
-        theme: "375px",
+        theme: phone,
         surface: surface.label,
         kind: "ERROR",
         what: surface.path,
@@ -1026,46 +1011,10 @@ for (const theme of ["light", "dark"]) {
     }
     await page.close();
   }
-  await context.close();
+  await capture.close();
 }
 
-/**
- * #714: EVERY app route scrolls inside <main>, never the document, at desktop
- * and phone width. The surfaces above are a small, chosen set; this sweep reads
- * the route tree itself, so a new page is covered the day it exists. Dynamic
- * segments use the dev seed's fixed ids; a segment with no seeded id is listed
- * as skipped rather than passed over silently.
- */
-const SEEDED = {
-  "[conversationId]": "b0000000-0000-4000-8000-000000000001",
-  "[id]@contacts": "a0000000-0000-4000-8000-000000000001",
-  "[id]@tasks": "e0000000-0000-4000-8000-000000000001",
-  "[sessionId]": "seed-call-1",
-};
-function appRoutes() {
-  const root = join("apps", "web", "src", "app", "(app)");
-  const routes = [];
-  const skipped = [];
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name === "page.tsx") {
-        const parts = relative(root, dir).split(/[\\/]/).filter(Boolean);
-        const resolved = parts.map((part, i) => {
-          if (!part.startsWith("[")) return part;
-          return SEEDED[part] ?? SEEDED[`${part}@${parts[i - 1]}`] ?? null;
-        });
-        const path = `/${parts.join("/")}`;
-        if (resolved.includes(null)) skipped.push(path);
-        else routes.push(`/${resolved.join("/")}`);
-      }
-    }
-  };
-  walk(root);
-  return { routes: routes.sort(), skipped };
-}
-
+// #714: app routes scroll inside <main> at desktop and phone widths.
 let swept = 0;
 if (needsAuth) {
   const { routes, skipped } = appRoutes();
@@ -1141,7 +1090,7 @@ for (const kind of [
   "ERROR",
   "AUTH",
   "EMPTY",
-  "NOT-OPENED",
+  "DOC-SCROLL",
   "ESCAPED-SCOPE",
   "CONTRAST",
   "NO-NAME",

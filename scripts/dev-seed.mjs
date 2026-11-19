@@ -15,6 +15,7 @@
  *         sam@loonext.local / loonext-dev-1234   (member, "Sam Rivera")
  */
 import { execFileSync } from "node:child_process";
+import { customerFixtureSql, ONBOARDING_AUDIT_USER } from "./audit-customer-fixtures.mjs";
 
 const FALLBACK_SUPABASE_URL = "http://127.0.0.1:54321";
 // The supabase CLI's published default local secret key (not a real secret).
@@ -105,6 +106,7 @@ const [dana, sam] = [
   await ensureUser(apiUrl, secretKey, USERS[1]),
 ];
 console.log(`users: dana=${dana} sam=${sam}`);
+await ensureUser(apiUrl, secretKey, ONBOARDING_AUDIT_USER);
 
 sql(`
 begin;
@@ -422,6 +424,8 @@ values
                       'direction', 'outbound'),
    now() - interval '5 hours')
 on conflict (id) do nothing;
+
+${customerFixtureSql(dana)}
 
 commit;
 `);

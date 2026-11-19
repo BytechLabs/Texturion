@@ -709,7 +709,7 @@ function TaskDetailLoaded({
                 <button
                   type="button"
                   onClick={clearDue}
-                  className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  className="min-h-11 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline md:min-h-0"
                 >
                   {t("tasks.clearDue")}
                 </button>
@@ -754,7 +754,7 @@ function TaskDetailLoaded({
             <Switch
               checked={canRemind && !task.reminders_off}
               disabled={!canRemind || setReminders.isPending}
-              aria-label={t("tasks.remindCustomerAria")}
+              aria-label={t("tasks.remindCustomer")}
               onCheckedChange={(on) =>
                 setReminders.mutate({
                   taskId: task.id,
@@ -1299,7 +1299,7 @@ function TaskAddressSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between rounded-md text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-11 items-center justify-between rounded-md text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-0"
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">

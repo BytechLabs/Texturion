@@ -97,9 +97,8 @@ export function QuotePage({
   const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
     "idle",
   );
-  const t = makeTranslate(
-    isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE,
-  );
+  const language = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
+  const t = makeTranslate(language);
 
   /*
    * ONE page for every failure, matching what the API does. Expired, revoked,
@@ -108,7 +107,7 @@ export function QuotePage({
    */
   if (notAvailable || !quote) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("quotes.unavailableTitle")}
         </h1>
@@ -123,7 +122,7 @@ export function QuotePage({
 
   if (accepted) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("quotes.acceptedTitle", { business: quote.business_name })}
         </h1>
@@ -163,7 +162,7 @@ export function QuotePage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+    <main lang={language} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
       {/* The business, first: a stranger's first question is who this is from. */}
       <p className="text-[15px] text-muted-foreground">{quote.business_name}</p>
 

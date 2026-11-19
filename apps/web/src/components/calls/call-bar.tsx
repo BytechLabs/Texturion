@@ -231,7 +231,10 @@ function CallChip({
         </span>
         <Button
           size="sm"
-          className={cn(!prominent && "h-6 gap-1 px-2 text-[12px]")}
+          className={cn(
+            "min-h-11 min-w-11 md:min-h-0 md:min-w-0",
+            !prominent && "gap-1 px-2 text-[12px] md:h-6",
+          )}
           aria-keyshortcuts={CALL_SHORTCUTS.answer.keys}
           onClick={() =>
             void softphone.answer(call.id).catch((error: unknown) =>
@@ -249,7 +252,10 @@ function CallChip({
         <Button
           variant="ghost"
           size={prominent ? "sm" : "icon-sm"}
-          className={cn("text-app-clay hover:bg-app-clay/10", !prominent && "size-6")}
+          className={cn(
+            "min-h-11 min-w-11 text-destructive hover:bg-destructive/10 md:min-h-0 md:min-w-0",
+            !prominent && "md:size-6",
+          )}
           aria-label={t("shell.decline")}
           aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
           onClick={() => softphone.hangup(call.id)}
