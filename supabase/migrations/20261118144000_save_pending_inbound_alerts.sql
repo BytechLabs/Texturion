@@ -17,7 +17,8 @@ create function public.thread_inbound_message(
   p_email_limit integer,
   p_push_limit integer,
   p_notify_emergency boolean,
-  p_notify_media_count integer
+  p_notify_media_count integer,
+  p_reaction jsonb default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -31,10 +32,20 @@ declare
   v_reply_users uuid[];
   v_emergency_claimed boolean := false;
 begin
-  v_result := public.thread_inbound_message(
-    p_company_id, p_phone_number_id, p_from_e164, p_body, p_telnyx_message_id,
-    p_timezone, p_email_limit, p_push_limit, 'carrier'::text, null::text
-  );
+  if p_reaction is null then
+    v_result := public.thread_inbound_message(
+      p_company_id, p_phone_number_id, p_from_e164, p_body, p_telnyx_message_id,
+      p_timezone, p_email_limit, p_push_limit
+    );
+  else
+    v_result := public.thread_inbound_message(
+      p_company_id, p_phone_number_id, p_from_e164, p_body, p_telnyx_message_id,
+      p_timezone, p_email_limit, p_push_limit, p_reaction
+    );
+    if v_result->>'notify_reason' = 'reaction' then
+      return v_result;
+    end if;
+  end if;
   v_id := (v_result->>'message_id')::uuid;
 
   if (v_result->>'created')::boolean and p_notify_emergency then
@@ -139,10 +150,10 @@ as $$
 $$;
 
 revoke execute on function public.thread_inbound_message(
-  uuid, uuid, text, text, text, text, integer, integer, boolean, integer
+  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, jsonb
 ) from public, anon, authenticated;
 grant execute on function public.thread_inbound_message(
-  uuid, uuid, text, text, text, text, integer, integer, boolean, integer
+  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, jsonb
 ) to service_role;
 
 revoke execute on function public.api_mark_inbound_notify_attempted(uuid, uuid, boolean)

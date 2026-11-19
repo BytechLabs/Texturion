@@ -764,12 +764,6 @@ async function fanOutPush(
   };
 
   const sendDevice = async (device: DeviceTokenRow) => {
-
-  if (delivery.beforeDispatch) {
-    if (subError) throw new Error(`push subscriptions lookup failed: ${subError.message}`);
-    if (tokenError) throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
-    if (!(await delivery.beforeDispatch())) return;
-  }
     if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     const locale = localeFor(device);
     const action = delivery.nativeAction?.(device.user_id);
@@ -802,7 +796,6 @@ async function fanOutPush(
             nativePayloads,
             delivery.native ?? delivery.web,
             locale,
-          ),
           ),
           undefined,
           urgency,
