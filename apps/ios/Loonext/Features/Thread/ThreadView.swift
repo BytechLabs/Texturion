@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One conversation: header (identity → contact panel, Call, status,
-/// assignee, overflow) → tags row → interleaved timeline (newest-first,
+/// assignee, overflow) → interleaved timeline (newest-first,
 /// flipped scroll so index 0 is the bottom) → composer or gate banner.
 /// State-based detail screen — callers own the "which conversation is open"
 /// state, mirroring the Android ThreadScreen.
@@ -99,12 +99,14 @@ private enum ThreadDetailSheet: Identifiable {
     case conversation
     case contactPanel
     case assignee
+    case tags
 
     var id: String {
         switch self {
         case .conversation: "conversation"
         case .contactPanel: "contact"
         case .assignee: "assignee"
+        case .tags: "tags"
         }
     }
 }
@@ -161,7 +163,6 @@ private struct ThreadBody: View {
     @State private var flashMessageId: String?
     @State private var visibleNotice: ThreadNotice?
     @State private var noticeDismissTask: Task<Void, Never>?
-    @State private var tagSheetOpen = false
     @State private var galleryOpen = false
     @State private var placingCall = false
     @State private var messagePhone: MessagePhoneSelection?
@@ -477,12 +478,6 @@ private struct ThreadBody: View {
                     }
                 }
 
-                ThreadTagsRow(
-                    tags: detail.tags,
-                    onManage: { tagSheetOpen = true },
-                    onRemove: { controller.detachTag($0) }
-                )
-
                 // #250: the classifier's only visible effect. It suppressed
                 // a push and nothing else, so without this the thread simply
                 // went quiet for a reason nobody could see. Above the snooze
@@ -715,8 +710,6 @@ private struct ThreadBody: View {
             )
             hasJobToday = !(page?.data.isEmpty ?? true)
         }
-            // One swappable sheet: the conversation card and the two surfaces it
-            // opens one tap deeper (contact panel, assignee picker).
             .sheet(item: $detailSheet) { which in
                 switch which {
                 case .conversation:
@@ -726,6 +719,7 @@ private struct ThreadBody: View {
                         contactName: contactName,
                         onOpenContactPanel: { detailSheet = .contactPanel },
                         onAssign: { detailSheet = .assignee },
+                        onManageTags: { detailSheet = .tags },
                         onOpenGallery: { detailSheet = nil; galleryOpen = true },
                         onNewTask: { detailSheet = nil; newTaskOpen = true },
                         onMarkUnread: {
@@ -786,27 +780,17 @@ private struct ThreadBody: View {
                             controller.setAssignee(userId)
                         }
                     }
+                case .tags:
+                    TagManageSheet(
+                        repo: controller.repo,
+                        companyId: detail.company_id,
+                        attached: detail.tags,
+                        mayCreate: controller.company?.tags_locked != true
+                            || MemberRole.has(viewerRole, Capability.settingsManage),
+                        onAttach: { controller.attachTag($0) },
+                        onDetach: { controller.detachTag($0) }
+                    )
                 }
-            }
-            .sheet(isPresented: $tagSheetOpen) {
-                TagManageSheet(
-                    repo: controller.repo,
-                    companyId: detail.company_id,
-                    attached: detail.tags,
-                    // #298: a workspace that keeps a set list hides Create here
-                    // rather than failing it. Defaults to allowed while the
-                    // company is still loading — the server is the gate, and an
-                    // affordance that flickers off is worse than one that
-                    // occasionally has to say no.
-                    mayCreate: controller.company?.tags_locked != true
-                        || MemberRole.has(
-                            me.memberships
-                                .first { $0.company_id == detail.company_id }?.role,
-                            Capability.settingsManage
-                        ),
-                    onAttach: { controller.attachTag($0) },
-                    onDetach: { controller.detachTag($0) }
-                )
             }
             .fullScreenCover(isPresented: $galleryOpen) {
                 AttachmentsGalleryView(
@@ -1940,6 +1924,7 @@ private struct ConversationSheet: View {
     let contactName: String
     let onOpenContactPanel: @MainActor () -> Void
     let onAssign: @MainActor () -> Void
+    let onManageTags: @MainActor () -> Void
     let onOpenGallery: @MainActor () -> Void
     let onNewTask: @MainActor () -> Void
     /// #712: leave the thread unread, then leave it.
@@ -1989,6 +1974,11 @@ private struct ConversationSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 identityRow
+                ThreadTagsRow(
+                    tags: detail.tags,
+                    onManage: onManageTags,
+                    onRemove: { controller.detachTag($0) }
+                )
                 // #712: the sheet draws the conversation's one action list, in its order.
                 // Close and reopen are the status pills; snooze, unsnooze and follow-up are
                 // the deferral card; everything else is a row.

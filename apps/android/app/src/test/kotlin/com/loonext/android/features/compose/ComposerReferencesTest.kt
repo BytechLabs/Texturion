@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -94,12 +95,12 @@ class ComposerReferencesTest {
         server.close()
     }
 
-    private fun show(state: ComposerState) {
+    private fun show(state: ComposerState, noteOnly: Boolean = false) {
         compose.setContent {
             LoonextTheme {
                 ThreadComposer(
                     state = state,
-                    noteOnly = false,
+                    noteOnly = noteOnly,
                     banner = null,
                     contactName = "Dana Whitcomb",
                     businessName = "Loonext Fencing",
@@ -134,6 +135,7 @@ class ComposerReferencesTest {
     fun `the same hash in an internal note does open the picker`() {
         val state = ComposerState("internal-note", NoDrafts)
         show(state)
+        compose.onNodeWithContentDescription("Add to message").performClick()
         compose.onNodeWithText("Note").performClick()
         compose.onNode(hasSetTextAction()).performTextInput("see #T-1")
         compose.waitForIdle()
@@ -148,5 +150,33 @@ class ComposerReferencesTest {
         assertEquals("see #T-1", state.text)
         assertEquals(ComposerMode.Note, state.mode)
         assertTrue("the picker searched", server.requestCount > 0)
+    }
+
+    @Test
+    fun `composer menus switch both ways without losing the draft`() {
+        val state = ComposerState("mode-switch", NoDrafts)
+        show(state)
+
+        compose.onNodeWithText("Note").assertDoesNotExist()
+        compose.onNode(hasSetTextAction()).performTextInput("Ready to review")
+        compose.onNodeWithContentDescription("Add to message").performClick()
+        compose.onNodeWithText("Take photo").assertExists()
+        compose.onNodeWithText("Note").performClick()
+        compose.onNodeWithText("Note").performClick()
+        compose.onNodeWithText("Take photo").assertExists()
+        compose.onNodeWithText("Text").performClick()
+
+        assertEquals(ComposerMode.Text, state.mode)
+        assertEquals("Ready to review", state.text)
+    }
+
+    @Test
+    fun `note only keeps attachments and hides the mode switch`() {
+        show(ComposerState("note-only", NoDrafts), noteOnly = true)
+
+        compose.onNodeWithContentDescription("Add to message").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Attach files to this note").performClick()
+        compose.onNodeWithText("Take photo").assertExists()
+        compose.onNodeWithText("Text").assertDoesNotExist()
     }
 }

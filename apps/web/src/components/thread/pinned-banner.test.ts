@@ -85,18 +85,19 @@ describe("PinnedStack (#716)", () => {
       createElement(PinnedStack, { conversationId: "c1", messages, onJump: () => {} }),
     );
 
-  it("collapses several pins to the newest one and a count", () => {
+  it("shows the pin count with previews behind the disclosure", () => {
     const html = stack(pins);
-    expect(html).toContain("Gate code 4821");
-    expect(html).toContain("+1");
+    expect(html).toContain("Pinned · 2");
     expect(html).toContain('aria-expanded="false"');
-    // The older pin waits behind the stack until it is opened.
+    expect(html).not.toContain("Gate code 4821");
     expect(html).not.toContain("Dog is friendly");
   });
 
-  it("shows a single pin as itself, one tap from the message", () => {
+  it("offers a direct jump for a single pin", () => {
     const html = stack([pins[0]]);
-    expect(html).toContain("Gate code 4821");
+    expect(html).toContain('aria-label="Jump to pinned message"');
+    expect(html).toContain(">1</span>");
+    expect(html).not.toContain("Gate code 4821");
     expect(html).toContain("Jump");
     expect(html).not.toContain("aria-expanded");
   });

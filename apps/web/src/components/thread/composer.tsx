@@ -8,6 +8,7 @@ import {
   Plus,
   ReceiptText,
   Send as SendIcon,
+  StickyNote,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1407,9 +1408,14 @@ export function Composer({
     suggestions.length === 0 &&
     !suggestReplies.isPending;
 
+  function selectMode(next: "sms" | "note") {
+    setMode(next);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
   return (
     <div
-      className="relative px-3 pb-3 pt-2 md:px-4 md:pb-4"
+      className="relative px-3 pb-2 pt-2 md:px-4 md:pb-4"
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
@@ -1449,33 +1455,6 @@ export function Composer({
           prefill={paymentPrefill}
           onPrefillUsed={() => setPaymentPrefill(null)}
         />
-      )}
-      {!noteOnly && (
-        <div
-          className="mx-auto mb-2 flex max-w-[42rem] gap-1"
-          role="group"
-          aria-label={t("thread.composerModeAria")}
-        >
-          {(["sms", "note"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
-              className={cn(
-                // tap-target + roomier mobile padding: G11 ≥44px hit area.
-                "tap-target rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:px-2.5 md:py-0.5 md:text-[11px]",
-                mode === m
-                  ? (m === "note"
-                    ? "bg-app-amber-bg text-app-amber-ink"
-                    : "bg-app-tint text-app-olive-deep")
-                  : "text-app-muted hover:text-app-ink",
-              )}
-            >
-              {m === "sms" ? t("thread.modeText") : t("thread.modeNote")}
-            </button>
-          ))}
-        </div>
       )}
       {!isNote && (suggestions.length > 0 || suggestReplies.isPending) && (
         <ReplySuggestionChips
@@ -1589,9 +1568,6 @@ export function Composer({
             : "border-app-line bg-app-paper",
         )}
       >
-        {/* Far-left `+` overflow (§3.1) — texts get Attach + Template
-            (desktop: inline toolbar; mobile: the `+` action menu); notes get
-            their own attach affordance below (D28 — notes have no templates). */}
         {!isNote && (
           <>
             {/* Desktop inline toolbar. */}
@@ -1660,26 +1636,9 @@ export function Composer({
                     : t("thread.finishWithLou")}
                 </TooltipContent>
               </Tooltip>
-              {canQuote && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t("quotes.newQuote")}
-                      onClick={(event) => openQuoteDraft(event.currentTarget)}
-                      className="rounded-full text-muted-foreground"
-                    >
-                      <ReceiptText className="size-5" strokeWidth={1.75} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("quotes.newQuote")}</TooltipContent>
-                </Tooltip>
-              )}
             </div>
 
-            <div className="self-end pb-0.5 md:hidden">
+            <div className="self-end pb-0.5">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1697,28 +1656,26 @@ export function Composer({
                   align="start"
                   side="top"
                   className="w-44"
-                  // #120: both items open ANOTHER surface (the file dialog /
-                  // the saved-replies popover). Radix's default close behavior
-                  // returns focus to the + trigger, which on mobile yanked
-                  // focus out of the just-opened picker: the keyboard flashed
-                  // up, focus snapped back, and the popover dismissed itself
-                  // as "focus outside" — "nothing happens".
+                  // Returning focus to the trigger dismisses the saved replies picker.
                   onCloseAutoFocus={(event) => event.preventDefault()}
+                  onEscapeKeyDown={() => requestAnimationFrame(() => addToMessageRef.current?.focus())}
                 >
                   <DropdownMenuItem
                     onSelect={openFilePicker}
                     disabled={attachDisabled}
+                    className="md:hidden"
                   >
                     <Paperclip className="size-4" strokeWidth={1.75} aria-hidden />
                     {t("thread.attachAFile")}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setPickerOpen(true)}>
+                  <DropdownMenuItem onSelect={() => setPickerOpen(true)} className="md:hidden">
                     <FileText className="size-4" strokeWidth={1.75} aria-hidden />
                     {t("thread.savedReply")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={askForSuggestions}
                     disabled={suggestReplies.isPending}
+                    className="md:hidden"
                   >
                     <AiOrb
                       state={suggestReplies.isPending ? "thinking" : "idle"}
@@ -1727,6 +1684,10 @@ export function Composer({
                     {text.trim() === ""
                       ? t("thread.draftWithLou")
                       : t("thread.finishWithLou")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => selectMode("note")}>
+                    <StickyNote className="size-4" strokeWidth={1.75} aria-hidden />
+                    {t("thread.modeNote")}
                   </DropdownMenuItem>
                   {canQuote && (
                     <DropdownMenuItem onSelect={() => openQuoteDraft(addToMessageRef.current)}>
@@ -1749,31 +1710,50 @@ export function Composer({
           </>
         )}
 
-        {/* Note-mode attach (D28): files ride the note — staged here, uploaded
-            with the note id on save. One quiet paperclip, all breakpoints. */}
         {isNote && (
           <>
             <div className="flex items-center self-end pb-0.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("thread.attachNoteFilesAria")}
-                    onClick={() => noteFileRef.current?.click()}
-                    disabled={noteAttachDisabled}
-                    className="rounded-full text-muted-foreground"
-                  >
-                    <Paperclip className="size-5" strokeWidth={1.75} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {t("thread.attachNoteTooltip", {
-                    count: MAX_ATTACHMENTS_PER_OWNER,
-                  })}
-                </TooltipContent>
-              </Tooltip>
+              {noteOnly ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("thread.attachNoteFilesAria")}
+                      onClick={() => noteFileRef.current?.click()}
+                      disabled={noteAttachDisabled}
+                      className="rounded-full text-muted-foreground"
+                    >
+                      <Paperclip className="size-5" strokeWidth={1.75} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t("thread.attachNoteTooltip", { count: MAX_ATTACHMENTS_PER_OWNER })}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="ghost" className="tap-target rounded-full text-app-amber-ink">
+                      {t("thread.modeNote")}
+                      <ChevronDown aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top">
+                    <DropdownMenuItem onSelect={() => selectMode("sms")}>
+                      {t("thread.modeText")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={noteAttachDisabled}
+                      onSelect={() => noteFileRef.current?.click()}
+                    >
+                      <Paperclip className="size-4" strokeWidth={1.75} aria-hidden />
+                      {t("thread.attachNoteFilesAria")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               {/* #507: dictating the wrap-up sits beside attaching a photo of
                   it — the same cluster, the same weight, both "add what just
                   happened to this note". */}

@@ -62,11 +62,7 @@ export function sortPinned(messages: readonly Message[]): Message[] {
     });
 }
 
-/**
- * #716: pins as a stack. One row shows the newest pin and how many more there
- * are, and opens the full list on demand; each conversation remembers whether
- * it was left open. A single pin is just that pin, one tap from the message.
- */
+/** Remembers whether each conversation's pin list was left open. */
 export function PinnedStack({
   conversationId,
   messages,
@@ -81,7 +77,11 @@ export function PinnedStack({
   const [open, setOpen] = useLocalStorageFlag(storageKey, false);
   if (messages.length === 0) return null;
 
-  const [newest, ...older] = messages;
+  const [newest] = messages;
+  const multiple = messages.length > 1;
+  const buttonLabel = multiple
+    ? t("thread.pinnedCount", { count: messages.length })
+    : t("thread.pinnedJump");
   const toggle = () => setOpen(!open);
 
   return (
@@ -89,68 +89,51 @@ export function PinnedStack({
       aria-label={t("thread.pinnedMessagesAria")}
       className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
-      {older.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => onJump(newest.id)}
-          aria-label={t("thread.jumpToPinnedAria", { snippet: pinnedSnippet(newest) })}
-          className="tap-target flex w-full items-center gap-2 px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          <Pin className="size-3 shrink-0 text-app-muted-2" strokeWidth={2} aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
-            {pinnedSnippet(newest)}
-          </span>
+      <button
+        type="button"
+        aria-label={buttonLabel}
+        aria-expanded={multiple ? open : undefined}
+        onClick={multiple ? toggle : () => onJump(newest.id)}
+        className="tap-target flex w-full items-center gap-2 px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        <Pin className="size-3 shrink-0 text-app-muted-2" strokeWidth={2} aria-hidden />
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="truncate text-[13px] text-app-ink">{t("thread.pinned")}</span>
+          <CountPill aria-hidden>{messages.length}</CountPill>
+        </span>
+        {multiple ? (
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 text-app-muted-2 transition-transform duration-150",
+              open && "rotate-180",
+            )}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        ) : (
           <span className="shrink-0 text-[11px] font-medium text-app-muted">{t("thread.jump")}</span>
-        </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={toggle}
-            className="tap-target flex w-full items-center gap-2 px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-          >
-            <Pin className="size-3 shrink-0 text-app-muted-2" strokeWidth={2} aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
-              {pinnedSnippet(newest)}
-            </span>
-            <CountPill
-              className="shrink-0"
-              aria-label={t("thread.morePinnedAria", { count: older.length })}
-            >
-              +{older.length}
-            </CountPill>
-            <ChevronDown
-              className={cn(
-                "size-3.5 shrink-0 text-app-muted-2 transition-transform duration-150",
-                open && "rotate-180",
-              )}
-              strokeWidth={1.75}
-              aria-hidden
-            />
-          </button>
-          {open && (
-            <ul className="max-h-40 overflow-y-auto border-t border-app-line-soft pb-1">
-              {messages.map((message) => (
-                <li key={message.id}>
-                  <button
-                    type="button"
-                    onClick={() => onJump(message.id)}
-                    aria-label={t("thread.jumpToPinnedAria", { snippet: pinnedSnippet(message) })}
-                    className="tap-target flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
-                      {pinnedSnippet(message)}
-                    </span>
-                    <span className="shrink-0 text-[11px] font-medium text-app-muted">
-                      {t("thread.jump")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        )}
+      </button>
+      {multiple && open && (
+        <ul className="max-h-40 overflow-y-auto border-t border-app-line-soft pb-1">
+          {messages.map((message) => (
+            <li key={message.id}>
+              <button
+                type="button"
+                onClick={() => onJump(message.id)}
+                aria-label={t("thread.jumpToPinnedAria", { snippet: pinnedSnippet(message) })}
+                className="tap-target flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              >
+                <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
+                  {pinnedSnippet(message)}
+                </span>
+                <span className="shrink-0 text-[11px] font-medium text-app-muted">
+                  {t("thread.jump")}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

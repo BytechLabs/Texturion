@@ -214,7 +214,7 @@ import androidx.compose.ui.semantics.Role
 
 /**
  * One conversation: header (identity → contact panel, Call button, status,
- * assignee, overflow) → tags row → interleaved timeline (newest-first,
+ * assignee, overflow) → interleaved timeline (newest-first,
  * reverseLayout) → composer or gate banner. State-based detail screen —
  * callers own the "which conversation is open" state.
  *
@@ -843,6 +843,7 @@ private fun ThreadLoaded(
             onOpenContactPanel = { contactPanelOpen = true },
             onOpenGallery = onOpenGallery,
             onFind = { findOpen = true },
+            onManageTags = { tagSheetOpen = true },
         )
 
         if (findOpen) {
@@ -857,15 +858,6 @@ private fun ThreadLoaded(
                 },
             )
         }
-
-        ThreadTagsRow(
-            tags = detail.tags,
-            onManage = { tagSheetOpen = true },
-            onRemove = {
-                haptics.tap()
-                controller.detachTag(it)
-            },
-        )
 
         // #250: the classifier's only visible effect. It suppressed a push
         // and nothing else, so without this the thread simply went quiet for
@@ -1714,11 +1706,6 @@ private fun ThreadLoaded(
     }
 }
 
-/**
- * The header tags row (#165): attached chips (each with an inline remove) +
- * the Tags affordance opening [TagManageSheet]. Renders nothing but the
- * affordance while untagged — the row must never look like content.
- */
 @Composable
 private fun ThreadTagsRow(
     tags: List<com.loonext.android.core.model.Tag>,
@@ -1728,8 +1715,7 @@ private fun ThreadTagsRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 5.dp),
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1817,6 +1803,7 @@ private fun ThreadHeader(
     onOpenContactPanel: () -> Unit,
     onOpenGallery: () -> Unit,
     onFind: () -> Unit,
+    onManageTags: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
     val haptics = rememberHaptics()
@@ -2096,6 +2083,10 @@ private fun ThreadHeader(
             onOpenGallery = {
                 menuOpen = false
                 onOpenGallery()
+            },
+            onManageTags = {
+                menuOpen = false
+                onManageTags()
             },
             onOptOut = {
                 menuOpen = false
@@ -2394,6 +2385,7 @@ private fun ConversationSheet(
     onOpenContactPanel: () -> Unit,
     onAssign: () -> Unit,
     onOpenGallery: () -> Unit,
+    onManageTags: () -> Unit,
     onNewTask: () -> Unit,
     onMarkUnread: () -> Unit,
     onOptOut: () -> Unit,
@@ -2484,6 +2476,15 @@ private fun ConversationSheet(
                     )
                 }
             }
+
+            ThreadTagsRow(
+                tags = detail.tags,
+                onManage = onManageTags,
+                onRemove = {
+                    haptics.tap()
+                    controller.detachTag(it)
+                },
+            )
 
             // #712: the sheet draws the conversation's one action list, in its order.
             // Close and reopen are the status pills; snooze, unsnooze and follow-up are

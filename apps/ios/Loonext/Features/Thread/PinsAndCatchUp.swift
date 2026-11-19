@@ -74,10 +74,7 @@ enum CatchUpAnswerStore {
 
 // MARK: - Pinned stack
 
-/// Pins as a stack. One row shows the newest pin and how many more there are,
-/// and opens the full list on demand; each conversation remembers whether it
-/// was left open. A single pin is just that pin, one tap from the message.
-/// Pinned lives in the warm cream well ("Paper & Olive").
+/// Remembers whether each conversation's pin list was left open.
 @MainActor
 struct PinnedStack: View {
     let conversationId: String
@@ -111,55 +108,58 @@ struct PinnedStack: View {
 
     var body: some View {
         if let newest = pinned.first {
-            let older = pinned.count - 1
+            let multiple = pinned.count > 1
+            let countLabel = AppStrings.translate(
+                appLocale, "thread.pinnedCount", ["count": String(pinned.count)]
+            )
             VStack(spacing: 0) {
-                if older == 0 {
-                    Button {
-                        onJump(newest.id)
-                    } label: {
-                        collapsedRow(newest, older: 0)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(pinnedPreview(newest))
-                } else {
-                    Button {
+                Button {
+                    if multiple {
                         withAnimation { expanded.toggle() }
                         PinsOpenStore.write(expanded, conversationId: conversationId)
-                    } label: {
-                        collapsedRow(newest, older: older)
+                    } else {
+                        onJump(newest.id)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        "\(pinnedPreview(newest)), \(moreLabel(older))"
-                    )
-                    .accessibilityHint(
-                        AppStrings.translate(
-                            appLocale,
-                            expanded ? "thread.collapsePinned" : "thread.expandPinned"
-                        )
-                    )
+                } label: {
+                    pinCount(countLabel, multiple: multiple)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    multiple ? countLabel : AppStrings.translate(appLocale, "thread.pinnedJump")
+                )
+                .accessibilityHint(
+                    multiple ? AppStrings.translate(
+                        appLocale,
+                        expanded ? "thread.collapsePinned" : "thread.expandPinned"
+                    ) : pinnedPreview(newest)
+                )
 
-                    if expanded {
-                        ForEach(pinned, id: \.id) { message in
-                            Button {
-                                onJump(message.id)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Text(pinnedPreview(message))
-                                        .font(.golos(12.5))
-                                        .foregroundStyle(BrandColor.ink)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(bubbleTime(message.created_at))
-                                        .font(.golos(10.5))
-                                        .foregroundStyle(BrandColor.muted400)
+                if multiple && expanded {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(pinned, id: \.id) { message in
+                                Button {
+                                    onJump(message.id)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(pinnedPreview(message))
+                                            .font(.golos(12.5))
+                                            .foregroundStyle(BrandColor.ink)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(bubbleTime(message.created_at))
+                                            .font(.golos(10.5))
+                                            .foregroundStyle(BrandColor.muted400)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
+                    .frame(height: min(CGFloat(pinned.count) * 44, 176))
                 }
             }
             .background(BrandColor.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -168,29 +168,24 @@ struct PinnedStack: View {
         }
     }
 
-    private func moreLabel(_ count: Int) -> String {
-        AppStrings.translate(appLocale, "thread.morePinnedAria", ["count": String(count)])
-    }
-
-    private func collapsedRow(_ newest: Message, older: Int) -> some View {
+    private func pinCount(_ label: String, multiple: Bool) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "pin.fill")
                 .font(.scaled(IconSize.small))
                 .foregroundStyle(BrandColor.muted700)
-            Text(pinnedPreview(newest))
+            Text(label)
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(BrandColor.muted900)
                 .lineLimit(1)
             Spacer(minLength: 8)
-            if older > 0 {
-                CountPill("+\(older)")
+            if multiple {
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
                     .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 }
