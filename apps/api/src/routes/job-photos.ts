@@ -59,7 +59,7 @@ import {
   revokeLinksForSubject,
 } from "../public-links/tokens";
 import { parseOptionalJsonBody, pathUuid } from "./core/http";
-import { companySettingDefault } from "@loonext/shared";
+import { resolveLocale } from "@loonext/shared";
 
 /** Authenticated: the crew mints and revokes. Mounted under /v1. */
 export const jobPhotoShareRoutes = new Hono<AppEnv>();
@@ -289,7 +289,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
       .is("deleted_at", null)
       .maybeSingle(),
     db.from("tasks")
-      .select("id,conversations!inner()")
+      .select("contact:contacts!contact_id(locale),conversations!inner(contact:contacts!contact_id(locale))")
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
       .is("deleted_at", null)
@@ -300,6 +300,10 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
   if (companyError) throw new Error(`company lookup failed: ${companyError.message}`);
   if (taskError) throw new Error(`photo task lookup failed: ${taskError.message}`);
   if (!company || !task) return publicLinkNotAvailable(c);
+  const locales = task as unknown as {
+    contact: { locale: string | null } | null;
+    conversations: { contact: { locale: string | null } | null } | null;
+  };
 
   let loaded: { photos: SharedPhoto[]; truncated: boolean };
   try {
@@ -339,15 +343,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
     // The page appears under the BUSINESS's name, not ours. It is the only thing
     // many homeowners will ever see of this product.
     business_name: company.name,
-    /**
-     * #228: the language the BUSINESS works in — the one this page is drawn in.
-     *
-     * Not the reader's device and not ours. The person opening this has a
-     * relationship with the tradesperson, not with us, so it is the business's
-     * own choice that decides. A Quebec crew's customer meeting an English page
-     * is the Bill 96 problem in miniature.
-     */
-    locale: company.locale ?? companySettingDefault("locale"),
+    locale: resolveLocale(locales.contact?.locale ?? locales.conversations?.contact?.locale, company.locale),
     photos: loaded.photos,
     // Said out loud rather than quietly dropping the rest. Somebody looking at
     // "everything we did" has to know when it is not everything.

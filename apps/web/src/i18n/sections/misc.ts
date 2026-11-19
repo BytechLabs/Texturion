@@ -39,6 +39,10 @@ export const miscEn = {
   photoLinkUnavailableDetail:
     "It may have expired. Ask whoever sent it for a new one.",
   photosFrom: "Photos from {business}",
+  photosPageTitle: "Job photos",
+  photoBeforeAlt: "Before photo {index} of {count}",
+  photoAfterAlt: "After photo {index} of {count}",
+  photoAlt: "Photo {index} of {count}",
   photosNone: "There are no photos on this job yet.",
   photosIntro: "The work on your job, as it was photographed.",
   photosTruncated:
@@ -393,6 +397,10 @@ export const miscFr: Translated<typeof miscEn> = {
   photoLinkUnavailableDetail:
     "Il a peut-être expiré. Demandez-en un nouveau à la personne qui vous l'a envoyé.",
   photosFrom: "Photos de {business}",
+  photosPageTitle: "Photos du travail",
+  photoBeforeAlt: "Photo avant les travaux {index} sur {count}",
+  photoAfterAlt: "Photo après les travaux {index} sur {count}",
+  photoAlt: "Photo {index} sur {count}",
   photosNone: "Il n'y a pas encore de photos pour ces travaux.",
   photosIntro: "Les travaux effectués chez vous, tels qu'ils ont été photographiés.",
   photosTruncated:

@@ -794,9 +794,10 @@ describe("#224 the customer's page", () => {
   });
 
   it.each([
-    ["en", "$250"],
-    ["fr-CA", "250 $"],
-  ] as const)("shows the payable amount in %s without customer details", async (locale, amount) => {
+    ["en", null, "$250"],
+    ["fr-CA", null, "250 $"],
+    ["en", "fr-CA", "250 $"],
+  ] as const)("formats the amount for company %s and contact %s", async (locale, contactLocale, amount) => {
     const harness = buildHarness({
       locale,
       requests: [
@@ -805,6 +806,7 @@ describe("#224 the customer's page", () => {
           company_id: COMPANY_ID,
           conversation_id: CONVERSATION_ID,
           contact_id: CONTACT_ID,
+          contact: contactLocale === null ? null : { locale: contactLocale },
           amount_cents: 25_000,
           currency: "usd",
           description: "Deposit for Tuesday",
@@ -826,7 +828,7 @@ describe("#224 the customer's page", () => {
     const body = await response.json<Record<string, unknown>>();
     expect(body.business_name).toBe("Northline Plumbing");
     expect(body.amount).toBe(amount);
-    expect(body.locale).toBe(locale);
+    expect(body.locale).toBe(contactLocale ?? locale);
     expect(body.pay_url).toBe("https://buy.stripe.com/test_0001");
     // The customer's own details are NOT on a page that lives in SMS logs and
     // browser history. They already know them; putting them here adds only risk.

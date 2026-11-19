@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DEFAULT_LOCALE, isLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
+import { DocumentLanguage } from "@/components/marketing/document-language";
 import { publicEnv } from "@/env";
 import { makeTranslate } from "@/i18n/provider";
 
@@ -45,7 +47,6 @@ import { makeTranslate } from "@/i18n/provider";
  */
 
 interface QuoteView {
-  /** The workspace's language. See the note at the API route. */
   locale?: string;
   business_name: string;
   amount_cents: number;
@@ -68,18 +69,18 @@ interface QuoteView {
 }
 
 /** "$450.00" — the amount as a person reads it, in the quote's own currency. */
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-CA", {
+function formatAmount(cents: number, currency: string, locale: Locale): string {
+  return new Intl.NumberFormat(locale === "en" ? "en-CA" : locale, {
     style: "currency",
     currency: currency.toUpperCase(),
   }).format(cents / 100);
 }
 
 /** "23 August" — a date, not a duration. See the note on pressure above. */
-function formatExpiry(iso: string): string {
+function formatExpiry(iso: string, locale: Locale): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-CA" : locale, {
     day: "numeric",
     month: "long",
   }).format(at);
@@ -97,8 +98,12 @@ export function QuotePage({
   const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
     "idle",
   );
-  const language = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
-  const t = makeTranslate(language);
+  const locale = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
+  const t = makeTranslate(locale);
+  const acceptedHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (state === "accepted") acceptedHeading.current?.focus();
+  }, [state]);
 
   /*
    * ONE page for every failure, matching what the API does. Expired, revoked,
@@ -107,7 +112,8 @@ export function QuotePage({
    */
   if (notAvailable || !quote) {
     return (
-      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
         <h1 className="text-xl font-semibold tracking-tight">
           {t("quotes.unavailableTitle")}
         </h1>
@@ -122,8 +128,9 @@ export function QuotePage({
 
   if (accepted) {
     return (
-      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
-        <h1 className="text-xl font-semibold tracking-tight">
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
+        <h1 ref={acceptedHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
           {t("quotes.acceptedTitle", { business: quote.business_name })}
         </h1>
         {/*
@@ -133,7 +140,7 @@ export function QuotePage({
         */}
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           {t("quotes.acceptedDetail", {
-            amount: formatAmount(quote.amount_cents, quote.currency),
+            amount: formatAmount(quote.amount_cents, quote.currency, locale),
             description: quote.description,
           })}
         </p>
@@ -162,7 +169,8 @@ export function QuotePage({
   }
 
   return (
-    <main lang={language} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+    <main lang={locale} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      <DocumentLanguage locale={locale} />
       {/* The business, first: a stranger's first question is who this is from. */}
       <p className="text-[15px] text-muted-foreground">{quote.business_name}</p>
 
@@ -172,7 +180,7 @@ export function QuotePage({
         numerals so it reads as money rather than as text.
       */}
       <p className="mt-1 text-5xl font-semibold tracking-tight tabular-nums">
-        {formatAmount(quote.amount_cents, quote.currency)}
+        {formatAmount(quote.amount_cents, quote.currency, locale)}
       </p>
 
       <p className="mt-3 text-[15px] leading-relaxed text-foreground">
@@ -194,7 +202,7 @@ export function QuotePage({
 
           {/* A fact, once, quietly. Not a countdown — see the header. */}
           <p className="mt-4 text-[13px] text-muted-foreground">
-            {t("quotes.priceHolds", { date: formatExpiry(quote.expires_at) })}
+            {t("quotes.priceHolds", { date: formatExpiry(quote.expires_at, locale) })}
           </p>
 
           {state === "failed" && (

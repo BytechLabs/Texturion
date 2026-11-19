@@ -173,6 +173,7 @@ const paymentsEn = {
   // The customer's page (#224). Drawn in the BUSINESS's language, because the
   // reader has a relationship with them and not with us.
   linkUnavailableTitle: "This link isn't available",
+  customerPageTitle: "Pay",
   linkUnavailableDetail:
     "It may have expired, or already been paid. Ask the business for a new " +
     "one — and never send money to a link you were not expecting.",
@@ -277,6 +278,7 @@ const paymentsFr: Translated<typeof paymentsEn> = {
     "Leur banque a repris ce paiement. Stripe vous a écrit pour la suite.",
   cancelAria: "Annuler la demande de {amount} pour {description}",
   linkUnavailableTitle: "Ce lien n'est pas disponible",
+  customerPageTitle: "Payer",
   linkUnavailableDetail:
     "Il a peut-être expiré, ou le paiement a déjà été fait. Demandez un " +
     "nouveau lien à l'entreprise — et n'envoyez jamais d'argent par un lien " +

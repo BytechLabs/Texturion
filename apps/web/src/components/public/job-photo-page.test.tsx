@@ -88,13 +88,12 @@ describe("the shared job photos (#294)", () => {
     expect(html).not.toContain("more photos than fit");
   });
 
-  it("carries no alt text it made up about somebody's work", () => {
-    // A generated description of a photograph nobody has read would be a claim
-    // about the job. Empty alt is the honest answer for a decorative-position
-    // image whose content we cannot describe.
+  it("describes each image's place in the photo set in the reader's language", () => {
     const html = renderToStaticMarkup(
-      <JobPhotoPage businessName="Acme" photos={[photo("a", "after")]} />,
+      <JobPhotoPage businessName="Acme" locale="fr-CA" photos={[photo("a", "after"), photo("b", "after")]} />,
     );
-    expect(html).toContain('alt=""');
+    expect(html).toContain('lang="fr-CA"');
+    expect(html).toContain('alt="Photo après les travaux 1 sur 2"');
+    expect(html).toContain('alt="Photo après les travaux 2 sur 2"');
   });
 });

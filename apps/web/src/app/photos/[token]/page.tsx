@@ -1,58 +1,32 @@
 import type { Metadata } from "next";
 
 import { JobPhotoPage } from "@/components/public/job-photo-page";
-import { publicEnv } from "@/env";
+import { publicPageLoader, publicPageMetadata } from "@/lib/public-page";
 
-/**
- * #294 — the page a homeowner opens to see the photos of their own job.
- *
- * No account, no login, no shell. This file may export ONLY the page and its
- * metadata; the rendering lives in a component, because a Next page.tsx that
- * exports anything else breaks `next build` while every other check passes.
- */
-
-/**
- * Kept out of every index, belt and braces.
- *
- * The API already sends `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`
- * on its side (D75). This is the HTML half of the same instruction, because the
- * page is fetched by a browser that a crawler may also be driving, and a snippet
- * is where a customer's details would surface.
- */
-export const metadata: Metadata = {
-  title: "Job photos",
-  robots: { index: false, follow: false, nocache: true },
-};
-
-export default async function Page({
-  params,
-}: {
+interface Props {
   params: Promise<{ token: string }>;
-}) {
-  const { token } = await params;
-  const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-  // No-store, so a shared link on a shared machine does not leave the photos in
-  // a disk cache after it expires.
-  const response = await fetch(`${base}/photos/${encodeURIComponent(token)}`, {
-    cache: "no-store",
-  });
+}
 
-  if (!response.ok) return <JobPhotoPage notAvailable />;
+const loadPhotos = publicPageLoader<{
+  locale?: string;
+  business_name: string;
+  photos: { id: string; work_phase: "before" | "after" | null; url: string }[];
+  truncated?: boolean;
+}>("photos");
 
-  const data = (await response.json()) as {
-    locale?: string;
-    business_name: string;
-    photos: { id: string; work_phase: "before" | "after" | null; url: string }[];
-    truncated?: boolean;
-  };
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const photos = await loadPhotos((await params).token);
+  return publicPageMetadata(photos?.locale, "misc.photosPageTitle");
+}
+
+export default async function Page({ params }: Props) {
+  const data = await loadPhotos((await params).token);
+  if (!data) return <JobPhotoPage notAvailable />;
   return (
     <JobPhotoPage
       locale={data.locale}
       businessName={data.business_name}
       photos={data.photos}
-      // #581/9: the API bounds a very long job. Optional here so a Worker running
-      // ahead of this deploy simply reads as "not truncated", which is what every
-      // job under the bound is anyway.
       truncated={data.truncated ?? false}
     />
   );

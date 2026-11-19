@@ -106,6 +106,21 @@ it.each([
 });
 
 describe("GET /q/:token", () => {
+  it("uses the contact language without returning the contact", async () => {
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote({
+      contact: { locale: "fr-CA" },
+      status: "viewed",
+    })]);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    expect(response.status).toBe(200);
+    const body = await response.json() as Record<string, unknown>;
+    expect(body.locale).toBe("fr-CA");
+    expect(body).not.toHaveProperty("contact");
+  });
+
   it("shows the business, the amount and the work, and nothing about the customer", async () => {
     // The disclosure rule the payment and photo pages already follow. This URL
     // lives in SMS logs and browser history; the customer's own name, address

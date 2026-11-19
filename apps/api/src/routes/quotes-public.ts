@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { companySettingDefault, effectiveQuoteStatus, isQuoteDecided } from '@loonext/shared';
+import { effectiveQuoteStatus, isQuoteDecided, resolveLocale } from '@loonext/shared';
 import type { QuoteState } from '@loonext/shared';
 
 import type { AppEnv } from "../context";
@@ -96,10 +96,10 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const [row] = unwrap<PublicQuoteRow[]>(
+  const [row] = unwrap<(PublicQuoteRow & { contact: { locale: string | null } | null })[]>(
     await db
       .from("quotes")
-      .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner()`)
+      .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner(),contact:contacts!contact_id(locale)`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
       .is("conversations.deleted_at", null)
@@ -172,13 +172,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   }
 
   return c.json({
-    /*
-     * The WORKSPACE's language, not the reader's device. Nothing here knows
-     * who is holding the phone — there is no session and no profile — so the
-     * honest default is the language the business writes in, which is the
-     * language they wrote this quote in.
-     */
-    locale: company.locale ?? companySettingDefault("locale"),
+    locale: resolveLocale(row.contact?.locale, company.locale),
     business_name: company.name,
     amount_cents: row.amount_cents,
     currency: row.currency,

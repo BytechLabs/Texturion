@@ -1,7 +1,14 @@
 import { DEFAULT_LOCALE, isLocale, WORK_PHASE_LABELS } from '@loonext/shared';
 import type { WorkPhase } from '@loonext/shared';
 
+import { DocumentLanguage } from "@/components/marketing/document-language";
 import { makeTranslate } from "@/i18n/translate";
+import type { Translate } from "@/i18n/translate";
+
+const PHOTO_ALT_KEYS = {
+  before: "misc.photoBeforeAlt",
+  after: "misc.photoAfterAlt",
+} as const;
 
 type JobPhoto = { id: string; work_phase: WorkPhase | null; url: string };
 const EMPTY_PHOTOS: JobPhoto[] = [];
@@ -58,12 +65,6 @@ export function JobPhotoPage({
    * neither would the crew who sent it.
    */
   truncated?: boolean;
-  /**
-   * #228: the BUSINESS's language. Same reasoning as the payment page — the
-   * homeowner has a relationship with the crew, not with us, so it is the
-   * crew's own setting that decides. No provider here: this renders outside the
-   * app shell for somebody with no account.
-   */
   locale?: string;
   notAvailable?: boolean;
 }) {
@@ -72,6 +73,7 @@ export function JobPhotoPage({
   if (notAvailable) {
     return (
       <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={language} />
         <h1 className="text-xl font-semibold tracking-tight">
           {t("misc.photoLinkUnavailableTitle")}
         </h1>
@@ -88,6 +90,7 @@ export function JobPhotoPage({
 
   return (
     <main lang={language} className="mx-auto w-full max-w-2xl px-4 py-10 md:px-6">
+      <DocumentLanguage locale={language} />
       <header className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight">
           {t("misc.photosFrom", { business: businessName ?? "" })}
@@ -112,30 +115,33 @@ export function JobPhotoPage({
 
       {/* Before and after are what somebody opened this to compare, so they are
           the only headings. A section renders nothing when it is empty. */}
-      <PhotoSection title={t(WORK_PHASE_LABELS.before)} photos={before} />
-      <PhotoSection title={t(WORK_PHASE_LABELS.after)} photos={after} />
-      <PhotoSection title={null} photos={rest} />
+      <PhotoSection phase="before" photos={before} t={t} />
+      <PhotoSection phase="after" photos={after} t={t} />
+      <PhotoSection phase={null} photos={rest} t={t} />
     </main>
   );
 }
 
 function PhotoSection({
-  title,
+  phase,
   photos,
+  t,
 }: {
-  title: string | null;
+  phase: WorkPhase | null;
   photos: { id: string; url: string }[];
+  t: Translate;
 }) {
   if (photos.length === 0) return null;
+  const altKey = phase === null ? "misc.photoAlt" : PHOTO_ALT_KEYS[phase];
   return (
     <section className="mt-8">
-      {title !== null && (
+      {phase !== null && (
         <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
+          {t(WORK_PHASE_LABELS[phase])}
         </h2>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {photos.map((photo) => (
+        {photos.map((photo, index) => (
           // A plain <img>: these are signed URLs on a bucket, one page, no
           // layout shift worth a loader. next/image would proxy a private URL
           // through our own optimiser for no benefit to anybody.
@@ -144,9 +150,7 @@ function PhotoSection({
           <img
             key={photo.id}
             src={photo.url}
-            // Empty rather than invented: a generated description of a
-            // photograph nobody has read would be a claim about the work.
-            alt=""
+            alt={t(altKey, { index: index + 1, count: photos.length })}
             loading="lazy"
             className="w-full rounded-lg border bg-muted object-cover"
           />

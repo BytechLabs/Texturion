@@ -739,11 +739,12 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
     (PaymentRequestRow & {
       stripe_payment_link_id: string | null;
       stripe_account_id: string;
+      contact: { locale: string | null } | null;
     })[]
   >(
     await db
       .from("payment_requests")
-      .select(`${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id,conversations!inner(),companies!inner()`)
+      .select(`${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id,conversations!inner(),companies!inner(),contact:contacts!contact_id(locale)`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
       .is("conversations.deleted_at", null)
@@ -773,18 +774,9 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       ? await stripeLinkUrl(env, row.stripe_account_id, row.stripe_payment_link_id)
       : null;
 
-  const locale = resolveLocale(null, company.locale);
+  const locale = resolveLocale(row.contact?.locale, company.locale);
   return c.json({
     business_name: company.name,
-    /**
-     * #228: the language the BUSINESS works in, and the one this page is drawn
-     * in.
-     *
-     * Not the reader's device and not ours. The person opening this has a
-     * relationship with the tradesperson, not with us — a Quebec plumber's
-     * customer meeting an English payment page is exactly the Bill 96 problem,
-     * and it is the business's own choice that should decide it.
-     */
     locale,
     amount_cents: row.amount_cents,
     currency: row.currency,
