@@ -17,10 +17,6 @@ import SwiftUI
 /// surface as the quiet "N without a location" count instead of blocking the
 /// view.
 ///
-/// The map consumes ONLY the assignee chips (assignee + unassigned); the status
-/// tabs and due chips do not narrow it (web parity — the map plots open AND done
-/// tasks for the picked assignee scope).
-
 // MARK: - Pure partition (unit-tested in TasksMapLogicTests)
 
 /// One map pin: every located task at one contact, plotted once.
@@ -104,6 +100,38 @@ func mapsDirectionsURL(lat: Double, lng: Double) -> URL? {
     URL(string: "http://maps.apple.com/?daddr=\(lat),\(lng)&dirflg=d")
 }
 
+private func mapsRouteURL(stops: [TaskItem]) -> URL? {
+    let points = stops.prefix(9).compactMap(taskPinCoords).map { "\($0.lat),\($0.lng)" }
+    guard let destination = points.last else { return nil }
+    var url = URLComponents(string: "https://maps.apple.com/directions")
+    url?.queryItems = [
+        URLQueryItem(name: "destination", value: destination),
+        URLQueryItem(name: "mode", value: "driving"),
+    ] + points.dropLast().map { URLQueryItem(name: "waypoint", value: $0) }
+    return url?.url
+}
+
+func taskDateKey(_ date: Date, calendar: Calendar = Calendar(identifier: .gregorian)) -> String {
+    let parts = calendar.dateComponents([.year, .month, .day], from: date)
+    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+}
+
+func taskDay(_ key: String, calendar: Calendar = Calendar(identifier: .gregorian)) -> Date? {
+    let parts = key.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3 else { return nil }
+    return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+}
+
+private func orderedMapRows(_ rows: [TaskItem], day: Date?) -> [TaskItem] {
+    let requestedDay = day.map { taskDateKey($0) }
+    return rows.filter { !$0.done }.map { task in
+        let instant = parseWireTimestamp(task.due_at)
+        return (task, task.due_on ?? instant.map { taskDateKey($0) }, instant)
+    }.filter { requestedDay == nil || $0.1 == requestedDay }.sorted { a, b in
+        (a.1 ?? "9999", a.2 ?? .distantFuture, a.0.id) < (b.1 ?? "9999", b.2 ?? .distantFuture, b.0.id)
+    }.map { $0.0 }
+}
+
 // MARK: - Map view
 
 @MainActor
@@ -121,6 +149,18 @@ struct TaskMapView: View {
 
     @State private var state: LoadState<[TaskItem]> = .loading
     @State private var localRefresh = 0
+    @State private var window = "today"
+    @State private var pickedDay = Date()
+    @Environment(\.appLocale) private var appLocale
+
+    private var selectedDay: Date? {
+        switch window {
+        case "all": return nil
+        case "custom": return pickedDay
+        case "tomorrow": return Calendar.current.date(byAdding: .day, value: 1, to: Date())
+        default: return Date()
+        }
+    }
 
     private var fetchToken: String {
         [
@@ -136,14 +176,27 @@ struct TaskMapView: View {
     }
 
     var body: some View {
-        Group {
+        VStack {
+            Picker(AppStrings.translate(appLocale, "contactsTasks.mapPickDay"), selection: $window) {
+                Text(AppStrings.translate(appLocale, "contactsTasks.mapToday")).tag("today")
+                Text(AppStrings.translate(appLocale, "contactsTasks.mapTomorrow")).tag("tomorrow")
+                Text(AppStrings.translate(appLocale, "contactsTasks.mapPickDay")).tag("custom")
+                Text(AppStrings.translate(appLocale, "contactsTasks.mapAllOpen")).tag("all")
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 18)
+            if window == "custom" {
+                DatePicker(AppStrings.translate(appLocale, "contactsTasks.mapPickDay"),
+                           selection: $pickedDay, displayedComponents: .date)
+                    .padding(.horizontal, 18)
+            }
             switch state {
             case .loading:
                 CenteredLoading()
             case .failed(let message):
                 LoadError(message: message) { localRefresh += 1 }
             case .ready(let rows):
-                TaskMapContent(rows: rows, onOpenTask: onOpenTask)
+                TaskMapContent(rows: orderedMapRows(rows, day: selectedDay), onOpenTask: onOpenTask)
             }
         }
         .task(id: fetchToken) { await reload() }
@@ -154,11 +207,6 @@ struct TaskMapView: View {
     /// passed back with the exact params that minted it. The page cap is a
     /// runaway guard (40 x 100 rows); the id de-dupe absorbs rows that shift
     /// pages mid-drain. Mirrors Android's drainLocatedTasks.
-    ///
-    /// `has_location=true` is itself an explicit filter param, so the route's
-    /// Open·Mine default never re-applies here — both statuses arrive. This
-    /// query is not in the TaskListFilters model (it has no `has_location`
-    /// arm), so it is built directly against the shared ApiClient.
     ///
     /// The due chips and the search box refine it, the way they refine every
     /// other view. They used to be ignored here: the chips stayed lit and the
@@ -189,6 +237,7 @@ struct TaskMapView: View {
                     "/v1/tasks",
                     query: [
                         "has_location": "true",
+                        "status": "open",
                         "assigned_user_id": assignee,
                         "unassigned": unassigned ? "true" : nil,
                         "due_before": dueFilters.dueBefore,
@@ -201,6 +250,7 @@ struct TaskMapView: View {
                         "contact_id": meta.contactId,
                         "created_by": meta.createdBy,
                         "source": meta.source,
+                        "confirmed": meta.notConfirmed ? "false" : nil,
                         "cursor": cursor,
                         "limit": "100",
                     ],
@@ -235,6 +285,10 @@ private struct TaskMapContent: View {
     @Environment(\.appLocale) private var appLocale
 
     private var model: TaskMapModel { buildTaskMapModel(rows) }
+    private var stops: [TaskItem] { rows.filter { taskPinCoords($0) != nil } }
+    private var stopNumbers: [String: Int] {
+        Dictionary(uniqueKeysWithValues: stops.enumerated().map { ($0.element.id, $0.offset + 1) })
+    }
 
     /// A stable signature of the pin set — the camera refits only when this
     /// changes, so a silent revalidate returning the same rows never yanks the
@@ -245,6 +299,30 @@ private struct TaskMapContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let route = mapsRouteURL(stops: stops) {
+                Link(AppStrings.translate(appLocale, "contactsTasks.mapOpenRoute"), destination: route)
+                    .padding(.bottom, 8)
+                if stops.count > 9 {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.mapRouteLimit"))
+                        .font(.golos(11.5))
+                }
+                ScrollView(.horizontal) {
+                    HStack {
+                        ForEach(stops, id: \.id) { task in
+                            Button {
+                                onOpenTask(task.id)
+                            } label: {
+                                Text("\(stopNumbers[task.id] ?? 0). \(task.title)")
+                                if task.confirmed_at != nil {
+                                    Image(systemName: "calendar.badge.checkmark")
+                                        .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.mapConfirmed"))
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                }
+            }
             if model.located > 0 {
                 countLine
                 Text(AppStrings.translate(appLocale, "contactsTasks.mapAddressLookupPaused"))
@@ -299,9 +377,15 @@ private struct TaskMapContent: View {
                     // that turns pale lime in dark mode and the pin (balloon +
                     // white glyph) goes illegible on the tiles. Deep olive reads
                     // in BOTH themes.
-                    Marker(markerTitle(group), coordinate: group.coordinate)
-                        .tint(BrandColor.mapPin)
-                        .tag(group.id)
+                    Annotation(markerTitle(group), coordinate: group.coordinate) {
+                        let number = group.tasks.first.flatMap { stopNumbers[$0.id] } ?? 0
+                        Text(group.tasks.count == 1 ? "\(number)" : "\(number)+")
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(7)
+                            .background(BrandColor.mapPin, in: Circle())
+                    }
+                    .tag(group.id)
                 }
             }
             .mapStyle(.standard)

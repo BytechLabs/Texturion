@@ -47,6 +47,7 @@ export const repeatSchema = z
       })
       .optional(),
     paused: z.boolean().optional(),
+    remind_customer: z.boolean().optional(),
   })
   .strict();
 
@@ -56,7 +57,7 @@ export type RepeatInput = z.infer<typeof repeatSchema>;
 export const scopeSchema = z.enum(["this", "future"]);
 
 const SERIES_COLUMNS =
-  "id,kind,unit,every,weekdays,month_day,nth,nth_weekday,ends_kind,ends_on,ends_after,paused,stopped_at";
+  "id,kind,unit,every,weekdays,month_day,nth,nth_weekday,ends_kind,ends_on,ends_after,paused,stopped_at,remind_customer";
 
 interface SeriesRow {
   id: string;
@@ -71,6 +72,7 @@ interface SeriesRow {
   ends_on: string | null;
   ends_after: number | null;
   paused: boolean;
+  remind_customer?: boolean;
   stopped_at: string | null;
 }
 
@@ -87,6 +89,7 @@ export function publicRepeat(row: SeriesRow) {
     nth_weekday: row.nth_weekday,
     ends: { kind: row.ends_kind, on: row.ends_on, after: row.ends_after },
     paused: row.paused,
+    remind_customer: row.remind_customer ?? false,
     stopped: row.stopped_at !== null,
   };
 }

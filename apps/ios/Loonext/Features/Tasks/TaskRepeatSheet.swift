@@ -11,6 +11,7 @@ import SwiftUI
 struct TaskRepeatSheet: View {
     let hasDue: Bool
     let isEditing: Bool
+    let textingCustomer: String?
     let onSave: @MainActor (TaskRepeatDraft) -> Void
     let onRemove: @MainActor () -> Void
 
@@ -23,11 +24,13 @@ struct TaskRepeatSheet: View {
         initial: TaskRepeatDraft,
         hasDue: Bool,
         isEditing: Bool,
+        textingCustomer: String? = nil,
         onSave: @escaping @MainActor (TaskRepeatDraft) -> Void,
         onRemove: @escaping @MainActor () -> Void
     ) {
         self.hasDue = hasDue
         self.isEditing = isEditing
+        self.textingCustomer = textingCustomer
         self.onSave = onSave
         self.onRemove = onRemove
         _draft = State(initialValue: initial)
@@ -45,6 +48,12 @@ struct TaskRepeatSheet: View {
                 intervalSection
                 if draft.kind == TaskRepeatKind.schedule {
                     scheduleSection
+                    if let textingCustomer {
+                        Toggle(textingCustomer.isEmpty ? t("contactsTasks.repeatTextEveryVisit")
+                               : t("contactsTasks.repeatTextCustomer", ["name": textingCustomer]),
+                               isOn: Binding(get: { draft.remindCustomer ?? false },
+                                             set: { draft.remindCustomer = $0 }))
+                    }
                 }
                 endsSection
                 if isEditing {
@@ -406,6 +415,7 @@ struct TaskDraftMetaSection: View {
     let due: Date?
     /// A job tied to a customer defaults to "after it's done".
     let linkedToCustomer: Bool
+    var textingCustomer: String? = nil
 
     @State private var repeatOpen = false
 
@@ -429,6 +439,7 @@ struct TaskDraftMetaSection: View {
                 ),
                 hasDue: due != nil,
                 isEditing: meta.repeatDraft != nil,
+                textingCustomer: textingCustomer,
                 onSave: { meta.repeatDraft = $0 },
                 onRemove: { meta.repeatDraft = nil }
             )

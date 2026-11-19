@@ -19,6 +19,7 @@ export interface LocatedTask extends Task {
   lat: number;
   lng: number;
   contactName: string | null;
+  stop?: number;
 }
 
 /** Finite, on-Earth coordinates or null (a bad geocode must never plot). */
@@ -70,4 +71,29 @@ export function taskCoords(
  */
 export function mapsDirectionsHref(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
+export function mapsRouteHref(stops: readonly LocatedTask[]): string {
+  const points = stops.slice(0, 9).map(({ lat, lng }) => `${lat},${lng}`);
+  const destination = points.pop();
+  if (destination === undefined) return "";
+  const query = new URLSearchParams({ api: "1", destination });
+  if (points.length > 0) query.set("waypoints", points.join("|"));
+  return `https://www.google.com/maps/dir/?${query}`;
+}
+
+export function mapDay(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+export function taskMapDay(task: Task): string | undefined {
+  return task.due_on ?? (task.due_at ? mapDay(new Date(task.due_at)) : undefined);
+}
+
+export function compareMapStops(a: Task, b: Task): number {
+  const byDay = (taskMapDay(a) ?? "9999").localeCompare(taskMapDay(b) ?? "9999");
+  const byTime = (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);
+  return byDay || byTime || a.id.localeCompare(b.id);
 }

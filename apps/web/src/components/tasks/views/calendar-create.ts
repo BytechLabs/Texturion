@@ -1,8 +1,5 @@
 import { instantFromZonedWallClock, zonedWallClock } from "@/lib/format/time";
 
-/** The hour a task made from a month day is due, as nobody picked one. */
-export const MONTH_CLICK_HOUR = 9;
-
 /**
  * A calendar cell is a day LABEL: its year, month and day are what the
  * grid shows, whatever zone the device is in. The `Date` only carries them.
@@ -26,12 +23,10 @@ export function todayInZone(now: Date, timeZone: string): Date {
 
 /**
  * The New task due value for a click on `day`: a `datetime-local` string in
- * the WORKSPACE's zone. Month clicks have no time, so they get the morning
- * default; week clicks carry the slot's hour.
+ * the workspace's zone. A month cell carries only its date.
  */
 export function slotDueValue(day: Date, hour: number | null): string {
-  const h = hour ?? MONTH_CLICK_HOUR;
-  return `${dayKey(day)}T${String(h).padStart(2, "0")}:00`;
+  return hour === null ? dayKey(day) : `${dayKey(day)}T${String(hour).padStart(2, "0")}:00`;
 }
 
 /** The instant a grid day starts at in the workspace zone; the device's midnight if the zone cannot say. */

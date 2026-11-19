@@ -57,8 +57,9 @@ export function InlineDue({ task }: { task: Task }) {
   const draft = useRef<string | null>(null);
   const overdue = isOverdue(task);
 
-  const label =
-    task.due_at === null
+  const label = task.due_on
+    ? `${task.due_on} · ${t("tasks.anyTime")}`
+    : task.due_at === null
       ? t("tasks.setDue")
       : formatTimestamp(task.due_at, { style: "long", t });
 
@@ -67,9 +68,9 @@ export function InlineDue({ task }: { task: Task }) {
     draft.current = null;
     // A datetime-local reads "" while ANY segment is blank, so a half-retyped
     // hour is not "remove the due date". Removing one is the explicit control.
-    if (value === null || value === "" || value === toLocalInput(task.due_at)) return;
+    if (value === null || value === "" || value === (task.due_on ?? toLocalInput(task.due_at))) return;
     update.mutate(
-      { taskId: task.id, due_at: new Date(value).toISOString() },
+      { taskId: task.id, ...(task.due_on ? { due_on: value } : { due_at: new Date(value).toISOString() }) },
       { onError: () => toast.error(t("tasks.dueChangeFailed")) },
     );
   };
@@ -86,7 +87,7 @@ export function InlineDue({ task }: { task: Task }) {
         <button
           type="button"
           aria-label={
-            task.due_at
+            task.due_at || task.due_on
               ? (overdue
                 ? t("tasks.changeDueOverdueAria")
                 : t("tasks.changeDueAria"))
@@ -110,16 +111,16 @@ export function InlineDue({ task }: { task: Task }) {
       >
         <div className="flex flex-col gap-2">
           <input
-            type="datetime-local"
+            type={task.due_on ? "date" : "datetime-local"}
             aria-label={t("tasks.dueDateTimeAria")}
-            defaultValue={toLocalInput(task.due_at)}
+            defaultValue={task.due_on ?? toLocalInput(task.due_at)}
             onChange={(e) => {
               draft.current = e.target.value;
             }}
             onBlur={commit}
             className="rounded-app-ctrl border border-app-line bg-app-paper px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          {task.due_at !== null && (
+          {(task.due_at !== null || task.due_on) && (
             <button
               type="button"
               // Keeps focus in the field, so its blur cannot send the typed date first.

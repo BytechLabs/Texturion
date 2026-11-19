@@ -228,6 +228,8 @@ interface TaskFilters {
   conversationId: string | undefined;
   dueBefore: string | undefined;
   dueAfter: string | undefined;
+  dueOnBefore?: string;
+  dueOnAfter?: string;
   overdue: boolean;
   confirmed?: boolean;
   search?: string;
@@ -283,8 +285,16 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   if (filters.conversationId !== undefined) {
     q = q.eq("conversation_id", filters.conversationId);
   }
-  if (filters.dueBefore !== undefined) q = q.lte("due_at", filters.dueBefore);
-  if (filters.dueAfter !== undefined) q = q.gte("due_at", filters.dueAfter);
+  if (filters.dueBefore !== undefined) {
+    q = filters.dueOnBefore
+      ? q.or(`due_at.lte.${filters.dueBefore},due_on.lte.${filters.dueOnBefore}`)
+      : q.lte("due_at", filters.dueBefore);
+  }
+  if (filters.dueAfter !== undefined) {
+    q = filters.dueOnAfter
+      ? q.or(`due_at.gte.${filters.dueAfter},due_on.gte.${filters.dueOnAfter}`)
+      : q.gte("due_at", filters.dueAfter);
+  }
   if (filters.overdue) {
     // Overdue = past due AND not yet done (a done task is never "overdue").
     q = q.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
@@ -650,10 +660,6 @@ const createSchema = z
   label_ids: z.array(z.uuid()).max(20).optional(),
   repeat: repeatSchema.optional(),
 })
-  .refine((body) => !body.due_at || body.due_on === undefined, {
-    message: "Provide a time or a date for this job.",
-    path: ["due_on"],
-  })
   .refine((body) => body.message_id === undefined || body.source_call_id === undefined, {
     message: "Provide at most one of message_id or source_call_id.",
   })
@@ -700,10 +706,6 @@ const patchSchema = z
     scope: scopeSchema.optional(),
   })
   .strict()
-  .refine((body) => !("due_at" in body && "due_on" in body), {
-    message: "Provide a time or a date for this job.",
-    path: ["due_on"],
-  })
   .refine(
     (body) =>
       body.title !== undefined ||
@@ -730,6 +732,12 @@ const STATUS_VALUES = ["open", "done"] as const;
  * error/HTTP surface. `task` is left untyped (it is `to_jsonb(tasks)` — the
  * TASK_COLUMNS shape) and returned to the client as-is.
  */
+const taskCorrectionSchema = z.object({
+  id: z.uuid(),
+  body: z.string(),
+  recipient: z.string().nullable(),
+});
+
 const taskOutcomeSchema = z.object({
   outcome: z.enum([
     "created",
@@ -755,6 +763,7 @@ const taskOutcomeSchema = z.object({
     "unscheduled",
     "bad_due_precision",
   ]),
+  correction: taskCorrectionSchema.nullish(),
   task: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
@@ -796,6 +805,11 @@ export const tasksRoutes = new Hono<AppEnv>();
  */
 tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
+  if (body.due_on && body.due_at) {
+    return errorResponse(c, "validation_failed", "Provide a time or a date for this job.", {
+      key: "apiRefusals.bookingDuePrecision",
+    });
+  }
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
@@ -1342,6 +1356,8 @@ const taskSelectionSchema = z.strictObject({
   conversation_id: z.uuid().optional(),
   due_before: taskDueFilter.optional(),
   due_after: taskDueFilter.optional(),
+  due_on_before: z.iso.date().optional(),
+  due_on_after: z.iso.date().optional(),
   overdue: z.boolean().optional(),
   confirmed: z.boolean().optional(),
   has_location: z.boolean().optional(),
@@ -1367,6 +1383,8 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     conversation_id: query.conversation_id,
     due_before: query.due_before,
     due_after: query.due_after,
+    due_on_before: query.due_on_before,
+    due_on_after: query.due_on_after,
     overdue: query.overdue === "true" || undefined,
     confirmed: query.confirmed === "true" ? true : (query.confirmed === "false" ? false : query.confirmed),
     has_location: query.has_location === "true" || undefined,
@@ -1509,6 +1527,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueAfter,
     overdue,
     confirmed: extraInput.confirmed,
+    dueOnBefore: extraInput.due_on_before,
+    dueOnAfter: extraInput.due_on_after,
     search,
     priorities,
     tagId,
@@ -1714,6 +1734,8 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         dueAfter: q.dueAfter,
         overdue: q.overdue,
         confirmed: q.extraInput.confirmed,
+        dueOnBefore: q.extraInput.due_on_before,
+        dueOnAfter: q.extraInput.due_on_after,
         search: q.search,
         priorities: q.priorities,
         tagId: q.tagId,
@@ -1899,6 +1921,8 @@ tasksRoutes.post(
           dueAfter: filter.due_after,
           overdue: filter.overdue === true,
           confirmed: filter.confirmed,
+          dueOnBefore: filter.due_on_before,
+          dueOnAfter: filter.due_on_after,
           search: filter.q,
           priorities: filter.priority,
           tagId: filter.tag_id,
@@ -2556,6 +2580,11 @@ async function loadTaskActivity(
 tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
+  if ("due_on" in body && "due_at" in body) {
+    return errorResponse(c, "validation_failed", "Provide a time or a date for this job.", {
+      key: "apiRefusals.bookingDuePrecision",
+    });
+  }
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
@@ -2600,6 +2629,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     "due_at" in body ||
     "address" in body;
   const touchesCustomer = "contact_id" in body || "conversation_id" in body;
+  let correction: z.infer<typeof taskCorrectionSchema> | null | undefined;
   const desiredCrew = requestedAssignees(body);
   const touchesAssignee = desiredCrew !== undefined;
 
@@ -2679,6 +2709,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     latest = result.task ?? latest;
+    ({ correction } = result);
   }
 
   // #689 D: "time changed" needs the value that is about to be overwritten,
@@ -2710,6 +2741,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     if (result.task) latest = result.task;
+    if ("due_at" in body) ({ correction } = result);
     if (
       result.outcome === "updated" &&
       before &&
@@ -2868,7 +2900,10 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
   if (latest) {
-    return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(latest)));
+    return c.json(await withLabelsAndRepeatOne(db, companyId, withSource({
+      ...latest,
+      ...(correction ? { correction } : {}),
+    })));
   }
   if (found) {
     const current = await findTask(db, companyId, id);
@@ -3145,10 +3180,12 @@ tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) 
       p_actor_user_id: userId,
     });
     if (error) throw new Error(`api_delete_task_series failed: ${error.message}`);
-    if ((data as { outcome?: string } | null)?.outcome === "not_found") {
+    const result = parseTaskOutcome(data);
+    if (result.outcome === "not_found") {
       return errorResponse(c, "not_found", "No such task.");
     }
     await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
+    if (result.correction) return c.json({ correction: result.correction });
     return c.body(null, 204);
   }
 
@@ -3177,5 +3214,6 @@ tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) 
   // soft-deleted task, so this is the same call every other write makes.
   await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
+  if (result.correction) return c.json({ correction: result.correction });
   return c.body(null, 204);
 });

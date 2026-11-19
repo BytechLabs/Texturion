@@ -71,6 +71,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import com.loonext.android.core.model.BookingCorrection
+import com.loonext.android.features.thread.MessagingRepository
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -442,6 +444,28 @@ private fun TaskDetailBody(
     }
     val notSavedLabel = t("contactsTasks.scopeNotSaved")
     val noAccess = detail.viewer_level == "none"
+    var pickBookingCustomer by remember(detail.id) { mutableStateOf(false) }
+    var correction by remember(detail.id) { mutableStateOf<BookingCorrection?>(null) }
+    var deletedWithCorrection by remember(detail.id) { mutableStateOf(false) }
+    if (pickBookingCustomer) {
+        ContactPickerSheet(
+            repo = remember(graph) { ReferenceRepository(graph.api) },
+            companyId = companyId,
+            onPick = { customer ->
+                pickBookingCustomer = false
+                scope.launch {
+                    try {
+                        val thread = customer?.let { findBookingConversation(graph.api, companyId, it) }
+                        mutations.setCustomer(companyId, detail.id, customer?.id, thread)
+                        onChanged()
+                    } catch (cause: Exception) {
+                        onActionError(cause.userMessage(locale))
+                    }
+                }
+            },
+            onDismiss = { pickBookingCustomer = false },
+        )
+    }
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
     val canDelete = canDeleteRecords(role)
@@ -478,8 +502,9 @@ private fun TaskDetailBody(
     fun patched(newDetail: TaskDetail) = onPatched(newDetail)
 
     fun applyTask(task: com.loonext.android.core.model.Task) {
+        task.correction?.let { correction = it }
         // A due change can replace the reminder queue.
-        if (task.due_at != detail.due_at) {
+        if (task.due_at != detail.due_at || task.due_on != detail.due_on) {
             onChanged()
             return
         }
@@ -596,8 +621,13 @@ private fun TaskDetailBody(
         scope.launch {
             onActionError(null)
             try {
-                mutations.delete(companyId, detail.id, deleteScope)
-                onDeleted()
+                val queued = mutations.delete(companyId, detail.id, deleteScope)
+                if (queued != null) {
+                    deletedWithCorrection = true
+                    correction = queued
+                } else {
+                    onDeleted()
+                }
             } catch (cause: Exception) {
                 onActionError(
                     if ((cause as? ApiException)?.code == ApiErrorCode.FORBIDDEN) {
@@ -612,6 +642,17 @@ private fun TaskDetailBody(
         }
     }
 
+    correction?.let { queued ->
+        BookingCorrectionDialog(
+            notice = queued,
+            repository = remember(graph) { MessagingRepository(graph.api) },
+            companyId = companyId,
+            onClose = {
+                correction = null
+                if (deletedWithCorrection) onDeleted()
+            },
+        )
+    }
     Column(modifier.fillMaxSize()) {
         DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
 
@@ -902,7 +943,7 @@ private fun TaskDetailBody(
                                 datePickerOpen = true
                             }
                         },
-                        trailing = if (detail.due_at != null && !noAccess) {
+                        trailing = if ((detail.due_at != null || detail.due_on != null) && !noAccess) {
                             {
                                 IconButton(
                                     onClick = {
@@ -936,6 +977,7 @@ private fun TaskDetailBody(
                         Text(
                             when {
                                 detail.calendar_hold -> t("contactsTasks.calendarHold")
+                                detail.due_on != null -> detail.due_on + " · " + t("contactsTasks.anyTime")
                                 detail.due_at == null -> t("contactsTasks.noDueDate")
                                 overdue -> t(
                                     "contactsTasks.overdueDot",
@@ -961,7 +1003,29 @@ private fun TaskDetailBody(
 
                     val reminder = detail.reminders
                     val canRemind = detail.conversation_id != null && reminder?.state != "no_customer_thread"
-                    if (!noAccess && !detail.calendar_hold && (reminder != null || detail.due_at != null)) {
+                    if (!noAccess && detail.message_id == null && detail.source_call == null && detail.source?.kind != "call") {
+                        RowDivider()
+                        TextButton(onClick = { pickBookingCustomer = true }, modifier = Modifier.padding(horizontal = 12.dp)) {
+                            Text(t("contactsTasks.bookingCustomer",
+                                "name" to (detail.contact?.name ?: t("taskViews.pickCustomer"))))
+                        }
+                    }
+                    if (!noAccess && ((!detail.done && (detail.due_at != null || detail.due_on != null)) || detail.confirmed_at != null)) {
+                        RowDivider()
+                        TextButton(onClick = {
+                            scope.launch {
+                                try {
+                                    mutations.setConfirmation(companyId, detail.id, detail.confirmed_at == null)
+                                    onChanged()
+                                } catch (cause: Exception) {
+                                    onActionError(cause.userMessage(locale))
+                                }
+                            }
+                        }, modifier = Modifier.padding(horizontal = 12.dp)) {
+                            Text(t(if (detail.confirmed_at == null) "contactsTasks.markConfirmed" else "contactsTasks.clearConfirmation"))
+                        }
+                    }
+                    if (!noAccess && !detail.calendar_hold && (reminder != null || detail.due_at != null || detail.due_on != null)) {
                         RowDivider()
                         MetaRow(
                             label = t("contactsTasks.remind"),
@@ -1494,6 +1558,7 @@ private fun TaskDetailBody(
             initial = detail.repeat?.let { RepeatDraft.from(it) }
                 ?: RepeatDraft.forLinked(detail.conversation_id != null || detail.contact_id != null),
             due = dueDate,
+            textingCustomer = detail.contact?.name.orEmpty().takeIf { detail.conversation_id != null },
             existing = detail.repeat != null,
             onSave = { draft -> saveRepeat(draft.toRepeat(dueDate)) },
             onStop = { saveRepeat(null) },
@@ -1617,6 +1682,63 @@ private fun TaskDetailBody(
             },
         )
     }
+}
+
+@Composable
+private fun BookingCorrectionDialog(
+    notice: BookingCorrection,
+    repository: MessagingRepository,
+    companyId: String,
+    onClose: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
+    var draft by remember(notice.id) { mutableStateOf<String?>(null) }
+    var saving by remember(notice.id) { mutableStateOf(false) }
+    var error by remember(notice.id) { mutableStateOf<String?>(null) }
+
+    fun submit(cancel: Boolean) {
+        saving = true
+        scope.launch {
+            try {
+                if (cancel) repository.cancelScheduledMessage(companyId, notice.id)
+                else repository.rescheduleMessage(companyId, notice.id, body = draft)
+                onClose()
+            } catch (cause: Exception) {
+                error = cause.userMessage(locale)
+            } finally {
+                saving = false
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = {
+            Text(notice.recipient?.let { t("contactsTasks.correctionQueued", "name" to it) }
+                ?: t("contactsTasks.correctionQueuedAnonymous"))
+        },
+        text = {
+            Column {
+                val body = draft
+                if (body != null) OutlinedTextField(
+                    value = body,
+                    onValueChange = { draft = it.take(1600) },
+                    label = { Text(t("contactsTasks.correctionEdit")) },
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !saving && draft?.isBlank() != true, onClick = {
+                if (draft == null) draft = notice.body else submit(cancel = false)
+            }) { Text(t(if (draft == null) "contactsTasks.correctionEdit" else "common.save")) }
+        },
+        dismissButton = {
+            TextButton(enabled = !saving, onClick = { submit(cancel = true) }) {
+                Text(t("contactsTasks.correctionCancel"))
+            }
+        },
+    )
 }
 
 /** "Tomorrow 9:00 AM" — the due row value (spec 23). */

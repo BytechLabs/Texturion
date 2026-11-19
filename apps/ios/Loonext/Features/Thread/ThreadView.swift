@@ -2608,6 +2608,7 @@ struct MakeTaskSheet: View {
     @State private var crew: [String] = []
     @State private var crewCapHit = false
     @State private var due: Date?
+    @State private var dateOnly: Bool
     @State private var dueSuggested = false
     @State private var duePickerOpen = false
     @State private var addr = AddressFieldValues()
@@ -2626,6 +2627,21 @@ struct MakeTaskSheet: View {
     /// #693: priority, labels and a repeat. Only a standalone task shows them.
     @State private var meta = TaskDraftMeta()
     @State private var workspaceTags: [Tag] = []
+    @State private var pickingCustomer = false
+    @State private var pickedCustomer: Contact?
+    @State private var changedCustomer = false
+    @State private var pickedCustomerThread: String?
+    @State private var resolvingCustomer = false
+
+    private var textingCustomer: String? {
+        if changedCustomer {
+            return pickedCustomerThread == nil ? nil : (pickedCustomer?.name ?? "")
+        }
+        if case .standalone(let conversationId, _) = source, conversationId != nil {
+            return contactName
+        }
+        return nil
+    }
 
     private enum AddrField: Hashable {
         case street, unit, city, state, postal, country
@@ -2639,7 +2655,9 @@ struct MakeTaskSheet: View {
         contactName: String,
         locale: String,
         onDismiss: @escaping @MainActor () -> Void,
-        initialDue: Date? = nil
+        initialDue: Date? = nil,
+        initialDueOn: String? = nil,
+        initialAddress: String? = nil
     ) {
         self.controller = controller
         self.source = source
@@ -2660,8 +2678,14 @@ struct MakeTaskSheet: View {
         }
         _description = State(initialValue: source.voicemail?.description ?? "")
         // A prefilled due opens More so the day it chose is on screen (#739).
-        _moreOpen = State(initialValue: !source.isStandalone || initialDue != nil)
-        _due = State(initialValue: initialDue)
+        _moreOpen = State(initialValue: !source.isStandalone || initialDue != nil || initialDueOn != nil)
+        _due = State(initialValue: initialDueOn.flatMap { taskDay($0) } ?? initialDue)
+        _dateOnly = State(initialValue: initialDueOn != nil)
+        if let initialAddress {
+            var address = AddressFieldValues()
+            address.street = initialAddress
+            _addr = State(initialValue: address)
+        }
         _assigneeId = State(initialValue: controller.meUserId)
         _crew = State(initialValue: [controller.meUserId])
     }
@@ -2706,6 +2730,16 @@ struct MakeTaskSheet: View {
                 header
                 if let message, !message.body.isBlank { sourceQuote(message) }
                 titleField
+                if source.isStandalone, controller is NewTaskHost {
+                    Button {
+                        pickingCustomer = true
+                    } label: {
+                        let name = changedCustomer ? (pickedCustomer?.name ?? pickedCustomer?.phone_e164 ?? "") : contactName
+                        Text(AppStrings.translate(locale, "contactsTasks.bookingCustomer", [
+                            "name": name.isEmpty ? AppStrings.translate(locale, "contactsTasks.pickCustomer") : name
+                        ]))
+                    }
+                }
                 if source.voicemail != nil {
                     let label = AppStrings.translate(locale, "contactsTasks.description")
                     VStack(alignment: .leading, spacing: 5) {
@@ -2718,13 +2752,17 @@ struct MakeTaskSheet: View {
                 if moreOpen {
                     assigneeRow
                     dueRow
+                    if source.isStandalone, due != nil {
+                        Toggle(AppStrings.translate(locale, "contactsTasks.anyTime"), isOn: $dateOnly)
+                    }
                     addressBlock
                     if source.isStandalone {
                         TaskDraftMetaSection(
                             meta: $meta,
                             tags: workspaceTags,
                             due: due,
-                            linkedToCustomer: source.isLinkedToCustomer
+                            linkedToCustomer: changedCustomer ? pickedCustomer != nil : source.isLinkedToCustomer,
+                            textingCustomer: textingCustomer
                         )
                     }
                 } else {
@@ -2744,6 +2782,27 @@ struct MakeTaskSheet: View {
         .background(BrandColor.canvas)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $pickingCustomer) {
+            if let host = controller as? NewTaskHost {
+                BookingCustomerPicker(load: { try await host.customers(matching: $0) }) { customer in
+                    if addr.street.isEmpty || addr.street == pickedCustomer?.address {
+                        addr.street = customer?.address ?? ""
+                    }
+                    pickedCustomer = customer
+                    pickedCustomerThread = nil
+                    resolvingCustomer = customer != nil
+                    changedCustomer = true
+                }
+            }
+        }
+        .task(id: pickedCustomer?.id) {
+            guard let customer = pickedCustomer, let host = controller as? NewTaskHost else { return }
+            let thread = await host.thread(for: customer)
+            if !Task.isCancelled {
+                pickedCustomerThread = thread
+                resolvingCustomer = false
+            }
+        }
         .task { await enrichIfNeeded() }
         .task {
             if source.isStandalone {
@@ -3144,7 +3203,7 @@ struct MakeTaskSheet: View {
         .buttonStyle(.plain)
         .disabled(
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !meta.isValid(hasDue: due != nil)
+                || !meta.isValid(hasDue: due != nil) || resolvingCustomer
         )
         .accessibilityLabel(
             AppStrings.translate(locale, "thread.createTask")
@@ -3178,8 +3237,14 @@ struct MakeTaskSheet: View {
         // #689 C: a standalone task sends its whole crew (an empty one means
         // nobody, which is not the same as leaving it out).
         var sent = meta
-        if source.isStandalone { sent.assigneeIds = crew }
+        if source.isStandalone {
+            sent.assigneeIds = crew
+            sent.dueOn = dateOnly ? due.map { taskDateKey($0) } : nil
+        }
         var reviewedSource = source
+        if source.isStandalone && changedCustomer {
+            reviewedSource = .standalone(conversationId: pickedCustomerThread, contactId: pickedCustomer?.id)
+        }
         if case let .call(id, name, draft?) = source {
             var reviewedVoicemail = draft
             reviewedVoicemail.description = String(description.prefix(taskDescriptionMax))
@@ -3189,7 +3254,7 @@ struct MakeTaskSheet: View {
             from: reviewedSource,
             title: String(trimmed.prefix(taskTitleMax)),
             assignedUserId: source.isStandalone ? crew.first : assigneeId,
-            dueAt: due.map { encodeDueAt($0) },
+            dueAt: sent.dueOn == nil ? due.map { encodeDueAt($0) } : nil,
             address: addr,
             provenance: addrProvenance ?? AddressProvenance.manual,
             meta: sent

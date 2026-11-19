@@ -301,6 +301,7 @@ enum ApiErrorStrings {
             "apiRefusals.bookingSourceCustomer": "A task created from a text or call keeps its customer.",
             "apiRefusals.bookingCustomerUnavailable": "Choose an available customer or conversation.",
             "apiRefusals.bookingConfirmationNeedsDate": "Set a date for this open job before confirming it.",
+            "apiRefusals.bookingDuePrecision": "Provide a time or a date for this job.",
             "apiRefusals.remindersWorkspaceNotFound": "No such workspace.",
             "apiRefusals.scheduledTextHorizon": "We can hold a message for up to {days} days.",
             "apiRefusals.scheduledTextKeyUsed":
@@ -660,6 +661,7 @@ enum ApiErrorStrings {
             "apiRefusals.bookingSourceCustomer": "Une tâche créée à partir d’un texto ou d’un appel conserve son client.",
             "apiRefusals.bookingCustomerUnavailable": "Choisissez un client ou une conversation disponible.",
             "apiRefusals.bookingConfirmationNeedsDate": "Fixez une date pour cette tâche ouverte avant de la confirmer.",
+            "apiRefusals.bookingDuePrecision": "Indiquez une heure ou une date pour cette tâche.",
             "apiRefusals.remindersWorkspaceNotFound": "Cet espace de travail est introuvable.",
             "apiRefusals.scheduledTextHorizon": "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
             "apiRefusals.scheduledTextKeyUsed":

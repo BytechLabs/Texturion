@@ -648,6 +648,84 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  conversation constant uuid := 'a5000000-0000-4000-8000-0000000000e1';
+  t0 constant timestamptz := now() + interval '7 days';
+  job uuid;
+  queued uuid;
+  outcome jsonb;
+  series uuid;
+begin
+  insert into public.tasks (company_id, title, due_at, created_by_user_id, conversation_id)
+  values (company, 'Correct a booking', t0, owner_id, conversation)
+  returning id into job;
+  perform public.update_task(company, job, null, null, t0 + interval '1 hour', false, owner_id);
+  if exists (select 1 from public.scheduled_messages where task_id = job and origin = 'correction') then
+    raise exception 'An unadvertised job queued a correction';
+  end if;
+
+  insert into public.scheduled_messages
+    (company_id, conversation_id, task_id, origin, reminder_offset_minutes, body,
+     send_at, clock_timezone, clock_source, expires_at, created_by)
+  values (company, conversation, job, 'reminder', 1440, 'Visit', now(), 'UTC', 'company',
+    now() + interval '1 day', owner_id)
+  returning id into queued;
+  update public.scheduled_messages set status = 'sent' where id = queued;
+  outcome := public.update_task(company, job, null, null, t0 + interval '2 hours', false, owner_id);
+  if (select count(*) from public.scheduled_messages
+       where task_id = job and origin = 'correction' and status = 'pending'
+         and send_at = now() + interval '10 minutes'
+         and id::text = outcome->'correction'->>'id') is distinct from 1::bigint then
+    raise exception 'A moved booking did not queue exactly one correction with time to undo';
+  end if;
+  perform public.update_task(company, job, null, null, t0 + interval '3 hours', false, owner_id);
+  if (select count(*) from public.scheduled_messages
+       where task_id = job and origin = 'correction' and status = 'pending') is distinct from 1::bigint then
+    raise exception 'A second move did not supersede the queued correction';
+  end if;
+  perform public.update_task(company, job, null, null, t0 + interval '1 hour', false, owner_id);
+  if exists (select 1 from public.scheduled_messages
+              where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'Undo failed to cancel the correction';
+  end if;
+  update public.tasks set deleted_at = now() where id = job;
+  if not exists (select 1 from public.scheduled_messages
+                  where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'An advertised cancellation did not queue a correction';
+  end if;
+  update public.tasks set deleted_at = null where id = job;
+  if exists (select 1 from public.scheduled_messages
+              where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'Restoring the booking did not cancel its correction';
+  end if;
+
+  outcome := public.set_task_due_on(company, job, owner_id, current_date + 7);
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"schedule","unit":"day","remind_customer":true,"ends":{"kind":"after","after":3}}');
+  series := (outcome->'task'->>'series_id')::uuid;
+  if outcome->>'outcome' is distinct from 'set'
+     or (select count(*) from public.tasks t where t.series_id = series and t.deleted_at is null
+           and t.due_on is not null and t.due_at is null and not t.reminders_off) is distinct from 2::bigint
+     or not exists (select 1 from public.calendar_reminder_replans r join public.tasks t on t.id = r.task_id
+                     where t.series_id = series and t.occurrence_no = 2) then
+    raise exception 'An opted-in date-only series did not replan its future visits: %', outcome;
+  end if;
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"schedule","unit":"day","remind_customer":false,"ends":{"kind":"after","after":3}}');
+  if exists (select 1 from public.tasks t where t.series_id = series and t.deleted_at is null and not t.reminders_off) then
+    raise exception 'Opting out did not turn off the remaining appointment reminders';
+  end if;
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"after_done","unit":"day","remind_customer":true}');
+  series := (outcome->'task'->>'series_id')::uuid;
+  if (select remind_customer from public.task_series where id = series) is distinct from false then
+    raise exception 'An after-done series accepted customer reminders: %', outcome;
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL STANDALONE TASK TESTS PASSED' as result;

@@ -123,9 +123,11 @@ internal fun QuickAddSheet(
                     title = result.title.take(TASK_TITLE_MAX),
                     assignedUserId = null,
                     assigneeIds = result.assignee?.let { listOf(it.userId) },
-                    dueAt = result.dueAt?.let {
+                    dueAt = result.dueAt?.takeIf { result.dueHasTime }?.let {
                         encodeDueAt(Instant.parse(it).atZone(zone).toLocalDateTime(), zone)
                     },
+                    dueOn = result.dueAt?.takeUnless { result.dueHasTime }
+                        ?.let { Instant.parse(it).atZone(zone).toLocalDate().toString() },
                     priority = result.priority,
                     labelIds = result.labels.map { it.id },
                 )

@@ -94,6 +94,7 @@ interface ScheduledRow {
   /** #237: the job this reminds about, or null for a text a person wrote. */
   task_id: string | null;
   origin: string;
+  reminder_offset_minutes?: number | null;
   /** 'pending' or 'held' as claimed; a held row is retried every minute. */
   status?: string;
   held_reason_key?: string | null;
@@ -234,7 +235,7 @@ async function resolveDestination(
  * person wrote, reminders and the rating question each have their own switch.
  */
 function holdsOnReply(row: ScheduledRow, settings: AutomaticTextSettings): boolean {
-  if (row.origin === "reminder") return settings.hold_reminders_on_reply;
+  if (row.origin === "reminder" || row.origin === "correction") return settings.hold_reminders_on_reply;
   if (row.origin === "rating") return settings.hold_rating_ask_on_reply;
   return settings.hold_scheduled_on_reply;
 }
@@ -305,7 +306,7 @@ async function reminderSchedule(
 
   const { data, error } = await db
     .from("tasks")
-    .select("deleted_at,reminders_off,due_at,done_state:task_done_at")
+    .select("deleted_at,reminders_off,due_at,due_on,done_state:task_done_at")
     .eq("id", row.task_id)
     .eq("company_id", row.company_id)
     .maybeSingle();
@@ -316,7 +317,7 @@ async function reminderSchedule(
   if (
     data?.deleted_at !== null ||
     data.reminders_off ||
-    data.due_at === null ||
+    (data.due_at === null && (!data.due_on || (row.reminder_offset_minutes ?? 0) < 1440)) ||
     data.done_state != null
   ) {
     return { stillBooked: false, dueAt: null };
@@ -341,7 +342,7 @@ async function linkedCalendarsVerifiedRecently(
   row: ScheduledRow,
   now: Date,
 ): Promise<boolean> {
-  if (row.origin !== "reminder" || !row.task_id) return true;
+  if ((row.origin !== "reminder" && row.origin !== "correction") || !row.task_id) return true;
 
   // A recent provider round trip proves only the last agreed snapshot. A live
   // outbox row means a newer local schedule is still being created, patched,

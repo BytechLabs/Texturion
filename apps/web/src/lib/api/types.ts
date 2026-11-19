@@ -1114,6 +1114,7 @@ export interface TaskRepeat {
   nth_weekday: number | null;
   ends: TaskRepeatEnds;
   paused: boolean;
+  remind_customer?: boolean;
   stopped: boolean;
 }
 
@@ -1121,6 +1122,12 @@ export interface TaskRepeat {
 export interface TaskAssignee {
   user_id: string;
   display_name: string | null;
+}
+
+export interface BookingCorrection {
+  id: string;
+  body: string;
+  recipient: string | null;
 }
 
 export interface Task {
@@ -1154,6 +1161,9 @@ export interface Task {
   /** #689 C: the same people with display names. */
   assignees?: TaskAssignee[];
   due_at: string | null;
+  due_on?: string | null;
+  due_time_set?: boolean;
+  correction?: BookingCorrection;
   calendar_hold?: boolean;
   created_by_user_id: string;
   created_at: string;

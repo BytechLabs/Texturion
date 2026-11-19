@@ -177,7 +177,7 @@ internal fun LabelChip(name: String, fill: Color?, modifier: Modifier = Modifier
 internal fun TaskBadges(task: Task, modifier: Modifier = Modifier, maxLabels: Int = 2) {
     val flagged = TaskPriority.isFlagged(task.priority)
     val repeating = showsRepeatIcon(task.repeat)
-    if (!flagged && !repeating && task.labels.isEmpty() && !task.calendar_hold) return
+    if (!flagged && !repeating && task.labels.isEmpty() && !task.calendar_hold && task.confirmed_at == null) return
     Row(
         modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -188,6 +188,9 @@ internal fun TaskBadges(task: Task, modifier: Modifier = Modifier, maxLabels: In
         LabelChips(task.labels, max = maxLabels)
         if (task.calendar_hold) {
             Text(t("contactsTasks.calendarHold"), style = MaterialTheme.typography.labelSmall)
+        }
+        if (task.confirmed_at != null) {
+            Text(t("contactsTasks.mapConfirmed"), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -499,6 +502,7 @@ internal fun RepeatSheet(
     onSave: (RepeatDraft) -> Unit,
     onStop: () -> Unit,
     onDismiss: () -> Unit,
+    textingCustomer: String? = null,
 ) {
     val locale = LocalAppLocale.current
     val haptics = rememberHaptics()
@@ -683,6 +687,22 @@ internal fun RepeatSheet(
                 }
             }
 
+            if (draft.kind == RepeatKind.SCHEDULE && textingCustomer != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        if (textingCustomer.isEmpty()) t("contactsTasks.repeatTextEveryVisit")
+                        else t("contactsTasks.repeatTextCustomer", "name" to textingCustomer),
+                        Modifier.weight(1f),
+                    )
+                    Switch(checked = draft.remindCustomer == true, onCheckedChange = {
+                        draft = draft.copy(remindCustomer = it)
+                    })
+                }
+            }
             if (existing) {
                 Row(
                     Modifier

@@ -23,6 +23,7 @@ func taskFilterCount(_ state: TaskViewState) -> Int {
     if state.meta.source != nil { count += 1 }
     if state.meta.hasAttachments { count += 1 }
     if state.meta.hasReferences { count += 1 }
+    if state.meta.notConfirmed { count += 1 }
     return count
 }
 
@@ -384,6 +385,7 @@ struct TaskFiltersSheet: View {
             }
             Toggle(t("taskRefs.filterHasAttachments"), isOn: $draft.meta.hasAttachments)
             Toggle(t("taskRefs.filterHasReferences"), isOn: $draft.meta.hasReferences)
+            Toggle(t("contactsTasks.notConfirmed"), isOn: $draft.meta.notConfirmed)
             ForEach(TaskPriority.rankedForMenus) { priority in
                 Toggle(t(priority.labelKey), isOn: priorityBinding(priority))
             }

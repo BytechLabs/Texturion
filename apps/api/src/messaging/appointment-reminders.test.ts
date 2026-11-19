@@ -49,7 +49,7 @@ describe(syncTaskReminders, () => {
     const companyId = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
     sb.on("GET", "/rest/v1/tasks", ({ url }) => {
       const params = url.searchParams;
-      if (params.get("select") === "due_at") {
+      if (params.get("select") === "due_at,due_on") {
         return [{ due_at: params.get("id") === `eq.${taskId}` ? dueAt : "2026-11-30T19:00:00Z" }];
       }
       return [{

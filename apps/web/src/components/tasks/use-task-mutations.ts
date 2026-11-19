@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
 import { useCompanyId } from "@/lib/company/provider";
 import type { Message, Page, Task, TaskDetail } from "@/lib/api/types";
+import { showBookingCorrection } from "./task-correction-toast";
 
 /**
  * The /tasks page's done toggle. Unlike the checklist's `useToggleTaskDone`
@@ -157,17 +158,21 @@ export function useTaskReschedule() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { taskId: string; conversationId: string; due_at: string | null }) =>
-      apiFetch<Task>(`/v1/tasks/${input.taskId}`, {
+    mutationFn: ({ taskId, conversationId, ...date }: { taskId: string; conversationId: string }
+      & ({ due_at: string | null } | { due_on: string })) => {
+      void conversationId;
+      return apiFetch<Task>(`/v1/tasks/${taskId}`, {
         method: "PATCH",
         companyId,
-        body: { due_at: input.due_at },
-      }),
+        body: date,
+      });
+    },
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: keys.tasks.lists(companyId) });
       const snapshots: [readonly unknown[], unknown][] = [];
-      const patchRow = (task: Task): Task =>
-        task.id === input.taskId ? { ...task, due_at: input.due_at } : task;
+      const date = "due_on" in input
+        ? { due_on: input.due_on, due_at: null } : { due_on: null, due_at: input.due_at };
+      const patchRow = (task: Task): Task => task.id === input.taskId ? { ...task, ...date } : task;
 
       for (const query of queryClient.getQueryCache().findAll({
         queryKey: keys.tasks.lists(companyId),
@@ -194,6 +199,7 @@ export function useTaskReschedule() {
       // The chip visibly jumps back to its old day — say why.
       toast.error(t("tasks.rescheduleFailed"));
     },
+    onSuccess: (task) => showBookingCorrection(task.correction),
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
       void queryClient.invalidateQueries({

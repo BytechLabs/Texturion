@@ -201,7 +201,8 @@ internal fun matchesDueChip(
 ): Boolean {
     if (chip == null) return true
     if (chip == DueChip.Overdue) return isOverdue(task, clock)
-    val due = parseInstant(task.due_at) ?: return false
+    val due = task.due_on?.let { LocalDate.parse(it).atStartOfDay(clock.zone).toInstant() }
+        ?: parseInstant(task.due_at) ?: return false
     val start = LocalDate.now(clock).atStartOfDay(clock.zone)
     val end = if (chip == DueChip.Today) start.plusDays(1) else start.plusDays(7)
     return !due.isBefore(start.toInstant()) && due.isBefore(end.toInstant())
@@ -234,7 +235,7 @@ internal suspend fun fetchTaskCalendarSnapshot(
     pages = 0
     do {
         undatedLoader.nextPage().forEach { task ->
-            if (task.due_at == null && !task.calendar_hold) {
+            if (task.due_at == null && task.due_on == null && !task.calendar_hold) {
                 if (task.done) undatedDone++ else undatedOpen++
             }
         }
@@ -331,6 +332,8 @@ internal fun TaskCalendarView(
                 // Exclusive end, one past the last grid day (the web's
                 // addDays(gridEnd, 1)).
                 dueBefore = isoAtStartOfDay(gridEnd.plusDays(1), zone),
+                dueOnBefore = gridEnd.toString(),
+                dueOnAfter = gridStart.toString(),
                 q = query,
             ),
             undatedArms = taskListArms(
@@ -362,7 +365,7 @@ internal fun TaskCalendarView(
             }
             val byDay = remember(visibleRows) {
                 visibleRows.groupBy { task ->
-                    parseInstant(task.due_at)?.atZone(zone)?.toLocalDate()
+                    task.due_on?.let(LocalDate::parse) ?: parseInstant(task.due_at)?.atZone(zone)?.toLocalDate()
                 }
             }
             val undatedCount = when (tab) {

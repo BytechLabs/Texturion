@@ -300,6 +300,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.bookingSourceCustomer" to "A task created from a text or call keeps its customer.",
         "apiRefusals.bookingCustomerUnavailable" to "Choose an available customer or conversation.",
         "apiRefusals.bookingConfirmationNeedsDate" to "Set a date for this open job before confirming it.",
+        "apiRefusals.bookingDuePrecision" to "Provide a time or a date for this job.",
         "apiRefusals.remindersWorkspaceNotFound" to "No such workspace.",
         "apiRefusals.scheduledTextHorizon" to "We can hold a message for up to {days} days.",
         "apiRefusals.scheduledTextKeyUsed" to
@@ -658,6 +659,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.bookingSourceCustomer" to "Une tâche créée à partir d’un texto ou d’un appel conserve son client.",
         "apiRefusals.bookingCustomerUnavailable" to "Choisissez un client ou une conversation disponible.",
         "apiRefusals.bookingConfirmationNeedsDate" to "Fixez une date pour cette tâche ouverte avant de la confirmer.",
+        "apiRefusals.bookingDuePrecision" to "Indiquez une heure ou une date pour cette tâche.",
         "apiRefusals.remindersWorkspaceNotFound" to "Cet espace de travail est introuvable.",
         "apiRefusals.scheduledTextHorizon" to "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
         "apiRefusals.scheduledTextKeyUsed" to

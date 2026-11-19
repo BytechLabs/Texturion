@@ -42,6 +42,7 @@ import { taskThreadId } from "../task-format";
 import { taskLinkClickHandler, useTaskDrawer } from "../use-task-drawer";
 import { useTaskRowActions } from "../task-actions";
 import { useTaskReschedule } from "../use-task-mutations";
+import { TaskConfirmation } from "../task-atoms";
 import { toTaskFilters } from '../task-view-url';
 import type { TaskPageState } from '../task-view-url';
 import {
@@ -115,6 +116,8 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     overdue: undefined,
     due_after: range.after,
     due_before: range.before,
+    due_on_after: dayKey(gridStart),
+    due_on_before: dayKey(gridEnd),
   };
   // Drain every page in the window so no dated chip past page 1 is dropped.
   // The workspace clock decides the window, so wait for it rather than ask
@@ -129,11 +132,8 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   // pills stayed lit and changed nothing, which is what both phone apps
   // already got right (matchesCalendarTab).
   const tasks = flattenPages(query.data).filter((task) => {
-    if (
-      task.calendar_hold ||
-      task.due_at === null ||
-      !visibleKeys.has(dueCell(task.due_at, timeZone).key)
-    ) {
+    const day = task.due_on ?? (task.due_at ? dueCell(task.due_at, timeZone).key : null);
+    if (task.calendar_hold || !day || !visibleKeys.has(day)) {
       return false;
     }
     if (state.tab === "open") return !task.done;
@@ -146,9 +146,9 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   const byCell = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const task of tasks) {
-      if (task.due_at === null) continue;
-      const cell = dueCell(task.due_at, timeZone);
-      const key = mode === "week" ? `${cell.key}T${cell.hour}` : cell.key;
+      const cell = task.due_at ? dueCell(task.due_at, timeZone) : null;
+      const key = cell ? (mode === "week" ? `${cell.key}T${cell.hour}` : cell.key) : task.due_on;
+      if (!key) continue;
       const list = map.get(key) ?? [];
       list.push(task);
       map.set(key, list);
@@ -286,7 +286,18 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             ))}
           </div>
           {mode === "week" ? (
-            <div ref={bodyRef} className="max-h-[36rem] overflow-y-auto">
+            <>
+              {days.some((day) => byCell.has(dayKey(day))) && (
+                <div className={cn("grid border-b border-border-subtle", WEEK_COLUMNS)}>
+                  <div className="px-1 text-xs text-muted-foreground">{t("tasks.anyTime")}</div>
+                  {days.map((day) => (
+                    <div key={dayKey(day)} className="p-1">
+                      {byCell.get(dayKey(day))?.map((task) => <DayChip key={task.id} task={task} />)}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div ref={bodyRef} className="max-h-[36rem] overflow-y-auto">
               <div
                 className={cn("grid", WEEK_COLUMNS)}
                 style={{ gridTemplateRows: "repeat(24, minmax(2rem, auto))" }}
@@ -322,7 +333,8 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                   }),
                 )}
               </div>
-            </div>
+              </div>
+            </>
           ) : (
             <div className="grid auto-rows-fr grid-cols-7">
               {days.map((day) => (
@@ -448,7 +460,13 @@ function Cell({
     const taskId = e.dataTransfer.getData("text/task-id");
     const conversationId = e.dataTransfer.getData("text/task-conversation");
     const dueRaw = e.dataTransfer.getData("text/task-due");
+    const previousDay = e.dataTransfer.getData("text/task-due-day");
     if (!taskId || !conversationId) return;
+    if (previousDay && hour === null) {
+      const due_on = dayKey(day);
+      if (due_on !== previousDay) reschedule.mutate({ taskId, conversationId, due_on });
+      return;
+    }
     // Month: keep the time of day, move the date. Week: the slot names the hour.
     const next = droppedDueAt(dueRaw || null, day, hour, timeZone);
     if (next === null) return;
@@ -563,6 +581,7 @@ function DayChip({ task }: { task: Task }) {
           e.dataTransfer.setData("text/task-id", task.id);
           e.dataTransfer.setData("text/task-conversation", taskThreadId(task));
           e.dataTransfer.setData("text/task-due", task.due_at ?? "");
+          e.dataTransfer.setData("text/task-due-day", task.due_on ?? "");
         }}
         title={task.title}
         className={cn(
@@ -572,7 +591,7 @@ function DayChip({ task }: { task: Task }) {
             : "bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary",
         )}
       >
-        {task.title}
+        {task.title} <TaskConfirmation task={task} />
       </Link>
       {/* #712: the chip's ⋯ and its right-click menu are the SAME list as the
           board card's and the task panel's. The trigger stays in the DOM, never

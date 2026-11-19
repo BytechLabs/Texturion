@@ -707,6 +707,7 @@ private fun ContactDetailBody(
                 contactId = contact.id,
                 contactName = contact.name?.trim().takeUnless { it.isNullOrEmpty() }
                     ?: formatPhone(contact.phone_e164),
+                initialAddress = contact.address,
                 onDismiss = { newTaskOpen = false },
             )
         }

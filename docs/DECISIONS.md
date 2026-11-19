@@ -10404,7 +10404,7 @@ probe `messages`.
 
 **Privacy and erasure.** The series holds a copy of the title, description and address, so it is classified in the personal-data inventory, purged with the workspace (after `tasks`), stopped and blanked when the content it was made from is deleted for good, and re-pointed on a contact merge.
 
-**Not built.** The customer-side reminder text for a repeating job ("your furnace service is due, reply to book") is a separate, opt-in toggle, off by default, consent-bound by the opt-out rules (#331). Occurrences are created with `reminders_off`, so nothing texts a customer until that toggle exists. A generated occurrence does not push an assignment alert to its assignee; the due-soon and overdue pushes still reach them. Priority is not drawn on the map pin itself, only on its card.
+**Customer reminders.** A schedule with a customer conversation can opt in to texting before every visit. The choice defaults to off. An occurrence inherits the opt-in and queues a reminder replan. Consent, quiet hours and calendar verification still apply. After-done series keep reminders off on new occurrences. Generated occurrences skip assignment alerts and keep the usual due and overdue alerts.
 
 ## D155 - a task has up to ten assignees, flat, and `assigned_user_id` stays as the first (#689 C)
 
@@ -10692,3 +10692,29 @@ those fields came from the source. Outstanding appointment reminders stop.
 The delete dialog names the linked jobs and says what erasure removes. Choosing
 to delete the source and job erases both. Erasing a conversation or a customer
 also erases the jobs and files linked to that conversation or customer.
+
+## D170 - a booking can carry a day, a customer and a crew confirmation (#809)
+
+The calendar month and date-only quick add store a civil day in `due_on`.
+`due_time_set` distinguishes it from a timed booking. The workspace calendar
+places it on that day, the clients say “Any time”, and customer reminders omit
+the time and use rules at least 24 hours before the visit. Provider mirrors
+continue to require a timed booking under D137 Rule 0.
+
+A task from a call or a text keeps its source customer. The crew can choose or
+change the customer on a standalone task. Use an accessible existing
+conversation when available and prefill the customer's saved address. Changing
+the customer turns reminders off for the task. D148 continues to govern
+standalone tasks. A crew confirmation records who set it and clears when the
+booking moves. A customer confirmation remains authoritative until cleared.
+
+D137 Rule 7 applies to customer reminders that have already gone out. A date
+change or cancellation queues one correction through scheduled sending. The
+crew has ten minutes before it is eligible to send and can edit or cancel it.
+A later edit replaces the pending correction. Returning to the advertised
+appointment cancels it. The sender applies the existing delivery gates.
+
+Map opens to today's open jobs. Other choices are tomorrow, a selected day, or
+all open jobs. Pins and stops follow the due order, with untimed jobs after
+timed jobs on the same day. Opening a route sends the first nine stops'
+coordinates to the selected platform's directions app on the crew's tap.

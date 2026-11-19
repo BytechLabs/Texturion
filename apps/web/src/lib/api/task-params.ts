@@ -14,7 +14,7 @@ export type TaskListRequest = TaskListFilters & { limit?: number };
 export function taskListKeyFilters(request: TaskListRequest): TaskListRequest {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(request)) {
-    if (value === undefined || value === false) continue;
+    if (value === undefined || (value === false && key !== "confirmed")) continue;
     if (Array.isArray(value) && value.length === 0) continue;
     out[key] = value;
   }
@@ -55,6 +55,7 @@ export function taskSearchParams(
     explicitAll &&
     !filters.status &&
     !filters.overdue &&
+    filters.confirmed === undefined &&
     !filters.conversation_id &&
     !filters.due_before &&
     !filters.due_after &&
@@ -75,7 +76,10 @@ export function taskSearchParams(
     conversation_id: filters.conversation_id,
     due_before: filters.due_before,
     due_after: filters.due_after,
+    due_on_before: filters.due_on_before,
+    due_on_after: filters.due_on_after,
     overdue: filters.overdue ? true : undefined,
+    confirmed: filters.confirmed,
     has_location: filters.has_location ? true : undefined,
     q: filters.q,
     priority:

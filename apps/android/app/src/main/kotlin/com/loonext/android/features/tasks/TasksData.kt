@@ -5,6 +5,7 @@ import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.BulkTasksResult
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
+import com.loonext.android.core.model.BookingCorrection
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskAddressInput
@@ -98,6 +99,9 @@ class TaskMutations(private val api: ApiClient) {
                     filters.source?.let { put("source", it) }
                     if (filters.hasAttachments) put("has_attachments", true)
                     if (filters.hasReferences) put("has_references", true)
+                    filters.confirmed?.let { put("confirmed", it) }
+                    filters.dueOnBefore?.let { put("due_on_before", it) }
+                    filters.dueOnAfter?.let { put("due_on_after", it) }
                 }
             }
             // Explicit null is meaningful (unassign), so it is only written when
@@ -272,6 +276,15 @@ class TaskMutations(private val api: ApiClient) {
      * The server clears the queued reminders BEFORE answering, so by the time
      * this returns the thread strip is already right.
      */
+    suspend fun setConfirmation(companyId: String, taskId: String, confirmed: Boolean): JsonObject =
+        api.put("/v1/tasks/$taskId/confirmation", buildJsonObject { put("confirmed", confirmed) }, companyId)
+
+    suspend fun setCustomer(companyId: String, taskId: String, contactId: String?, conversationId: String?): Task =
+        api.patch("/v1/tasks/$taskId", buildJsonObject {
+            if (contactId == null) put("contact_id", JsonNull) else put("contact_id", contactId)
+            if (conversationId == null) put("conversation_id", JsonNull) else put("conversation_id", conversationId)
+        }, companyId)
+
     suspend fun setReminders(companyId: String, taskId: String, off: Boolean): Task =
         api.put(
             "/v1/tasks/$taskId/reminders",
@@ -352,13 +365,17 @@ class TaskMutations(private val api: ApiClient) {
      * Soft-delete to the Trash; needs records.delete (403 otherwise). #693: on a
      * repeating job, "this" skips one and "future" ends the repeat.
      */
-    suspend fun delete(companyId: String, taskId: String, scope: TaskScope? = null) {
-        api.raw(
+    suspend fun delete(companyId: String, taskId: String, scope: TaskScope? = null): BookingCorrection? {
+        val path = "/v1/tasks/$taskId"
+        val response = api.raw(
             "DELETE",
-            "/v1/tasks/$taskId",
+            path,
             query = mapOf("scope" to scope?.wire),
             companyId = companyId,
         )
+        return response.takeUnless(String::isBlank)?.let {
+            api.decodeBody<BookingCorrectionResponse>(path, it).correction
+        }
     }
 
     /** Task discussion: an internal note linked to a live task (D-D). */
@@ -471,6 +488,7 @@ class TaskMutations(private val api: ApiClient) {
         labelIds: List<String> = emptyList(),
         repeat: TaskRepeat? = null,
         description: String? = null,
+        dueOn: String? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
@@ -482,6 +500,7 @@ class TaskMutations(private val api: ApiClient) {
                 putJsonArray("assignee_ids") { assigneeIds.forEach { add(it) } }
             } else if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAt != null) put("due_at", dueAt)
+            if (dueOn != null) put("due_on", dueOn)
             if (address != null) put("address", taskAddressJson(address))
             if (contactId != null) put("contact_id", contactId)
             if (conversationId != null) put("conversation_id", conversationId)
@@ -492,6 +511,9 @@ class TaskMutations(private val api: ApiClient) {
         companyId = companyId,
     )
 }
+
+@Serializable
+private data class BookingCorrectionResponse(val correction: BookingCorrection? = null)
 
 /** POST /v1/tasks/:id/tags answer: the tag and the task's labels after it. */
 @Serializable
@@ -570,6 +592,7 @@ suspend fun drainLocatedTasks(
     val dueFilters = due?.let { dueChipFilters(it) }
         ?: TaskListFilters(dueBefore = extra.dueBefore, dueAfter = extra.dueAfter)
     val filters = dueFilters.copy(
+        status = TaskStatus.OPEN,
         assignedUserId = assignee,
         unassigned = unassigned,
         q = q?.trim()?.ifEmpty { null },
@@ -578,6 +601,7 @@ suspend fun drainLocatedTasks(
         contactId = extra.contactId,
         createdBy = extra.createdBy,
         source = extra.source,
+        confirmed = if (extra.notConfirmed) false else null,
     )
     val acc = mutableListOf<Task>()
     var cursor: String? = null

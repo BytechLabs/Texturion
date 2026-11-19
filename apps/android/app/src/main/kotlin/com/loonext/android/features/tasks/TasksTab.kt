@@ -206,6 +206,7 @@ private fun TaskListScreen(
     var sourceFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var hasFilesFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var hasLinksFilter by rememberSaveable(companyId) { mutableStateOf(false) }
+    var notConfirmedFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var dueAfterFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var dueBeforeFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var groupName by rememberSaveable(companyId) { mutableStateOf(TaskGroup.Status.name) }
@@ -222,6 +223,7 @@ private fun TaskListScreen(
         source = sourceFilter,
         hasAttachments = hasFilesFilter,
         hasReferences = hasLinksFilter,
+        notConfirmed = notConfirmedFilter,
         dueAfter = dueAfterFilter,
         dueBefore = dueBeforeFilter,
         group = TaskGroup.entries.firstOrNull { it.name == groupName } ?: TaskGroup.Status,
@@ -345,6 +347,7 @@ private fun TaskListScreen(
         sourceFilter = next.extra.source
         hasFilesFilter = next.extra.hasAttachments
         hasLinksFilter = next.extra.hasReferences
+        notConfirmedFilter = next.extra.notConfirmed
         dueAfterFilter = next.extra.dueAfter
         dueBeforeFilter = next.extra.dueBefore
         groupName = next.extra.group.name
@@ -429,7 +432,7 @@ private fun TaskListScreen(
             contactName = "",
             onDismiss = { calendarDueIso = null },
             onCreated = { refreshKey++ },
-            initialDueIso = dueIso,
+            initialDueOn = dueIso,
             zone = workspaceZone,
         )
     }
@@ -644,6 +647,7 @@ private fun TaskListScreen(
                 }
                 if (hasFilesFilter) add(ActiveFilterChip(filesLabel) { hasFilesFilter = false })
                 if (hasLinksFilter) add(ActiveFilterChip(linksLabel) { hasLinksFilter = false })
+                if (notConfirmedFilter) add(ActiveFilterChip(t("contactsTasks.notConfirmed")) { notConfirmedFilter = false })
                 if (dueAfterFilter != null || dueBeforeFilter != null) {
                     add(ActiveFilterChip(dueRangeLabel) {
                         dueAfterFilter = null
@@ -765,7 +769,7 @@ private fun TaskListScreen(
                             onToggleDone = onToggleDone,
                             zone = workspaceZone,
                             onCreateTask = { day ->
-                                calendarDueIso = calendarDayDueIso(day, workspaceZone)
+                                calendarDueIso = day.toString()
                             },
                         )
 

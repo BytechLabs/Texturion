@@ -1,13 +1,14 @@
 "use client";
 
 import { taskNumberLabel } from "@loonext/shared";
-import { Check } from "lucide-react";
+import { CalendarCheck, Check } from "lucide-react";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 import { Timestamp } from "@/components/ui/timestamp";
+import { formatWallDay } from "@/lib/format/time";
 
 import { AssigneeStack, assigneeSummary } from "./assignee-field";
 import { assigneeNames } from "./task-assignees";
@@ -86,6 +87,12 @@ export function TaskCalendarHold({ task }: { task: Pick<Task, "calendar_hold"> }
   return <span className="text-xs font-medium text-warning">{t("tasks.calendarHold")}</span>;
 }
 
+export function TaskConfirmation({ task }: { task: Pick<Task, "confirmed_at"> }) {
+  const t = useT();
+  if (!task.confirmed_at) return null;
+  return <CalendarCheck className="inline size-3.5 text-success" role="img" aria-label={t("tasks.mapConfirmed")} />;
+}
+
 /**
  * The due cell/chip (T6.1): tabular stone-400, amber ONLY when overdue and
  * not-done (never a red scare). Renders nothing for a task with no due date.
@@ -100,6 +107,7 @@ export function TaskDue({
   // Before the early return: a hook cannot be called conditionally, and the
   // `due_at === null` guard below returns first for an undated task.
   const t = useT();
+  if (task.due_on) return <span className={className}>{formatWallDay(task.due_on, t.locale)} · {t("tasks.anyTime")}</span>;
   if (task.due_at === null) return null;
   const overdue = isOverdue(task);
   return (

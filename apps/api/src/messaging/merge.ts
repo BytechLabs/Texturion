@@ -108,7 +108,7 @@ export async function resolveSendMergeFields(
     try {
       const now = input.now ?? new Date();
       const tasks = db.from("tasks")
-        .select("due_at")
+        .select("due_at,due_on")
         .eq("company_id", input.companyId)
         .eq("conversation_id", input.conversationId)
         .is("deleted_at", null);
@@ -117,21 +117,23 @@ export async function resolveSendMergeFields(
           .gte("due_at", now.toISOString())
           .order("due_at", { ascending: true })
         : tasks.eq("id", input.jobTaskId);
-      const rows = unwrap<{ due_at: string | null }[]>(
+      const rows = unwrap<{ due_at: string | null; due_on?: string | null }[]>(
         await visit.limit(1),
         "merge job time",
       );
       const dueAt = rows[0]?.due_at ?? null;
-      if (dueAt !== null) {
-        const timeZone = input.timeZone ?? "UTC";
+      const dueOn = rows[0]?.due_on ?? null;
+      if (dueAt !== null || dueOn !== null) {
+        const timeZone = dueOn ? "UTC" : (input.timeZone ?? "UTC");
         const locale = input.locale === "fr-CA" ? "fr-CA" : "en-CA";
-        const when = new Date(dueAt);
+        const when = new Date(dueAt ?? `${dueOn}T12:00:00Z`);
         const includeDate = when.getTime() - now.getTime() > SIX_DAYS_MS;
         ctx.jobDay = new Intl.DateTimeFormat(locale, {
           weekday: "long",
           timeZone,
           ...(includeDate ? { month: "numeric", day: "numeric" } : {}),
         }).format(when).replaceAll(NONBREAKING_SPACES, " ");
+        if (dueOn) return ctx;
         const time = new Intl.DateTimeFormat(locale, {
           hour: "numeric",
           minute: "2-digit",

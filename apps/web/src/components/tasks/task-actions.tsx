@@ -14,6 +14,7 @@ import type { RecordAction } from "@/lib/record-actions/types";
 
 import { taskActionAllowed, taskThreadId } from "./task-format";
 import { movedDueAt, RESCHEDULE_MOVES } from "./task-reschedule";
+import { showBookingCorrection } from "./task-correction-toast";
 import { TASK_DRAWER_PARAM, useTaskDrawer } from "./use-task-drawer";
 import { useTaskDone, useTaskReschedule } from "./use-task-mutations";
 
@@ -184,9 +185,10 @@ export function useTaskRowActions(task: Task) {
         del.mutate(
           { taskId: task.id },
           {
-            onSuccess: () => {
+            onSuccess: (result) => {
               setConfirmDelete(false);
-              toast.success(t("tasks.deleted"));
+              if (result?.correction) showBookingCorrection(result.correction);
+              else toast.success(t("tasks.deleted"));
             },
             onError: () => {
               setConfirmDelete(false);

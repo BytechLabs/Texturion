@@ -196,6 +196,9 @@ internal fun TaskFiltersSheet(
                     change(state.copy(extra = extra.copy(hasReferences = on)))
                 }
             }
+            SwitchRow(t("contactsTasks.notConfirmed"), extra.notConfirmed) { on ->
+                change(state.copy(extra = extra.copy(notConfirmed = on)))
+            }
 
             if (showGroup) {
                 ChipsRow(t("taskViews.groupBy")) {

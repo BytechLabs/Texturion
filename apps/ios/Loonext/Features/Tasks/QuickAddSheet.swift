@@ -195,12 +195,15 @@ struct QuickAddSheet: View {
                     companyId: companyId,
                     title: title,
                     assignedUserId: result.assignee?.userId,
-                    dueAt: result.dueAt,
+                    dueAt: result.dueHasTime ? result.dueAt : nil,
                     conversationId: nil,
                     contactId: nil,
                     priority: priority,
                     labelIds: result.labels.map { $0.id },
-                    assigneeIds: assigneeIds
+                    assigneeIds: assigneeIds,
+                    dueOn: result.dueHasTime ? nil : parseWireTimestamp(result.dueAt).map {
+                        taskDateKey($0)
+                    }
                 )
                 Haptics.confirm()
                 onCreated()

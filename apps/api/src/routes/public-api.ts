@@ -168,10 +168,6 @@ const createTaskSchema = z
     label_ids: z.array(z.uuid()).max(20).optional(),
     repeat: repeatSchema.optional(),
   })
-  .refine((body) => !body.due_at || !body.due_on, {
-    message: "Provide a time or a date for this job.",
-    path: ["due_on"],
-  })
   .refine((body) => body.message_id !== undefined || body.title !== undefined, {
     message: "title is required when the task has no message_id.",
     path: ["title"],
@@ -547,6 +543,11 @@ publicApiRoutes.post(
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, createTaskSchema);
+    if (body.due_on && body.due_at) {
+      return errorResponse(c, "validation_failed", "Provide a time or a date for this job.", {
+        key: "apiRefusals.bookingDuePrecision",
+      });
+    }
     const idempotencyKey = optionalIdempotencyKey(c);
     const db = getDb(getEnv(c.env));
     if (body.repeat?.kind === "schedule" && !body.due_at && !body.due_on) {

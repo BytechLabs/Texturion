@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,12 +24,17 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.ContactSummary
+import com.loonext.android.core.model.Conversation
+import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.TaskAddressInput
+import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.thread.MakeTaskSheet
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import java.time.ZoneId
 
 /**
@@ -47,8 +53,8 @@ fun NewTaskSheetHost(
     contactName: String,
     onDismiss: () -> Unit,
     onCreated: () -> Unit = {},
-    /** #739: a due to start with (an instant), read in [zone]; from a calendar tap. */
-    initialDueIso: String? = null,
+    initialDueOn: String? = null,
+    initialAddress: String? = null,
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val context = LocalContext.current
@@ -56,6 +62,33 @@ fun NewTaskSheetHost(
     val scope = rememberCoroutineScope()
     var members by remember { mutableStateOf<List<Member>>(emptyList()) }
     var meUserId by remember { mutableStateOf<String?>(null) }
+    var pickedCustomer by remember { mutableStateOf<ContactSummary?>(null) }
+    var pickedConversation by remember { mutableStateOf(conversationId) }
+    var addressSeed by remember { mutableStateOf(initialAddress) }
+    var changedCustomer by remember { mutableStateOf(false) }
+    var customerReady by remember { mutableStateOf(conversationId != null || contactId == null) }
+    var pickCustomer by remember { mutableStateOf(false) }
+    val activeContact = if (changedCustomer) pickedCustomer?.id else contactId
+    val activeName = if (changedCustomer) pickedCustomer?.let { it.name ?: it.phone_e164 }.orEmpty() else contactName
+    LaunchedEffect(pickedCustomer, changedCustomer) {
+        if (!changedCustomer) {
+            if (conversationId == null && contactId != null) {
+                val contact = runCatching {
+                    graph.api.get<ContactSummary>("/v1/contacts/$contactId", companyId = companyId)
+                }.getOrNull()
+                pickedConversation = contact?.let { findBookingConversation(graph.api, companyId, it) }
+            }
+            customerReady = true
+            return@LaunchedEffect
+        }
+        val customer = pickedCustomer
+        pickedConversation = customer?.let { findBookingConversation(graph.api, companyId, it) }
+        addressSeed = customer?.let {
+            runCatching { graph.api.get<BookingAddress>("/v1/contacts/${it.id}", companyId = companyId).address }
+                .getOrNull()
+        }
+        customerReady = true
+    }
     LaunchedEffect(companyId) {
         runCatching { CallsRepository(graph.api).members(companyId).data }
             .onSuccess { members = it }
@@ -64,16 +97,23 @@ fun NewTaskSheetHost(
 
     MakeTaskSheet(
         message = null,
-        contactName = contactName,
+        contactName = activeName,
         members = members,
         meUserId = meUserId,
         aiRepo = graph.aiRepo,
         companyId = companyId,
-        conversationId = conversationId.orEmpty(),
+        conversationId = pickedConversation.orEmpty(),
         standalone = true,
-        initialDueIso = initialDueIso,
+        initialDueOn = initialDueOn,
+        customerField = {
+            TextButton(onClick = { pickCustomer = true }) {
+                Text(t("contactsTasks.bookingCustomer", "name" to activeName.ifBlank { t("taskViews.pickCustomer") }))
+            }
+        },
+        customerAddress = addressSeed,
+        customerReady = customerReady,
         zone = zone,
-        linked = conversationId != null || contactId != null,
+        linked = pickedConversation != null || activeContact != null,
         tagsLoader = { TaskMutations(graph.api).tags(companyId).data },
         onCreate = { _, _, _, _, _ -> },
         onCreateWithExtras = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, extras ->
@@ -88,9 +128,10 @@ fun NewTaskSheetHost(
                         assignedUserId = assignedUserId,
                         assigneeIds = extras.assigneeIds,
                         dueAt = dueAtIso,
+                        dueOn = extras.dueOn,
                         address = address,
-                        conversationId = conversationId,
-                        contactId = if (conversationId == null) contactId else null,
+                        conversationId = pickedConversation,
+                        contactId = if (pickedConversation == null) activeContact else null,
                         priority = extras.priority,
                         labelIds = extras.labels.filter { it.id.isNotEmpty() }.map { it.id },
                         repeat = extras.repeat,
@@ -122,7 +163,31 @@ fun NewTaskSheetHost(
         },
         onDismiss = onDismiss,
     )
+    if (pickCustomer) {
+        ContactPickerSheet(
+            repo = remember(graph) { ReferenceRepository(graph.api) },
+            companyId = companyId,
+            onPick = { customer ->
+                if (!changedCustomer || pickedCustomer != customer) {
+                    customerReady = false
+                    changedCustomer = true
+                    pickedCustomer = customer
+                }
+                pickCustomer = false
+            },
+            onDismiss = { pickCustomer = false },
+        )
+    }
 }
+
+@Serializable
+private data class BookingAddress(val address: String? = null)
+
+internal suspend fun findBookingConversation(api: ApiClient, companyId: String, contact: ContactSummary): String? =
+    runCatching {
+        api.get<Page<Conversation>>("/v1/conversations", query = mapOf("q" to contact.phone_e164), companyId = companyId)
+            .data.firstOrNull { it.contact_id == contact.id && !it.is_spam }?.id
+    }.getOrNull()
 
 /** The card a standalone task shows where a message or call task shows its source. */
 @Composable
