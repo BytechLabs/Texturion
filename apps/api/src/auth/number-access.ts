@@ -37,11 +37,14 @@ export interface NumberAccessView {
    *  returns 'none' only for a ruled-and-unmatched number). Conversation lists
    *  exclude conversations on these ids. */
   hiddenNumberIds: string[] | null;
+  /** Note-only and hidden lines are excluded from the share target picker. */
+  nonTextNumberIds: string[] | null;
   levelFor(phoneNumberId: string | null): NumberAccessLevel;
 }
 
 const UNRESTRICTED: NumberAccessView = {
   hiddenNumberIds: null,
+  nonTextNumberIds: null,
   levelFor: () => "text",
 };
 
@@ -211,13 +214,16 @@ export function buildNumberAccessView(
 
   const levels = new Map<string, NumberAccessLevel>();
   const hidden: string[] = [];
+  const nonText: string[] = [];
   for (const row of rows) {
     levels.set(row.phone_number_id, row.level);
     if (row.level === "none") hidden.push(row.phone_number_id);
+    if (row.level !== "text") nonText.push(row.phone_number_id);
   }
 
   return {
     hiddenNumberIds: hidden,
+    nonTextNumberIds: nonText,
     levelFor: (phoneNumberId) =>
       (phoneNumberId !== null && levels.get(phoneNumberId)) || "text",
   };

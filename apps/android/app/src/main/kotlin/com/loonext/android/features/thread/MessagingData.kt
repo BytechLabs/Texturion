@@ -173,6 +173,7 @@ class MessagingRepository(private val api: ApiClient) {
         limit: Int = 25,
         unassigned: Boolean = false,
         phoneNumberId: String? = null,
+        textableOnly: Boolean = false,
     ): Page<ConversationListItem> = api.get(
         "/v1/conversations",
         query = mapOf(
@@ -180,6 +181,7 @@ class MessagingRepository(private val api: ApiClient) {
             "assigned_user_id" to assignedUserId,
             "unassigned" to if (unassigned) "true" else null,
             "phone_number_id" to phoneNumberId,
+            "textable" to if (textableOnly) "true" else null,
             "tag_id" to tagId,
             "is_spam" to spam?.toString(),
             "unread" to unread?.toString(),

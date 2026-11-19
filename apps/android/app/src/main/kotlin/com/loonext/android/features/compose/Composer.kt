@@ -59,7 +59,6 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -238,7 +237,8 @@ class ComposerState(
     var picked by mutableStateOf(listOf<PickedMention>())
         private set
 
-    private var draftLoaded = false
+    var draftLoaded by mutableStateOf(false)
+        private set
     private var saveJob: Job? = null
 
     /**
@@ -265,7 +265,6 @@ class ComposerState(
 
     suspend fun loadDraftOnce() {
         if (draftLoaded) return
-        draftLoaded = true
         val (saved, savedMode) = drafts.loadWithMode(draftKey)
         if (text.isEmpty() && saved.isNotEmpty()) {
             text = saved
@@ -276,6 +275,7 @@ class ComposerState(
         if (storedMode.value == ComposerMode.Note && picked.isEmpty()) {
             picked = drafts.loadMentions(draftKey)
         }
+        draftLoaded = true
     }
 
     fun addMention(mention: PickedMention) {
@@ -698,10 +698,7 @@ fun ThreadComposer(
         }
     }
 
-    val mediaPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    fun stageTextMedia(uris: List<Uri>) {
         scope.launch {
             var trimmed = false
             for (uri in uris) {
@@ -722,10 +719,7 @@ fun ThreadComposer(
         }
     }
 
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    fun stageNoteFiles(uris: List<Uri>) {
         var trimmed = false
         for (uri in uris) {
             if (state.files.size >= MAX_NOTE_FILES) {
@@ -739,6 +733,15 @@ fun ThreadComposer(
         }
         if (trimmed) onNotice(attachLimitNoteCopy)
     }
+
+    val photoReadFailed = t("thread.photoReadFailed")
+    val attachmentPicker = rememberAttachmentPicker(
+        mimeTypes = if (isNote) arrayOf("*/*") else MMS_PICKER_MIME_TYPES,
+        onPick = { uris ->
+            if (isNote) stageNoteFiles(uris) else stageTextMedia(uris)
+        },
+        onCameraError = { onNotice(photoReadFailed) },
+    )
 
     val canSend = if (isNote) {
         state.text.isNotBlank() || state.files.isNotEmpty()
@@ -1215,21 +1218,12 @@ fun ThreadComposer(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    DropdownMenu(
+                    AttachmentMenu(
+                        picker = attachmentPicker,
+                        enabled = state.photos.size < MAX_PHOTOS,
                         expanded = attachMenuOpen,
-                        onDismissRequest = { attachMenuOpen = false },
+                        dismiss = { attachMenuOpen = false },
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(t("thread.attachFiles")) },
-                            leadingIcon = {
-                                Icon(Icons.Filled.AttachFile, contentDescription = null)
-                            },
-                            enabled = state.photos.size < MAX_PHOTOS,
-                            onClick = {
-                                attachMenuOpen = false
-                                mediaPicker.launch(MMS_PICKER_MIME_TYPES)
-                            },
-                        )
                         DropdownMenuItem(
                             text = { Text(t("thread.savedReply")) },
                             leadingIcon = {
@@ -1274,14 +1268,22 @@ fun ThreadComposer(
                     }
                 }
             } else {
-                IconButton(
-                    onClick = { filePicker.launch(arrayOf("*/*")) },
-                    enabled = state.files.size < MAX_NOTE_FILES,
-                ) {
-                    Icon(
-                        Icons.Filled.AttachFile,
-                        contentDescription = t("thread.attachFilesToNote"),
-                        tint = NoteAmber.ink(),
+                Box {
+                    IconButton(
+                        onClick = { attachMenuOpen = true },
+                        enabled = state.files.size < MAX_NOTE_FILES,
+                    ) {
+                        Icon(
+                            Icons.Filled.AttachFile,
+                            contentDescription = t("thread.attachFilesToNote"),
+                            tint = NoteAmber.ink(),
+                        )
+                    }
+                    AttachmentMenu(
+                        picker = attachmentPicker,
+                        enabled = state.files.size < MAX_NOTE_FILES,
+                        expanded = attachMenuOpen,
+                        dismiss = { attachMenuOpen = false },
                     )
                 }
 

@@ -9,8 +9,6 @@ import com.loonext.android.ui.common.IconSize
 import androidx.activity.compose.BackHandler
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.PaperCard
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +37,6 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -330,10 +327,12 @@ private fun NewConversationLoaded(
         dispatch(request, key)
     }
 
-    val mediaPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
+    var attachMenuOpen by remember { mutableStateOf(false) }
+    val photoReadFailed = t("thread.photoReadFailed")
+    val attachmentPicker = rememberAttachmentPicker(
+        mimeTypes = MMS_PICKER_MIME_TYPES,
+        onCameraError = { scope.launch { snackbar.showSnackbar(photoReadFailed) } },
     ) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
             var trimmed = false
             for (uri in uris) {
@@ -635,12 +634,20 @@ private fun NewConversationLoaded(
                         info = composer.mediaInfo,
                     )
                 }
-                PaperIconButton(
-                    icon = Icons.Outlined.AttachFile,
-                    contentDescription = t("thread.addToMessage"),
-                    onClick = { mediaPicker.launch(MMS_PICKER_MIME_TYPES) },
-                    enabled = composer.photos.size < MAX_PHOTOS,
-                )
+                Box {
+                    PaperIconButton(
+                        icon = Icons.Outlined.AttachFile,
+                        contentDescription = t("thread.addToMessage"),
+                        onClick = { attachMenuOpen = true },
+                        enabled = composer.photos.size < MAX_PHOTOS,
+                    )
+                    AttachmentMenu(
+                        picker = attachmentPicker,
+                        enabled = composer.photos.size < MAX_PHOTOS,
+                        expanded = attachMenuOpen,
+                        dismiss = { attachMenuOpen = false },
+                    )
+                }
 
                 // Destination local time (canvas order: after the message,
                 // before the send pill): cream quiet-hours notice, else a

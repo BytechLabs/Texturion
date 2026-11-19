@@ -43,6 +43,14 @@ Public client values live in `Loonext/Core/AppConfig.swift`. **No secrets.**
   `UIBackgroundModes` (audio, voip, remote-notification) are already set in
   `project.yml`.
 
+### Share extension signing
+
+Register `com.loonext.ios.share` in the Apple Developer team and enable the
+`group.com.loonext.ios` App Group on both that App ID and `com.loonext.ios`.
+Regenerate the provisioning profiles for both targets. On a signed phone build,
+share a photo from Photos, save it in the extension, then open Loonext and
+choose a conversation. Confirm the photo appears in the composer before sending.
+
 ## Architecture (one paragraph)
 
 Mirrors the Android app one-for-one. `Core/` holds the Keychain session

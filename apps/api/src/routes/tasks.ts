@@ -2328,7 +2328,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     done_by_user_id: done ? done_by ?? null : null,
     status: done ? "done" : "open",
     // #722: what this member may do to it now, from the shared machine.
-    allowed_actions: taskAllowedActions(done, c.get("role")),
+    allowed_actions: taskAllowedActions(done, c.get("role"), viewerLevel),
     assignee: row.assigned_user_id
       ? profiles.get(row.assigned_user_id) ?? null
       : null,

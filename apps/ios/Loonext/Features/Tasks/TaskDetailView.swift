@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -1339,15 +1340,15 @@ struct TaskDetailView: View {
                 }
                 .padding(.bottom, 6)
             }
-            // #294: only when there are photos to send. An offer to share an empty
-            // set is an offer to look unready.
-            ShareJobPhotos(
-                taskId: detail.id,
-                photoCount: detail.attachments.filter { $0.kind == "image" }.count,
-                mutations: mutations,
-                companyId: companyId,
-                onError: { actionError = $0 }
-            )
+            if detail.allowed_actions?.contains("share_photos") == true {
+                ShareJobPhotos(
+                    taskId: detail.id,
+                    photoCount: detail.attachments.filter { $0.kind == "image" }.count,
+                    mutations: mutations,
+                    companyId: companyId,
+                    onError: { actionError = $0 }
+                )
+            }
         }
     }
 
@@ -2078,15 +2079,6 @@ private struct CommentCard: View {
 
 // MARK: - Composer
 
-/// One staged composer file (bytes read at post time, not at pick time).
-private struct TaskStagedFile: Identifiable, Sendable {
-    let id = UUID()
-    let url: URL
-    let name: String
-    let size: Int
-    let contentType: String
-}
-
 /// The pinned note composer (TASKS-V2 D-D): posts an internal note with
 /// task_id, then uploads staged files against the note (owner_type='note' —
 /// the only door for task files, D28). Partial upload failure keeps an honest
@@ -2104,10 +2096,13 @@ private struct NoteComposer: View {
     let referenceSearch: @MainActor (String) async -> [ReferencePick]
 
     @State private var body_ = ""
-    @State private var staged: [TaskStagedFile] = []
+    @State private var staged: [StagedFile] = []
     @State private var posting = false
     @State private var error: String?
     @State private var pickerOpen = false
+    @State private var cameraOpen = false
+    @State private var libraryOpen = false
+    @State private var photoSelection: [PhotosPickerItem] = []
     @State private var referencePickerOpen = false
 
     @Environment(\.appLocale) private var appLocale
@@ -2120,6 +2115,7 @@ private struct NoteComposer: View {
                         ForEach(staged) { file in
                             Button {
                                 staged.removeAll { $0.id == file.id }
+                                discardStagedFile(file)
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(file.name)
@@ -2151,8 +2147,13 @@ private struct NoteComposer: View {
             }
             // Spec 23: paper capsule composer with the 38pt ink send circle.
             HStack(alignment: .bottom, spacing: 8) {
-                Button {
-                    pickerOpen = true
+                Menu {
+                    AttachmentSourceActions(
+                        locale: appLocale,
+                        onCamera: { cameraOpen = true },
+                        onPhotos: { libraryOpen = true },
+                        onFiles: { pickerOpen = true }
+                    )
                 } label: {
                     Image(systemName: "paperclip")
                         .foregroundStyle(BrandColor.muted500)
@@ -2215,6 +2216,28 @@ private struct NoteComposer: View {
         .referencePickerSheet(isPresented: $referencePickerOpen, search: referenceSearch) { pick in
             body_ = insertingReference(into: body_, insert: pick.insertText)
         }
+        .photosPicker(
+            isPresented: $libraryOpen,
+            selection: $photoSelection,
+            maxSelectionCount: max(1, noteFilesMax - staged.count),
+            matching: .images
+        )
+        .onChange(of: photoSelection) { _, items in
+            guard !items.isEmpty else { return }
+            photoSelection = []
+            Task {
+                for item in items where staged.count < noteFilesMax {
+                    await stageImage(try? await item.loadTransferable(type: Data.self))
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $cameraOpen) {
+            AttachmentCamera(onCapture: { data in
+                cameraOpen = false
+                Task { await stageImage(data) }
+            }, onCancel: { cameraOpen = false })
+            .ignoresSafeArea()
+        }
         .fileImporter(
             isPresented: $pickerOpen,
             allowedContentTypes: [.item],
@@ -2227,41 +2250,34 @@ private struct NoteComposer: View {
 
     private func stage(_ urls: [URL]) {
         let room = noteFilesMax - staged.count
-        var oversize = false
-        var next: [TaskStagedFile] = []
+        error = nil
         for url in urls.prefix(room) {
-            let accessing = url.startAccessingSecurityScopedResource()
-            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-            let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
-            let size = values?.fileSize ?? -1
-            if size > noteFileMaxBytes {
-                oversize = true
-                continue
-            }
-            next.append(
-                TaskStagedFile(
-                    url: url,
-                    name: url.lastPathComponent,
-                    size: size,
-                    contentType: values?.contentType?.preferredMIMEType
-                        ?? "application/octet-stream"
-                )
-            )
+            applyStage(stageNoteFile(pickedURL: url, locale: appLocale))
         }
-        error = {
-            if urls.count > room {
-                return AppStrings.translate(
-                    appLocale,
-                    "contactsTasks.noteFilesCap",
-                    ["count": String(noteFilesMax)]
-                )
+        if urls.count > room {
+            error = AppStrings.translate(appLocale, "contactsTasks.noteFilesCap", ["count": String(noteFilesMax)])
+        }
+    }
+
+    private func stageImage(_ data: Data?) async {
+        guard let data else {
+            error = AppStrings.translate(appLocale, "thread.photoReadFailed")
+            return
+        }
+        let locale = appLocale
+        applyStage(await Task.detached(operation: { stageNotePhoto(data: data, locale: locale) }).value)
+    }
+
+    private func applyStage(_ result: FileStageResult) {
+        switch result {
+        case .ready(let file):
+            if staged.count < noteFilesMax {
+                staged.append(file)
+            } else {
+                discardStagedFile(file)
             }
-            if oversize {
-                return AppStrings.translate(appLocale, "contactsTasks.noteFileTooBig")
-            }
-            return nil
-        }()
-        staged += next
+        case .rejected(let reason): error = reason
+        }
     }
 
     private func post() {
@@ -2288,9 +2304,8 @@ private struct NoteComposer: View {
                 }
                 var failures = 0
                 for file in files {
-                    let accessing = file.url.startAccessingSecurityScopedResource()
-                    let bytes = try? Data(contentsOf: file.url)
-                    if accessing { file.url.stopAccessingSecurityScopedResource() }
+                    let bytes = readStagedFile(file)
+                    defer { discardStagedFile(file) }
                     guard let bytes else {
                         failures += 1
                         continue

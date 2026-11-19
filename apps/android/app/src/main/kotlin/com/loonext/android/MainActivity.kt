@@ -97,7 +97,10 @@ import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallDetailScreen
 import com.loonext.android.features.calls.CallsOverlay
+import com.loonext.android.features.compose.IncomingShare
 import com.loonext.android.features.compose.NewConversationScreen
+import com.loonext.android.features.compose.ShareTargetSheet
+import com.loonext.android.features.compose.incomingShareFrom
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.sync.ContactsActionKind
@@ -124,6 +127,7 @@ import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
+import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
@@ -201,6 +205,7 @@ sealed interface DeepLink {
      * contact — open the composer prefilled with [number].
      */
     data class ComposeTo(val number: String) : DeepLink
+    data class ShareTo(val payload: IncomingShare) : DeepLink
 }
 
 /**
@@ -356,6 +361,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) {
             parseDeepLink(intent?.data)?.let { deepLinks.value = it }
+            runCatching { incomingShareFrom(intent) }.getOrNull()?.let { deepLinks.value = DeepLink.ShareTo(it) }
             // #183 part 3: a "Call/Text with Loonext" tap arrives as a VIEW intent
             // on the tapped contact data row — resolve it to a Dial/ComposeTo link.
             parseContactsActionIntent(intent)?.let { deepLinks.value = it }
@@ -454,6 +460,7 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         parseDeepLink(intent.data)?.let { deepLinks.value = it }
+        runCatching { incomingShareFrom(intent) }.getOrNull()?.let { deepLinks.value = DeepLink.ShareTo(it) }
         parseContactsActionIntent(intent)?.let { deepLinks.value = it }
         intent.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
             ?.let(AuthCallbacks::deliver)
@@ -639,6 +646,8 @@ private fun ReadyShell(
 ) {
     val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
+    var sharePicker by remember(companyId) { mutableStateOf<IncomingShare?>(null) }
+    var shareForThread by remember(companyId) { mutableStateOf<Pair<String, IncomingShare>?>(null) }
     val offline by graph.connectionWatch.offline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
     val routeStack = rememberSaveable(saver = OverlayStackSaver) {
@@ -802,10 +811,28 @@ private fun ReadyShell(
                 is DeepLink.ComposeTo ->
                     push(Overlay.Compose(prefillContactId = null, prefillPhone = link.number))
 
+                is DeepLink.ShareTo -> sharePicker = link.payload
+
                 null -> Unit
             }
             if (link != null) deepLinks.value = null
         }
+    }
+
+    sharePicker?.let { payload ->
+        val repository = remember(graph) { MessagingRepository(graph.api) }
+        ShareTargetSheet(
+            repository = repository,
+            companyId = companyId,
+            onSelect = { conversationId ->
+                sharePicker = null
+                shareForThread = conversationId to payload
+                if ((routeStack.lastOrNull() as? Overlay.Thread)?.conversationId != conversationId) {
+                    push(Overlay.Thread(conversationId))
+                }
+            },
+            onDismiss = { sharePicker = null },
+        )
     }
 
     LaunchedEffect(companyId, countsKey) {
@@ -1048,6 +1075,8 @@ private fun ReadyShell(
                         conversationId = active.conversationId,
                         highlightMessageId = active.highlightMessageId,
                         findQuery = active.findQuery,
+                        incomingShare = shareForThread?.takeIf { it.first == active.conversationId }?.second,
+                        onShareConsumed = { shareForThread = null },
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },

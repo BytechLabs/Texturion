@@ -55,6 +55,7 @@ private enum ShellSheet: Identifiable {
     case settings
     case trash
     case compose(prefillContactId: String?, prefillPhone: String?)
+    case share(SharedAttachments)
 
     var id: String {
         switch self {
@@ -64,6 +65,7 @@ private enum ShellSheet: Identifiable {
         case .trash: "trash"
         case .compose(let contactId, let phone):
             "compose:\(contactId ?? "")|\(phone ?? "")"
+        case .share(let attachments): attachments.id.absoluteString
         }
     }
 }
@@ -96,6 +98,7 @@ struct ShellView: View {
     @State private var tab: ShellTab = .forYou
     @State private var path: [ShellRoute] = []
     @State private var activeSheet: ShellSheet?
+    @State private var shareForThread: (conversationID: String, attachments: SharedAttachments)?
     /// The section the settings sheet opens at, set by a router command.
     @State private var pendingSettingsSection: SettingsSection?
     @State private var counts = ShellCounts()
@@ -119,6 +122,7 @@ struct ShellView: View {
     /// (AccountSheet, InCallView) for compact-height rhythm.
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.scenePhase) private var scenePhase
 
     /// The pill's max width — capped and centered on a regular-width window,
     /// full-bleed (minus its inset) on a compact phone.
@@ -201,6 +205,13 @@ struct ShellView: View {
         }
         .sheet(item: $activeSheet, onDismiss: refreshTwoFactorDeadline) { sheet in
             sheetContent(sheet)
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active, activeSheet == nil, shareForThread == nil,
+                  MemberRole.has(role, Capability.conversationsSend),
+                  let attachments = SharedAttachments.next()
+            else { return }
+            activeSheet = .share(attachments)
         }
         // AppRouter commands: an open pushes the matching route ABOVE the tab
         // shell (the pill is covered — structurally absent on pushed pages).
@@ -596,6 +607,8 @@ struct ShellView: View {
                 conversationId: conversationId,
                 highlightMessageId: highlightMessageId,
                 findQuery: findQuery,
+                incomingShare: shareForThread.flatMap { $0.conversationID == conversationId ? $0.attachments : nil },
+                onShareConsumed: { shareForThread = nil },
                 onBack: { popRoute() }
             )
         case .task(let taskId):
@@ -913,6 +926,21 @@ struct ShellView: View {
                 prefillPhone: prefillPhone,
                 onCreated: { AppRouter.shared.openConversationId = $0 },
                 onBack: { activeSheet = nil }
+            )
+        case .share(let attachments):
+            ShareTargetSheet(
+                repository: MessagingRepository(api: graph.api),
+                companyId: companyId,
+                onSelect: { id in
+                    shareForThread = (id, attachments)
+                    activeSheet = nil
+                    if case .thread(let current, _, _)? = path.last, current == id { return }
+                    path.append(.thread(conversationId: id, highlightMessageId: nil))
+                },
+                onCancel: {
+                    attachments.discard()
+                    activeSheet = nil
+                }
             )
         }
     }

@@ -17,8 +17,8 @@ import com.loonext.android.ui.common.PaperCard
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import com.loonext.android.features.compose.AttachmentMenu
+import com.loonext.android.features.compose.rememberAttachmentPicker
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -1259,15 +1259,15 @@ private fun TaskDetailBody(
                                     }
                                 }
                             }
-                            // #294: only when there are photos to send. An offer
-                            // to share an empty set is an offer to look unready.
-                            ShareJobPhotos(
-                                taskId = detail.id,
-                                photoCount = detail.attachments.count { it.kind == "image" },
-                                mutations = mutations,
-                                companyId = companyId,
-                                onError = onActionError,
-                            )
+                            if (detail.allowed_actions?.contains("share_photos") == true) {
+                                ShareJobPhotos(
+                                    taskId = detail.id,
+                                    photoCount = detail.attachments.count { it.kind == "image" },
+                                    mutations = mutations,
+                                    companyId = companyId,
+                                    onError = onActionError,
+                                )
+                            }
                         }
                     }
                 }
@@ -2583,10 +2583,13 @@ private fun NoteComposer(
         error = null
     }
 
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments(),
-    ) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    var attachMenuOpen by remember { mutableStateOf(false) }
+    val photoReadFailed = t("thread.photoReadFailed")
+    val attachmentPicker = rememberAttachmentPicker(
+        mimeTypes = arrayOf("*/*"),
+        onCameraError = { error = photoReadFailed },
+        onPick = stageFiles@{ uris ->
+        if (uris.isEmpty()) return@stageFiles
         val room = NOTE_FILES_MAX - staged.size
         val next = uris.take(room).map { uri -> describeFile(context, uri) }
         val oversize = next.filter { it.size > NOTE_FILE_MAX_BYTES }
@@ -2604,7 +2607,8 @@ private fun NoteComposer(
             else -> null
         }
         staged = staged + next.filter { it.size <= NOTE_FILE_MAX_BYTES }
-    }
+        },
+    )
 
     Column(
         Modifier
@@ -2674,18 +2678,26 @@ private fun NoteComposer(
                 Modifier.padding(start = 4.dp, end = 7.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                IconButton(
-                    enabled = !posting && staged.size < NOTE_FILES_MAX,
-                    onClick = {
-                        haptics.tap()
-                        filePicker.launch(arrayOf("*/*"))
-                    },
-                ) {
-                    Icon(
-                        Icons.Outlined.AttachFile,
-                        contentDescription = t("contactsTasks.attachFiles"),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(IconSize.Default),
+                Box {
+                    IconButton(
+                        enabled = !posting && staged.size < NOTE_FILES_MAX,
+                        onClick = {
+                            haptics.tap()
+                            attachMenuOpen = true
+                        },
+                    ) {
+                        Icon(
+                            Icons.Outlined.AttachFile,
+                            contentDescription = t("contactsTasks.attachFiles"),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(IconSize.Default),
+                        )
+                    }
+                    AttachmentMenu(
+                        picker = attachmentPicker,
+                        enabled = !posting && staged.size < NOTE_FILES_MAX,
+                        expanded = attachMenuOpen,
+                        dismiss = { attachMenuOpen = false },
                     )
                 }
                 BasicTextField(

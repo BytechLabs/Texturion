@@ -26,6 +26,7 @@ targets:
     sources:
       - Loonext
     dependencies:
+      - target: LoonextShare
       # The package's PRODUCT is named telnyx-webrtc-ios; the module you
       # `import` stays TelnyxRTC (the target name).
       - package: TelnyxRTC
@@ -50,6 +51,8 @@ targets:
     entitlements:
       path: Loonext/Loonext.entitlements
       properties:
+        com.apple.security.application-groups:
+          - group.com.loonext.ios
         # Universal links: https://app.loonext.com/inbox/{id} + /calls open in
         # the app instead of Safari (the Android app-links twin). Needs the
         # apple-app-site-association file served by the web app.
@@ -94,6 +97,7 @@ targets:
         # string naming only calls is wrong at the moment somebody holds the mic
         # to dictate a wrap-up (#507).
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Loonext uses the camera when you take a photo to attach to a message or a note."
         # Only asked for when the task map's My location button is tapped.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Loonext shows where you are on the job map so you can see which jobs are nearby."
         # #459. Only asked for from the Contacts tab, where the section that
@@ -115,6 +119,41 @@ targets:
           LOONEXT_TELEMETRY_ENVIRONMENT: production
           # dSYMs for PostHog to symbolicate a crash with (posthog-cli in ship.yml).
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+  LoonextShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - LoonextShare
+      - Loonext/Features/Compose/SharedAttachments.swift
+    info:
+      path: LoonextShare/Info.plist
+      properties:
+        CFBundleDisplayName: Loonext
+        CFBundleLocalizations: [en, fr]
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
+          NSExtensionAttributes:
+            NSExtensionActivationRule: >-
+              extensionItems.@count == 1 AND SUBQUERY(extensionItems, $item,
+              $item.attachments.@count BETWEEN {1, 10} AND
+              SUBQUERY($item.attachments, $attachment,
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" OR
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text"
+              ).@count == $item.attachments.@count).@count == 1
+    entitlements:
+      path: LoonextShare/LoonextShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.loonext.ios
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.share
+        MARKETING_VERSION: 0.26.3 # x-release-please-version
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
   LoonextTests:
     type: bundle.unit-test
     platform: iOS

@@ -1,0 +1,5 @@
+"share.instructions" = "Enregistrez les fichiers sélectionnés dans Loonext.";
+"share.save" = "Enregistrer les fichiers";
+"share.close" = "Fermer";
+"share.saved" = "Ouvrez Loonext pour choisir une conversation.";
+"share.failed" = "Impossible d’enregistrer les fichiers. Choisissez jusqu’à 10 fichiers de 25 Mo ou moins chacun.";

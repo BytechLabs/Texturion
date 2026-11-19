@@ -110,6 +110,7 @@ private struct NewConversationLoaded: View {
     /// #475: which saved reply is in the box, and what it said on arrival.
     @State private var templateUse: (id: String, body: String)?
     @State private var photosPickerOpen = false
+    @State private var cameraOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var lastIntent: (key: ComposeIntentKey, idempotencyKey: String)?
@@ -236,6 +237,17 @@ private struct NewConversationLoaded: View {
             guard !items.isEmpty else { return }
             photoSelection = []
             ingestPhotos(items)
+        }
+        .fullScreenCover(isPresented: $cameraOpen) {
+            AttachmentCamera(onCapture: { data in
+                cameraOpen = false
+                guard let data, let composer else {
+                    notify(t("thread.photoReadFailed"))
+                    return
+                }
+                Task { await stagePhoto(data, composer: composer) }
+            }, onCancel: { cameraOpen = false })
+            .ignoresSafeArea()
         }
         .fileImporter(
             isPresented: $fileImporterOpen,
@@ -371,9 +383,15 @@ private struct NewConversationLoaded: View {
                 }
 
                 HStack(spacing: 10) {
+                    if AttachmentCamera.isAvailable {
+                        PaperIconButton(systemImage: "camera", label: t("thread.takePhoto")) {
+                            cameraOpen = true
+                        }
+                        .disabled(composer.photos.count >= maxPhotos)
+                    }
                     PaperIconButton(
                         systemImage: "photo",
-                        label: t("thread.attachPhoto")
+                        label: t("thread.photoLibrary")
                     ) {
                         photosPickerOpen = true
                     }
@@ -758,20 +776,21 @@ private struct NewConversationLoaded: View {
                     notify(t("thread.photoReadFailed"))
                     continue
                 }
-                let locale = appLocale
-                let result = await Task.detached(
-                    operation: { preparePhoto(data: data, locale: locale) }
-                ).value
-                switch result {
-                case .ready(let photo):
-                    composer.photos.append(photo)
-                case .rejected(let reason):
-                    notify(reason)
-                }
+                await stagePhoto(data, composer: composer)
             }
             if trimmed {
                 notify(t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
             }
+        }
+    }
+
+    private func stagePhoto(_ data: Data, composer: ComposerState) async {
+        let locale = appLocale
+        switch await Task.detached(operation: { preparePhoto(data: data, locale: locale) }).value {
+        case .ready(let photo):
+            if composer.photos.count < maxPhotos { composer.photos.append(photo) }
+        case .rejected(let reason):
+            notify(reason)
         }
     }
 }

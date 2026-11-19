@@ -29,7 +29,7 @@ stated.
 |---|---|---|
 | Contact info | Name, Email address, Phone number, Physical address | The crew member's profile, and the customers the business texts |
 | User content | Emails or text messages | Every text sent and received, plus internal notes |
-| User content | Photos or videos | Picture messages and job photos |
+| User content | Photos or videos | Picture messages and job photos. Camera captures and photos selected from the library stay local until the user sends the message or saves the note. |
 | User content | Audio data | Voicemail recordings |
 | User content | Other user content | Files attached to notes and jobs; a spreadsheet or vCard the user imports contacts from |
 | Contacts | Contacts | Customer records the business keeps |
@@ -75,6 +75,7 @@ not here.
 | Key | String |
 |---|---|
 | `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice." |
+| `NSCameraUsageDescription` | "Loonext uses the camera when you take a photo to attach to a message or a note." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
 | `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
 | `NSFaceIDUsageDescription` | "Loonext uses Face ID to keep customer conversations locked when you hand your phone to someone else." |

@@ -863,14 +863,12 @@ function TaskDetailLoaded({
                 {t("tasks.attachments")}
               </p>
               <TaskAttachments items={task.attachments} names={memberNames} />
-              {/* #294: only when there are photos to send. The control belongs
-                  under the set it shares, not in a menu at the top of a drawer. */}
-              <ShareJobPhotos
-                taskId={task.id}
-                photoCount={
-                  task.attachments.filter((item) => item.kind === "image").length
-                }
-              />
+              {task.allowed_actions?.includes("share_photos") && (
+                <ShareJobPhotos
+                  taskId={task.id}
+                  photoCount={task.attachments.filter((item) => item.kind === "image").length}
+                />
+              )}
             </section>
 
             {/* Merged activity + discussion timeline (D-C + D-D). */}
