@@ -547,6 +547,14 @@ update public.webhook_events
 Inbound texts still thread and notify the crew after a replay. The worker
 suppresses automated customer replies when the event is older than 15 minutes.
 
+### Outbound webhook outages
+
+Each sweep claims up to ten due deliveries per endpoint. Endpoint lookup
+failures leave the claims in place for the 15-minute recovery window. The
+worker disables an endpoint after twenty consecutive failures and at least
+six hours of failed deliveries. The same transaction records
+`webhook.endpoint_disabled` in the workspace audit log.
+
 ## Vendor notices
 
 Each vendor below notifies the account owner by its own email, configured in

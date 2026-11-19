@@ -149,17 +149,65 @@ function endpointRow(overrides: Partial<Record<string, unknown>> = {}) {
     id: ENDPOINT,
     url: URL_OK,
     secret: SECRET,
-    consecutive_failures: 0,
+    active: true,
     ...overrides,
   };
 }
 
 describe(deliverWebhookBatch, () => {
+  it("reports a failed claim", async () => {
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () =>
+      Response.json({ message: "database unavailable" }, { status: 503 }),
+    );
+    stubFetch(claim.route);
+
+    await expect(deliverWebhookBatch(getDb(env), env)).rejects.toThrow("webhook delivery claim failed");
+  });
+
+  it("leaves claimed deliveries untouched when the endpoint lookup fails", async () => {
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () =>
+      Response.json({ message: "database unavailable" }, { status: 503 }),
+    );
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    stubFetch(claim.route, endpoints.route, update.route);
+
+    await expect(deliverWebhookBatch(getDb(env), env)).rejects.toThrow("webhook endpoint lookup failed");
+    expect(update.calls).toHaveLength(0);
+  });
+
+  it("delivers to another endpoint while the first receiver is waiting", async () => {
+    const secondEndpoint = "22222222-2222-4222-8222-222222222223";
+    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [
+      claimed(),
+      claimed({ id: "33333333-3333-4333-8333-333333333334", endpoint_id: secondEndpoint }),
+    ]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      endpointRow(),
+      endpointRow({ id: secondEndpoint, url: "https://hooks.example.com/second" }),
+    ]);
+    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
+    const secondReceiver = Promise.withResolvers<boolean>();
+    const receiver = stubRoute(
+      (url) => url.origin === "https://hooks.example.com",
+      async ({ url }) => {
+        if (url.pathname === "/second") secondReceiver.resolve(true);
+        await secondReceiver.promise;
+        return new Response(null, { status: 204 });
+      },
+    );
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
+
+    await expect(deliverWebhookBatch(getDb(env), env)).resolves.toMatchObject({ delivered: 2 });
+    expect(outcome.calls).toHaveLength(2);
+  });
+
   it("signs the exact bytes it sends, with the timestamp inside the signature", async () => {
     const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
     const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [endpointRow()]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     let sent: { body: string; signature: string; event: string; delivery: string } | null = null;
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
@@ -175,7 +223,7 @@ describe(deliverWebhookBatch, () => {
       };
       return receiver.route(url, request);
     };
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, capturing);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, capturing);
 
     const result = await deliverWebhookBatch(getDb(env), env);
 
@@ -199,7 +247,7 @@ describe(deliverWebhookBatch, () => {
       endpointRow({ consecutive_failures: 7 }),
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       // `null`, not `""` — a 204 is a null-body status and constructing one
@@ -207,13 +255,13 @@ describe(deliverWebhookBatch, () => {
       // like a delivery bug.
       () => new Response(null, { status: 204 }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     await deliverWebhookBatch(getDb(env), env);
 
     expect(update.calls[0]?.body).toMatchObject({ status: "succeeded", response_status: 204 });
     // An endpoint that is up but rejected one event is not a dead endpoint.
-    expect(endpointUpdate.calls[0]?.body).toMatchObject({ consecutive_failures: 0 });
+    expect(outcome.calls[0]?.body).toMatchObject({ p_succeeded: true, p_failed: 0 });
   });
 
   it("puts a failure back on the queue at the scheduled gap, not immediately", async () => {
@@ -222,12 +270,12 @@ describe(deliverWebhookBatch, () => {
     ]);
     const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [endpointRow()]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       () => new Response("boom", { status: 500 }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     const before = Date.now();
     await deliverWebhookBatch(getDb(env), env);
@@ -255,12 +303,12 @@ describe(deliverWebhookBatch, () => {
     ]);
     const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [endpointRow()]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       () => new Response("nope", { status: 502 }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     await deliverWebhookBatch(getDb(env), env);
 
@@ -269,54 +317,26 @@ describe(deliverWebhookBatch, () => {
     expect(body.next_attempt_at).toBeUndefined();
   });
 
-  it("disables an endpoint that has been failing long enough, with a key the phones can translate", async () => {
+  it.each([false, true])("counts an endpoint disable only when the outcome reports %s", async (disabled) => {
     const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
-    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
-      // One short of the threshold, so this batch's single failure crosses it.
-      endpointRow({ consecutive_failures: 19 }),
-    ]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [endpointRow()]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => disabled);
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       () => new Response("gone", { status: 410 }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     const result = await deliverWebhookBatch(getDb(env), env);
 
-    expect(result.disabled).toBe(1);
-    const body = endpointUpdate.calls[0]?.body as {
-      active: boolean;
-      consecutive_failures: number;
-      disabled_reason: string;
-    };
-    expect(body.active).toBe(false);
-    expect(body.consecutive_failures).toBe(20);
-    // A stored English sentence is one no French phone can translate, so what
-    // goes in the column is a catalogue key.
-    expect(body.disabled_reason).toBe("webhooks.disabled.tooManyFailures");
-  });
-
-  it("does not disable an endpoint one failure short of the threshold", async () => {
-    const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
-    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
-      endpointRow({ consecutive_failures: 18 }),
-    ]);
-    const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
-    const endpointUpdate = stubRoute(restMatch(env, "PATCH", "webhook_endpoints"), () => []);
-    const receiver = stubRoute(
-      (url) => url.origin === "https://hooks.example.com",
-      () => new Response("gone", { status: 410 }),
-    );
-    stubFetch(claim.route, endpoints.route, update.route, endpointUpdate.route, receiver.route);
-
-    const result = await deliverWebhookBatch(getDb(env), env);
-
-    expect(result.disabled).toBe(0);
-    const body = endpointUpdate.calls[0]?.body as Record<string, unknown>;
-    expect(body.consecutive_failures).toBe(19);
-    expect(body.active).toBeUndefined();
+    expect(result.disabled).toBe(disabled ? 1 : 0);
+    expect(outcome.calls[0]?.body).toMatchObject({
+      p_endpoint_id: ENDPOINT,
+      p_succeeded: false,
+      p_failed: 1,
+      p_disable_after: 20,
+    });
   });
 
   it("fails a delivery whose endpoint was removed between enqueue and now", async () => {
@@ -405,12 +425,13 @@ describe("#581 a paused endpoint receives nothing further", () => {
       endpointRow({ active: true }),
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     let posted = 0;
     const receiver = stubRoute((url) => {
       if (url.origin === "https://hooks.example.com") posted += 1;
       return url.origin === "https://hooks.example.com";
     }, () => new Response("", { status: 200 }));
-    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     const result = await deliverWebhookBatch(getDb(env), env);
 
@@ -446,6 +467,7 @@ describe("#581 a delivery is never redirected", () => {
       endpointRow({ active: true }),
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
 
     const modes: string[] = [];
     const receiver = stubRoute(
@@ -458,7 +480,7 @@ describe("#581 a delivery is never redirected", () => {
       },
       () => new Response("", { status: 200 }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     await deliverWebhookBatch(getDb(env), env);
 
@@ -475,6 +497,7 @@ describe("#581 a delivery is never redirected", () => {
       endpointRow({ active: true }),
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
+    const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       () =>
@@ -483,7 +506,7 @@ describe("#581 a delivery is never redirected", () => {
           headers: { location: "http://169.254.169.254/latest/meta-data/" },
         }),
     );
-    stubFetch(claim.route, endpoints.route, update.route, receiver.route);
+    stubFetch(claim.route, endpoints.route, update.route, outcome.route, receiver.route);
 
     const result = await deliverWebhookBatch(getDb(env), env);
 

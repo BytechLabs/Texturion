@@ -242,6 +242,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
       // where it was would let one more failure re-disable an endpoint the
       // customer just fixed, which reads as the toggle not working.
       patch.consecutive_failures = 0;
+      patch.failure_streak_started_at = null;
       patch.disabled_reason = null;
       patch.disabled_at = null;
     }

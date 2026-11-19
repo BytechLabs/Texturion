@@ -88,7 +88,8 @@ async function enqueue(
     .contains("events", [type])
     .limit(WEBHOOK_ENDPOINT_CAP);
 
-  if (error || !endpoints || endpoints.length === 0) return 0;
+  if (error) throw new Error(`webhook subscription lookup failed: ${error.message}`);
+  if (!endpoints?.length) return 0;
 
   const createdAt = new Date().toISOString();
   const rows = payloads.flatMap((data) =>
@@ -112,7 +113,7 @@ async function enqueue(
   );
 
   const { error: insertError } = await db.from("webhook_deliveries").insert(rows);
-  if (insertError) return 0;
+  if (insertError) throw new Error(`webhook enqueue failed: ${insertError.message}`);
   return rows.length;
 }
 

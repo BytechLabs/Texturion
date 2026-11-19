@@ -25,6 +25,8 @@ import { customerWebhookRefusal } from "../environments/policy";
  * POSTs each one, and writes down what happened.
  */
 
+const MAX_DELIVERIES_PER_TICK = 300;
+
 type ClaimedDelivery = {
   id: string;
   company_id: string;
@@ -35,12 +37,10 @@ type ClaimedDelivery = {
 };
 
 type EndpointRow = {
-  /** #581: false = paused by the owner, or auto-disabled after repeated failures. */
-  active?: boolean;
+  active: boolean;
   id: string;
   url: string;
   secret: string;
-  consecutive_failures: number;
 };
 
 /** HMAC-SHA256, hex. WebCrypto because Workers has no node:crypto sync path. */
@@ -89,6 +89,7 @@ async function postOnce(endpoint: EndpointRow, delivery: ClaimedDelivery): Promi
     });
 
     if (response.status >= 200 && response.status < 300) {
+      await response.body?.cancel().catch(() => undefined);
       return { ok: true, status: response.status };
     }
 
@@ -120,223 +121,113 @@ async function postOnce(endpoint: EndpointRow, delivery: ClaimedDelivery): Promi
   }
 }
 
-/**
- * Deliver one claimed batch. Returns a small tally for the cron's log line.
- *
- * The per-endpoint failure counter is read from the row we already fetched and
- * written back, so two overlapping sweeps could each miss the other's
- * increment. That is deliberate rather than overlooked: the counter drives a
- * heuristic — "this endpoint has been dead a while, stop calling it" — and an
- * occasional undercount delays a disable by one round. Making it exact would
- * mean a lock on the endpoint row for every delivery, which is a real cost for
- * an imaginary problem.
- *
- * `env` is required because it carries the D142 deployment rules: an optional
- * one would let a caller deliver on the rig without asking where to.
- */
+type DeliveryTotals = { delivered: number; failed: number; disabled: number };
+
+async function stampDelivery(
+  db: SupabaseClient,
+  id: string,
+  update: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await db.from("webhook_deliveries").update(update).eq("id", id);
+  if (error) throw new Error(`webhook delivery stamp failed for ${id}: ${error.code}`);
+}
+
+async function deliverEndpointGroup(
+  db: SupabaseClient,
+  env: Env,
+  endpoint: EndpointRow | undefined,
+  deliveries: ClaimedDelivery[],
+): Promise<DeliveryTotals> {
+  const refusal = endpoint ? customerWebhookRefusal(env, endpoint.url) : "endpoint removed";
+  if (!endpoint || !endpoint.active || refusal) {
+    const error = endpoint?.active === false ? "endpoint paused" : refusal;
+    for (const delivery of deliveries) {
+      await stampDelivery(db, delivery.id, { status: "failed", last_error: error });
+    }
+    return { delivered: 0, failed: deliveries.length, disabled: 0 };
+  }
+
+  let delivered = 0;
+  let failed = 0;
+  for (const delivery of deliveries) {
+    const attempt = await postOnce(endpoint, delivery);
+    if (attempt.ok) {
+      await stampDelivery(db, delivery.id, {
+        status: "succeeded",
+        response_status: attempt.status,
+        delivered_at: new Date().toISOString(),
+        last_error: null,
+      });
+      delivered += 1;
+    } else {
+      const delay = webhookRetryDelaySeconds(delivery.attempts);
+      await stampDelivery(db, delivery.id, {
+        status: delay === null ? "failed" : "pending",
+        response_status: attempt.status,
+        last_error: attempt.error,
+        ...(delay === null ? {} : { next_attempt_at: new Date(Date.now() + delay * 1000).toISOString() }),
+      });
+      failed += 1;
+    }
+  }
+
+  const { data, error } = await db.rpc("api_record_webhook_delivery_outcome", {
+    p_endpoint_id: endpoint.id,
+    p_succeeded: delivered > 0,
+    p_failed: failed,
+    p_disable_after: WEBHOOK_AUTO_DISABLE_AFTER_CONSECUTIVE_FAILURES,
+  });
+  if (error) throw new Error(`webhook outcome stamp failed for ${endpoint.id}: ${error.code}`);
+  return { delivered, failed, disabled: data === true ? 1 : 0 };
+}
+
 export async function deliverWebhookBatch(
   db: SupabaseClient,
   env: Env,
   limit = 50,
-): Promise<{ claimed: number; delivered: number; failed: number; disabled: number }> {
-  const { data: claimed, error } = await db.rpc("api_claim_webhook_deliveries", {
-    p_limit: limit,
-  });
+): Promise<DeliveryTotals & { claimed: number }> {
+  const { data: claimed, error } = await db.rpc("api_claim_webhook_deliveries", { p_limit: limit });
+  if (error) throw new Error(`webhook delivery claim failed: ${error.message}`);
   const deliveries = (claimed ?? []) as ClaimedDelivery[];
-  if (error || deliveries.length === 0) {
-    return { claimed: 0, delivered: 0, failed: 0, disabled: 0 };
-  }
+  const totals = { claimed: deliveries.length, delivered: 0, failed: 0, disabled: 0 };
+  if (deliveries.length === 0) return totals;
 
-  const endpointIds = [...new Set(deliveries.map((d) => d.endpoint_id))];
-  const { data: endpointRows } = await db
-    .from("webhook_endpoints")
-    // #581: `active` is selected because pausing has to stop deliveries that
-    // are ALREADY queued, not just new ones. Enqueue filters on it
-    // (outbound.ts) and dispatch did not, so the switch only ever closed one
-    // of the two doors.
-    .select("id, url, secret, consecutive_failures, active")
-    .in("id", endpointIds);
-  const endpoints = new Map<string, EndpointRow>(
-    ((endpointRows ?? []) as EndpointRow[]).map((row) => [row.id, row]),
-  );
-
-  let delivered = 0;
-  let failed = 0;
-  let disabled = 0;
-  // Per endpoint: did anything succeed, and how many failed.
-  const outcomes = new Map<string, { successes: number; failures: number }>();
-
+  const groups = new Map<string, ClaimedDelivery[]>();
   for (const delivery of deliveries) {
-    const endpoint = endpoints.get(delivery.endpoint_id);
-    if (!endpoint) {
-      // The endpoint was deleted between enqueue and now. The delivery has
-      // nowhere to go and no future attempt can change that.
-      await db
-        .from("webhook_deliveries")
-        .update({ status: "failed", last_error: "endpoint removed" })
-        .eq("id", delivery.id);
-      failed += 1;
-      continue;
-    }
+    const group = groups.get(delivery.endpoint_id);
+    if (group) group.push(delivery);
+    else groups.set(delivery.endpoint_id, [delivery]);
+  }
 
-    /*
-     * #581 — PAUSED counts the same as deleted, from here on.
-     *
-     * Enqueue has always filtered on `active`, so nothing NEW queues after the
-     * switch. What kept flowing was everything already in flight: the retry
-     * ladder runs 30s, 2m, 10m, 1h, 6h, so up to about seven hours of a
-     * workspace's events stayed deliverable to an endpoint its owner had just
-     * turned off — and were delivered in full the moment that endpoint
-     * answered 2xx.
-     *
-     * The reason this is a defect rather than a nicety is that we TELL the
-     * customer otherwise. The settings screen says, after the platform's own
-     * auto-disable fires, "we stopped sending to it. Everything since then has
-     * been missed." That sentence was false: the events were not missed, they
-     * were pending. And the auto-disable is the containment control for an
-     * endpoint that has already misbehaved, so leaving its queue live made the
-     * guard decorative against the one endpoint it exists to contain.
-     *
-     * Terminal rather than deferred. A paused endpoint has no scheduled return
-     * — only a person can re-enable it — so holding the row would mean holding
-     * a workspace's events indefinitely, which is the opposite of what the
-     * pause was for.
-     */
-    if (endpoint.active === false) {
-      await db
-        .from("webhook_deliveries")
-        .update({ status: "failed", last_error: "endpoint paused" })
-        .eq("id", delivery.id);
-      failed += 1;
-      continue;
-    }
-
-    // D142: on the rig a workspace's webhook goes to the robot or nowhere.
-    // Terminal, like a paused endpoint, and not held against the endpoint's
-    // failure streak: the receiver did nothing wrong.
-    const refusal = customerWebhookRefusal(env, endpoint.url);
-    if (refusal) {
-      await db
-        .from("webhook_deliveries")
-        .update({ status: "failed", last_error: refusal })
-        .eq("id", delivery.id);
-      failed += 1;
-      continue;
-    }
-
-    const tally = outcomes.get(endpoint.id) ?? { successes: 0, failures: 0 };
-    const attempt = await postOnce(endpoint, delivery);
-
-    if (attempt.ok) {
-      await db
-        .from("webhook_deliveries")
-        .update({
-          status: "succeeded",
-          response_status: attempt.status,
-          delivered_at: new Date().toISOString(),
-          last_error: null,
-        })
-        .eq("id", delivery.id);
-      tally.successes += 1;
-      delivered += 1;
+  const { data: endpointRows, error: endpointError } = await db
+    .from("webhook_endpoints")
+    .select("id,url,secret,active")
+    .in("id", [...groups.keys()]);
+  if (endpointError) throw new Error(`webhook endpoint lookup failed: ${endpointError.message}`);
+  const endpoints = new Map<string, EndpointRow>((endpointRows ?? []).map((row) => [row.id, row]));
+  const results = await Promise.allSettled(
+    [...groups].map(([id, group]) => deliverEndpointGroup(db, env, endpoints.get(id), group)),
+  );
+  const errors: unknown[] = [];
+  for (const result of results) {
+    if (result.status === "rejected") {
+      errors.push(result.reason);
     } else {
-      // `attempts` was already incremented by the claim, so it is the number
-      // of attempts INCLUDING this one — which is exactly what the schedule
-      // wants when asked for the next gap.
-      const delay = webhookRetryDelaySeconds(delivery.attempts);
-      await db
-        .from("webhook_deliveries")
-        .update(
-          delay === null
-            ? {
-                status: "failed",
-                response_status: attempt.status,
-                last_error: attempt.error,
-              }
-            : {
-                status: "pending",
-                response_status: attempt.status,
-                last_error: attempt.error,
-                next_attempt_at: new Date(Date.now() + delay * 1000).toISOString(),
-              },
-        )
-        .eq("id", delivery.id);
-      tally.failures += 1;
-      failed += 1;
+      totals.delivered += result.value.delivered;
+      totals.failed += result.value.failed;
+      totals.disabled += result.value.disabled;
     }
-    outcomes.set(endpoint.id, tally);
   }
-
-  const now = new Date().toISOString();
-  for (const [endpointId, tally] of outcomes) {
-    const endpoint = endpoints.get(endpointId);
-    if (!endpoint) continue;
-
-    if (tally.successes > 0) {
-      // Any success clears the streak. An endpoint that is up but rejecting
-      // one malformed event is not a dead endpoint, and disabling it would
-      // punish the workspace for our payload.
-      await db
-        .from("webhook_endpoints")
-        .update({ consecutive_failures: 0, last_success_at: now })
-        .eq("id", endpointId);
-      continue;
-    }
-
-    const streak = endpoint.consecutive_failures + tally.failures;
-    const shouldDisable = streak >= WEBHOOK_AUTO_DISABLE_AFTER_CONSECUTIVE_FAILURES;
-    await db
-      .from("webhook_endpoints")
-      .update({
-        consecutive_failures: streak,
-        last_failure_at: now,
-        ...(shouldDisable
-          ? {
-              active: false,
-              disabled_at: now,
-              // Written as a catalogue KEY, not a sentence: this reaches three
-              // clients in two languages, and a English string stored in the
-              // database is one no phone can translate.
-              disabled_reason: "webhooks.disabled.tooManyFailures",
-            }
-          : {}),
-      })
-      .eq("id", endpointId);
-    if (shouldDisable) disabled += 1;
-  }
-
-  return { claimed: deliveries.length, delivered, failed, disabled };
+  if (errors.length > 0) throw new AggregateError(errors, "outbound webhook delivery failed");
+  return totals;
 }
-
-/**
- * The cron entry point, on the existing five-minute sweeper.
- *
- * Batches until the queue is drained or the ceiling is hit. The ceiling exists
- * because a cron invocation has a wall clock and a subrequest budget, and a
- * workspace that just enabled a webhook against a busy inbox can present a
- * backlog far larger than one tick should try to clear — the next tick is five
- * minutes away, which is the right amount of patience for a queue that is
- * already behind.
- */
-const MAX_BATCHES_PER_TICK = 6;
 
 export async function deliverOutboundWebhooks(
   env: Env,
   _now: Date = new Date(),
   db: SupabaseClient = getDb(env),
 ): Promise<number> {
-  let delivered = 0;
-  let failed = 0;
-  let disabled = 0;
-
-  for (let batch = 0; batch < MAX_BATCHES_PER_TICK; batch += 1) {
-    const result = await deliverWebhookBatch(db, env);
-    delivered += result.delivered;
-    failed += result.failed;
-    disabled += result.disabled;
-    if (result.claimed === 0) break;
-  }
-
+  const { delivered, failed, disabled } = await deliverWebhookBatch(db, env, MAX_DELIVERIES_PER_TICK);
   if (delivered > 0 || failed > 0) {
     console.log(
       `outbound webhooks: ${delivered} delivered, ${failed} failed, ${disabled} endpoint(s) disabled`,
