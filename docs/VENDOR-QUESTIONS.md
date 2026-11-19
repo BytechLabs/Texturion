@@ -31,13 +31,12 @@ never on a schedule. Several could go in one support message.
 
 Run S24 on the guarded rig with `STOP.`, `HELP`, and `ARRET` to record
 which replies Telnyx sends and whether the profile blocks after punctuation.
-Have the robot send `START` to clean up a block. The app records punctuated
-STOP independently.
+Have the robot send `START` to clean up a block. Confirm with Telnyx whether
+adding samples to an approved 10DLC campaign triggers re-vetting before
+backfilling existing campaigns. The app records punctuated STOP independently.
 
 Telnyx says a content update can return a rejected native campaign to review.
-The public documentation leaves sample-only updates to approved campaigns
-unverified. New campaigns get samples 4 and 5. The poll still uses the prior
-sample 3 update and skips campaigns that already have it.
+We still need confirmation for sample-only updates to approved campaigns.
 [Telnyx guidance on native campaign appeals](https://github.com/team-telnyx/knowledge-base/blob/main/wiki/dev-docs/10dlc-messaging--part-4.md#native-campaign-appeals)
 
 Rig run `S24-20261117215818-fef4cd` stopped before any dials. The guard reported
