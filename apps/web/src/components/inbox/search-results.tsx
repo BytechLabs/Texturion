@@ -3,7 +3,7 @@
 import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Lock, MessageSquarePlus, SearchX } from "lucide-react";
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import { useT } from "@/i18n/provider";
@@ -16,6 +16,9 @@ import { inboxHref } from "@/lib/inbox/thread-href";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+
+type SearchScope = "all" | "texts" | "tasks" | "contacts";
 
 interface SearchLink {
   id: string;
@@ -48,6 +51,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
   const t = useT();
   const search = useInboxSearch(q);
   const canOpenSettings = useCanOpenSettings();
+  const [scope, setScope] = useState<SearchScope>("all");
 
   if (search.isPending) {
     return <SearchSkeleton />;
@@ -64,16 +68,19 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
   if (!search.data) return <SearchSkeleton />;
 
   const [firstPage] = search.data.pages;
-  const conversations = search.data.pages.flatMap((page) => page.conversations);
+  const showTexts = scope === "all" || scope === "texts";
+  const conversations = showTexts ? search.data.pages.flatMap((page) => page.conversations) : [];
   const seenConversations = new Set<string>();
   const uniqueConversations = conversations.filter(({ id }) => {
     if (seenConversations.has(id)) return false;
     seenConversations.add(id);
     return true;
   });
-  const { contacts, tasks, attachments, voicemails, templates } = firstPage;
+  const { tasks, attachments, voicemails, templates } = firstPage;
+  const contacts = scope === "all" || scope === "contacts" ? firstPage.contacts : [];
   const otherGroups = [
     {
+      scope: "tasks",
       heading: t("shell.navTasks"),
       hits: tasks.map((task) => ({ id: task.id, title: task.title, href: `/tasks?task=${task.id}` })),
     },
@@ -103,19 +110,33 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
         snippet: hit.snippet,
       })) : [],
     },
-  ];
-  if (!uniqueConversations.length && !contacts.length && !otherGroups.some((group) => group.hits.length)) {
-    return (
-      <EmptyState
-        className="flex-1"
-        icon={<SearchX strokeWidth={1.75} />}
-        title={t("inbox.searchNoMatches", { query: q.trim() })}
-      />
-    );
-  }
+  ].filter((group) => scope === "all" || group.scope === scope);
+  const empty = !uniqueConversations.length && !contacts.length && !otherGroups.some((group) => group.hits.length);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="sticky top-0 z-10 bg-app-ground px-4 py-2">
+        <SegmentedControl
+          value={scope}
+          onChange={setScope}
+          ariaLabel={t("inbox.searchScope")}
+          size="sm"
+          fill
+          options={[
+            { value: "all", label: t("inbox.searchScopeAll") },
+            { value: "texts", label: t("inbox.searchScopeTexts") },
+            { value: "tasks", label: t("shell.navTasks") },
+            { value: "contacts", label: t("shell.navContacts") },
+          ]}
+        />
+      </div>
+      {empty && (
+        <EmptyState
+          className="min-h-44"
+          icon={<SearchX strokeWidth={1.75} />}
+          title={t("inbox.searchNoMatches", { query: q.trim() })}
+        />
+      )}
       {uniqueConversations.length > 0 && (
         <section aria-label={t("inbox.searchConversationsAria")}>
           <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">
@@ -127,7 +148,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
               href={inboxHref({
                 conversationId: hit.id,
                 listQuery,
-                target: { messageId: hit.matched_message_id },
+                target: { messageId: hit.matched_message_id, findQuery: q },
               })}
               className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
@@ -200,7 +221,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
       {otherGroups.map(({ heading, hits }) => (
         <SearchLinkGroup key={heading} heading={heading} hits={hits} />
       ))}
-      {search.hasNextPage && (
+      {showTexts && search.hasNextPage && (
         <div className="px-4 py-3">
           {search.isFetchNextPageError && (
             <p className="mb-2 text-sm text-destructive" role="alert">{t("inbox.searchFailed")}</p>
@@ -211,7 +232,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
             disabled={search.isFetchingNextPage}
             onClick={() => void search.fetchNextPage()}
           >
-            {t("shell.loadMore")}
+            {t("inbox.searchMore")}
           </Button>
         </div>
       )}

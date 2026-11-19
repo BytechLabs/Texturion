@@ -309,7 +309,11 @@ enum ContactsTasksStrings {
             "contactsTasks.emailPlaceholder": "For quotes and receipts",
             "contactsTasks.notesPlaceholder":
                 "Gate code, dog's name, preferred arrival window…",
-            "contactsTasks.searchNameOrNumber": "Search name or number",
+            "contactsTasks.searchNameOrNumber": "Search name, number or address",
+            "contactsTasks.sort": "Sort contacts",
+            "contactsTasks.sortName": "Name",
+            "contactsTasks.sortRecent": "Recent activity",
+            "contactsTasks.sortAdded": "Recently added",
             "contactsTasks.noMatchesFor": "No matches for \"{query}\".",
             "contactsTasks.noContactsYet":
                 "No contacts yet. They're added automatically when someone texts you, "
@@ -1104,7 +1108,11 @@ enum ContactsTasksStrings {
             "contactsTasks.emailPlaceholder": "Pour les devis et les reçus",
             "contactsTasks.notesPlaceholder":
                 "Code de portail, nom du chien, plage d'arrivée préférée…",
-            "contactsTasks.searchNameOrNumber": "Rechercher un nom ou un numéro",
+            "contactsTasks.searchNameOrNumber": "Rechercher un nom, un numéro ou une adresse",
+            "contactsTasks.sort": "Trier les contacts",
+            "contactsTasks.sortName": "Nom",
+            "contactsTasks.sortRecent": "Activité récente",
+            "contactsTasks.sortAdded": "Ajouts récents",
             "contactsTasks.noMatchesFor": "Aucun résultat pour « {query} ».",
             "contactsTasks.noContactsYet":
                 "Aucun client pour l'instant. Ils sont ajoutés automatiquement quand "

@@ -24,6 +24,7 @@ final class SearchFieldPatternGuardTests: XCTestCase {
         exceptions: [
             PatternException(file: "Support/SearchablePicker.swift", rule: "searchable", reason: "The shared picker for long lists (#746), the time zone list among them, searches through the navigation bar drawer of its own stack."),
             PatternException(file: "Theme/CountryField.swift", rule: "searchable", reason: "The country picker searches through the navigation bar drawer of its own stack."),
+            PatternException(file: "Features/Thread/ThreadView.swift", rule: "hand-drawn magnifier", reason: "The header button opens the in-conversation SearchField."),
         ],
         usePattern: #"\bSearchField\("#,
         minUsers: 8

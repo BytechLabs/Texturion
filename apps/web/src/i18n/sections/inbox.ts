@@ -298,6 +298,10 @@ export const inboxEn = {
   // --- Search results (search-results.tsx) ----------------------------------
   searchFailed: "Search isn't responding. Try again in a moment.",
   searchNoMatches: "No matches for “{query}”.",
+  searchScope: "Search results",
+  searchScopeAll: "All",
+  searchScopeTexts: "Texts",
+  searchMore: "More results",
   searchConversationsAria: "Matching conversations",
   searchConversationsHeading: "Conversations",
   searchContactsAria: "Matching contacts",
@@ -793,6 +797,10 @@ export const inboxFr: Translated<typeof inboxEn> = {
   // --- Search results --------------------------------------------------------
   searchFailed: "La recherche ne répond pas. Réessayez dans un moment.",
   searchNoMatches: "Aucun résultat pour « {query} ».",
+  searchScope: "Résultats de recherche",
+  searchScopeAll: "Tous",
+  searchScopeTexts: "Textos",
+  searchMore: "Plus de résultats",
   searchConversationsAria: "Conversations correspondantes",
   searchConversationsHeading: "Conversations",
   searchContactsAria: "Contacts correspondants",

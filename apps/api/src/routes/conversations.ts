@@ -711,6 +711,32 @@ conversationsRoutes.get(
 );
 
 conversationsRoutes.get(
+  "/conversations/:id/messages/search",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const conversationId = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const query = c.req.query("q")?.trim() ?? "";
+    if (query.length < 1 || query.length > 200) {
+      throw new ApiError("validation_failed", "Enter 1 to 200 characters to search this conversation.");
+    }
+    const db = getDb(getEnv(c.env));
+    await requireConversationAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId,
+      need: "read",
+    });
+    const rows = unwrap<{ id: string; created_at: string }[]>(
+      await db.rpc("api_find_thread_messages", { p_company: companyId, p_thread: conversationId, p_query: query }),
+      "find messages in conversation",
+    );
+    return c.json({ data: rows.slice(0, 50), truncated: rows.length > 50 });
+  },
+);
+
+conversationsRoutes.get(
   "/conversations/:id",
   requireCapability("conversations.read"),
   async (c) => {

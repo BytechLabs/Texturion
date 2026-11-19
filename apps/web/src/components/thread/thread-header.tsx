@@ -81,6 +81,7 @@ export function ThreadHeader({
   filter,
   onFilterChange,
   onCatchUp,
+  onFind,
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
@@ -95,6 +96,7 @@ export function ThreadHeader({
   onFilterChange: (next: ThreadFilter) => void;
   /** #716: ask Lou for a catch-up. Absent when the thread does not offer one. */
   onCatchUp?: () => void;
+  onFind?: () => void;
 }) {
   const t = useT();
   const navigate = useNavigate();
@@ -502,8 +504,10 @@ export function ThreadHeader({
             </Button>
           }
           before={
-            isBelowMd && (
             <>
+              {onFind && <DropdownMenuItem onSelect={onFind}>{t("thread.findInThread")}</DropdownMenuItem>}
+              {isBelowMd && (
+                <>
               {/* #89: the dedicated contact-info button is desktop-only
                   (`hidden md:inline-flex`), so on a phone opening the contact
                   panel (bottom sheet) lives here at the top of the menu. */}
@@ -529,8 +533,9 @@ export function ThreadHeader({
                 </DropdownMenuToggleItem>
               ))}
               <DropdownMenuSeparator />
+                </>
+              )}
             </>
-            )
           }
         />
       </div>

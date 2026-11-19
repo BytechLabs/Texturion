@@ -383,8 +383,12 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.notesPlaceholder" to
             "Gate code, dog's name, preferred arrival window…",
         "contactsTasks.notesCaption" to "Saves automatically · visible to the crew",
-        "contactsTasks.searchNameOrNumber" to "Search name or number",
-        "contactsTasks.searchNameOrNumberHint" to "Search name or number…",
+        "contactsTasks.searchNameOrNumber" to "Search name, number or address",
+        "contactsTasks.searchNameOrNumberHint" to "Search name, number or address…",
+        "contactsTasks.sort" to "Sort contacts",
+        "contactsTasks.sortName" to "Name",
+        "contactsTasks.sortRecent" to "Recent activity",
+        "contactsTasks.sortAdded" to "Recently added",
         "contactsTasks.noMatchesFor" to "No matches for \"{query}\".",
         "contactsTasks.noContactsYet" to
             "No contacts yet. They're added automatically when someone texts you, " +
@@ -1263,8 +1267,12 @@ object ContactsTasksStrings : AppStrings.Section {
             "Code de portail, nom du chien, plage d'arrivée préférée…",
         "contactsTasks.notesCaption" to
             "Enregistrement automatique · visible par l'équipe",
-        "contactsTasks.searchNameOrNumber" to "Rechercher un nom ou un numéro",
-        "contactsTasks.searchNameOrNumberHint" to "Rechercher un nom ou un numéro…",
+        "contactsTasks.searchNameOrNumber" to "Rechercher un nom, un numéro ou une adresse",
+        "contactsTasks.searchNameOrNumberHint" to "Rechercher un nom, un numéro ou une adresse…",
+        "contactsTasks.sort" to "Trier les contacts",
+        "contactsTasks.sortName" to "Nom",
+        "contactsTasks.sortRecent" to "Activité récente",
+        "contactsTasks.sortAdded" to "Ajouts récents",
         "contactsTasks.noMatchesFor" to "Aucun résultat pour « {query} ».",
         "contactsTasks.noContactsYet" to
             "Aucun client pour l'instant. Ils sont ajoutés automatiquement quand " +

@@ -72,11 +72,13 @@ import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -237,6 +239,7 @@ fun ThreadScreen(
     onOpenContact: ((contactId: String) -> Unit)? = null,
     /** #726: where lead sources are managed; null for a role that cannot add one. */
     onAddLeadSource: (() -> Unit)? = null,
+    findQuery: String? = null,
 ) {
     val context = LocalContext.current
     val openTrash = LocalOpenTrash.current
@@ -396,6 +399,7 @@ fun ThreadScreen(
                         companyId = companyId,
                         me = me,
                         highlightMessageId = highlightMessageId,
+                        findQuery = findQuery,
                         onOpenAiSettings = onOpenAiSettings,
                         onOpenContact = onOpenContact,
                         onAddLeadSource = onAddLeadSource,
@@ -498,6 +502,7 @@ private fun ThreadLoaded(
     onOpenContact: ((contactId: String) -> Unit)?,
     onAddLeadSource: (() -> Unit)? = null,
     highlightMessageId: String? = null,
+    findQuery: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -701,6 +706,17 @@ private fun ThreadLoaded(
     // The row to FLASH (search-result indication). Set when the highlight
     // target lands in the timeline; cleared after the flash animation.
     var flashMessageId by remember { mutableStateOf<String?>(null) }
+    var findOpen by remember(controller) { mutableStateOf(!findQuery.isNullOrBlank()) }
+    var findTarget by remember(controller) { mutableStateOf<String?>(null) }
+    LaunchedEffect(findTarget) {
+        val target = findTarget ?: return@LaunchedEffect
+        if (controller.ensureMessageLoaded(target)) {
+            controller.filter = ThreadFilter()
+            jumpToMessageId = target
+            flashMessageId = target
+        }
+        findTarget = null
+    }
     LaunchedEffect(highlightMessageId, timeline.size) {
         val target = highlightMessageId ?: return@LaunchedEffect
         if (flashMessageId == target) return@LaunchedEffect
@@ -806,7 +822,21 @@ private fun ThreadLoaded(
             onCall = callOrAskForMic,
             onOpenContactPanel = { contactPanelOpen = true },
             onOpenGallery = onOpenGallery,
+            onFind = { findOpen = true },
         )
+
+        if (findOpen) {
+            ThreadFindBar(
+                initialQuery = findQuery.orEmpty(),
+                initialMessage = highlightMessageId,
+                find = { repo.findMessages(companyId, detail.id, it) },
+                onJump = { findTarget = it },
+                onClose = {
+                    findOpen = false
+                    findTarget = null
+                },
+            )
+        }
 
         ThreadTagsRow(
             tags = detail.tags,
@@ -1746,6 +1776,7 @@ private fun ThreadHeader(
     onCall: () -> Unit,
     onOpenContactPanel: () -> Unit,
     onOpenGallery: () -> Unit,
+    onFind: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
     val haptics = rememberHaptics()
@@ -1905,6 +1936,10 @@ private fun ThreadHeader(
                 UrgentBadge()
             }
             Spacer(Modifier.width(8.dp))
+
+            IconButton(onClick = onFind) {
+                Icon(Icons.Outlined.Search, contentDescription = t("thread.findInThread"))
+            }
 
             // Call (#165) — the 44dp ink circle. Enabled even for opted-out
             // contacts (voice ≠ SMS consent); mic preflight and gate errors

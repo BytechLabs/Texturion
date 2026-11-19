@@ -35,11 +35,11 @@ describe(inboxHref, () => {
   it("keeps every list key and replaces anchors when opening a different thread", () => {
     const href = inboxHref({
       conversationId: "next",
-      listQuery: `${LIST_QUERY}&thread=notes&call=old&task=old&unknown=1`,
-      target: { messageId: "found" },
+      listQuery: `${LIST_QUERY}&thread=notes&call=old&task=old&find=stale&unknown=1`,
+      target: { messageId: "found", findQuery: "  door & rail  " },
     });
 
-    expect(href).toBe(`/inbox/next?${LIST_QUERY}&message=found`);
+    expect(href).toBe(`/inbox/next?${LIST_QUERY}&message=found&find=door+%26+rail`);
   });
 
   it("keeps the list on the way into compose and back from a thread", () => {
@@ -50,7 +50,7 @@ describe(inboxHref, () => {
   });
 
   it("replaces list filters without removing the open thread's params", () => {
-    const current = "status=open&line=old-line&q=old&task=t1&message=m1&call=c1&thread=notes";
+    const current = "status=open&line=old-line&q=old&task=t1&message=m1&call=c1&thread=notes&find=door";
     const params = mergeInboxListParams(current, "?status=closed&tag=tag-id");
 
     expect(Object.fromEntries(params)).toEqual({
@@ -60,6 +60,7 @@ describe(inboxHref, () => {
       message: "m1",
       call: "c1",
       thread: "notes",
+      find: "door",
     });
   });
 

@@ -51,6 +51,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import {
   inboxHref,
   THREAD_CALL_PARAM,
+  THREAD_FIND_PARAM,
   THREAD_MESSAGE_PARAM,
   THREAD_TASK_PARAM,
 } from "@/lib/inbox/thread-href";
@@ -78,6 +79,7 @@ import { MessagePhoneActions } from "./message-phone-actions";
 import { parseThreadFilter, serializeThreadFilter } from './thread-filter';
 import type { ThreadFilter } from './thread-filter';
 import { ThreadHeader } from "./thread-header";
+import { ThreadFindBar } from "./thread-find-bar";
 import { ThreadBodySkeleton, ThreadSkeleton } from "./thread-skeleton";
 import { useCatchUp } from "./use-catch-up";
 
@@ -202,7 +204,7 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
     );
   }
 
-  return <ThreadLoaded conversation={detail.data} backHref={backHref} searchParams={searchParams} />;
+  return <ThreadLoaded key={conversationId} conversation={detail.data} backHref={backHref} searchParams={searchParams} />;
 }
 
 // No composer, read or presence here: viewer level, opt-out and the clock come only from the detail (#106/#363).
@@ -309,9 +311,25 @@ function ThreadLoaded({
   const messages = useMessages(conversationId);
   const markRead = useMarkConversationRead();
 
+  const initialFind = searchParams.get(THREAD_FIND_PARAM);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findHit, setFindHit] = useState<{ id: string } | null>(null);
+
   // §5.1 in-thread filter — independent Messages · Notes · Events toggles (#89).
   // URL is the state for shareability; it defaults to all-on and does not persist.
   const threadFilter = parseThreadFilter(searchParams.get("thread"));
+
+  useEffect(() => {
+    function openFind(event: KeyboardEvent) {
+      const findKey = event.key === "f" || event.key === "F";
+      if (findKey && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        setFindOpen(true);
+      }
+    }
+    window.addEventListener("keydown", openFind);
+    return () => window.removeEventListener("keydown", openFind);
+  }, []);
 
   // #718: a link can open the thread at a message (`?message=`) or a call
   // (`?call=`) and with a task beside it (`?task=`). The task takes the side
@@ -436,7 +454,22 @@ function ThreadLoaded({
           filter={threadFilter}
           onFilterChange={writeThreadFilter}
           onCatchUp={catchUp.offered ? catchUp.ask : undefined}
+          onFind={() => setFindOpen(true)}
         />
+        {(findOpen || initialFind !== null) && (
+          <ThreadFindBar
+            key={initialFind}
+            conversationId={conversationId}
+            initialQuery={initialFind ?? ""}
+            initialMessage={searchParams.get(THREAD_MESSAGE_PARAM)}
+            onJump={(id) => setFindHit({ id })}
+            onClose={() => {
+              setFindOpen(false);
+              setFindHit(null);
+              updateSearch((params) => params.delete(THREAD_FIND_PARAM));
+            }}
+          />
+        )}
         {/* #250: above the list and above the filter bar, because a
             thread-level verdict outranks a view filter. shrink-0 or the
             flex column compresses it to nothing. */}
@@ -461,6 +494,7 @@ function ThreadLoaded({
           filter={threadFilter}
           onFilterChange={writeThreadFilter}
           callSessionId={callSessionId}
+          findHit={findHit}
           onJumpToLatest={jumpToLatest}
           onSelectPhone={canLinkPhones ? setMessagePhone : undefined}
           catchUp={{

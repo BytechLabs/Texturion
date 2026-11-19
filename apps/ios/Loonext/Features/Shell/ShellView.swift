@@ -20,7 +20,7 @@ enum ShellTab: Hashable {
 enum ShellRoute: Hashable {
     /// A thread; `highlightMessageId` is the search-result jump target (scroll
     /// to + flash that message).
-    case thread(conversationId: String, highlightMessageId: String?)
+    case thread(conversationId: String, highlightMessageId: String?, findQuery: String? = nil)
     case task(taskId: String)
     case contact(contactId: String)
     /// #734: one call's own page, by carrier session id.
@@ -205,8 +205,10 @@ struct ShellView: View {
         .onReceive(router.$openConversationId) { id in
             guard let id else { return }
             let highlight = router.pendingHighlightMessageId
+            let findQuery = router.pendingFindQuery
+            router.pendingFindQuery = nil
             activeSheet = nil
-            path.append(.thread(conversationId: id, highlightMessageId: highlight))
+            path.append(.thread(conversationId: id, highlightMessageId: highlight, findQuery: findQuery))
             Task { @MainActor in
                 router.openConversationId = nil
                 router.pendingHighlightMessageId = nil
@@ -291,7 +293,7 @@ struct ShellView: View {
         // the Android `routeStack.lastOrNull() as Thread` twin. Global surfaces
         // (inbound toast, foreground push banners) stay quiet for it.
         .onChange(of: path) { _, next in
-            if case .thread(let id, _)? = next.last {
+            if case .thread(let id, _, _)? = next.last {
                 router.viewedConversationId = id
                 PushCoordinator.clearConversationNotifications(id)
             } else {
@@ -559,13 +561,14 @@ struct ShellView: View {
     @ViewBuilder
     private func routeView(_ route: ShellRoute) -> some View {
         switch route {
-        case .thread(let conversationId, let highlightMessageId):
+        case .thread(let conversationId, let highlightMessageId, let findQuery):
             ThreadView(
                 graph: graph,
                 companyId: companyId,
                 me: hydratedMe,
                 conversationId: conversationId,
                 highlightMessageId: highlightMessageId,
+                findQuery: findQuery,
                 onBack: { popRoute() }
             )
         case .task(let taskId):

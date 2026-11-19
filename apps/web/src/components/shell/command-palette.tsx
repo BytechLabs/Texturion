@@ -356,7 +356,7 @@ export function CommandPalette() {
                 key={hit.id}
                 value={`conversation-${hit.id}`}
                 onSelect={() =>
-                  go(threadHref(hit.id, { messageId: hit.matched_message_id }))
+                  go(threadHref(hit.id, { messageId: hit.matched_message_id, findQuery: query }))
                 }
               >
                 <Inbox className="size-4" strokeWidth={1.75} />
@@ -469,7 +469,7 @@ export function CommandPalette() {
                       ? formatPhone(hit.caller_e164)
                       : t("shell.voicemail")}
                   </span>
-                  <span className="ml-2 text-muted-foreground">{hit.snippet}</span>
+                  <span className="ml-2 text-muted-foreground">{plainSnippet(hit.snippet)}</span>
                 </span>
               </CommandItem>
             ))}
@@ -494,11 +494,23 @@ export function CommandPalette() {
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium">{template.name}</span>
                   <span className="ml-2 text-muted-foreground">
-                    {template.snippet}
+                    {plainSnippet(template.snippet)}
                   </span>
                 </span>
               </CommandItem>
             ))}
+          </CommandGroup>
+        )}
+
+        {searching && (
+          <CommandGroup>
+            <CommandItem
+              value="see-all-in-inbox"
+              onSelect={() => go(`/inbox?${new URLSearchParams({ q: query.trim() })}`)}
+            >
+              <Inbox className="size-4" strokeWidth={1.75} />
+              {t("shell.searchSeeAll")}
+            </CommandItem>
           </CommandGroup>
         )}
 

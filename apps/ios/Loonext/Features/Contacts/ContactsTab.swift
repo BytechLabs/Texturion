@@ -93,6 +93,7 @@ struct ContactsTab: View {
     @ObservedObject private var router = AppRouter.shared
 
     @State private var query = ""
+    @State private var sort = "name"
     @State private var debouncedQ = ""
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [Contact] = []
@@ -122,6 +123,10 @@ struct ContactsTab: View {
         let tag = tagFilter ?? "-"
         guard let filter = fieldFilter else { return "-|\(tag)" }
         return "\(filter.key)=\(filter.value)|\(tag)"
+    }
+
+    private var loadKey: String {
+        "\(companyId)|\(debouncedQ)|\(filterKey)|\(sort)|\(refreshKey)"
     }
 
     @State private var createOpen = false
@@ -284,6 +289,17 @@ struct ContactsTab: View {
                     onTagChange: { tagFilter = $0 }
                 )
             }
+            SelectField(
+                options: [
+                    SelectOption("name", title: t("contactsTasks.sortName")),
+                    SelectOption("recent", title: t("contactsTasks.sortRecent")),
+                    SelectOption("added", title: t("contactsTasks.sortAdded")),
+                ],
+                selected: sort,
+                label: t("contactsTasks.sort")
+            ) {
+                sort = $0
+            }
             ActiveFilterChips(
                 chips: contactFilterChips,
                 onClearAll: {
@@ -332,7 +348,7 @@ struct ContactsTab: View {
             }
             debouncedQ = query.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        .task(id: "\(companyId)|\(debouncedQ)|\(filterKey)|\(refreshKey)") {
+        .task(id: loadKey) {
             await reload()
         }
         .task(id: "fields|\(companyId)") {
@@ -782,6 +798,8 @@ struct ContactsTab: View {
     }
 
     private func reload() async {
+        let requested = loadKey
+        nextCursor = nil
         if rows.isEmpty { state = .loading }
         do {
             let page = try await graph.contactsApi.contacts(
@@ -790,12 +808,15 @@ struct ContactsTab: View {
                 limit: 50,
                 field: fieldFilter?.key,
                 value: fieldFilter?.value,
-                tagId: tagFilter
+                tagId: tagFilter,
+                sort: sort
             )
+            guard !Task.isCancelled, requested == loadKey else { return }
             rows = page.data
             nextCursor = page.next_cursor
             state = .ready(())
         } catch {
+            guard !Task.isCancelled, requested == loadKey else { return }
             // A FAILED search must never fall through to the rows already on
             // screen: that renders every contact in the workspace as though it
             // matched the query, with only a toast that clears itself to say
@@ -831,8 +852,10 @@ struct ContactsTab: View {
 
     private func loadMore() {
         guard let cursor = nextCursor, !loadingMore else { return }
+        let requested = loadKey
         loadingMore = true
         Task {
+            defer { loadingMore = false }
             do {
                 let page = try await graph.contactsApi.contacts(
                     companyId: companyId,
@@ -841,14 +864,15 @@ struct ContactsTab: View {
                     limit: 50,
                     field: fieldFilter?.key,
                     value: fieldFilter?.value,
-                    tagId: tagFilter
+                    tagId: tagFilter,
+                    sort: sort
                 )
+                guard requested == loadKey else { return }
                 rows += page.data
                 nextCursor = page.next_cursor
             } catch {
-                notice = error.userMessage
+                if requested == loadKey { notice = error.userMessage }
             }
-            loadingMore = false
         }
     }
 
@@ -1025,9 +1049,8 @@ private struct ContactRow: View {
     /// Spec 27 sub line: the number, with last activity folded in when known.
     private var sub: TimedText {
         timedText(locale: appLocale) { time in
-            let phone = formatPhone(contact.phone_e164)
-            guard let lastActivity = contact.last_activity_at else { return phone }
-            return "\(phone) · \(time(lastActivity))"
+            [contact.business_name, formatPhone(contact.phone_e164), contact.last_activity_at.map { time($0) }]
+                .compactMap { $0 }.joined(separator: " · ")
         }
     }
 

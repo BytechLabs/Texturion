@@ -10,14 +10,12 @@ import {
   type ImportSource,
   NewContactAction,
 } from "@/components/contacts/contacts-actions";
-import {
-  ContactsTable,
-  contactsViewFromSearch,
-} from "@/components/contacts/contacts-table";
+import { ContactsTable } from "@/components/contacts/contacts-table";
 import { Button } from "@/components/ui/button";
 import { DuplicateContactsCard } from "@/components/contacts/duplicate-contacts-card";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
+import { contactsViewFromSearch } from "@/lib/url/contact-list-url";
 
 /**
  * /contacts (G6): searchable table + the import/export toolbar (D20). Export is

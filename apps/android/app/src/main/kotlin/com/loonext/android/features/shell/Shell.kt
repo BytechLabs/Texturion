@@ -560,7 +560,7 @@ fun ShellContent(
     me: Me,
     companyId: String,
     modifier: Modifier = Modifier,
-    onOpenThread: (conversationId: String, highlightMessageId: String?) -> Unit,
+    onOpenThread: (conversationId: String, highlightMessageId: String?, findQuery: String?) -> Unit,
     onOpenTask: (taskId: String) -> Unit,
     onOpenContact: (contactId: String) -> Unit,
     onOpenNotifications: () -> Unit,
@@ -589,7 +589,7 @@ fun ShellContent(
         ShellTab.ForYou -> ForYouTab(
             graph, companyId, me, modifier,
             onOpenCalls = onOpenCalls,
-            onOpenThread = { onOpenThread(it, null) },
+            onOpenThread = { onOpenThread(it, null, null) },
             onOpenTask = onOpenTask,
             onOpenNotifications = onOpenNotifications,
             onOpenUnanswered = onOpenUnanswered,
@@ -612,7 +612,7 @@ fun ShellContent(
 
         ShellTab.Calls -> CallsScreen(
             graph, companyId, me, modifier,
-            openConversation = { onOpenThread(it, null) },
+            openConversation = { onOpenThread(it, null, null) },
             onComposeTo = onComposeTo,
             onOpenContact = onOpenContact,
             onOpenContacts = onOpenContacts,

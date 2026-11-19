@@ -412,6 +412,16 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun detail(companyId: String, conversationId: String): ConversationDetail =
         api.get("/v1/conversations/$conversationId", companyId = companyId)
 
+    internal suspend fun findMessages(
+        companyId: String,
+        conversationId: String,
+        query: String,
+    ): ThreadFindResults = api.get(
+        "/v1/conversations/$conversationId/messages/search",
+        query = mapOf("q" to query),
+        companyId = companyId,
+    )
+
     suspend fun messages(
         companyId: String,
         conversationId: String,
