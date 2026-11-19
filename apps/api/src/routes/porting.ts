@@ -463,6 +463,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       c,
       "conflict",
       "A transfer for this number is already in progress.",
+      { key: "apiRefusals.portAlreadyPending" },
     );
   }
 

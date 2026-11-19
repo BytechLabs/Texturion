@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { apiRefusalsEn, apiRefusalsFr } from "../../../apps/web/src/i18n/sections/apiRefusals";
 import { ERROR_CODES, INTERNAL_ERROR_CODE } from "./error-codes";
 import { CONTACT_IMPORT_ERROR_MESSAGE_KEYS } from "./contact-import";
 import { SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY } from "./self-downgrade";
@@ -102,6 +103,16 @@ const keys: Record<string, Set<string>> = {
 };
 
 const sorted = (set: Set<string>) => [...set].toSorted();
+
+it.each(["android", "ios"] as const)("%s has both translations of each keyed refusal", (client) => {
+  const entries = [...sources[client].matchAll(/"apiRefusals\.(\w+)"\s*(?:to|:)\s*"([^"]+)"/g)];
+  expect(entries).toHaveLength(2 * Object.keys(apiRefusalsEn).length);
+  for (const key of Object.keys(apiRefusalsEn) as (keyof typeof apiRefusalsEn)[]) {
+    const copy = entries.filter((entry) => entry[1] === key).map((entry) => entry[2]);
+    expect(copy, key).toEqual([apiRefusalsEn[key], apiRefusalsFr[key]]);
+    expect(apiRefusalsEn[key]).not.toBe(apiRefusalsFr[key]);
+  }
+});
 
 describe("#228 every client can name every refusal", () => {
   it("found all three catalogues, so a passing run means something", () => {

@@ -143,6 +143,7 @@ export async function runPreSendGates(
     throw new ApiError(
       "service_unavailable",
       "Texting is paused while we deal with an issue. Nothing you sent was lost.",
+      { key: "apiRefusals.outboundSendPaused" },
     );
   }
 

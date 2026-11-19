@@ -335,6 +335,7 @@ billingRoutes.post("/checkout", async (c) => {
       c,
       "conflict",
       "This company already has a subscription.",
+      { key: "apiRefusals.billingAlreadySubscribed" },
     );
   }
 

@@ -766,7 +766,11 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     "A pending invite for this email already exists.",
   );
   const invite = rows[0];
-  if (!invite) return errorResponse(c, "conflict", "A pending invite for this email already exists.");
+  if (!invite) {
+    return errorResponse(c, "conflict", "A pending invite for this email already exists.", {
+      key: "apiRefusals.inviteAlreadyPending",
+    });
+  }
 
   const inviteId = invite.id as string;
   const { data: linkData, error } = await db.auth.admin.generateLink({

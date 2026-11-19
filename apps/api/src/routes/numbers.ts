@@ -309,12 +309,14 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       throw new ApiError(
         "validation_failed",
         "chosen_number_e164 is not an assigned US/CA geographic number.",
+        { key: "apiRefusals.numberNotAssigned" },
       );
     }
     if (entry.country !== company.country) {
       throw new ApiError(
         "validation_failed",
         `chosen_number_e164 must be a ${company.country} number (the company's country).`,
+        { key: "apiRefusals.numberCountryMismatch", vars: { country: company.country } },
       );
     }
     chosen = body.chosen_number_e164;
@@ -326,12 +328,14 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       throw new ApiError(
         "validation_failed",
         "requested_area_code is not an assigned US/CA geographic area code.",
+        { key: "apiRefusals.areaCodeNotAssigned" },
       );
     }
     if (entry.country !== company.country) {
       throw new ApiError(
         "validation_failed",
         `requested_area_code must be a ${company.country} area code (the company's country).`,
+        { key: "apiRefusals.areaCodeCountryMismatch", vars: { country: company.country } },
       );
     }
     areaCode = code;
