@@ -8,7 +8,7 @@ export const legalSubprocessorsEn = {
     "The third-party vendors Loonext uses to run the service, what each one processes, and the region it operates in, from the SMS carrier to payments, hosting, email, and analytics.",
   title: "Sub-processors",
   breadcrumbLabel: "Sub-processors",
-  lastUpdated: "November 17, 2026",
+  lastUpdated: "November 19, 2026",
   summary:
     "{vendorCount} vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. {featureCount} features send message content or voicemail audio to an AI model, and they are named in full below. Data lives in the United States, with one named exception: AI inference runs on Cloudflare's global network and cannot be confined to a country. When this list changes, this page and the date above change with it.",
   sectionList: "Current sub-processors",
@@ -50,7 +50,7 @@ export const legalSubprocessorsEn = {
   posthogData:
     "Event names, counts, and UUIDs, no message content; cookieless on marketing pages. Error and crash diagnostics from the website, the API and the Android and iPhone apps, with PII scrubbed: no message bodies, names, email addresses or phone numbers",
   posthogRegion: "United States",
-  openStreetMap: "On the web and Android, maps load tiles from the OpenStreetMap Foundation. We also send street addresses to its public Nominatim service to look up map coordinates.",
+  openStreetMap: "On the web and Android, maps load tiles from the OpenStreetMap Foundation. Automatic lookup of saved street addresses is paused.",
   listNote:
     "Data lives primarily in the United States (Supabase on AWS `us-east-1`). We keep message content out of PostHog by design, see our {security} and {privacy}.",
   securityLink: "security page",
@@ -89,7 +89,7 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
     "Les fournisseurs tiers que Loonext utilise pour exploiter le service, les données que chacun traite et la région où il exerce ses activités, du transport des textos aux paiements, à l'hébergement, au courriel et aux analyses.",
   title: "Sous-traitants",
   breadcrumbLabel: "Sous-traitants",
-  lastUpdated: "17 novembre 2026",
+  lastUpdated: "19 novembre 2026",
   summary:
     "{vendorCount} fournisseurs traitent des données en notre nom pour faire fonctionner Loonext, du transport des textos aux paiements, à l'hébergement, au courriel et aux analyses. Chacun est limité à ce que son travail exige, et le contenu des messages reste hors de nos outils d'erreurs et d'analyse. {featureCount} fonctions envoient du contenu de message ou de l'audio de messagerie vocale à un modèle d'IA; elles sont toutes nommées ci-dessous. Les données résident aux États-Unis, à une exception près : l'inférence de l'IA s'exécute sur le réseau mondial de Cloudflare et ne peut pas être confinée à un pays. Lorsque cette liste change, cette page et la date ci-dessus changent aussi.",
   sectionList: "Sous-traitants actuels",
@@ -132,7 +132,7 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
   posthogData:
     "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques. Diagnostics d'erreur et de plantage du site Web, de l'API et des applications Android et iPhone, dont les renseignements personnels ont été retirés : sans corps de message, nom, adresse courriel ni numéro de téléphone",
   posthogRegion: "États-Unis",
-  openStreetMap: "Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. Nous transmettons aussi des adresses postales à son service public Nominatim pour obtenir des coordonnées sur la carte.",
+  openStreetMap: "Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. La recherche automatique d’adresses postales enregistrées est suspendue.",
   listNote:
     "Les données résident principalement aux États-Unis (Supabase sur AWS `us-east-1`). Nous gardons volontairement le contenu des messages hors de PostHog; consultez notre {security} et notre {privacy}.",
   securityLink: "page sur la sécurité",

@@ -80,20 +80,16 @@ message⇄task done-sync.
 - **Display:** Leaflet + OpenStreetMap raster tiles — NO API key, free, self-attributed. (React
   wrapper: react-leaflet, a small client-only island; the tasks map view is not SSR/LCP-critical.)
   No Google Maps / Mapbox (API keys, per-load cost, upkeep).
-- **Geocoding:** geocode a contact's address to `lat`/`lng` **once**, cached on the `contacts` row
-  (add `lat double precision null`, `lng double precision null`, `geocoded_at timestamptz null`,
-  `geocode_status text`). Geocode server-side on contact address create/update via a free geocoder
-  (Nominatim/OSM, respecting its 1 req/s + attribution policy; a small queue/cron for backfill and
-  rate-limiting). If geocoding volume ever outgrows Nominatim's fair-use, swap to a cheap keyed
-  geocoder behind the same server interface — but display stays free OSM tiles. Map rendering never
-  makes a paid call; only geocoding does, once per address, cached.
+- **Geocoding:** the map uses coordinates cached on contacts and tasks. Automatic
+  address lookup is paused (#802). New and changed addresses stay pending until
+  a service that permits personal addresses and display on the current maps is selected.
 - Contacts without a geocodable address simply don't appear on the map (shown in a small "no
   location" count); never block a task on geocoding.
 
 ## Build fit
 
-- Backend adds: `contacts.lat/lng/geocoded_at/geocode_status`, a geocoding job (cron/queue,
-  Nominatim, cached), and the tasks list/board/calendar/map all read the existing tasks API with
+- Backend adds: `contacts.lat/lng/geocoded_at/geocode_status` and geocoding cron jobs.
+  The tasks list/board/calendar/map all read the existing tasks API with
   view-appropriate query params (status grouping, due-range, has-location). The **/for-you** and
   notifications read models are mostly queries over existing tables (assignments, tasks,
   conversation unread, conversation_events) — prefer derived queries over new heavy tables.

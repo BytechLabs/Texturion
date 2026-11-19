@@ -261,7 +261,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 ### geocode
 
 - **Enforced (phase 2):** `contacts_geocode_transition_guard` and `tasks_geocode_transition_guard`, on every update so a status moved by `tasks_geocode_status_sync` is checked too.
-- `pending -> ok | failed | no_address`; editing an address returns to `pending`, clearing sets `no_address`. Writers `apps/api/src/geocode/geocode-contacts.ts:158,174`, `apps/api/src/geocode/geocode-tasks.ts:128,137`, `apps/api/src/routes/contacts.ts:978`, SQL in `supabase/migrations/20260724020000_task_geocode.sql`.
+- `pending -> ok | failed | no_address`; editing an address returns to `pending`, clearing sets `no_address`. Address writers live in `apps/api/src/routes/contacts.ts` and `supabase/migrations/20260724020000_task_geocode.sql`. Addresses stay pending while automatic lookup is paused (#802).
 - **Recorded:** PostHog by `state_transition_geocode` and `state_entered_geocode` on `contacts` and `tasks`. Activity: no activity row (a lookup per address edit).
 
 ### billing_dispute

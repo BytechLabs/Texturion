@@ -109,9 +109,7 @@ divulguer dans le cadre du présent contrat.
 Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
 Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap
-Foundation. Le géocodage transmet les adresses postales enregistrées à son
-service public Nominatim pour obtenir des coordonnées. Les conditions du
-service public s’appliquent à ces requêtes.
+Foundation. La recherche automatique d’adresses postales enregistrées est suspendue.
 
 > Source: `/legal/subprocessors`
 
@@ -187,10 +185,9 @@ serait le genre de promesse que tout ce document est écrit pour éviter.
 
 Notre base de données et notre stockage de fichiers se trouvent aux **États-Unis**.
 C'est une indication de leur emplacement, **et non une garantie de résidence**.
-L’inférence de l’IA ne peut pas être confinée à un pays. Le service de géocodage
-public de l’OpenStreetMap Foundation utilise des serveurs au Royaume-Uni et dans
-l’Union européenne. Ses tuiles cartographiques utilisent un réseau de diffusion
-mondial. La page de confidentialité contient la divulgation transfrontalière
+L’inférence de l’IA ne peut pas être confinée à un pays. Les tuiles cartographiques
+de l’OpenStreetMap Foundation utilisent un réseau de diffusion mondial. La page
+de confidentialité contient la divulgation transfrontalière
 exigée par la LPRPDE et la Loi 25 du Québec.
 
 > Source: `/legal/privacy`, `docs/ACCEPTED-RISKS.md` R4

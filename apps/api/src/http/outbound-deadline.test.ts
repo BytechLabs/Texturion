@@ -11,7 +11,6 @@ const sourceRoot = fileURLToPath(new URL("../", import.meta.url));
 const rawFetchAllowlist: Record<string, number> = {
   "billing/stripe.ts": 1, // Stripe controls the timeout through its client.
   "calls/greeting-capture-leg.ts": 1, // Recording download.
-  "geocode/nominatim.ts": 1,
   "http/turnstile.ts": 1,
   "messaging/inbound.ts": 1, // Attachment size checks use the original headers.
   "routes/calendar-oauth.ts": 1,

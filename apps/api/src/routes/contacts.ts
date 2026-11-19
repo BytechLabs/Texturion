@@ -1048,12 +1048,8 @@ function reportImportNumberSkips(
 }
 
 /**
- * Reset the geocode cache (D25) when a contact's address is written, so the
- * geocode-contacts cron re-geocodes the row (the cron never diffs addresses —
- * it re-picks up any row with geocode_status='pending'). Uses the committed
- * geocode_status vocabulary (migration 20260702060000): an address present →
- * 'pending' (queue for geocoding); an address cleared to null → 'no_address'
- * (terminal, no map pin). lat/lng/geocoded_at are cleared either way.
+ * Clear the previous pin when the address is written. New addresses stay pending
+ * while lookup is paused.
  */
 function geocodeReset(address: string | null): Record<string, unknown> {
   return {

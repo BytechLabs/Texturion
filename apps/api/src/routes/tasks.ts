@@ -1828,20 +1828,8 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
  * count is small). Each row carries the derived `done` + attachment_count.
  */
 /**
- * GET /v1/tasks/geocode-progress (#440) — how far along this workspace's Map is.
- *
- * The customer moment this exists for: a switcher imports 2,000 contacts, opens the
- * Map, and sees it empty. Geocoding is paced at 1 request/second by Nominatim's
- * policy (which is correct and stays), so a large import genuinely takes hours. With
- * nothing saying so, "busy" and "broken" look identical, and they conclude the
- * feature does not work during the week they are deciding whether switching was
- * worth it.
- *
- * Registered BEFORE `/tasks/:id` so "geocode-progress" is never read as an id.
- *
- * `without_address` is separate from `pending` deliberately: a contact with no
- * address is not waiting for anything, and folding it in would make an "N of M"
- * that never reaches its total, which looks permanently stuck.
+ * GET /v1/tasks/geocode-progress (#440) returns cached contact geocoding counts.
+ * Addresses stay pending while lookups are paused.
  */
 /**
  * POST /v1/tasks/bulk (#478) — one action, every task matching either a list of

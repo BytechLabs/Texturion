@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  *
- * #752: tasks exist but none has an address. The Map says so; it never shows
+ * #752: tasks exist but none has a map pin. The Map says so; it never shows
  * "No tasks yet" next to a list that has tasks. Whether any exist is asked
  * with one row, not by downloading every unlocated task to count them.
  */
@@ -20,11 +20,10 @@ const { useAllTasks, useTasks } = vi.hoisted(() => ({
 vi.mock("@/lib/api/tasks", () => ({
   useAllTasks,
   useTasks,
-  useGeocodeProgress: () => ({ data: undefined }),
 }));
 vi.mock("next/dynamic", () => ({
-  default: () => function MapFixture() {
-    return null;
+  default: () => function MapFixture({ tasks }: { tasks: { id: string }[] }) {
+    return <div>{tasks.map(({ id }) => <span key={id}>{id}</span>)}</div>;
   },
 }));
 vi.mock("../task-empty", () => ({
@@ -55,12 +54,19 @@ describe("Map view empty states (#752)", () => {
   });
   afterEach(cleanup);
 
-  it("says none has an address when tasks exist", () => {
+  it("explains the pause when tasks exist without a pin", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
     expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeInstanceOf(Element);
-    expect(screen.getByText(EN.tasks.mapAddAddressHow)).toBeInstanceOf(Element);
+    expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
+  });
+
+  it("keeps existing pins visible during the pause", () => {
+    answer(page([{ id: "existing-pin", lat: 49.28, lng: -123.12 }]), page([]));
+    render(<MapView state={state} />);
+    expect(screen.getByText("existing-pin")).toBeInstanceOf(Element);
+    expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
   });
 
   it("asks for one row without the location filter, and only once nothing is located", () => {

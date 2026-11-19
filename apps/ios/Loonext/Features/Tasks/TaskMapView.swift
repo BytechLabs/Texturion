@@ -247,6 +247,12 @@ private struct TaskMapContent: View {
         VStack(spacing: 0) {
             if model.located > 0 {
                 countLine
+                Text(AppStrings.translate(appLocale, "contactsTasks.mapAddressLookupPaused"))
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 9)
             }
             mapBody
         }
@@ -332,11 +338,9 @@ private struct TaskMapContent: View {
         .padding(.bottom, 18)
     }
 
-    /// Under the empty-map heading: the count of tasks that CANNOT be plotted
-    /// when there is one, and how to get a pin on the map when there is not.
     private var emptySubline: String {
         guard model.missing > 0 else {
-            return AppStrings.translate(appLocale, "contactsTasks.mapAddAnAddress")
+            return AppStrings.translate(appLocale, "contactsTasks.mapAddressLookupPaused")
         }
         return AppStrings.translate(
             appLocale,

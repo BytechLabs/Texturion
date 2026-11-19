@@ -144,7 +144,7 @@ describe("#228 the contract documents keep the same obligations in French", () =
     expect(clause?.match(/\*\*([^*]+)\*\*/)?.[1].split(", "))
       .toEqual(SUBPROCESSORS.map(({ name }) => name));
     expect(clause).toContain("OpenStreetMap");
-    expect(clause).toContain("Nominatim");
+    expect(clause).not.toContain("Nominatim");
   });
 
   it("the French DPA keeps the three promises it deliberately under-makes", () => {
