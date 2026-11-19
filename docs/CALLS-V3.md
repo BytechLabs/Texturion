@@ -383,6 +383,13 @@ outcome-null (review B1's full sequence). The protocol:
    other terminal merges. Its own alarm resumes a job after eviction and
    retries failures every 30 seconds up to ten attempts. A persistent failure
    is reported to PostHog while recording events and purge can still proceed.
+6. **Voicemail watchdog.** The caller's greeting command selects the matching
+   completion webhook. If it never completes, recording starts after 75 seconds. A
+   refused speech command proceeds immediately. After 150 seconds of stalled
+   recording, the watchdog hangs up and provisionally ends the call as missed.
+   A later saved recording still upgrades the outcome.
+   [Telnyx playback ended](https://developers.telnyx.com/api-reference/callbacks/call-playback-ended) ·
+   [Telnyx speak ended](https://developers.telnyx.com/api-reference/callbacks/call-speak-ended)
 
 The pure reducer (§15.1) stays I/O-free: effect OUTCOMES that change state
 (answer success/failure, fan-out settled) re-enter it as internal events

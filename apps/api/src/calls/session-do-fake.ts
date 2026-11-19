@@ -80,6 +80,7 @@ export function makeStorage() {
 export interface FakeConfig {
   /** #309: false = Telnyx refused the audio, so the caller must get TTS. */
   playbackResult?: () => boolean;
+  speakResult?: () => boolean;
   /** #309: null = no recorded greeting, which is every workspace by default. */
   greetingAudioUrl?: () => string | null;
   initiated?: InitiatedContext | "drop" | "replay-ended";
@@ -119,6 +120,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     answersVm: [] as string[],
     bridges: [] as { member: string; inbound: string }[],
     speaks: [] as { ccid: string; text: string; language: string }[],
+    recordStarts: [] as string[],
     mirrors: [] as MirrorSet[],
     callEnds: [] as { reason: string; userIds: string[] }[],
     terminalMerges: [] as string[],
@@ -176,6 +178,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       },
       async speak(ccid, text, _clientState, language) {
         calls.speaks.push({ ccid, text, language });
+        return config.speakResult?.() ?? true;
       },
       // #309: recorded greetings. `playbackResult` lets a test say the audio
       // is unfetchable, which is the case that must fall back to speak rather
@@ -184,7 +187,9 @@ export function makeRuntime(config: FakeConfig = {}) {
         calls.playbacks.push({ ccid, audioUrl });
         return config.playbackResult ? config.playbackResult() : true;
       },
-      async recordStart() {},
+      async recordStart(ccid) {
+        calls.recordStarts.push(ccid);
+      },
       async probeLegAlive() {
         return config.probeAlive ? config.probeAlive() : true;
       },

@@ -647,6 +647,51 @@ describe("#309 a greeting in the owner's own voice", () => {
     await instance.whenIdle();
     expect((await snapshot(instance))?.state).toBe("voicemail_recording");
   });
+
+  it("ignores a playback completion while the spoken fallback is active", async () => {
+    const { instance, calls } = await toVoicemail({
+      initiated: ctx(),
+      greetingAudioUrl: () => "https://signed.example/gone.m4a",
+      playbackResult: () => false,
+    });
+
+    await instance.onTelnyxEvent(vmiEvent("call.playback.ended"));
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "voicemail_greeting" });
+    expect(calls.recordStarts).toEqual([]);
+
+    await instance.onTelnyxEvent(vmiEvent("call.speak.ended"));
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "voicemail_recording" });
+    expect(calls.recordStarts).toEqual(["cust-ccid"]);
+  });
+
+  it("starts recording when Telnyx refuses the spoken greeting", async () => {
+    const { instance, calls } = await toVoicemail({ initiated: ctx(), speakResult: () => false });
+
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "voicemail_recording" });
+    expect(calls.recordStarts).toEqual(["cust-ccid"]);
+  });
+
+  it("starts recording after a missing greeting completion and ends a stalled recording", async () => {
+    const { instance, calls } = await toVoicemail({ initiated: ctx() });
+    vi.setSystemTime(new Date(Date.now() + 74_000));
+    await instance.alarm();
+    expect(calls.recordStarts).toEqual([]);
+
+    vi.setSystemTime(new Date(Date.now() + 1000));
+    await instance.alarm();
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "voicemail_recording" });
+    expect(calls.recordStarts).toEqual(["cust-ccid"]);
+
+    vi.setSystemTime(new Date(Date.now() + 150_000));
+    await instance.alarm();
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "ended_missed" });
+    expect(calls.hangups).toContain("cust-ccid");
+
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await instance.whenIdle();
+    await expect(snapshot(instance)).resolves.toMatchObject({ state: "ended_voicemail" });
+    expect(calls.voicemailPipelines).toBe(1);
+  });
 });
 
 describe("Founder sequence 2 — KILLED APP (ringback held → push wake → ring-me → answer)", () => {

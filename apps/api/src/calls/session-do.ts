@@ -127,6 +127,8 @@ interface CallPayload {
   call_session_id?: string;
   client_state?: string | null;
   direction?: string;
+  status?: string;
+  overlay?: boolean;
   to?: string;
   from?: string;
   hangup_cause?: string | null;
@@ -697,6 +699,7 @@ export class CallSessionDO extends DurableObject<Env> {
         // for a call that had already gone to voicemail.
         "ring-step",
         "ring",
+        "voicemail-watchdog",
         "janitor",
         "purge",
       ];
@@ -764,6 +767,10 @@ export class CallSessionDO extends DurableObject<Env> {
     }
     if (slot === "ring") {
       await this.admitAndDrain({ type: "alarm-ring" }, null);
+      return;
+    }
+    if (slot === "voicemail-watchdog") {
+      await this.admitAndDrain({ type: "alarm-voicemail-watchdog" }, null);
       return;
     }
     if (slot === "janitor") {
@@ -1223,6 +1230,7 @@ export class CallSessionDO extends DurableObject<Env> {
             audioUrl !== null &&
             (await this.rt.telnyx.playAudio(effect.ccid, audioUrl, clientState));
           if (played) {
+            machine.greetingMode = "playback";
             await this.save(machine);
             return [];
           }
@@ -1237,9 +1245,10 @@ export class CallSessionDO extends DurableObject<Env> {
             ? unavailableNotice(machine.locale)
             : this.rt.greetingText(machine);
         const language = machine.locale === "fr-CA" ? "fr-CA" : "en-US";
-        await this.rt.telnyx.speak(effect.ccid, text, clientState, language);
+        const spoke = await this.rt.telnyx.speak(effect.ccid, text, clientState, language);
+        if (spoke) machine.greetingMode = "speech";
         await this.save(machine);
-        return [];
+        return spoke ? [] : [{ type: "speak-ended" }];
       }
       case "telnyx-record-start": {
         if (machine) this.spendCommand(machine, true);
@@ -1647,14 +1656,13 @@ export class CallSessionDO extends DurableObject<Env> {
       return null;
     }
 
-    // vmi voicemail pipeline legs.
-    // #309: a PLAYED greeting ends with call.playback.ended, a SPOKEN one with
-    // call.speak.ended. Both mean the same thing to this machine — the greeting
-    // is over, start recording. Mapping only the speak event would leave every
-    // caller who heard a recorded greeting listening to silence until they hung
-    // up, with no voicemail written: the exact failure #309 exists to prevent,
-    // reintroduced by the feature meant to fix it.
     if (eventType === "call.speak.ended" || eventType === "call.playback.ended") {
+      const mode = eventType === "call.playback.ended" ? "playback" : "speech";
+      if (this.classifyInboundTag(payload.client_state) !== "vmi"
+          || payload.call_control_id !== machine.customerCcid
+          || (machine.greetingMode && machine.greetingMode !== mode)
+          || payload.overlay === true
+          || (payload.status && payload.status !== "completed")) return null;
       return { event: { type: "speak-ended" } };
     }
     if (eventType === "call.recording.saved") {

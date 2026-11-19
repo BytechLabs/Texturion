@@ -141,16 +141,8 @@ export interface SessionRuntime {
       payload: string,
       clientState: string,
       language: SpeechLanguage,
-    ): Promise<void>;
-    /**
-     * #309 — play a recorded greeting.
-     *
-     * Returns whether Telnyx accepted it, rather than swallowing a 4xx the way
-     * `speak` does. That difference is the whole fail-safe: a swallowed 404 on
-     * a missing audio object would leave the caller listening to nothing, and
-     * "a caller hearing nothing is worse than a caller hearing a robot" is the
-     * line #309 draws. The caller of this decides to speak instead.
-     */
+    ): Promise<boolean>;
+    /** Whether Telnyx accepted the recording. Refusal falls back to speech. */
     playAudio(ccid: string, audioUrl: string, clientState: string): Promise<boolean>;
     recordStart(ccid: string): Promise<void>;
     probeLegAlive(ccid: string): Promise<boolean>;
@@ -513,12 +505,19 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}),
       reject: (ccid, cause) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/reject`, { cause }),
-      speak: (ccid, payload, clientState, language) =>
-        swallow4xx(env, `/v2/calls/${ccid}/actions/speak`, {
-          payload,
-          ...speechVoice(language),
-          client_state: clientState,
-        }),
+      async speak(ccid, payload, clientState, language) {
+        try {
+          await telnyxRequest(env, {
+            method: "POST",
+            path: `/v2/calls/${ccid}/actions/speak`,
+            body: { payload, ...speechVoice(language), client_state: clientState },
+          });
+          return true;
+        } catch (error) {
+          if (isDefiniteRefusal(error)) return false;
+          throw error;
+        }
+      },
       playAudio: async (ccid, audioUrl, clientState) => {
         try {
           await telnyxRequest(env, {
