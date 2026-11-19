@@ -18,6 +18,7 @@ const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONV_ID = "aaaaaaaa-1111-4222-8333-444444444444";
 const TAG_ID = "bbbbbbbb-1111-4222-8333-444444444444";
 const ASSIGNEE = "cccccccc-1111-4222-8333-444444444444";
+const INBOX_LINE = "eeeeeeee-1111-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(conversationsRoutes);
@@ -30,15 +31,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function memberStub(): SupabaseStub {
+function memberStub(levels: { phone_number_id: string; level: string }[] = []): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
-  // #106: no access rules → every member unrestricted (today's default).
-  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => levels);
   // #293: the detail route reads the caller's own deferral. "Not deferred" is
   // the state every test in this file was written against; the snooze suite
   // asserts on the write path, which is where the interesting behaviour is.
@@ -103,6 +103,8 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_limit: 11, // limit + 1 sentinel row
       p_status: "open",
       p_assigned_user_id: ASSIGNEE,
+      p_unassigned: false,
+      p_phone_number_id: null,
       p_tag_id: TAG_ID,
       p_is_spam: false,
       p_unread: true,
@@ -121,6 +123,67 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       // response-time card asks the narrower question.
       p_awaiting: null,
     });
+  });
+
+  it("passes Unassigned and the requested visible line to the list function", async () => {
+    const sb = memberStub([{ phone_number_id: INBOX_LINE, level: "note" }]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: INBOX_LINE }]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations?unassigned=true&phone_number_id=${INBOX_LINE}`,
+      { companyId: COMPANY_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const [lineRead] = sb.find("GET", "/rest/v1/phone_numbers");
+    expect(lineRead.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(lineRead.url.searchParams.get("id")).toBe(`eq.${INBOX_LINE}`);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body).toMatchObject({
+      p_unassigned: true,
+      p_phone_number_id: INBOX_LINE,
+    });
+  });
+
+  it.each([
+    ["hidden", INBOX_LINE, true],
+    ["hidden uppercase", INBOX_LINE.toUpperCase(), true],
+    ["missing", INBOX_LINE, false],
+  ])("rejects a %s line before running the list function", async (_kind, line, hidden) => {
+    const levels = hidden ? [{ phone_number_id: INBOX_LINE, level: "none" }] : [];
+    const sb = memberStub(levels);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations?phone_number_id=${line}`,
+      { companyId: COMPANY_ID },
+    );
+
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_conversations")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(hidden ? 0 : 1);
+  });
+
+  it("rejects a named assignee combined with Unassigned", async () => {
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations?unassigned=true&assigned_user_id=${ASSIGNEE}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_conversations")).toHaveLength(0);
   });
 
   it("#722: each row carries the status moves and visibility actions for the caller", async () => {

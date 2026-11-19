@@ -120,6 +120,7 @@ const SUITES = [
   "storage_fleet",
   "aup_signals",
   "list_conversations_awaiting",
+  "list_conversations_assignee_and_line",
   "scheduled_messages",
   "appointment_reminders",
   "job_ratings",

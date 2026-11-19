@@ -373,6 +373,22 @@ describe("clearAllFilters", () => {
 });
 
 describe("toInboxFilterState", () => {
+  it("keeps Unassigned and Line through the URL, chips, and API request", () => {
+    const line = "aaaaaaaa-1111-4222-8333-444444444444";
+    const filters = parseInboxSearchParams(new URLSearchParams(
+      `assignee=none&line=${line.toUpperCase()}`,
+    ));
+    expect(serializeInboxFilters(filters)).toBe(`?assignee=none&line=${line}`);
+    expect(toConversationFilters(filters, "u-1")).toEqual({
+      unassigned: true,
+      phone_number_id: line,
+    });
+    expect(activeChips(filters)).toEqual([
+      { key: "assignee", value: "none" },
+      { key: "line", value: line },
+    ]);
+  });
+
   it("hands Mine to the segment and drops the named assignee", () => {
     // The request does the same (`assigned_user_id` becomes the viewer), and
     // the chip strip hides the assignee while Mine is lit.
@@ -380,6 +396,8 @@ describe("toInboxFilterState", () => {
       segment: "open",
       assignedToMe: true,
       assigneeUserId: null,
+      unassignedOnly: false,
+      lineId: null,
       tagId: null,
       unreadOnly: false,
       spamOnly: false,
@@ -417,6 +435,7 @@ describe("the shared rule this file now defers to", () => {
       {
         segment: { status: "closed" },
         assignee: { assignee: "u-2" },
+        line: { line: "line-1" },
         tag: { tag: "t-1" },
         unread: { unread: true },
         spam: { spam: true },

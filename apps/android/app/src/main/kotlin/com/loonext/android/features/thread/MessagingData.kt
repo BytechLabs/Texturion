@@ -169,11 +169,15 @@ class MessagingRepository(private val api: ApiClient) {
         q: String? = null,
         cursor: String? = null,
         limit: Int = 25,
+        unassigned: Boolean = false,
+        phoneNumberId: String? = null,
     ): Page<ConversationListItem> = api.get(
         "/v1/conversations",
         query = mapOf(
             "status" to status,
             "assigned_user_id" to assignedUserId,
+            "unassigned" to if (unassigned) "true" else null,
+            "phone_number_id" to phoneNumberId,
             "tag_id" to tagId,
             "is_spam" to spam?.toString(),
             "unread" to unread?.toString(),

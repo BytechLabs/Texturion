@@ -9,6 +9,8 @@ function home(overrides: Partial<InboxFilterState> = {}): InboxFilterState {
     segment: null,
     assignedToMe: false,
     assigneeUserId: null,
+    unassignedOnly: false,
+    lineId: null,
     tagId: null,
     unreadOnly: false,
     spamOnly: false,
@@ -71,6 +73,7 @@ describe("#548 isInboxFiltered", () => {
     const everything = home({
       segment: "all",
       assigneeUserId: "u-2",
+      lineId: "line-1",
       tagId: "t-1",
       unreadOnly: true,
       spamOnly: true,
@@ -80,12 +83,19 @@ describe("#548 isInboxFiltered", () => {
     expect(activeInboxFilters(everything)).toEqual([
       "segment",
       "assignee",
+      "line",
       "tag",
       "unread",
       "spam",
       "snoozed",
       "awaiting",
     ]);
+  });
+
+  it("counts Unassigned with a line and leaves Mine in charge of assignment", () => {
+    const state = home({ unassignedOnly: true, lineId: "line-1" });
+    expect(activeInboxFilters(state)).toEqual(["assignee", "line"]);
+    expect(activeInboxFilters({ ...state, assignedToMe: true })).toEqual(["segment", "line"]);
   });
 });
 

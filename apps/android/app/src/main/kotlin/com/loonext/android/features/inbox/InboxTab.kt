@@ -181,6 +181,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import com.loonext.android.features.compose.MergeFields
 import com.loonext.android.features.compose.attachmentLabel
 import com.loonext.android.features.compose.mmsKindFromName
 import androidx.compose.material.icons.outlined.MoreVert
@@ -360,6 +361,10 @@ private class InboxController(
      */
     var assigneeUserId by mutableStateOf<String?>(null)
         private set
+    var unassignedOnly by mutableStateOf(false)
+        private set
+    var lineId by mutableStateOf<String?>(null)
+        private set
     var tagId by mutableStateOf<String?>(null)
         private set
 
@@ -474,11 +479,13 @@ private class InboxController(
             val assigneeId = if (tab == InboxStatusTab.Mine) null else assigneeUserId
             val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
                 tagId == null && !unreadOnly && !spamOnly && !snoozedOnly &&
-                !awaitingOnly
+                !awaitingOnly && !unassignedOnly && lineId == null
             if (isDefault) return "default"
             return buildString {
                 append(tab.name.lowercase())
                 assigneeId?.let { append("/a=").append(it) }
+                if (unassignedOnly && tab != InboxStatusTab.Mine) append("/unassigned")
+                lineId?.let { append("/line=").append(it) }
                 tag?.let { append("/t=").append(it.id) }
                 if (unreadOnly) append("/unread")
                 if (spamOnly) append("/spam")
@@ -526,6 +533,8 @@ private class InboxController(
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
             awaitingOnly = awaitingOnly,
+            unassignedOnly = unassignedOnly,
+            lineId = lineId,
         )
 
     /**
@@ -550,11 +559,24 @@ private class InboxController(
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
         tab = next
+        if (tab == InboxStatusTab.Mine) unassignedOnly = false
         showPane()
     }
 
     fun setAssigneeFilter(member: Member?) {
         assigneeUserId = member?.user_id
+        unassignedOnly = false
+        showPane()
+    }
+
+    fun setUnassignedFilter() {
+        assigneeUserId = null
+        unassignedOnly = true
+        showPane()
+    }
+
+    fun setLineFilter(id: String?) {
+        lineId = id
         showPane()
     }
 
@@ -599,10 +621,12 @@ private class InboxController(
     fun landOnAwaiting() {
         val alreadyThere = awaitingOnly && tab == InboxStatusTab.All &&
             assigneeUserId == null && tagId == null && !unreadOnly && !spamOnly &&
-            !snoozedOnly
+            !snoozedOnly && !unassignedOnly && lineId == null
         if (alreadyThere) return
         tab = InboxStatusTab.All
         assigneeUserId = null
+        unassignedOnly = false
+        lineId = null
         tagId = null
         unreadOnly = false
         spamOnly = false
@@ -618,6 +642,8 @@ private class InboxController(
         if (!isFiltered) return
         tab = InboxStatusTab.Open
         assigneeUserId = null
+        unassignedOnly = false
+        lineId = null
         tagId = null
         unreadOnly = false
         spamOnly = false
@@ -632,19 +658,14 @@ private class InboxController(
      * things about one control.
      */
     val activeFilterCount: Int
-        get() = listOf(
-            assigneeUserId != null && tab != InboxStatusTab.Mine,
-            tagId != null,
-            unreadOnly,
-            spamOnly,
-            snoozedOnly,
-            awaitingOnly,
-        ).count { it }
+        get() = activeInboxFilters(filterState).count { it != InboxFilterDimension.SEGMENT }
 
     /** #711: "Clear all" on the applied-filters line: everything but the tab. */
     fun clearSecondaryFilters() {
         if (activeFilterCount == 0) return
         assigneeUserId = null
+        unassignedOnly = false
+        lineId = null
         tagId = null
         unreadOnly = false
         spamOnly = false
@@ -674,6 +695,8 @@ private class InboxController(
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
             awaitingOnly = awaitingOnly,
+            unassignedOnly = unassignedOnly && tab != InboxStatusTab.Mine,
+            lineId = lineId,
         )
 
     /**
@@ -689,6 +712,8 @@ private class InboxController(
         // yet — a view applied on a cold start used to lose its assignee and tag
         // to `find` returning null, and nothing said so.
         assigneeUserId = selection.assigneeUserId
+        unassignedOnly = selection.unassignedOnly
+        lineId = selection.lineId
         tagId = selection.tagId
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
@@ -806,6 +831,8 @@ private class InboxController(
             pinned = pinned,
             cursor = cursor,
             limit = if (pinned == "only") 100 else 25,
+            unassigned = unassignedOnly && tab != InboxStatusTab.Mine,
+            phoneNumberId = lineId,
         )
 
     fun start() {
@@ -1002,8 +1029,10 @@ private class InboxController(
         selection = selectLoaded(rows.map { it.id })
     }
 
+    val canSelectAllMatching: Boolean get() = !unassignedOnly && lineId == null
+
     fun selectAllMatchingFilter() {
-        selection = BulkSelection.Filter
+        if (canSelectAllMatching) selection = BulkSelection.Filter
     }
 
     fun clearSelection() {
@@ -1032,6 +1061,7 @@ private class InboxController(
         unassign: Boolean = false,
     ) {
         val ids = selection.idsOrNull()
+        if (ids == null && !canSelectAllMatching) return
         // Filter mode sends the tab's own status so "everything matching" means the
         // set the user is looking at, not every conversation in the company.
         val filterStatus = if (ids == null) statusFilterForBulk() else null
@@ -1407,6 +1437,9 @@ private fun InboxList(
             row.companyId == companyId && (row.ownerUserId == null || row.ownerUserId == me.user_id)
         }.groupBy { it.conversationId }.mapValues { (_, rows) -> rows.any { it.blocked } }
     }
+    val lines = me.company?.numbers.orEmpty().mapNotNull { number ->
+        number.number_e164?.let { number.id to MergeFields.formatNanpNumber(it) }
+    }.toMap()
     // #228: the language is part of the key. The controller's snackbars are
     // built in coroutines, so it holds the locale rather than reading it — and a
     // controller kept across a language change would keep saying the old one.
@@ -1524,6 +1557,7 @@ private fun InboxList(
                 // filters under it only while any is on.
                 InboxFilterRow(
                     controller = controller,
+                    lineLabel = controller.lineId?.let(lines::get),
                     // Sharing a view is workspace configuration, so it rides
                     // the same capability the server gates it on.
                     canShare = MemberRole.has(
@@ -1532,7 +1566,7 @@ private fun InboxList(
                     ),
                     onFilter = { filterSheetOpen = true },
                 )
-                InboxActiveFilters(controller)
+                InboxActiveFilters(controller, lines)
                 Spacer(Modifier.height(14.dp))
                 // #476: first-run guidance, above the list and OUTSIDE the
                 // state switch below. Inside it (or inside the LazyColumn) the
@@ -1598,6 +1632,7 @@ private fun InboxList(
             FiltersSheet(
                 controller = controller,
                 meUserId = me.user_id,
+                lines = lines,
                 onDismiss = { filterSheetOpen = false },
             )
         }
@@ -2321,6 +2356,7 @@ private fun FilterResetControl(active: Boolean, onReset: () -> Unit) {
 private fun FiltersSheet(
     controller: InboxController,
     meUserId: String,
+    lines: Map<String, String>,
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -2358,8 +2394,13 @@ private fun FiltersSheet(
                     ) {
                         FilterPill(
                             text = t("inbox.filterAnyone"),
-                            selected = controller.assigneeUserId == null,
+                            selected = controller.assigneeUserId == null && !controller.unassignedOnly,
                             onClick = { controller.setAssigneeFilter(null) },
+                        )
+                        FilterPill(
+                            text = t("inbox.forYouSectionUnassigned"),
+                            selected = controller.unassignedOnly,
+                            onClick = controller::setUnassignedFilter,
                         )
                         controller.members.filter { it.deactivated_at == null }.forEach { member ->
                             val label = if (member.user_id == meUserId) {
@@ -2378,6 +2419,29 @@ private fun FiltersSheet(
                                         glyph = 9.sp,
                                     )
                                 },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (lines.size > 1) {
+                Column {
+                    SectionHeader(t("inbox.filterGroupLine"))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        FilterPill(
+                            text = t("inbox.filterAnyLine"),
+                            selected = controller.lineId == null,
+                            onClick = { controller.setLineFilter(null) },
+                        )
+                        lines.forEach { (id, label) ->
+                            FilterPill(
+                                text = label,
+                                selected = controller.lineId == id,
+                                onClick = { controller.setLineFilter(id) },
                             )
                         }
                     }
@@ -3191,7 +3255,9 @@ private fun BulkSelectionBar(
                     )
                 }
             }
-            if (selection.canEscalate(loadedIds, hasMore = controller.hasMorePages)) {
+            if (controller.canSelectAllMatching &&
+                selection.canEscalate(loadedIds, hasMore = controller.hasMorePages)
+            ) {
                 TextButton(
                     onClick = { controller.selectAllMatchingFilter() },
                     enabled = !running,
@@ -3247,7 +3313,12 @@ private fun BulkSelectionBar(
  * and shows only when it matches no saved view.
  */
 @Composable
-private fun InboxFilterRow(controller: InboxController, canShare: Boolean, onFilter: () -> Unit) {
+private fun InboxFilterRow(
+    controller: InboxController,
+    lineLabel: String?,
+    canShare: Boolean,
+    onFilter: () -> Unit,
+) {
     var saveOpen by remember { mutableStateOf(false) }
     val selection = controller.currentSelection
     val matching = controller.savedViews.firstOrNull { viewMatchesSelection(it.filters, selection) }
@@ -3284,6 +3355,7 @@ private fun InboxFilterRow(controller: InboxController, canShare: Boolean, onFil
     if (saveOpen) {
         SaveViewSheet(
             controller = controller,
+            lineLabel = lineLabel,
             canShare = canShare,
             onDismiss = { saveOpen = false },
         )
@@ -3292,12 +3364,18 @@ private fun InboxFilterRow(controller: InboxController, canShare: Boolean, onFil
 
 /** #711: the applied filters as removable chips, only while any is on. */
 @Composable
-private fun InboxActiveFilters(controller: InboxController) {
+private fun InboxActiveFilters(controller: InboxController, lines: Map<String, String>) {
     val chips = buildList {
         if (controller.assigneeUserId != null && controller.tab != InboxStatusTab.Mine) {
             val name = controller.assignee?.display_name?.ifBlank { null }
                 ?: t("inbox.teammateFallback")
             add(ActiveFilterChip(name) { controller.setAssigneeFilter(null) })
+        }
+        if (controller.unassignedOnly) {
+            add(ActiveFilterChip(t("inbox.forYouSectionUnassigned")) { controller.setAssigneeFilter(null) })
+        }
+        controller.lineId?.let { id ->
+            add(ActiveFilterChip(lines[id] ?: t("inbox.filterGroupLine")) { controller.setLineFilter(null) })
         }
         if (controller.tagId != null) {
             add(
@@ -3327,6 +3405,7 @@ private fun InboxActiveFilters(controller: InboxController) {
 @Composable
 private fun SaveViewSheet(
     controller: InboxController,
+    lineLabel: String?,
     canShare: Boolean,
     onDismiss: () -> Unit,
 ) {
@@ -3340,6 +3419,7 @@ private fun SaveViewSheet(
                 locale = locale,
                 assignee = controller.assignee,
                 tag = controller.tag,
+                lineLabel = lineLabel,
             ),
         )
     }

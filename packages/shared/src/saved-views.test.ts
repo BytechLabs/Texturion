@@ -35,6 +35,19 @@ describe("#280 sanitizeFilters", () => {
     ).toEqual({ status: "open", assigned_user_id: ID, unread: true });
   });
 
+  it("keeps an unassigned line view and gives an explicit assignee precedence", () => {
+    const filters = { unassigned: true, phone_number_id: ID };
+    expect(sanitizeFilters("conversations", filters)).toEqual(filters);
+    expect(sanitizeFilters("conversations", { ...filters, assigned_user_id: ID })).toEqual({
+      assigned_user_id: ID,
+      phone_number_id: ID,
+    });
+    expect(sanitizeFilters("conversations", { ...filters, assigned_to_me: true })).toEqual({
+      assigned_to_me: true,
+      phone_number_id: ID,
+    });
+  });
+
   it("DROPS an unknown key rather than failing the read", () => {
     // A row written before a filter was renamed must still open. A view that
     // 422s is dead on a screen the person cannot fix; a view missing one
@@ -166,10 +179,12 @@ describe("#280 surfaces", () => {
         "assigned_user_id",
         "awaiting",
         "is_spam",
+        "phone_number_id",
         "pinned",
         "snoozed",
         "status",
         "tag_id",
+        "unassigned",
         "unread",
       ].toSorted(),
     );

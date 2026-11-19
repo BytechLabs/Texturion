@@ -6,7 +6,7 @@ import { sourceEntries } from "@/test/source-tree";
 
 import { inboxHref, mergeInboxListParams, threadHref } from "./thread-href";
 
-const LIST_QUERY = "status=open&assignee=me&tag=tag-id&unread=true&spam=1&snoozed=true&awaiting=1&q=garage+door";
+const LIST_QUERY = "status=open&assignee=none&line=line-id&tag=tag-id&unread=true&spam=1&snoozed=true&awaiting=1&q=garage+door";
 const RAW_INBOX_LINK = /\/inbox\/\$\{|href\s*=\s*["']\/inbox["']/;
 
 describe("#718 threadHref, the one way to open a thread at something", () => {
@@ -50,7 +50,7 @@ describe(inboxHref, () => {
   });
 
   it("replaces list filters without removing the open thread's params", () => {
-    const current = "status=open&q=old&task=t1&message=m1&call=c1&thread=notes";
+    const current = "status=open&line=old-line&q=old&task=t1&message=m1&call=c1&thread=notes";
     const params = mergeInboxListParams(current, "?status=closed&tag=tag-id");
 
     expect(Object.fromEntries(params)).toEqual({

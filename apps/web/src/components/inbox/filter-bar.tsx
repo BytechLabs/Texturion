@@ -2,6 +2,7 @@
 
 import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatNanpNumber } from "@loonext/shared";
 
 import {
   Command,
@@ -19,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useT } from "@/i18n/provider";
+import { useCompany } from "@/lib/api/companies";
 import { useConversations } from "@/lib/api/conversations";
 import { flattenPages } from "@/lib/api/pagination";
 import { useTags } from "@/lib/api/tags";
@@ -38,6 +40,11 @@ import {
   viewFiltersToUrl,
   viewMatchesUrl,
 } from "./saved-view-filters";
+
+interface InboxLine {
+  id: string;
+  label: string;
+}
 
 /**
  * The §2 filter bar. There is **no fly-out drawer** — filtering is one-glance:
@@ -61,6 +68,11 @@ export function FilterBar({
   const t = useT();
   const segment = segmentOf(filters);
   const openCount = useOpenCount();
+  const company = useCompany();
+  const lines = company.data?.numbers?.flatMap(({ id, number_e164 }) =>
+    number_e164 ? [{ id, label: formatNanpNumber(number_e164) }] : [],
+  ) ?? [];
+  const selectedLine = lines.find((line) => line.id === filters.line);
   // #548: a search reads every conversation, so while one is running these
   // controls cannot narrow anything. They used to stay lit and pressable and
   // change nothing at all — the tab moved, the results did not.
@@ -101,14 +113,17 @@ export function FilterBar({
             };
           })}
         />
-        <FilterPopover filters={filters} onChange={onChange} disabled={searching} />
+        <FilterPopover filters={filters} lines={lines} onChange={onChange} disabled={searching} />
         <SavedViewsMenu
           compact
           surface="conversations"
           isCurrent={(view) => viewMatchesUrl(view, filters)}
           onApply={(view) => onChange(viewFiltersToUrl(view, filters))}
           currentFilters={() => urlFiltersToView(filters)}
-          suggestName={() => suggestViewName(filters)}
+          suggestName={() => suggestViewName(filters, {
+            unassigned: t("inbox.shortcutUnassigned"),
+            line: selectedLine?.label ?? t("inbox.filterGroupLine"),
+          })}
           hasFilters={serializeInboxFilters(filters) !== ""}
           saveDescription={t("inbox.viewSaveDescription")}
           shareNote={t("inbox.viewShareNote")}
@@ -116,7 +131,7 @@ export function FilterBar({
       </div>
       {/* #711: only while something is applied. */}
       {hasActiveFilters(filters) && (
-        <ChipRow filters={filters} onChange={onChange} disabled={searching} />
+        <ChipRow filters={filters} lines={lines} onChange={onChange} disabled={searching} />
       )}
       {searching && (
         // Said once, quietly, instead of leaving the row above to imply
@@ -210,10 +225,12 @@ function InboxSearch({
  */
 function ChipRow({
   filters,
+  lines,
   onChange,
   disabled,
 }: {
   filters: InboxUrlFilters;
+  lines: readonly InboxLine[];
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
@@ -234,11 +251,14 @@ function ChipRow({
         });
       }
       case "assignee": {
+        if (value === "none") return t("inbox.shortcutUnassigned");
         return (
           members.data?.data.find((m) => m.user_id === value)?.display_name ||
           t("inbox.chipAssignee")
         );
       }
+      case "line":
+        return lines.find((line) => line.id === value)?.label ?? t("inbox.filterGroupLine");
       case "tag": {
         return (
           tags.data?.data.find((tag) => tag.id === value)?.name ??
@@ -335,10 +355,12 @@ function Chip({
  */
 function FilterPopover({
   filters,
+  lines,
   onChange,
   disabled,
 }: {
   filters: InboxUrlFilters;
+  lines: readonly InboxLine[];
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
@@ -385,6 +407,16 @@ function FilterPopover({
           <CommandList>
             <CommandEmpty>{t("inbox.filterNone")}</CommandEmpty>
             <CommandGroup heading={t("inbox.filterGroupAssignee")}>
+              <CommandItem
+                value="assignee-none"
+                keywords={[t("inbox.shortcutUnassigned")]}
+                onSelect={() => set("assignee", filters.assignee === "none" ? undefined : "none")}
+              >
+                {t("inbox.shortcutUnassigned")}
+                {filters.assignee === "none" && (
+                  <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                )}
+              </CommandItem>
               {assignableMembers.map((m) => {
                 const active = filters.assignee === m.user_id;
                 return (
@@ -410,6 +442,26 @@ function FilterPopover({
                 );
               })}
             </CommandGroup>
+            {lines.length > 1 && (
+              <CommandGroup heading={t("inbox.filterGroupLine")}>
+                {lines.map((line) => {
+                  const active = filters.line === line.id;
+                  return (
+                    <CommandItem
+                      key={line.id}
+                      value={`line-${line.id}`}
+                      keywords={[line.label]}
+                      onSelect={() => set("line", active ? undefined : line.id)}
+                    >
+                      <span className="truncate">{line.label}</span>
+                      {active && (
+                        <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
             {availableTags.length > 0 && (
               <CommandGroup heading={t("inbox.filterGroupTag")}>
                 {availableTags.map((tag) => {

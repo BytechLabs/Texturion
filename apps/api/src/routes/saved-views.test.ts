@@ -24,6 +24,7 @@ const OTHER_MEMBER = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const VIEW_ID = "cccccccc-1111-4222-8333-444444444444";
 const TAG_ID = "dddddddd-1111-4222-8333-444444444444";
 const HIDDEN_NUMBER = "eeeeeeee-1111-4222-8333-444444444444";
+const VISIBLE_NUMBER = "ffffffff-1111-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(savedViewsRoutes);
@@ -355,7 +356,15 @@ describe("GET /v1/saved-views/counts", () => {
     // labels, which is a leak rather than a rounding error.
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/saved_views", () => [
-      viewRow({ filters: { status: "open", tag_id: TAG_ID, unread: true } }),
+      viewRow({
+        filters: {
+          status: "open",
+          tag_id: TAG_ID,
+          unread: true,
+          unassigned: true,
+          phone_number_id: VISIBLE_NUMBER,
+        },
+      }),
     ]);
     sb.on("POST", "/rest/v1/rpc/api_list_conversations", () =>
       Array.from({ length: 7 }, (_, i) => ({ id: String(i) })),
@@ -381,6 +390,8 @@ describe("GET /v1/saved-views/counts", () => {
     expect(params.p_status).toBe("open");
     expect(params.p_tag_id).toBe(TAG_ID);
     expect(params.p_unread).toBe(true);
+    expect(params.p_unassigned).toBe(true);
+    expect(params.p_phone_number_id).toBe(VISIBLE_NUMBER);
     // Bounded: a badge stops counting rather than scanning a busy workspace.
     expect(params.p_limit).toBe(100);
     // #106/#368: the deny list travels with the count. A badge larger than the

@@ -182,6 +182,8 @@ final class InboxController {
     /// got nil, and dropped the filter along with the label. A saved view is one
     /// tap on a cold start, which is exactly when that race is lost.
     private(set) var assigneeUserId: String?
+    private(set) var unassignedOnly = false
+    private(set) var lineId: String?
     private(set) var tagId: String?
 
     /// The filtered teammate, once the roster can name them. Labels only.
@@ -246,11 +248,11 @@ final class InboxController {
     @ObservationIgnored private var supportLoaded = false
     @ObservationIgnored private var noticeSeq: Int64 = 0
 
-    init(graph: AppGraph, companyId: String, meUserId: String) {
-        self.inboxApi = graph.inboxApi
-        self.savedViewsApi = graph.savedViewsApi
-        self.searchApi = graph.searchApi
-        self.repo = MessagingRepository(api: graph.api)
+    init(api: ApiClient, companyId: String, meUserId: String) {
+        self.inboxApi = InboxApi(api: api)
+        self.savedViewsApi = SavedViewsApi(api: api)
+        self.searchApi = SearchApi(api: api)
+        self.repo = MessagingRepository(api: api)
         self.companyId = companyId
         self.meUserId = meUserId
     }
@@ -270,7 +272,9 @@ final class InboxController {
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
             snoozedOnly: snoozedOnly,
-            awaitingOnly: awaitingOnly
+            awaitingOnly: awaitingOnly,
+            unassignedOnly: unassignedOnly,
+            lineId: lineId
         )
     }
 
@@ -297,6 +301,8 @@ final class InboxController {
         if !isFiltered { return }
         tab = .open
         assigneeUserId = nil
+        unassignedOnly = false
+        lineId = nil
         tagId = nil
         unreadOnly = false
         spamOnly = false
@@ -308,20 +314,15 @@ final class InboxController {
     /// #711: how many filters BEYOND the status tabs are on, for the Filter button's badge.
     /// The tabs sit beside it, so counting them would say two things about one control.
     var activeFilterCount: Int {
-        var count = 0
-        if assigneeUserId != nil && tab != .mine { count += 1 }
-        if tagId != nil { count += 1 }
-        if unreadOnly { count += 1 }
-        if spamOnly { count += 1 }
-        if snoozedOnly { count += 1 }
-        if awaitingOnly { count += 1 }
-        return count
+        activeInboxFilters(filterState).filter { $0 != .segment }.count
     }
 
     /// #711: "Clear all" on the applied-filters line: everything but the tab, in one reload.
     func clearSecondaryFilters() {
         if activeFilterCount == 0 { return }
         assigneeUserId = nil
+        unassignedOnly = false
+        lineId = nil
         tagId = nil
         unreadOnly = false
         spamOnly = false
@@ -333,11 +334,24 @@ final class InboxController {
     func selectTab(_ next: InboxStatusTab) {
         if tab == next { return }
         tab = next
+        if tab == .mine { unassignedOnly = false }
         reload(showLoading: true)
     }
 
     func setAssigneeFilter(_ member: Member?) {
         assigneeUserId = member?.user_id
+        unassignedOnly = false
+        reload(showLoading: true)
+    }
+
+    func setUnassignedFilter() {
+        assigneeUserId = nil
+        unassignedOnly = true
+        reload(showLoading: true)
+    }
+
+    func setLineFilter(_ id: String?) {
+        lineId = id
         reload(showLoading: true)
     }
 
@@ -378,10 +392,12 @@ final class InboxController {
     /// Idempotent: arriving twice is arriving once.
     func landOnAwaiting() {
         let alreadyThere = awaitingOnly && tab == .all && assigneeUserId == nil
-            && tagId == nil && !unreadOnly && !spamOnly && !snoozedOnly
+            && tagId == nil && !unreadOnly && !spamOnly && !snoozedOnly && !unassignedOnly && lineId == nil
         if alreadyThere { return }
         tab = .all
         assigneeUserId = nil
+        unassignedOnly = false
+        lineId = nil
         tagId = nil
         unreadOnly = false
         spamOnly = false
@@ -408,7 +424,9 @@ final class InboxController {
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
             snoozedOnly: snoozedOnly,
-            awaitingOnly: awaitingOnly
+            awaitingOnly: awaitingOnly,
+            unassignedOnly: unassignedOnly && tab != .mine,
+            lineId: lineId
         )
     }
 
@@ -428,6 +446,8 @@ final class InboxController {
         // yet — a view applied on a cold start used to lose its assignee and tag
         // to a `first` returning nil, and nothing said so.
         assigneeUserId = selection.assigneeUserId
+        unassignedOnly = selection.unassignedOnly
+        lineId = selection.lineId
         tagId = selection.tagId
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
@@ -548,7 +568,9 @@ final class InboxController {
             // which is what the ordinary inbox wants.
             awaiting: awaitingOnly ? "only" : nil,
             cursor: cursor,
-            limit: pinned == "only" ? 100 : 25
+            limit: pinned == "only" ? 100 : 25,
+            unassigned: unassignedOnly && tab != .mine,
+            phoneNumberId: lineId
         )
     }
 
@@ -622,8 +644,7 @@ final class InboxController {
         if showLoading { state = .loading }
         return Task {
             var retainRows = keepLoaded
-            if showLoading, tab == .open, assigneeUserId == nil, tagId == nil,
-               !spamOnly, !unreadOnly, !snoozedOnly, !awaitingOnly,
+            if showLoading, !isFiltered,
                let page: Page<ConversationListItem> = await inboxApi.api.cachedGet(
                    "/v1/conversations", query: ["status": "open", "pinned": "exclude", "limit": "25"],
                    companyId: companyId
@@ -1076,8 +1097,10 @@ final class InboxController {
         bulkSelection = selectLoaded(rows.map(\.id))
     }
 
+    var canSelectAllMatching: Bool { !unassignedOnly && lineId == nil }
+
     func selectAllMatchingFilter() {
-        bulkSelection = .filter
+        if canSelectAllMatching { bulkSelection = .filter }
     }
 
     func clearBulkSelection() {
@@ -1101,6 +1124,7 @@ final class InboxController {
         unassign: Bool = false
     ) {
         let ids = bulkSelection.idsOrNil
+        if ids == nil && !canSelectAllMatching { return }
         // Filter mode sends the tab's own status, so "everything matching" means the
         // set the user is looking at rather than every conversation in the company.
         let filterStatus = ids == nil ? statusFilterForBulk() : nil
@@ -1284,6 +1308,12 @@ private struct InboxList: View {
     /// since changed by hand.
     @State private var appliedDestinationToken: Int?
 
+    private var lines: [(id: String, label: String)] {
+        (me.company?.numbers ?? []).compactMap { number in
+            number.number_e164.map { (number.id, MergeFields.formatNanpNumber($0)) }
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Group {
@@ -1337,7 +1367,7 @@ private struct InboxList: View {
         .task(id: companyId) {
             if controller == nil {
                 let created = InboxController(
-                    graph: graph,
+                    api: graph.api,
                     companyId: companyId,
                     meUserId: me.user_id
                 )
@@ -1484,14 +1514,16 @@ private struct InboxList: View {
                 suggestedName: suggestViewName(
                     controller.currentSelection,
                     assigneeName: controller.assignee?.display_name,
-                    tagName: controller.tag?.name
+                    tagName: controller.tag?.name,
+                    lineLabel: lines.first { $0.id == controller.lineId }?.label,
+                    locale: appLocale
                 ),
                 canShare: canShareSavedViews,
                 onClose: { savedViewSheetOpen = false }
             )
         }
         .sheet(isPresented: $filterSheetOpen) {
-            InboxFilterSheet(controller: controller, meUserId: me.user_id)
+            InboxFilterSheet(controller: controller, meUserId: me.user_id, lines: lines)
         }
         // #233: what the workspace has queued to go out.
         .sheet(isPresented: $scheduledSheetOpen) {
@@ -2039,15 +2071,20 @@ private func parseHexColor(_ hex: String) -> Color? {
 private struct InboxFilterSheet: View {
     let controller: InboxController
     let meUserId: String
+    let lines: [(id: String, label: String)]
 
     @Environment(\.appLocale) private var appLocale
     @Environment(\.dismiss) private var dismiss
 
     private var assigneeSelection: Binding<String> {
         Binding(
-            get: { controller.assigneeUserId ?? "" },
+            get: { controller.unassignedOnly ? "none" : controller.assigneeUserId ?? "" },
             set: { id in
-                controller.setAssigneeFilter(controller.members.first { $0.user_id == id })
+                if id == "none" {
+                    controller.setUnassignedFilter()
+                } else {
+                    controller.setAssigneeFilter(controller.members.first { $0.user_id == id })
+                }
             }
         )
     }
@@ -2075,8 +2112,23 @@ private struct InboxFilterSheet: View {
                         selection: assigneeSelection
                     ) {
                         Text(AppStrings.translate(appLocale, "inbox.filterAnyone")).tag("")
+                        Text(AppStrings.translate(appLocale, "inbox.forYouSectionUnassigned")).tag("none")
                         ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
                             Text(memberName(member)).tag(member.user_id)
+                        }
+                    }
+                }
+                if lines.count > 1 {
+                    Picker(
+                        AppStrings.translate(appLocale, "inbox.filterGroupLine"),
+                        selection: Binding(
+                            get: { controller.lineId ?? "" },
+                            set: { controller.setLineFilter($0.isEmpty ? nil : $0) }
+                        )
+                    ) {
+                        Text(AppStrings.translate(appLocale, "inbox.filterAnyLine")).tag("")
+                        ForEach(lines, id: \.id) { line in
+                            Text(line.label).tag(line.id)
                         }
                     }
                 }
@@ -2741,7 +2793,7 @@ private struct BulkSelectionBar: View {
                 .buttonStyle(.plain)
                 .disabled(controller.bulkRunning)
             }
-            if controller.bulkSelection.canEscalate(
+            if controller.canSelectAllMatching && controller.bulkSelection.canEscalate(
                 loadedIds: loadedIds,
                 hasMore: controller.hasMorePages
             ) {
@@ -2864,6 +2916,19 @@ extension InboxList {
                     ? AppStrings.translate(appLocale, "inbox.teammateFallback")
                     : name
             ) { controller.setAssigneeFilter(nil) })
+        }
+        if controller.unassignedOnly {
+            chips.append(ActiveFilterChip(
+                id: "unassigned",
+                label: AppStrings.translate(appLocale, "inbox.forYouSectionUnassigned")
+            ) { controller.setAssigneeFilter(nil) })
+        }
+        if let lineId = controller.lineId {
+            chips.append(ActiveFilterChip(
+                id: "line",
+                label: lines.first { $0.id == lineId }?.label
+                    ?? AppStrings.translate(appLocale, "inbox.filterGroupLine")
+            ) { controller.setLineFilter(nil) })
         }
         if controller.tagId != nil {
             chips.append(ActiveFilterChip(

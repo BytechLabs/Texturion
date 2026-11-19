@@ -208,13 +208,17 @@ struct InboxApi: Sendable {
         awaiting: String? = nil,
         q: String? = nil,
         cursor: String? = nil,
-        limit: Int = 25
+        limit: Int = 25,
+        unassigned: Bool = false,
+        phoneNumberId: String? = nil
     ) async throws -> Page<ConversationListItem> {
         try await api.get(
             "/v1/conversations",
             query: [
                 "status": status,
                 "assigned_user_id": assignedUserId,
+                "unassigned": unassigned ? "true" : nil,
+                "phone_number_id": phoneNumberId,
                 "tag_id": tagId,
                 "is_spam": spam.map { $0 ? "true" : "false" },
                 "unread": unread.map { $0 ? "true" : "false" },

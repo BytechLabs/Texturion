@@ -29,6 +29,7 @@ import Foundation
 enum InboxFilterDimension: String, CaseIterable {
     case segment
     case assignee
+    case line
     case tag
     case unread
     case spam
@@ -48,6 +49,8 @@ struct InboxFilterState: Equatable {
     var spamOnly: Bool
     var snoozedOnly: Bool
     var awaitingOnly: Bool
+    var unassignedOnly = false
+    var lineId: String? = nil
 }
 
 /// Every dimension in force.
@@ -61,7 +64,10 @@ func activeInboxFilters(_ state: InboxFilterState) -> [InboxFilterDimension] {
     // own id and drops this field, and the chip strip hides the assignee while Mine
     // is lit — so counting it here is how an empty "Mine" tab came to blame a filter
     // the person had no way to un-set.
-    if !state.assignedToMe, state.assigneeUserId != nil { active.append(.assignee) }
+    if !state.assignedToMe, state.assigneeUserId != nil || state.unassignedOnly {
+        active.append(.assignee)
+    }
+    if state.lineId != nil { active.append(.line) }
     if state.tagId != nil { active.append(.tag) }
     if state.unreadOnly { active.append(.unread) }
     if state.spamOnly { active.append(.spam) }

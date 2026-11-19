@@ -116,8 +116,8 @@ func sanitizeConversationFilters(_ raw: [String: JSONValue]) -> [String: JSONVal
         let keep: Bool
         switch key {
         case "status": keep = text.map { conversationStatuses.contains($0) } ?? false
-        case "assigned_user_id", "tag_id": keep = text.map(isSavedViewUUID) ?? false
-        case "assigned_to_me", "is_spam", "unread": keep = flag != nil
+        case "assigned_user_id", "tag_id", "phone_number_id": keep = text.map(isSavedViewUUID) ?? false
+        case "assigned_to_me", "unassigned", "is_spam", "unread": keep = flag != nil
         case "pinned": keep = text.map { pinnedValues.contains($0) } ?? false
         case "snoozed": keep = text.map { snoozedValues.contains($0) } ?? false
         case "awaiting": keep = text.map { awaitingValues.contains($0) } ?? false
@@ -132,6 +132,12 @@ func sanitizeConversationFilters(_ raw: [String: JSONValue]) -> [String: JSONVal
         out["assigned_user_id"] = nil
     } else {
         out["assigned_to_me"] = nil
+    }
+    if out["assigned_to_me"] != nil || out["assigned_user_id"] != nil || !filterBool(out, "unassigned") {
+        out["unassigned"] = nil
+    }
+    if let lineId = filterString(out, "phone_number_id") {
+        out["phone_number_id"] = .string(lineId.lowercased())
     }
     return out
 }
@@ -172,6 +178,8 @@ struct ViewSelection: Sendable, Equatable {
     var snoozedOnly: Bool
     /// #508: threads nobody has replied to yet (the #388 lead clock).
     var awaitingOnly: Bool
+    var unassignedOnly = false
+    var lineId: String? = nil
 }
 
 /// A view's stored filters as the inbox's own controls.
@@ -200,7 +208,9 @@ func viewToSelection(_ filters: [String: JSONValue]) -> ViewSelection {
         unreadOnly: filterBool(clean, "unread"),
         spamOnly: filterBool(clean, "is_spam"),
         snoozedOnly: filterString(clean, "snoozed") == "only",
-        awaitingOnly: filterString(clean, "awaiting") == "only"
+        awaitingOnly: filterString(clean, "awaiting") == "only",
+        unassignedOnly: filterBool(clean, "unassigned"),
+        lineId: filterString(clean, "phone_number_id")
     )
 }
 
@@ -214,6 +224,8 @@ func selectionToView(_ selection: ViewSelection) -> [String: JSONValue] {
     case .all: break
     }
     if let assignee = selection.assigneeUserId { raw["assigned_user_id"] = .string(assignee) }
+    if selection.unassignedOnly { raw["unassigned"] = .bool(true) }
+    if let lineId = selection.lineId { raw["phone_number_id"] = .string(lineId) }
     if let tag = selection.tagId { raw["tag_id"] = .string(tag) }
     if selection.unreadOnly { raw["unread"] = .bool(true) }
     if selection.spamOnly { raw["is_spam"] = .bool(true) }
@@ -236,7 +248,9 @@ func viewMatchesSelection(_ filters: [String: JSONValue], _ selection: ViewSelec
 func suggestViewName(
     _ selection: ViewSelection,
     assigneeName: String? = nil,
-    tagName: String? = nil
+    tagName: String? = nil,
+    lineLabel: String? = nil,
+    locale: String = MessageLocale.en
 ) -> String {
     var parts: [String] = []
     switch selection.tab {
@@ -247,6 +261,12 @@ func suggestViewName(
     }
     if selection.assigneeUserId != nil, let assigneeName, !assigneeName.isEmpty {
         parts.append(assigneeName)
+    }
+    if selection.unassignedOnly {
+        parts.append(AppStrings.translate(locale, "inbox.forYouSectionUnassigned"))
+    }
+    if selection.lineId != nil {
+        parts.append(lineLabel ?? AppStrings.translate(locale, "inbox.filterGroupLine"))
     }
     if selection.tagId != nil, let tagName, !tagName.isEmpty {
         parts.append(tagName)

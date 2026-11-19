@@ -98,6 +98,19 @@ class InboxFiltersTest {
     }
 
     @Test
+    fun `unassigned and line count alongside other filters`() {
+        val filtered = home(unreadOnly = true).copy(unassignedOnly = true, lineId = "line-1")
+        assertEquals(
+            listOf(InboxFilterDimension.ASSIGNEE, InboxFilterDimension.LINE, InboxFilterDimension.UNREAD),
+            activeInboxFilters(filtered),
+        )
+        assertEquals(
+            listOf(InboxFilterDimension.SEGMENT, InboxFilterDimension.LINE, InboxFilterDimension.UNREAD),
+            activeInboxFilters(filtered.copy(assignedToMe = true)),
+        )
+    }
+
+    @Test
     fun `everything at once, in the declared order`() {
         assertEquals(
             listOf(
@@ -161,7 +174,7 @@ class InboxFiltersTest {
     }
 
     /**
-     * The same seven dimensions, in the same order, as the shared module.
+     * The same dimensions, in the same order, as the shared module.
      *
      * Order is asserted rather than membership alone: [activeInboxFilters] returns
      * a list, and a client rendering "arranged by" chips from it would show them in
@@ -193,7 +206,7 @@ class InboxFiltersTest {
         val shared = repoFile("packages/shared/src/inbox-filters.ts")
         assertTrue(
             "the Mine-subsumes-assignee guard has gone from the shared module",
-            shared.contains("!state.assignedToMe && state.assigneeUserId !== null"),
+            shared.contains("!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)"),
         )
     }
 }

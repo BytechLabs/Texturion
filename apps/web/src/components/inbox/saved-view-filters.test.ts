@@ -72,6 +72,13 @@ describe("#280 urlFiltersToView", () => {
 });
 
 describe("#280 viewFiltersToUrl", () => {
+  it("restores a saved Unassigned view on the selected line", () => {
+    const filters = { assignee: "none", line: TAG, unread: true };
+    const view = urlFiltersToView(filters);
+    expect(view).toEqual({ unassigned: true, phone_number_id: TAG, unread: true });
+    expect(viewFiltersToUrl(view)).toEqual(filters);
+  });
+
   it("round-trips every filter a view can hold", () => {
     const url: InboxUrlFilters = {
       status: "open",
@@ -142,6 +149,15 @@ describe("#280 suggestViewName", () => {
     expect(suggestViewName({ tag: TAG }, { tag: "Quote sent" })).toBe(
       "Quote sent",
     );
+  });
+
+  it("uses the supplied labels for an Unassigned line", () => {
+    expect(
+      suggestViewName(
+        { assignee: "none", line: TAG },
+        { unassigned: "Sans attribution", line: "(514) 555-0100" },
+      ),
+    ).toBe("Sans attribution · (514) 555-0100");
   });
 
   it("suggests nothing for the unfiltered list", () => {
