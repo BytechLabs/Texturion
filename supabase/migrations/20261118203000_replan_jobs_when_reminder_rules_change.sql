@@ -8,6 +8,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_replan_limit constant integer := 2000;
   v_task_id uuid;
   v_replanned integer := 0;
   v_rules jsonb;
@@ -44,6 +45,7 @@ begin
          and t.due_at > now() and public.task_done_at(t) is null
          and c.deleted_at is null and c.purged_at is null
        order by t.due_at, t.id
+       limit v_replan_limit
     loop
       perform public.calendar_enqueue_reminder_replan(p_company_id, v_task_id, p_user_id);
       v_replanned := v_replanned + 1;
