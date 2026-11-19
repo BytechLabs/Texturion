@@ -1,13 +1,12 @@
 import { readFileSync } from "node:fs";
 import { relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 import { expect, it } from "vitest";
 
 import { productionSources } from "./test/source-tree";
 
-const src = fileURLToPath(new URL(".", import.meta.url));
+const src = import.meta.dirname;
 const maxRows = 1_000;
 
 function oversizedLimits(path: string) {
