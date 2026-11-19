@@ -7,6 +7,7 @@ begin
        (old.status = 'draft' and new.status in ('sent'))
     or (old.status = 'sent' and new.status in ('viewed', 'accepted', 'declined', 'expired', 'withdrawn'))
     or (old.status = 'viewed' and new.status in ('accepted', 'declined', 'expired', 'withdrawn'))
+    or (old.status = 'accepted' and new.status in ('viewed'))
   ) then
     raise exception 'quote % cannot go from % to %', old.id, old.status, new.status using errcode = 'check_violation';
   end if;
@@ -21,7 +22,8 @@ language sql immutable set search_path = '' as $$
   select public.state_transition_expected_before_quote_withdrawal(p_machine, p_from, p_to) or exists (
     select 1 from (values
       ('quote', 'sent', 'withdrawn'),
-      ('quote', 'viewed', 'withdrawn')
+      ('quote', 'viewed', 'withdrawn'),
+      ('quote', 'accepted', 'viewed')
     ) e(machine, from_state, to_state)
     where e.machine = p_machine and e.from_state = p_from and e.to_state = p_to
   );
@@ -51,7 +53,7 @@ begin
   update public.public_links
   set revoked_at = now(), revoke_reason = 'quote withdrawn'
   where company_id = p_company_id and subject_type = 'quote' and subject_id = p_quote_id
-    and purpose in ('quote_view', 'quote_accept') and revoked_at is null;
+    and purpose in ('quote_view', 'quote_accept', 'quote_decline') and revoked_at is null;
 
   insert into public.conversation_events (company_id, conversation_id, actor_user_id, type, payload)
   values (p_company_id, withdrawn.conversation_id, p_actor, 'quote_withdrawn',

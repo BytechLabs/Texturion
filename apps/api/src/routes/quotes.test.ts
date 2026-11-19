@@ -80,7 +80,7 @@ describe("GET /v1/quotes", () => {
       });
       const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
       expect(body.data[0].allowed_actions, role).toEqual(draftActions);
-      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual(role === "member" ? ["withdraw"] : []);
+      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual(role === "member" ? ["withdraw", "decline"] : []);
       vi.unstubAllGlobals();
     }
   });
@@ -248,6 +248,38 @@ describe("quote draft mutations", () => {
     const [{ url }] = sb.find("DELETE", "/rest/v1/quotes");
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       status: "eq.draft", sending_at: "is.null", message_id: "is.null",
+    });
+  });
+});
+
+describe("quote decisions", () => {
+  it.each(["owner", "admin", "member", "read_only"])("only lets owners and admins undo acceptance (%s)", async (role) => {
+    const sb = stubWithRole(role);
+    sb.on("GET", "/rest/v1/quotes", () => [row({ status: "accepted" })]);
+    sb.on("POST", "/rest/v1/rpc/api_undo_quote_acceptance", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/undo-acceptance`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    const allowed = role === "owner" || role === "admin";
+    expect(response.status).toBe(allowed ? 200 : 403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_undo_quote_acceptance")).toHaveLength(allowed ? 1 : 0);
+  });
+
+  it("records a crew decline with its trimmed reason", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/decline`, {
+      method: "POST", companyId: COMPANY_ID, body: { reason: "  Customer postponed the work  " },
+    });
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_company_id: COMPANY_ID, p_quote_id: QUOTE_ID, p_actor: auth.subject, p_decision: "declined",
+      p_reason: "Customer postponed the work", p_link_id: null,
     });
   });
 });

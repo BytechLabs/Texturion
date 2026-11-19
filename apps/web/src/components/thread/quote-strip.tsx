@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { FileText, Pencil, Send, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import {
   billingCurrencyOf,
@@ -13,8 +15,8 @@ import {
 
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
-import { useChangeQuoteDraft, useCreateQuote, useQuotes, useSendQuote, useWithdrawQuote } from '@/lib/api/quotes';
-import type { Quote } from '@/lib/api/quotes';
+import { useChangeQuoteDraft, useCreateQuote, useQuoteDecision, useQuotes, useSendQuote } from '@/lib/api/quotes';
+import type { Quote, QuoteDecisionAction } from '@/lib/api/quotes';
 import { cn } from "@/lib/utils";
 
 /**
@@ -59,6 +61,7 @@ const RECENT_DECISION_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_EXPIRY_DAYS = 14;
 
 function isWorthShowing(quote: Quote, now: number): boolean {
+  if (quote.allowed_actions?.includes("undo_acceptance") && Date.parse(quote.expires_at) > now) return true;
   const status = quote.effective_status;
   if (status !== "withdrawn" && !isQuoteDecided(status)) return true;
   const decided = quote.decided_at ? Date.parse(quote.decided_at) : Number.NaN;
@@ -70,7 +73,7 @@ function QuoteRow({
   quote,
   onSend,
   onAskForPayment,
-  onWithdraw,
+  onDecision,
   onEdit,
   onDelete,
   sending,
@@ -81,7 +84,7 @@ function QuoteRow({
   onSend: () => void;
   /** #287: accepted → pay now, carrying the agreed figure. */
   onAskForPayment: () => void;
-  onWithdraw: () => void;
+  onDecision: (action: QuoteDecisionAction) => void;
   onEdit: () => void;
   onDelete: () => void;
   sending: boolean;
@@ -149,10 +152,28 @@ function QuoteRow({
       {canSend && quote.allowed_actions?.includes("withdraw") && (
         <button
           type="button"
-          onClick={onWithdraw}
+          onClick={() => onDecision("withdraw")}
           className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
         >
           {t("quotes.withdraw")}
+        </button>
+      )}
+      {canSend && quote.allowed_actions?.includes("decline") && (
+        <button
+          type="button"
+          onClick={() => onDecision("decline")}
+          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+        >
+          {t("quotes.markDeclined")}
+        </button>
+      )}
+      {quote.allowed_actions?.includes("undo_acceptance") && (
+        <button
+          type="button"
+          onClick={() => onDecision("undo-acceptance")}
+          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+        >
+          {t("quotes.undoAcceptance")}
         </button>
       )}
       {canSend && quote.allowed_actions?.includes("edit") && (
@@ -197,13 +218,14 @@ export function QuoteStrip({
   const quotes = useQuotes(conversationId);
   const create = useCreateQuote(conversationId);
   const send = useSendQuote(conversationId);
-  const withdraw = useWithdrawQuote(conversationId);
+  const decision = useQuoteDecision(conversationId);
   const changeDraft = useChangeQuoteDraft(conversationId);
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [withdrawId, setWithdrawId] = useState<string | null>(null);
+  const [quoteDecision, setQuoteDecision] = useState<{ id: string; action: QuoteDecisionAction } | null>(null);
+  const [reason, setReason] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const focusAmount = useCallback((input: HTMLInputElement | null) => {
@@ -279,9 +301,10 @@ export function QuoteStrip({
           canSend={canSend}
           sending={send.isPending && send.variables === quote.id}
           onSend={() => send.mutate(quote.id)}
-          onWithdraw={() => {
-            withdraw.reset();
-            setWithdrawId(quote.id);
+          onDecision={(action) => {
+            decision.reset();
+            setReason("");
+            setQuoteDecision({ id: quote.id, action });
           }}
           onEdit={() => {
             setEditId(quote.id);
@@ -302,21 +325,61 @@ export function QuoteStrip({
         />
       ))}
 
-      <ConfirmDialog
-        open={withdrawId !== null}
-        onOpenChange={(open) => {
-          if (!open && !withdraw.isPending) setWithdrawId(null);
-        }}
-        title={t("quotes.withdrawTitle")}
-        description={t("quotes.withdrawDetail")}
-        confirmLabel={t("quotes.withdraw")}
-        pending={withdraw.isPending}
-        onConfirm={() => {
-          if (withdrawId) withdraw.mutate(withdrawId, { onSuccess: () => setWithdrawId(null) });
-        }}
-      >
-        {withdraw.isError && <p role="alert" className="text-sm text-destructive">{t("quotes.withdrawFailed")}</p>}
-      </ConfirmDialog>
+      {quoteDecision && quoteDecision.action !== "decline" && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !decision.isPending) setQuoteDecision(null);
+          }}
+          title={t(quoteDecision.action === "withdraw" ? "quotes.withdrawTitle" : "quotes.undoAcceptance")}
+          description={t(quoteDecision.action === "withdraw" ? "quotes.withdrawDetail" : "quotes.undoAcceptanceDetail")}
+          confirmLabel={t(quoteDecision.action === "withdraw" ? "quotes.withdraw" : "quotes.undoAcceptance")}
+          pending={decision.isPending}
+          onConfirm={() => decision.mutate(quoteDecision, { onSuccess: () => setQuoteDecision(null) })}
+        >
+          {decision.isError && (
+            <p role="alert" className="text-sm text-destructive">
+              {t(quoteDecision.action === "withdraw" ? "quotes.withdrawFailed" : "quotes.decisionFailed")}
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
+
+      <Dialog open={quoteDecision?.action === "decline"} onOpenChange={(open) => {
+        if (!open && !decision.isPending) setQuoteDecision(null);
+      }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("quotes.markDeclined")}</DialogTitle>
+            <DialogDescription>{t("quotes.declineCrewDetail")}</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={(event) => {
+            event.preventDefault();
+            if (!quoteDecision || !reason.trim() || decision.isPending) return;
+            decision.mutate({ ...quoteDecision, reason: reason.trim() }, { onSuccess: () => setQuoteDecision(null) });
+          }}>
+            <label className="flex flex-col gap-1.5 text-sm">
+              {t("quotes.declineReason")}
+              <textarea
+                className="min-h-20 rounded-app-ctrl border border-input bg-background px-3 py-2"
+                value={reason}
+                maxLength={500}
+                onChange={(event) => setReason(event.target.value)}
+                required
+              />
+            </label>
+            {decision.isError && <p role="alert" className="text-sm text-destructive">{t("quotes.decisionFailed")}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={decision.isPending} onClick={() => setQuoteDecision(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" variant="destructive" disabled={!reason.trim() || decision.isPending}>
+                {t("quotes.markDeclined")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteId !== null}

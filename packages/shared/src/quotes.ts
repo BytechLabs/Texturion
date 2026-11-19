@@ -89,9 +89,7 @@ export interface QuoteState {
 }
 
 /**
- * A decision is final. Expiry cannot un-accept a quote somebody accepted, and
- * cannot re-open one they declined — the deadline was for answering, and it
- * has been answered.
+ * A quote's deadline expires the offer while it is awaiting a decision.
  */
 export function isQuoteDecided(status: QuoteStatus): boolean {
   return status === "accepted" || status === "declined";
@@ -148,7 +146,7 @@ export function isQuoteOutstanding(
  *
  *   * nothing returns to `draft` — a price that has been sent has been seen by
  *     somebody, and pretending otherwise loses the record of what was offered;
- *   * `accepted` and `declined` lead nowhere, because a decision is final;
+ *   * owners and admins can reopen an acceptance while the offer is live;
  *   * `expired` leads nowhere either. Re-offering is a NEW quote at today's
  *     price, which is the honest thing for a trade whose material costs move.
  */
@@ -157,7 +155,7 @@ const ALLOWED_NEXT: Record<QuoteStatus, readonly QuoteStatus[]> = {
   sent: ["viewed", "accepted", "declined", "withdrawn", "expired"],
   // Viewing is not answering: a customer who opened it can still do either.
   viewed: ["accepted", "declined", "withdrawn", "expired"],
-  accepted: [],
+  accepted: ["viewed"],
   declined: [],
   withdrawn: [],
   expired: [],

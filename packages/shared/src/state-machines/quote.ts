@@ -28,7 +28,7 @@ export const quoteMachine = defineMachine<QuoteState>({
     draft: ["sent"],
     sent: ["viewed", "accepted", "declined", "withdrawn", "expired"],
     viewed: ["accepted", "declined", "withdrawn", "expired"],
-    accepted: [],
+    accepted: ["viewed"],
     declined: [],
     withdrawn: [],
     expired: [],
@@ -44,7 +44,14 @@ export const quoteMachine = defineMachine<QuoteState>({
       { action: "edit", capability: "conversations.send" },
       { action: "delete", capability: "conversations.send" },
     ],
-    sent: [{ action: "withdraw", capability: "conversations.send" }],
-    viewed: [{ action: "withdraw", capability: "conversations.send" }],
+    sent: [
+      { action: "withdraw", capability: "conversations.send" },
+      { action: "decline", capability: "conversations.send" },
+    ],
+    viewed: [
+      { action: "withdraw", capability: "conversations.send" },
+      { action: "decline", capability: "conversations.send" },
+    ],
+    accepted: [{ action: "undo_acceptance", capability: "settings.manage" }],
   }),
 });

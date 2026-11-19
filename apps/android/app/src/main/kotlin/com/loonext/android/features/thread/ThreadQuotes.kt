@@ -90,7 +90,20 @@ private const val RECENT_DECISION_MS = 7L * 24 * 60 * 60 * 1000
 /** The expiry a crew member does not have to think about. */
 private const val DEFAULT_EXPIRY_DAYS = 14L
 
+private enum class QuoteDecision(val path: String, val label: String, val detail: String) {
+    Withdraw("withdraw", "quotes.withdraw", "quotes.withdrawDetail"),
+    Decline("decline", "quotes.markDeclined", "quotes.declineCrewDetail"),
+    Undo("undo-acceptance", "quotes.undoAcceptance", "quotes.undoAcceptanceDetail"),
+}
+
+private data class PendingQuoteDecision(val id: String, val action: QuoteDecision)
+
+private fun canUndoAcceptance(quote: Quote, now: Long): Boolean =
+    quote.allowed_actions?.contains("undo_acceptance") == true &&
+        (quote.expires_at?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L) > now
+
 private fun isWorthShowing(quote: Quote, now: Long): Boolean {
+    if (canUndoAcceptance(quote, now)) return true
     val status = quote.shownStatus(now)
     if (status != QuoteStatus.WITHDRAWN && !Quotes.isDecided(status)) return true
     val decided = quote.decided_at?.let {
@@ -134,9 +147,10 @@ fun ThreadQuotes(
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var sendingId by remember { mutableStateOf<String?>(null) }
-    var withdrawId by remember { mutableStateOf<String?>(null) }
-    var withdrawing by remember { mutableStateOf(false) }
-    var withdrawError by remember { mutableStateOf<String?>(null) }
+    var decision by remember { mutableStateOf<PendingQuoteDecision?>(null) }
+    var deciding by remember { mutableStateOf(false) }
+    var decisionError by remember { mutableStateOf<String?>(null) }
+    var reason by remember { mutableStateOf("") }
     var editId by remember { mutableStateOf<String?>(null) }
     var deleteId by remember { mutableStateOf<String?>(null) }
     var deleteError by remember { mutableStateOf<String?>(null) }
@@ -205,33 +219,46 @@ fun ThreadQuotes(
         }
     }
 
-    fun withdraw(id: String) {
-        withdrawing = true
-        withdrawError = null
+    fun decide(pending: PendingQuoteDecision) {
+        val declineReason = reason.trim().takeIf { pending.action == QuoteDecision.Decline }
+        deciding = true
+        decisionError = null
         coroutines.launch {
             try {
-                repo.withdraw(companyId, id)
+                repo.decide(companyId, pending.id, pending.action.path, declineReason)
                 haptics.confirm()
-                withdrawId = null
+                decision = null
                 refreshKey++
             } catch (cause: Exception) {
-                withdrawError = cause.userMessage(locale)
+                decisionError = cause.userMessage(locale)
             } finally {
-                withdrawing = false
+                deciding = false
             }
         }
     }
 
-    withdrawId?.let { id ->
+    decision?.let { pending ->
+        val action = pending.action
         ConfirmDialog(
-            title = t("quotes.withdrawTitle"),
-            body = t("quotes.withdrawDetail"),
-            confirmLabel = t("quotes.withdraw"),
-            onConfirm = { withdraw(id) },
-            onDismiss = { if (!withdrawing) withdrawId = null },
+            title = t(if (action == QuoteDecision.Withdraw) "quotes.withdrawTitle" else action.label),
+            body = t(action.detail),
+            confirmLabel = t(action.label),
+            onConfirm = { decide(pending) },
+            onDismiss = { if (!deciding) decision = null },
             destructive = true,
-            pending = withdrawing,
-            error = withdrawError,
+            pending = deciding,
+            error = decisionError,
+            confirmEnabled = action != QuoteDecision.Decline || reason.isNotBlank(),
+            extraContent = if (action == QuoteDecision.Decline) {
+                {
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it.take(500) },
+                        label = { Text(t("quotes.declineReason")) },
+                        enabled = !deciding,
+                    )
+                }
+            } else null,
         )
     }
 
@@ -270,13 +297,16 @@ fun ThreadQuotes(
                 now = now,
                 canSend = canAct && quote.allowed_actions.allows("send"),
                 canWithdraw = canAct && quote.allowed_actions?.contains("withdraw") == true,
+                canDecline = canAct && quote.allowed_actions?.contains("decline") == true,
+                canUndo = canUndoAcceptance(quote, now),
                 canEdit = canAct && quote.allowed_actions?.contains("edit") == true,
                 canDelete = canAct && quote.allowed_actions?.contains("delete") == true,
                 sending = sendingId == quote.id,
                 onSend = { send(quote.id) },
-                onWithdraw = {
-                    withdrawError = null
-                    withdrawId = quote.id
+                onDecision = { action ->
+                    reason = ""
+                    decisionError = null
+                    decision = PendingQuoteDecision(quote.id, action)
                 },
                 onEdit = {
                     editId = quote.id
@@ -340,11 +370,13 @@ private fun QuoteRow(
     now: Long,
     canSend: Boolean,
     canWithdraw: Boolean,
+    canDecline: Boolean,
+    canUndo: Boolean,
     canEdit: Boolean,
     canDelete: Boolean,
     sending: Boolean,
     onSend: () -> Unit,
-    onWithdraw: () -> Unit,
+    onDecision: (QuoteDecision) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -399,8 +431,18 @@ private fun QuoteRow(
             }
         }
         if (canWithdraw) {
-            TextButton(onClick = onWithdraw) {
+            TextButton(onClick = { onDecision(QuoteDecision.Withdraw) }) {
                 Text(t("quotes.withdraw"), fontSize = 13.sp)
+            }
+        }
+        if (canDecline) {
+            TextButton(onClick = { onDecision(QuoteDecision.Decline) }) {
+                Text(t("quotes.markDeclined"), fontSize = 13.sp)
+            }
+        }
+        if (canUndo) {
+            TextButton(onClick = { onDecision(QuoteDecision.Undo) }) {
+                Text(t("quotes.undoAcceptance"), fontSize = 13.sp)
             }
         }
         if (canEdit) {

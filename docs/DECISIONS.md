@@ -3910,17 +3910,19 @@ below follows from that sentence.
   Without this, one leaked view link accepts the quote.
 - **Expiry is NOT NULL.** A link with no expiry is the failure this exists to
   prevent, and making it representable would guarantee somebody creates one.
-- **Revocation is always individual.** `max_uses: 1` spends a quote acceptance
-  token. Opening a quote again reuses the unspent credential for that view
-  link. A decision revokes the other acceptance tokens and keeps the quote
-  view open until its own expiry. A payment page stays open for receipt and
+- **Revocation is always individual.** Accepting or declining spends a
+  single-use credential for that decision. Reopening the view reuses an unspent
+  credential for each purpose. A decision revokes both sets of decision
+  credentials and keeps the quote view open until its own expiry. An owner or
+  admin can undo an acceptance before expiry. The view then issues new decision
+  credentials. A payment page stays open for receipt and
   status checks until 30 days after the request expires, with its state
   controlling whether it offers the Stripe link. Explicit revocation still
   takes effect immediately. The ICS feed (#245) is long-lived and pasted
   into third-party servers — and individual rotation is the only control that
   fits it.
 - **Quote withdrawal.** The crew can withdraw an outstanding quote. The same
-  transaction records the withdrawal and revokes the view and accept links.
+  transaction records the withdrawal and revokes the view and decision links.
   Opening the original view link within its expiry shows a withdrawal notice
   in the customer’s language.
 - **One failure page for every failure.** Expired, revoked, spent, wrong purpose,

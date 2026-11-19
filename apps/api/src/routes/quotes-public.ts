@@ -16,10 +16,9 @@ import {
 } from "../public-links/guard";
 import {
   hashToken,
-  issueQuoteAcceptToken,
+  issueQuoteDecisionToken,
   resolvePublicLink,
 } from "../public-links/tokens";
-import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
 import { afterTaskCreated } from "../tasks/follow-ups";
 
@@ -52,7 +51,7 @@ import { afterTaskCreated } from "../tasks/follow-ups";
  */
 
 const PUBLIC_COLUMNS =
-  "id,amount_cents,currency,description,status,expires_at,viewed_at,decided_at";
+  "id,amount_cents,currency,description,status,expires_at,viewed_at,decided_at,decision_version";
 
 /*
  * The accept path reads one more column than the customer is ever shown:
@@ -77,6 +76,7 @@ interface PublicQuoteRow extends QuoteState {
   description: string;
   viewed_at: string | null;
   decided_at: string | null;
+  decision_version: number;
 }
 
 export const publicQuoteRoutes = new Hono<AppEnv>();
@@ -143,9 +143,12 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
 
   const now = new Date();
   const status = effectiveQuoteStatus(row, now);
-  const acceptToken = status === "sent" || status === "viewed"
-    ? await issueQuoteAcceptToken(db, viewToken, resolved.link_id)
-    : null;
+  const [acceptToken, declineToken] = status === "sent" || status === "viewed"
+    ? await Promise.all([
+      issueQuoteDecisionToken(db, viewToken, resolved.link_id, "quote_accept", row.decision_version),
+      issueQuoteDecisionToken(db, viewToken, resolved.link_id, "quote_decline", row.decision_version),
+    ])
+    : [null, null];
 
   /*
    * First view is stamped, best-effort. Deliberately NOT awaited into the
@@ -178,6 +181,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     /** Whether pressing accept would do anything, decided here not on a client. */
     can_accept: acceptToken !== null,
     accept_token: acceptToken,
+    decline_token: declineToken,
   });
 });
 
@@ -200,7 +204,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     "quote_accept",
     country,
   );
-  if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
   }
 
@@ -233,89 +237,23 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     return c.json({ accepted: false, status }, 409);
   }
 
-  /*
-   * The guard against a double accept is in the WHERE clause, not in the read
-   * above. Two taps on a slow connection are two requests, and a check-then-
-   * write would let both through — the second one overwriting the first
-   * acceptance's timestamp with a later one, which is a quiet corruption of
-   * the record the whole feature exists to keep.
-   */
-  const accepted = unwrap<{ id: string }[]>(
-    await db
-      .from("quotes")
-      .update({
-        status: "accepted",
-        decided_at: now.toISOString(),
-        decided_by_name: name,
-      })
-      .eq("company_id", resolved.company_id)
-      .eq("id", row.id)
-      .in("status", ["sent", "viewed"])
-      .gt("expires_at", now.toISOString())
-      .select("id"),
-    "public quote accept",
-  );
-  if (accepted.length === 0) {
+  const accepted = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: resolved.company_id,
+    p_quote_id: row.id,
+    p_decision: "accepted",
+    p_actor: null,
+    p_link_id: resolved.link_id,
+    p_name: name,
+    p_reason: null,
+    p_country: country,
+  }), "quote acceptance");
+  if (!accepted) {
     const [current] = unwrap<QuoteState[]>(await db.from("quotes").select("status,expires_at")
       .eq("company_id", resolved.company_id).eq("id", row.id).limit(1), "quote decision lookup");
     if (!current) return publicLinkNotAvailable(c);
     const status = effectiveQuoteStatus(current, now);
     return c.json({ accepted: status === "accepted", status }, status === "accepted" ? 200 : 409);
   }
-
-  try {
-    const { error } = await db.from("public_links")
-      .update({ revoked_at: now.toISOString(), revoke_reason: "quote accepted" })
-      .eq("company_id", resolved.company_id)
-      .eq("subject_type", "quote")
-      .eq("subject_id", row.id)
-      .eq("purpose", "quote_accept")
-      .is("revoked_at", null);
-    if (error) throw new Error(error.message);
-  } catch (error) {
-    void reportHandledFailure(workerEnv(), "quote-link-revocation", error, {
-      ids: { quoteId: row.id },
-    });
-  }
-
-  /*
-   * #287 — AND THE CREW IS TOLD.
-   *
-   * The customer accepts on a page nobody in the workspace is looking at, so
-   * without this the only trace is a status on a row. The issue's own words:
-   * "Acceptance is verbal. 'Yeah go ahead' in a text thread is what we have
-   * instead of a record, which is fine until it isn't." This is the record, and
-   * it lands in the one place both sides already look.
-   *
-   * NO actor_user_id. The customer is not a member, and attributing their
-   * decision to whichever crew member happened to send the quote would be a
-   * false record of who said yes — on exactly the artefact that exists to
-   * settle that question later.
-   *
-   * Best-effort, and deliberately AFTER the accept has committed. The
-   * acceptance is the customer's and is already durable; failing their request
-   * because our own timeline write failed would tell them the price was not
-   * accepted when it was.
-   */
-  await insertConversationEvents(db, [
-    {
-      company_id: resolved.company_id,
-      conversation_id: row.conversation_id ?? null,
-      actor_user_id: null,
-      type: "quote_accepted",
-      payload: {
-        quote_id: row.id,
-        amount_cents: row.amount_cents,
-        currency: row.currency,
-        description: row.description,
-        ip_country: country,
-      },
-    },
-  ]).catch((error: unknown) => {
-    void reportHandledFailure(workerEnv(), "quote-accepted-event", error, {
-      ids: { quoteId: row.id },
-    });
-  });
 
   if (row.conversation_id) {
     await notifyQuoteAccepted(env, {
@@ -392,4 +330,24 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   }
 
   return c.json({ accepted: true, status: "accepted" });
+});
+
+publicQuoteRoutes.post("/q/:token/decline", publicLinkGuard(), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const country = callerCountry(c);
+  const resolved = await resolvePublicLink(db, c.req.param("token"), "quote_decline", country);
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
+    return publicLinkNotAvailable(c);
+  }
+  const declined = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: resolved.company_id,
+    p_quote_id: resolved.subject_id,
+    p_decision: "declined",
+    p_actor: null,
+    p_link_id: resolved.link_id,
+    p_name: null,
+    p_reason: null,
+    p_country: country,
+  }), "public quote decline");
+  return c.json({ declined }, declined ? 200 : 409);
 });

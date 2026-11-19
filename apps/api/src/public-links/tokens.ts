@@ -33,6 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type PublicLinkPurpose =
   | "quote_view"
   | "quote_accept"
+  | "quote_decline"
   | "payment"
   | "calendar_feed"
   | "photo_set"
@@ -57,19 +58,23 @@ function encodeToken(bytes: Uint8Array): string {
   return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
-export async function issueQuoteAcceptToken(
+export async function issueQuoteDecisionToken(
   db: SupabaseClient,
   viewToken: string,
   viewLinkId: string,
+  purpose: "quote_accept" | "quote_decline",
+  decisionVersion: number,
 ): Promise<string | null> {
-  const material = new TextEncoder().encode(`quote_accept:${viewLinkId}:${viewToken}`);
+  const material = new TextEncoder().encode(`${purpose}:${decisionVersion}:${viewLinkId}:${viewToken}`);
   let token = encodeToken(new Uint8Array(await crypto.subtle.digest("SHA-256", material)));
   const issue = async (candidate: string) => {
-    const { data, error } = await db.rpc("api_issue_quote_accept_link", {
+    const { data, error } = await db.rpc("api_issue_quote_decision_link", {
       p_view_link_id: viewLinkId,
       p_token_hash: await hashToken(candidate),
+      p_purpose: purpose,
+      p_decision_version: decisionVersion,
     });
-    if (error) throw new Error(`quote accept link failed: ${error.message}`);
+    if (error) throw new Error(`quote decision link failed: ${error.message}`);
     return data as string | null;
   };
   let state = await issue(token);

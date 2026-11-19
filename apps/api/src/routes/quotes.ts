@@ -46,7 +46,7 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 const QUOTE_COLUMNS =
   "id,conversation_id,contact_id,amount_cents,currency,description," +
-  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,created_by,created_at,updated_at," +
+  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,decline_reason,created_by,created_at,updated_at," +
   "sending_at,message_id";
 
 const SEND_LEASE_MS = 2 * 60_000;
@@ -96,10 +96,14 @@ function withEffectiveStatus(
   const status = effectiveQuoteStatus(row, now);
   const actions = stateMachines.allowedActions(stateMachines.quoteMachine, status, role);
   const draftLocked = status === "draft" && (sending_at !== null || message_id !== null);
+  const offerExpired = Date.parse(row.expires_at) <= now.getTime();
   return {
     ...row,
     effective_status: status,
-    allowed_actions: draftLocked ? actions.filter((action) => action !== "edit" && action !== "delete") : actions,
+    allowed_actions: actions.filter((action) =>
+      !(draftLocked && (action === "edit" || action === "delete")) &&
+      !(offerExpired && (action === "send" || action === "undo_acceptance"))
+    ),
   };
 }
 
@@ -132,6 +136,7 @@ const createSchema = z.object({
 });
 
 const editDraftSchema = createSchema.omit({ conversation_id: true }).partial().strict();
+const declineSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
 /**
  * Release a send's claim after a send that did not happen. The quote stays a
@@ -228,6 +233,42 @@ quotesRoutes.post("/quotes/:id/withdraw", requireCapability("conversations.send"
     });
   }
   return c.json({ withdrawn: true });
+});
+
+quotesRoutes.post("/quotes/:id/decline", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const { reason } = await parseJsonBody(c, declineSchema);
+  const declined = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_decision: "declined",
+    p_actor: c.get("userId"),
+    p_link_id: null,
+    p_name: null,
+    p_reason: reason,
+    p_country: null,
+  }), "quote decline");
+  if (!declined) {
+    return errorResponse(c, "conflict", "This quote can no longer be declined.", {
+      key: "apiRefusals.quoteDeclineUnavailable",
+    });
+  }
+  return c.json({ declined: true });
+});
+
+quotesRoutes.post("/quotes/:id/undo-acceptance", requireCapability("settings.manage"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const reopened = unwrap<boolean>(await db.rpc("api_undo_quote_acceptance", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_actor: c.get("userId"),
+  }), "reopen accepted quote");
+  if (!reopened) {
+    return errorResponse(c, "conflict", "This quote can no longer be reopened.", {
+      key: "apiRefusals.quoteUndoUnavailable",
+    });
+  }
+  return c.json({ reopened: true });
 });
 
 /**
@@ -441,15 +482,9 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
 /**
  * Send it: the moment a draft becomes an offer.
  *
- * TWO TOKENS, not one. `public_links` stores purpose rather than inferring it
- * precisely so this is possible — the URL the customer opens can VIEW the
- * quote and cannot accept it, and the accept token is separate. A link
- * forwarded to a neighbour, or scraped out of an SMS log, therefore cannot
- * commit somebody to a price.
- *
- * Both expire WITH the quote. A link that outlived its offer would be an
- * accept route standing open on a price the business had already withdrawn,
- * which is the whole reason the expiry column is NOT NULL.
+ * Only carrier dispatch receives the live view URL. The customer page uses it
+ * to get separate, single-use accept and decline credentials. All share the
+ * quote's expiry.
  */
 quotesRoutes.post(
   "/quotes/:id/send",

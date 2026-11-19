@@ -39,7 +39,14 @@ private let quoteRecentDecisionSeconds: TimeInterval = 7 * 24 * 60 * 60
 /// The expiry a crew member does not have to think about.
 private let quoteDefaultExpiryDays = 14
 
+private func canUndoAcceptance(_ quote: Quote, now: Date) -> Bool {
+    guard quote.allowed_actions?.contains("undo_acceptance") == true,
+          let expiry = Quotes.isoDate(quote.expires_at) else { return false }
+    return expiry > now
+}
+
 private func quoteIsWorthShowing(_ quote: Quote, now: Date) -> Bool {
+    if canUndoAcceptance(quote, now: now) { return true }
     let status = quote.shownStatus(now: now)
     if status != QuoteStatus.withdrawn && !Quotes.isDecided(status) { return true }
     guard let decided = Quotes.isoDate(quote.decided_at) else { return false }
@@ -121,15 +128,18 @@ final class ThreadQuotesModel {
         }
     }
 
-    func withdraw(_ quote: Quote, locale: String?) async {
+    @discardableResult
+    func decide(_ quote: Quote, action: String, reason: String? = nil, locale: String?) async -> Bool {
         notice = nil
         sendingId = quote.id
         defer { sendingId = nil }
         do {
-            try await quotes.withdraw(companyId: companyId, quoteId: quote.id)
+            try await quotes.decide(companyId: companyId, quoteId: quote.id, action: action, reason: reason)
             await load()
+            return true
         } catch {
             notice = error.userMessage(locale ?? MessageLocale.en)
+            return false
         }
     }
 
@@ -166,6 +176,9 @@ struct ThreadQuotesPane: View {
     @State private var amount = ""
     @State private var work = ""
     @State private var quoteToWithdraw: Quote?
+    @State private var quoteToUndo: Quote?
+    @State private var quoteToDecline: Quote?
+    @State private var declineReason = ""
     @State private var quoteToDelete: Quote?
     @State private var editId: String?
 
@@ -192,6 +205,8 @@ struct ThreadQuotesPane: View {
                             quote: quote,
                             canSend: canAct && quote.allowed_actions.allows("send"),
                             canWithdraw: canAct && (quote.allowed_actions?.contains("withdraw") == true),
+                            canDecline: canAct && (quote.allowed_actions?.contains("decline") == true),
+                            canUndo: canUndoAcceptance(quote, now: Date()),
                             canEdit: canAct && (quote.allowed_actions?.contains("edit") == true),
                             canDelete: canAct && (quote.allowed_actions?.contains("delete") == true),
                             sending: model.sendingId == quote.id,
@@ -201,6 +216,12 @@ struct ThreadQuotesPane: View {
                                 }
                             },
                             onWithdraw: { quoteToWithdraw = quote },
+                            onUndo: { quoteToUndo = quote },
+                            onDecline: {
+                                model.notice = nil
+                                declineReason = ""
+                                quoteToDecline = quote
+                            },
                             onEdit: {
                                 editId = quote.id
                                 amount = String(Double(quote.amount_cents) / 100)
@@ -225,7 +246,18 @@ struct ThreadQuotesPane: View {
             message: { _ in t("quotes.withdrawDetail") },
             confirmLabel: t("quotes.withdraw")
         ) { quote in
-            Task { await model?.withdraw(quote, locale: appLocale) }
+            Task { await model?.decide(quote, action: "withdraw", locale: appLocale) }
+        }
+        .confirmDialog(
+            t("quotes.undoAcceptance"),
+            item: $quoteToUndo,
+            message: { _ in t("quotes.undoAcceptanceDetail") },
+            confirmLabel: t("quotes.undoAcceptance")
+        ) { quote in
+            Task { await model?.decide(quote, action: "undo-acceptance", locale: appLocale) }
+        }
+        .sheet(item: $quoteToDecline) { quote in
+            declineSheet(quote)
         }
         .confirmDialog(
             t("quotes.deleteDraft"),
@@ -250,6 +282,36 @@ struct ThreadQuotesPane: View {
         .onChange(of: quoteChangedTick) { _, _ in
             Task { await model?.load() }
         }
+    }
+
+    private func declineSheet(_ quote: Quote) -> some View {
+        let reason = declineReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let deciding = model?.sendingId == quote.id
+        return NavigationStack {
+            Form {
+                Text(t("quotes.declineCrewDetail"))
+                TextField(t("quotes.declineReason"), text: $declineReason, axis: .vertical)
+                    .disabled(deciding)
+                InlineError(model?.notice)
+            }
+            .navigationTitle(t("quotes.markDeclined"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(t("common.cancel")) { quoteToDecline = nil }.disabled(deciding)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(t("quotes.markDeclined")) {
+                        Task {
+                            let didDecline = await model?.decide(quote, action: "decline", reason: reason, locale: appLocale)
+                            if didDecline == true { quoteToDecline = nil }
+                        }
+                    }
+                    .disabled(deciding || reason.isEmpty || reason.count > 500)
+                }
+            }
+        }
+        .interactiveDismissDisabled(deciding)
     }
 
     @ViewBuilder
@@ -316,11 +378,15 @@ private struct QuoteStripRow: View {
     let quote: Quote
     let canSend: Bool
     let canWithdraw: Bool
+    let canDecline: Bool
+    let canUndo: Bool
     let canEdit: Bool
     let canDelete: Bool
     let sending: Bool
     let onSend: () -> Void
     let onWithdraw: () -> Void
+    let onUndo: () -> Void
+    let onDecline: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -362,6 +428,18 @@ private struct QuoteStripRow: View {
             }
             if canWithdraw {
                 Button(AppStrings.translate(appLocale, "quotes.withdraw"), action: onWithdraw)
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .disabled(sending)
+            }
+            if canDecline {
+                Button(AppStrings.translate(appLocale, "quotes.markDeclined"), action: onDecline)
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .disabled(sending)
+            }
+            if canUndo {
+                Button(AppStrings.translate(appLocale, "quotes.undoAcceptance"), action: onUndo)
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .disabled(sending)

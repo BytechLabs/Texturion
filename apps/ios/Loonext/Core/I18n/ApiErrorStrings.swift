@@ -280,6 +280,8 @@ enum ApiErrorStrings {
             "apiRefusals.quoteNotFound": "No such quote.",
             "apiRefusals.quoteExpiryFuture": "Choose a future expiry for this quote.",
             "apiRefusals.quoteDraftLocked": "This quote draft can no longer be changed.",
+            "apiRefusals.quoteDeclineUnavailable": "This quote can no longer be declined.",
+            "apiRefusals.quoteUndoUnavailable": "This quote can no longer be reopened.",
             "apiRefusals.quoteWithdrawalUnavailable": "This quote can no longer be withdrawn.",
             "apiRefusals.numberNotAssigned":
                 "chosen_number_e164 is not an assigned US/CA geographic number.",
@@ -631,6 +633,8 @@ enum ApiErrorStrings {
             "apiRefusals.quoteNotFound": "Devis introuvable.",
             "apiRefusals.quoteExpiryFuture": "Choisissez une date d’expiration future pour ce devis.",
             "apiRefusals.quoteDraftLocked": "Ce brouillon de devis ne peut plus être modifié.",
+            "apiRefusals.quoteDeclineUnavailable": "Ce devis ne peut plus être refusé.",
+            "apiRefusals.quoteUndoUnavailable": "Ce devis ne peut plus être rouvert.",
             "apiRefusals.quoteWithdrawalUnavailable": "Ce devis ne peut plus être retiré.",
             "apiRefusals.numberNotAssigned":
                 "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",

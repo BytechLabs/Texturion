@@ -67,6 +67,7 @@ const quote = (over: Record<string, unknown> = {}) => ({
   expires_at: inDays(7),
   viewed_at: null,
   decided_at: null,
+  decision_version: 1,
   ...over,
 });
 
@@ -88,7 +89,7 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
   });
   sb.on("GET", "/rest/v1/companies", () => [{ name: "Apex Plumbing" }]);
   sb.on("GET", "/rest/v1/conversations", () => []);
-  sb.on("POST", "/rest/v1/rpc/api_issue_quote_accept_link", () => "ready");
+  sb.on("POST", "/rest/v1/rpc/api_issue_quote_decision_link", () => "ready");
   return sb;
 }
 
@@ -110,7 +111,7 @@ it.each([
 
   expect(response.status).toBe(404);
   expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
-  expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
+  expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
 });
 
 describe("GET /q/:token", () => {
@@ -173,7 +174,7 @@ describe("GET /q/:token", () => {
       can_accept: false,
       accept_token: null,
     });
-    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
   });
 
   it("stamps the first view once, and never over a decision", async () => {
@@ -234,7 +235,7 @@ describe("GET /q/:token", () => {
     const response = await call(`/q/${TOKEN}`);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ withdrawn: true, status: "withdrawn", locale: "fr-CA" });
-    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
   });
 });
 
@@ -258,29 +259,26 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(404);
-    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
   });
 
-  it("accepts a live quote and revokes only acceptance credentials", async () => {
+  it("accepts using the resolved credential and trimmed name", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
-    const [write] = sb.find("PATCH", "/rest/v1/quotes");
-    expect(write.body).toMatchObject({ decided_by_name: "Camille Martin" });
-
-    const [revoke] = sb.find("PATCH", "/rest/v1/public_links");
-    expect(Object.fromEntries(revoke.url.searchParams)).toMatchObject({
-      company_id: `eq.${COMPANY_ID}`,
-      subject_type: "eq.quote",
-      subject_id: `eq.${QUOTE_ID}`,
-      purpose: "eq.quote_accept",
-      revoked_at: "is.null",
+    const [write] = sb.find("POST", "/rest/v1/rpc/api_record_quote_decision");
+    expect(write.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_quote_id: QUOTE_ID,
+      p_link_id: "11111111-2222-4333-8444-555555555555",
+      p_actor: null,
+      p_decision: "accepted",
+      p_name: "Camille Martin",
     });
   });
 
@@ -296,44 +294,22 @@ describe("POST /q/:token/accept", () => {
       error: { message_key: "quotes.acceptNameRequired" },
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")).toHaveLength(0);
-    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
-    expect(sb.find("PATCH", "/rest/v1/public_links")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
   });
 
-  it("tells the crew's thread that their quote was accepted", async () => {
-    /*
-     * #287: "Acceptance is verbal ... which is fine until it isn't." The
-     * customer accepts on a page nobody in the workspace is looking at, so
-     * without this event the only trace is a status on a row — and the crew
-     * finds out by noticing rather than by being told.
-     */
+  it("records the country with the public decision", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
     const request = new Request(`https://api.example.test/q/${TOKEN}/accept`, acceptRequest());
     Object.defineProperty(request, "cf", { value: { country: "CA" } });
     const res = await app.fetch(request, env);
     expect(res.status).toBe(200);
-
-    const events = sb.find("POST", "/rest/v1/conversation_events");
-    expect(events, "no timeline event was written").toHaveLength(1);
-    const rows = events[0].body as {
-      type: string;
-      actor_user_id: string | null;
-      conversation_id: string;
-      payload: Record<string, unknown>;
-    }[];
-    expect(rows[0].type).toBe("quote_accepted");
-    // NO ACTOR. The customer is not a member, and attributing their decision to
-    // whichever crew member sent the quote would be a false record of who said
-    // yes — on the exact artefact that exists to settle that later.
-    expect(rows[0].actor_user_id).toBeNull();
-    expect(rows[0].conversation_id).toBe(CONVERSATION_ID);
-    expect(rows[0].payload.ip_country).toBe("CA");
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_country: "CA", p_actor: null,
+    });
   });
 
   it("turns the accepted quote into a job", async () => {
@@ -345,9 +321,7 @@ describe("POST /q/:token/accept", () => {
      */
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created" }));
     stubFetch(sb.route);
 
@@ -371,31 +345,25 @@ describe("POST /q/:token/accept", () => {
     // require one. Skipped quietly rather than failing the customer's accept.
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ message_id: null })]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
     expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
     expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
-  it("still accepts when the timeline write fails", async () => {
-    // The acceptance is the CUSTOMER'S and is already committed. Failing their
-    // request because our own bookkeeping failed would tell them the price was
-    // not accepted when it was.
+  it("skips acceptance follow-ups after the decision transaction fails", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => {
-      throw new Error("timeline down");
-    });
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () =>
+      Response.json({ message: "Timeline unavailable" }, { status: 500 }),
+    );
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
+    expect(res.status).toBe(500);
+    expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
   it("refuses to bind anybody to a price that has lapsed", async () => {
@@ -407,7 +375,7 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(409);
-    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
   });
 
   it("treats a lost double-tap race as accepted rather than as an error", async () => {
@@ -421,7 +389,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", ({ url }) => [
       quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
     ]);
-    sb.on("PATCH", "/rest/v1/quotes", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => false);
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
@@ -434,55 +402,33 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", ({ url }) => [
       quote(url.searchParams.get("select") === "status,expires_at" ? { status: "withdrawn" } : {}),
     ]);
-    sb.on("PATCH", "/rest/v1/quotes", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => false);
     stubFetch(sb.route);
 
     const response = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({ accepted: false, status: "withdrawn" });
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 
-  it("the same acceptance applied twice tells the thread once", async () => {
+  it("runs acceptance follow-ups only for the successful decision", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", ({ url }) => [
       quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
     ]);
-    // The write is guarded in the WHERE clause: the first tap moves the row, the
-    // second matches nothing.
     let moved = false;
-    sb.on("PATCH", "/rest/v1/quotes", () => {
-      if (moved) return [];
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => {
+      if (moved) return false;
       moved = true;
-      return [{ id: QUOTE_ID }];
+      return true;
     });
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
     expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
-
     expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
-    expect(
-      sb.find("POST", "/rest/v1/conversation_events"),
-      "the crew's thread was told twice",
-    ).toHaveLength(1);
     expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(1);
   });
 
-  it("guards the write on the answerable statuses", async () => {
-    const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    stubFetch(sb.route);
-
-    await call(`/q/${TOKEN}/accept`, acceptRequest());
-    const [write] = sb.find("PATCH", "/rest/v1/quotes");
-    expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
-    expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
-  });
 });
 
 /**
@@ -550,10 +496,12 @@ describe("#581 the view token is not the accept token", () => {
     expect(first.accept_token).toHaveLength(43);
     expect(second.accept_token).toBe(first.accept_token);
 
-    const issues = sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link");
-    expect(issues).toHaveLength(2);
-    expect(issues[0]?.body).toEqual(issues[1]?.body);
-    expect(issues[0]?.body).toMatchObject({
+    const issues = sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link");
+    const accepts = issues.filter(({ body }) => (body as { p_purpose: string }).p_purpose === "quote_accept");
+    expect(issues).toHaveLength(4);
+    expect(accepts).toHaveLength(2);
+    expect(accepts[0]?.body).toEqual(accepts[1]?.body);
+    expect(accepts[0]?.body).toMatchObject({
       p_view_link_id: "11111111-2222-4333-8444-555555555555",
       p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
@@ -576,6 +524,31 @@ describe("#581 the view token is not the accept token", () => {
 
     expect(body.can_accept).toBe(false);
     expect(body.accept_token).toBeNull();
-    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
+  });
+});
+
+describe("POST /q/:token/decline", () => {
+  it("requires a distinct decline credential", async () => {
+    const sb = stubResolving("quote_accept");
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/decline`, { method: "POST" });
+
+    expect(response.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
+  });
+
+  it("records a decline with no member actor", async () => {
+    const sb = stubResolving("quote_decline");
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/decline`, { method: "POST" });
+
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_quote_id: QUOTE_ID, p_decision: "declined", p_actor: null,
+    });
   });
 });

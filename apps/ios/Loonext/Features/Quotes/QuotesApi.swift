@@ -232,7 +232,10 @@ struct QuotesApi: Sendable {
         try await api.delete("/v1/quotes/\(quoteId)", companyId: companyId)
     }
 
-    func withdraw(companyId: String, quoteId: String) async throws {
-        let _: [String: Bool] = try await api.post("/v1/quotes/\(quoteId)/withdraw", companyId: companyId)
+    func decide(companyId: String, quoteId: String, action: String, reason: String? = nil) async throws {
+        let body = reason.map { JSONValue.object(["reason": .string($0)]) }
+        let _: [String: Bool] = try await api.post(
+            "/v1/quotes/\(quoteId)/\(action)", body: body, companyId: companyId
+        )
     }
 }

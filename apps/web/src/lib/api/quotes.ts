@@ -161,12 +161,18 @@ export function useChangeQuoteDraft(conversationId: string) {
   });
 }
 
-export function useWithdrawQuote(conversationId: string) {
+export type QuoteDecisionAction = "withdraw" | "decline" | "undo-acceptance";
+
+export function useQuoteDecision(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (quoteId: string) =>
-      apiFetch<{ withdrawn: true }>(`/v1/quotes/${quoteId}/withdraw`, { method: "POST", companyId }),
+    mutationFn: ({ id, action, reason }: { id: string; action: QuoteDecisionAction; reason?: string }) =>
+      apiFetch<unknown>(`/v1/quotes/${id}/${action}`, {
+        method: "POST",
+        companyId,
+        body: reason === undefined ? undefined : { reason },
+      }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.quotes.forConversation(companyId, conversationId) }),

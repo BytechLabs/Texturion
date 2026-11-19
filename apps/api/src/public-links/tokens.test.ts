@@ -59,6 +59,7 @@ it("keeps a roster of public link readers that need deleted-source tests", () =>
     "routes/job-photos.ts:photo_set",
     "routes/payments.ts:payment",
     "routes/quotes-public.ts:quote_accept",
+    "routes/quotes-public.ts:quote_decline",
     "routes/quotes-public.ts:quote_view",
   ]);
 });

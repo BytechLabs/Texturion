@@ -163,8 +163,9 @@ const UNGATED_WRITES: Record<string, string> = {
   // PUBLIC — unauthenticated marketing surfaces.
   "POST /contact": "public — the marketing contact form, no session",
   "POST /q/:token/accept":
-    "#287: public — the quote page issues the homeowner a single-use " +
-    "quote_accept credential for the decision.",
+    "Public quote acceptance requires a single-use quote_accept credential from the customer page.",
+  "POST /q/:token/decline":
+    "Public quote decline requires a separate single-use quote_decline credential from the customer page.",
   "POST /widget/verify":
     "#232: public — the same surface as /widget/start, one step later. The " +
     "code it answers is the authorisation: nothing lands in an inbox until a " +

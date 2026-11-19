@@ -301,7 +301,8 @@ begin
      and p.proname in (
        'api_mint_public_link', 'api_resolve_public_link', 'api_revoke_public_link',
        'api_revoke_public_links_for_subject', 'api_public_link_misses',
-       'api_prune_public_link_access'
+       'api_prune_public_link_access', 'api_issue_quote_decision_link',
+       'api_record_quote_decision', 'api_undo_quote_acceptance'
      )
      and (
        has_function_privilege('anon', p.oid, 'execute')
@@ -336,5 +337,64 @@ begin
     raise exception 'Deleting a task did not revoke its photo link';
   end if;
 end $$;
+
+do $quote_decisions$
+declare
+  tenant uuid := 'ea000000-0000-4000-8000-0000000000c1';
+  owner uuid := 'ea000000-0000-4000-8000-00000000000a';
+  customer uuid;
+  line uuid;
+  thread uuid;
+  offer uuid;
+  view_id uuid;
+  acceptance uuid;
+  decline uuid;
+begin
+  insert into public.contacts (company_id, phone_e164)
+  values (tenant, '+14165550172') returning id into customer;
+  insert into public.phone_numbers (company_id, number_e164, status, country, provisioning_key, telnyx_phone_number_id)
+  values (tenant, '+14165550173', 'active', 'CA', 'quote-decision-test', 'quote-decision-provider')
+  returning id into line;
+  insert into public.conversations (company_id, contact_id, phone_number_id, status)
+  values (tenant, customer, line, 'open') returning id into thread;
+  insert into public.quotes (company_id, conversation_id, contact_id, status, expires_at, amount_cents, currency, description)
+  values (tenant, thread, customer, 'sent', now() + interval '1 day', 28000, 'cad', 'Replace the fixture')
+  returning id into offer;
+
+  view_id := public.api_mint_public_link(pg_temp.h('decision-view'), tenant,
+    'quote_view', 'quote', offer, now() + interval '1 day');
+  if public.api_issue_quote_decision_link(view_id, pg_temp.h('accept-v1'), 'quote_accept', 1) <> 'ready'
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) <> 'ready' then
+    raise exception 'Could not issue the first decision credentials';
+  end if;
+  acceptance := (public.api_resolve_public_link(pg_temp.h('accept-v1'), 'quote_accept', 'CA')->>'link_id')::uuid;
+  if not public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') then
+    raise exception 'First acceptance failed';
+  end if;
+  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') then
+    raise exception 'The quote accepted a second time';
+  end if;
+  if (select count(*) from public.conversation_events
+      where conversation_id = thread and type = 'quote_accepted' and payload->>'ip_country' = 'CA') <> 1 then
+    raise exception 'Acceptance must record one event and country';
+  end if;
+  if not public.api_undo_quote_acceptance(tenant, offer, owner) then
+    raise exception 'The owner could not undo acceptance';
+  end if;
+  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA')
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) <> 'unavailable'
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v2'), 'quote_decline', 2) <> 'ready' then
+    raise exception 'Undo must invalidate the previous credentials';
+  end if;
+  decline := (public.api_resolve_public_link(pg_temp.h('decline-v2'), 'quote_decline', 'CA')->>'link_id')::uuid;
+  update public.conversations set deleted_at = now() where id = thread;
+  if public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') then
+    raise exception 'A trashed quote cannot be declined';
+  end if;
+  update public.conversations set deleted_at = null where id = thread;
+  if not public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') then
+    raise exception 'The restored quote should accept the scoped decline';
+  end if;
+end $quote_decisions$;
 
 rollback;

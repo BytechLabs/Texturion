@@ -52,4 +52,30 @@ describe(QuotePage, () => {
     );
     expect(document.activeElement).toBe(heading);
   });
+
+  it("uses the separate decline credential and focuses the result", async () => {
+    const fetchQuote = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
+    vi.stubGlobal("fetch", fetchQuote);
+
+    render(<QuotePage quote={{
+      locale: "en",
+      business_name: "Martin Plumbing",
+      amount_cents: 45_000,
+      currency: "cad",
+      description: "Replace the water heater",
+      status: "viewed",
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      can_accept: true,
+      accept_token: "test-accept-credential",
+      decline_token: "test-decline-credential",
+    }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Not right now" }));
+
+    const heading = await screen.findByRole("heading", { name: "Quote declined" });
+    expect(fetchQuote).toHaveBeenCalledExactlyOnceWith(
+      "https://api.example.test/q/test-decline-credential/decline",
+      { method: "POST" },
+    );
+    expect(document.activeElement).toBe(heading);
+  });
 });

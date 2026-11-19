@@ -57,6 +57,7 @@ interface QuoteView {
   expires_at: string;
   can_accept: boolean;
   accept_token: string | null;
+  decline_token?: string | null;
 }
 
 interface WithdrawnQuote {
@@ -92,15 +93,17 @@ export function QuotePage({
   quote?: QuoteView | WithdrawnQuote;
   notAvailable?: boolean;
 }) {
-  const [state, setState] = useState<"idle" | "sending" | "accepted" | "withdrawn" | "invalidName" | "failed">(
+  const [state, setState] = useState<
+    "idle" | "sending" | "declining" | "accepted" | "declined" | "withdrawn" | "invalidName" | "failed" | "declineFailed"
+  >(
     "idle",
   );
   const locale = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
   const t = makeTranslate(locale);
-  const acceptedHeading = useRef<HTMLHeadingElement>(null);
+  const decisionHeading = useRef<HTMLHeadingElement>(null);
   const [name, setName] = useState("");
   useEffect(() => {
-    if (state === "accepted") acceptedHeading.current?.focus();
+    if (state === "accepted" || state === "declined") decisionHeading.current?.focus();
   }, [state]);
 
   if (notAvailable || !quote || "withdrawn" in quote || state === "withdrawn") {
@@ -124,7 +127,7 @@ export function QuotePage({
     return (
       <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <DocumentLanguage locale={locale} />
-        <h1 ref={acceptedHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
+        <h1 ref={decisionHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
           {t("quotes.acceptedTitle", { business: quote.business_name })}
         </h1>
         {/*
@@ -142,10 +145,26 @@ export function QuotePage({
     );
   }
 
+  if (state === "declined" || quote.status === "declined") {
+    return (
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
+        <h1 ref={decisionHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
+          {t("quotes.declinedTitle")}
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          {t("quotes.declinedDetail", { business: quote.business_name })}
+        </p>
+      </main>
+    );
+  }
+
+  const busy = state === "sending" || state === "declining";
+
   async function accept(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const credential = quote && "accept_token" in quote ? quote.accept_token : null;
-    if (!credential || name.trim().length === 0 || state === "sending") return;
+    if (!credential || name.trim().length === 0 || busy) return;
     setState("sending");
     const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
     try {
@@ -167,6 +186,19 @@ export function QuotePage({
       }
     } catch {
       setState("failed");
+    }
+  }
+
+  async function decline() {
+    const credential = quote && "decline_token" in quote ? quote.decline_token : null;
+    if (!credential || busy) return;
+    setState("declining");
+    const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+    try {
+      const result = await fetch(`${base}/q/${encodeURIComponent(credential)}/decline`, { method: "POST" });
+      setState(result.ok ? "declined" : "declineFailed");
+    } catch {
+      setState("declineFailed");
     }
   }
 
@@ -199,7 +231,7 @@ export function QuotePage({
                 autoComplete="name"
                 className="min-h-11 rounded-app-ctrl border border-input bg-background px-3 text-[16px]"
                 maxLength={120}
-                readOnly={state === "sending"}
+                readOnly={busy}
                 required
                 value={name}
                 onChange={(event) => {
@@ -215,12 +247,23 @@ export function QuotePage({
             )}
             <button
               type="submit"
-              disabled={state === "sending" || name.trim().length === 0}
+              disabled={busy || name.trim().length === 0}
               className="inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
             >
               {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
             </button>
           </form>
+
+          {quote.decline_token && (
+            <button
+              type="button"
+              onClick={decline}
+              disabled={busy}
+              className="mt-2 min-h-11 rounded-app-ctrl px-3 text-[15px] font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {t("quotes.declineAction")}
+            </button>
+          )}
 
           {/* A fact, once, quietly. Not a countdown — see the header. */}
           <p className="mt-4 text-[13px] text-muted-foreground">
@@ -230,6 +273,11 @@ export function QuotePage({
           {state === "failed" && (
             <p role="alert" className="mt-4 text-[15px] text-destructive">
               {t("quotes.acceptFailed", { business: quote.business_name })}
+            </p>
+          )}
+          {state === "declineFailed" && (
+            <p role="alert" className="mt-4 text-[15px] text-destructive">
+              {t("quotes.declineCustomerFailed", { business: quote.business_name })}
             </p>
           )}
         </>

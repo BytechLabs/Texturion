@@ -221,7 +221,12 @@ class QuotesRepository(private val api: ApiClient) {
         api.delete("/v1/quotes/$quoteId", companyId = companyId)
     }
 
-    suspend fun withdraw(companyId: String, quoteId: String) {
-        api.post<Map<String, Boolean>>("/v1/quotes/$quoteId/withdraw", companyId = companyId)
+    suspend fun decide(companyId: String, quoteId: String, action: String, reason: String?) {
+        val path = "/v1/quotes/$quoteId/$action"
+        if (reason == null) {
+            api.post<Map<String, Boolean>>(path, companyId = companyId)
+        } else {
+            api.post<Map<String, Boolean>, Map<String, String>>(path, body = mapOf("reason" to reason), companyId = companyId)
+        }
     }
 }

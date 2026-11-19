@@ -148,10 +148,10 @@ describe("#287 what may follow what", () => {
     }
   });
 
-  it("makes a decision final", () => {
+  it("only reopens accepted quotes", () => {
     for (const from of ["accepted", "declined"] as QuoteStatus[]) {
       for (const to of QUOTE_STATUSES) {
-        expect(canTransitionQuote(from, to), `${from} -> ${to}`).toBe(false);
+        expect(canTransitionQuote(from, to), `${from} -> ${to}`).toBe(from === "accepted" && to === "viewed");
       }
     }
   });
