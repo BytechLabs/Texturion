@@ -420,6 +420,10 @@ export const appShellEn = {
   billingSubscription: "Subscription",
   billingCanceled: "Your subscription is canceled.",
   billingPlan: "Plan",
+  billingStarterStarts: "Starter starts {date}.",
+  billingKeepPro: "Keep Pro",
+  billingKeepingPro: "Your Pro plan will continue.",
+  billingKeepProFailed: "Couldn’t keep Pro. Try again.",
   billingNoPlanYet: "No plan yet. Finish setup to pick one and get your number.",
   billingFairUse: "Allowances reflect fair use.",
   billingSeePolicy: "See the policy",
@@ -1489,6 +1493,10 @@ export const appShellFr: Translated<typeof appShellEn> = {
   billingSubscription: "Abonnement",
   billingCanceled: "Votre abonnement est annulé.",
   billingPlan: "Forfait",
+  billingStarterStarts: "Le forfait Starter commence le {date}.",
+  billingKeepPro: "Garder Pro",
+  billingKeepingPro: "Votre forfait Pro reste en vigueur.",
+  billingKeepProFailed: "Impossible de garder Pro. Réessayez.",
   billingNoPlanYet:
     "Aucun forfait pour l'instant. Terminez la configuration pour en choisir " +
     "un et obtenir votre numéro.",

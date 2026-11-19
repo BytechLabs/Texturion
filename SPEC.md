@@ -832,7 +832,8 @@ shell.
 | `PATCH /v1/company` | O/A | `{ name? }`; `{ overage_cap_multiplier? }` **owner only** (number or null) |
 | `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` when `subscription_status` ∈ ('active','past_due','unpaid') or a required registration draft is incomplete (§4.1 step 4) |
 | `POST /v1/billing/portal` | O/A | → `{ url }` hosted portal (payment methods, invoices, cancellation only) |
-| `POST /v1/billing/change-plan` | O/A | `{ plan: 'starter'\|'pro' }` — upgrade prorates now; downgrade at period end, blocked (409 `conflict`) until numbers ≤ 1 and active members ≤ 3 |
+| `POST /v1/billing/change-plan` | billing.manage | `{ plan: 'starter'\|'pro' }` — upgrades prorate immediately. Downgrades start at period end and require at most one number and three active or reserved seats. The pending Starter limit applies to new invites and numbers until the downgrade takes effect or is withdrawn. |
+| `POST /v1/billing/cancel-plan-change` | billing.manage | Keep Pro by releasing the pending Stripe schedule before Starter takes effect. |
 | `GET /v1/usage` | M | `{ period_start, period_end, included_segments, used_segments, overage_segments, cap_segments, projected_overage_cents }` from `usage_events` |
 | `GET /v1/numbers` | M | List numbers with status |
 | `POST /v1/numbers/provision` | O/A | Pro 2nd number: `{ requested_area_code }` (zod-validated against the shared NANP table; country fixed to the company's). Requires `Idempotency-Key`, active subscription, atomic count-vs-plan check; 409 `conflict` when the brand row has `sole_proprietor=true` and a non-released number exists (§4.2 cap) |

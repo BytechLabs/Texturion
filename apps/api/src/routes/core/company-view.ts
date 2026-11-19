@@ -123,7 +123,7 @@ export const COMPANY_COLUMNS =
   // readable by every client, not just the owner's settings screen — a member
   // deserves to see the date before it arrives rather than discovering it as
   // a wall.
-  "mfa_required_at,mfa_grace_until," +
+  "mfa_required_at,mfa_grace_until,pending_plan,pending_plan_effective_at," +
   "created_at,updated_at";
 
 // source + voice_enabled (FEATURE-GAPS voice wave): hosted-vs-purchased and
@@ -415,6 +415,8 @@ export const BILLING_ONLY_COMPANY_FIELDS = [
   "registration_fee_paid_at",
   "canceled_at",
   "cancel_at_period_end",
+  "pending_plan",
+  "pending_plan_effective_at",
   "offramp_message",
   "offramp_opted_in_at",
   // #277 follow-up: whether the win-back answer has been waved away. Withheld
@@ -580,7 +582,9 @@ export function withSeatDerived<T extends Record<string, unknown>>(
   return {
     ...company,
     seat_limit: seatLimit(
-      typeof company.plan === "string" ? company.plan : null,
+      typeof company.pending_plan === "string"
+        ? company.pending_plan
+        : typeof company.plan === "string" ? company.plan : null,
     ),
   };
 }

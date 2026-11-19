@@ -655,3 +655,18 @@ export function useChangePlan() {
     },
   });
 }
+
+export function useCancelPlanChange() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<{ pending_plan: null }>("/v1/billing/cancel-plan-change", {
+      method: "POST",
+      companyId,
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
+    },
+  });
+}

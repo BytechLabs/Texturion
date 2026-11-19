@@ -992,6 +992,10 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    func cancelPlanChange(_ companyId: String) async throws {
+        let _: JSONValue = try await api.post("/v1/billing/cancel-plan-change", companyId: companyId)
+    }
+
     // MARK: - Numbers the plan does not cover (#523)
 
     /// What this workspace holds beyond its allowance, and both ways back.

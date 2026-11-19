@@ -933,6 +933,10 @@ class SettingsRepository(
             companyId = companyId,
         )
 
+    suspend fun cancelPlanChange(companyId: String) {
+        api.post<JsonObject>("/v1/billing/cancel-plan-change", companyId = companyId)
+    }
+
     /**
      * #277 — why this workspace is leaving, recorded before the handoff.
      *

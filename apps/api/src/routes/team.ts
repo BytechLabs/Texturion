@@ -31,6 +31,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
+import { PENDING_PLAN_SEAT_LIMIT } from "../billing/pending-plan";
 import { billingRecipients } from "../billing/recipients";
 import { emailLayout,escapeHtml,renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
@@ -134,11 +135,11 @@ async function seatUsage(
   return { active: members.count ?? 0, pending: invites.count ?? 0 };
 }
 
-async function companyPlan(db: Db, companyId: string): Promise<string | null> {
-  const rows = unwrap<{ plan: string | null }[]>(
+async function companyPlan(db: Db, companyId: string) {
+  const rows = unwrap<{ plan: string | null; pending_plan?: string | null }[]>(
     await db
       .from("companies")
-      .select("plan")
+      .select("plan,pending_plan")
       .eq("id", companyId)
       .is("deleted_at", null)
       .limit(1),
@@ -147,7 +148,8 @@ async function companyPlan(db: Db, companyId: string): Promise<string | null> {
   if (!rows[0]) {
     throw new ApiError("not_found", "No such company.");
   }
-  return rows[0].plan;
+  const { plan, pending_plan: pending } = rows[0];
+  return { plan, seatPlan: pending ?? plan };
 }
 
 export const teamRoutes = new Hono<AppEnv>();
@@ -749,9 +751,9 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   const body = resendInviteId ? null : await parseJsonBody(c, inviteSchema);
   const db = getDb(env);
 
-  const plan = await companyPlan(db, companyId);
-  const seats = seatLimit(plan);
-  const result = unwrap<InviteCreation>(await db.rpc("api_create_invite", {
+  const { plan, seatPlan } = await companyPlan(db, companyId);
+  const seats = seatLimit(seatPlan);
+  const reservation = await db.rpc("api_create_invite", {
     p_company_id: companyId,
     p_invited_by: invitedBy,
     p_email: body?.email ?? null,
@@ -760,7 +762,12 @@ async function createOrResendInvite(c: Context<AppEnv>) {
     p_plan: plan,
     p_seats: seats,
     ...(resendInviteId ? { p_resend_invite_id: resendInviteId } : {}),
-  }), "invite create");
+  });
+  if (reservation.error?.code === PENDING_PLAN_SEAT_LIMIT) {
+    await capture(env, "team_invite_refused", companyId, { reason: "seat_limit" });
+    return errorResponse(c, "conflict", "This workspace has reached the seat limit for its scheduled plan.");
+  }
+  const result = unwrap<InviteCreation>(reservation, "invite create");
 
   if (result.outcome !== "created") {
     await capture(env, "team_invite_refused", companyId, { reason: result.outcome });
@@ -769,7 +776,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
     return errorResponse(
       c,
       "conflict",
-      `Seat limit reached: ${seats} seats on the ${plan ?? "starter"} plan ` +
+      `Seat limit reached: ${seats} seats on the ${seatPlan ?? "starter"} plan ` +
         `(${result.active} active members, ${result.pending} pending invites).`,
     );
   }
@@ -1069,14 +1076,14 @@ teamRoutes.post("/invites/accept", async (c) => {
 
   // Seat re-check, same formula (this invite is itself one of the pending
   // rows, so the comparison is against the plan's seats directly).
-  const plan = await companyPlan(db, invite.company_id);
-  const seats = seatLimit(plan);
+  const { seatPlan } = await companyPlan(db, invite.company_id);
+  const seats = seatLimit(seatPlan);
   const { active, pending } = await seatUsage(db, invite.company_id);
   if (active + pending > seats) {
     return errorResponse(
       c,
       "conflict",
-      `Seat limit reached: ${seats} seats on the ${plan ?? "starter"} plan.`,
+      `Seat limit reached: ${seats} seats on the ${seatPlan ?? "starter"} plan.`,
     );
   }
 

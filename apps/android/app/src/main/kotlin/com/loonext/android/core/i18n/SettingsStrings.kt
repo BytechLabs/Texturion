@@ -1577,6 +1577,9 @@ private val BILLING_EN = mapOf(
     "settings.resubscribe" to "Resubscribe",
 
     "settings.planTitle" to "Plan",
+    "settings.starterStarts" to "Starter starts {date}.",
+    "settings.keepPro" to "Keep Pro",
+    "settings.keepingPro" to "Your Pro plan will continue.",
     "settings.planNone" to
         "No plan yet. Finish setup on the web to pick one and get your number.",
     "settings.planNameAndPrice" to "{name} · {price}",
@@ -1941,6 +1944,9 @@ private val BILLING_FR = mapOf(
     "settings.resubscribe" to "Se réabonner",
 
     "settings.planTitle" to "Forfait",
+    "settings.starterStarts" to "Le forfait Starter commence le {date}.",
+    "settings.keepPro" to "Garder Pro",
+    "settings.keepingPro" to "Votre forfait Pro reste en vigueur.",
     "settings.planNone" to
         "Aucun forfait pour l'instant. Terminez la configuration sur le Web pour en " +
         "choisir un et obtenir votre numéro.",

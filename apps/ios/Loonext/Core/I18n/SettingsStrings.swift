@@ -1339,6 +1339,9 @@ private let settingsBillingEn: [String: String] = [
         + "still here either way.",
 
     "settings.planTitle": "Plan",
+    "settings.starterStarts": "Starter starts {date}.",
+    "settings.keepPro": "Keep Pro",
+    "settings.keepingPro": "Your Pro plan will continue.",
     "settings.planNone":
         "No plan yet. Finish setup on the web to pick one and get your number.",
     "settings.planNameAndPrice": "{name} · {price}",
@@ -1505,6 +1508,9 @@ private let settingsBillingFr: [String: String] = [
         + "votre historique de messages reste ici dans tous les cas.",
 
     "settings.planTitle": "Forfait",
+    "settings.starterStarts": "Le forfait Starter commence le {date}.",
+    "settings.keepPro": "Garder Pro",
+    "settings.keepingPro": "Votre forfait Pro reste en vigueur.",
     "settings.planNone":
         "Aucun forfait pour l'instant. Terminez la configuration sur le Web pour en "
         + "choisir un et obtenir votre numéro.",

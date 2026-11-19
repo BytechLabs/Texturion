@@ -79,6 +79,7 @@ const {
   exportContacts,
   checkout,
   changePlan,
+  cancelPlanChange,
   stated,
   dismiss,
   pause,
@@ -111,6 +112,7 @@ const {
   exportContacts: { mutate: vi.fn(), isPending: false },
   checkout: { mutate: vi.fn(), isPending: false },
   changePlan: { mutate: vi.fn(), isPending: false },
+  cancelPlanChange: { mutate: vi.fn(), isPending: false },
   stated: {
     /** What GET /v1/billing/cancellation-reason answered, or nothing yet. */
     data: undefined as { reason: string | null; stated_at: string | null } | undefined,
@@ -181,6 +183,7 @@ vi.mock("@/lib/api/billing", () => ({
   useRecordCancellationReason: () => record,
   useCheckout: () => checkout,
   useChangePlan: () => changePlan,
+  useCancelPlanChange: () => cancelPlanChange,
   useCancellationReason: (enabled: boolean) => {
     stated.asked = enabled;
     return stated;
@@ -538,6 +541,7 @@ beforeEach(() => {
   checkout.isPending = false;
   changePlan.mutate.mockReset();
   changePlan.isPending = false;
+  cancelPlanChange.mutate.mockReset();
   dismiss.mutate.mockReset();
   stated.data = undefined;
   stated.asked = undefined;
@@ -2231,6 +2235,19 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
       phase: "grace",
     });
     expect(screen.getByText(grace.heading)).toBeTruthy();
+  });
+
+  it("shows the scheduled Starter date and lets a bookkeeper keep Pro", () => {
+    renderPage("bookkeeper", {
+      plan: "pro",
+      subscription_status: "active",
+      canceled_at: null,
+      pending_plan: "starter",
+      pending_plan_effective_at: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    expect(screen.getByText(/Starter starts/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Pro" }));
+    expect(cancelPlanChange.mutate).toHaveBeenCalledOnce();
   });
 
   it("BILL-3: owner and admin are unchanged, and a member still gets nothing", () => {

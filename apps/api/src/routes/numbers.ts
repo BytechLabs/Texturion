@@ -34,6 +34,7 @@ import {
   syncPaidExtraCapacity,
 } from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
+import { PENDING_PLAN_NUMBER_LIMIT } from "../billing/pending-plan";
 import { loadNumberHealth } from "../messaging/number-health-read";
 import { NUMBER_PROVISION_CHURN_CAP, PLAN_LIMITS } from '../billing/plans';
 import type { PlanId } from '../billing/plans';
@@ -269,7 +270,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     .from("companies")
     .select(
       "id,country,subscription_status,plan,us_texting_enabled," +
-        "stripe_subscription_id,paid_capacity_epoch,paused_at," +
+        "stripe_subscription_id,paid_capacity_epoch,paused_at,pending_plan," +
         // #522: what Stripe actually charges this workspace. The extra-number
         // prices are filed in USD only, so a subscription billed in anything
         // else cannot take one.
@@ -285,6 +286,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     country: "US" | "CA";
     subscription_status: string;
     plan: PlanId | null;
+    pending_plan?: PlanId | null;
     us_texting_enabled: boolean;
     stripe_subscription_id: string | null;
     /** #110 raise fence — read BEFORE any billing conclusion below. */
@@ -412,6 +414,9 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
   // the included count this path is never consulted (no Stripe read).
   const included = PLAN_LIMITS[company.plan].numbers;
   const currentCount = await countNonReleasedNumbers(db, companyId);
+  if (company.pending_plan && currentCount >= PLAN_LIMITS[company.pending_plan].numbers) {
+    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+  }
   if (currentCount >= included) {
     const purchasable = extraNumberPurchasable({
       plan: company.plan,
@@ -565,6 +570,9 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     },
   );
   if (slotError) {
+    if (slotError.code === PENDING_PLAN_NUMBER_LIMIT) {
+      return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+    }
     throw new Error(`provision_number_slot failed: ${slotError.message}`);
   }
   const slot = parseWith(

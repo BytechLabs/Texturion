@@ -10,6 +10,7 @@ import {
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { CancelSubscriptionCard } from "@/components/settings/cancel-subscription-card";
 import {
@@ -41,7 +42,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useBillingPortal, usePauseOffer } from "@/lib/api/billing";
+import { useBillingPortal, useCancelPlanChange, usePauseOffer } from "@/lib/api/billing";
 import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -57,6 +58,29 @@ function fullDate(iso: string | null, locale: string): string | null {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function PendingStarterNotice({ effectiveAt }: { effectiveAt: string }) {
+  const t = useT();
+  const cancel = useCancelPlanChange();
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted px-3 py-2 text-sm">
+      <p>{t("appShell.billingStarterStarts", { date: fullDate(effectiveAt, t.locale) ?? "" })}</p>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={cancel.isPending}
+        onClick={() => cancel.mutate(undefined, {
+          onSuccess: () => toast.success(t("appShell.billingKeepingPro")),
+          onError: (cause) => toast.error(
+            cause instanceof ApiError ? cause.message : t("appShell.billingKeepProFailed"),
+          ),
+        })}
+      >
+        {t("appShell.billingKeepPro")}
+      </Button>
+    </div>
+  );
 }
 
 function PortalButton({
@@ -421,6 +445,9 @@ export default function BillingSettingsPage() {
                     })}
                   </p>
                 )}
+                {canManage && company.data.pending_plan === "starter" && company.data.pending_plan_effective_at && (
+                  <PendingStarterNotice effectiveAt={company.data.pending_plan_effective_at} />
+                )}
                 {/* #400/D107: the prepaid year, below the plan it applies to. Gated
               on an owner/admin with a healthy subscription — the server checks
               the rest (activated, no plan change pending, no year already
@@ -458,6 +485,7 @@ export default function BillingSettingsPage() {
               card below. */}
           {canManage &&
                   company.data.subscription_status === "active" &&
+                  !company.data.pending_plan &&
                   readSaysRunning(pause) && (
                     <ChangePlanDialog company={company.data} />
                   )}

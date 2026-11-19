@@ -81,6 +81,7 @@ const SUITES = [
   "mfa",
   "workspace_mfa_notices",
   "team_invite_capacity",
+  "pending_plan_downgrade",
   "app_version",
   "feature_flags",
   "number_reputation",

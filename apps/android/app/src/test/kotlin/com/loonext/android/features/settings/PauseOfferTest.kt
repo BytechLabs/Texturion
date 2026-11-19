@@ -1279,8 +1279,8 @@ class PauseOfferTest {
             card.contains("paused == null"),
         )
         assertTrue(
-            "the plan switch must be gated on the read having ANSWERED",
-            Regex("if \\(canManage && company\\.subscriptionActive && running\\)")
+            "the plan switch requires a running plan without a pending change",
+            Regex("if \\(canManage && company\\.subscriptionActive && running && company\\.pending_plan == null\\)")
                 .containsMatchIn(card),
         )
         assertTrue(
