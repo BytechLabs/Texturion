@@ -103,7 +103,7 @@ function buildHarness(
   rest.rpc("api_evaluate_flags", () => ({}));
   rest.rpc("api_mint_public_link", () => "link-token-0001");
   rest.rpc("api_revoke_public_link", () => null);
-  rest.rpc("gate_outbound_send", (args) => {
+  rest.rpc("api_gate_public_link_send", (args) => {
     if (options.optedOut) return { outcome: "opted_out" };
     // The real RPC inserts the row atomically with the gate; the double does
     // the same, because dispatch immediately updates it by id.
@@ -133,10 +133,10 @@ function buildHarness(
     return c.json({ error: { code: "internal_error", message: String(error) } }, 500);
   });
 
-  const telnyxCalls: URL[] = [];
-  const telnyx: FetchRoute = async (url) => {
+  const telnyxCalls: { text: string }[] = [];
+  const telnyx: FetchRoute = async (url, request) => {
     if (url.origin !== "https://api.telnyx.com") return undefined;
-    telnyxCalls.push(url);
+    telnyxCalls.push(await request.json<{ text: string }>());
     return Response.json({ data: { id: "telnyx-msg-0001", parts: 2 } });
   };
   stubFetch(telnyx, rest.route());
@@ -159,7 +159,7 @@ afterEach(() => {
 });
 
 describe("#287 POST /quotes/:id/send", () => {
-  it("puts a text in the thread carrying the link", async () => {
+  it("stores the quote text with a placeholder for the customer link", async () => {
     // THE ASSERTION NOBODY WROTE. The route returned 200 and marked the row
     // sent while no message existed, and every test passed.
     const harness = buildHarness();
@@ -173,13 +173,7 @@ describe("#287 POST /quotes/:id/send", () => {
     expect(body).toContain("Replace the water heater");
     // The amount, so nobody has to open a link to learn what they are quoted.
     expect(body).toContain("450");
-    /*
-     * The link. Asserted by SHAPE rather than by a literal: the token is
-     * generated in-process and only its SHA-256 is ever stored, so the value in
-     * the text is not something a stub can dictate — which is the property that
-     * makes the link safe in the first place.
-     */
-    expect(body).toMatch(/\/q\/[A-Za-z0-9_-]{20,}/);
+    expect(body).toContain("https://app.loonext.com/q/[private link]");
   });
 
   it("hands it to the carrier rather than only writing a row", async () => {
@@ -187,7 +181,8 @@ describe("#287 POST /quotes/:id/send", () => {
     // row in it.
     const harness = buildHarness();
     await harness.send();
-    expect(harness.telnyxCalls.length).toBeGreaterThan(0);
+    const [carrier] = harness.telnyxCalls;
+    expect(carrier?.text).toMatch(/\/q\/[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/);
   });
 
   it("records WHICH message carried it", async () => {

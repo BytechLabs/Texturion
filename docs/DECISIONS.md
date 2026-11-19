@@ -3901,6 +3901,10 @@ below follows from that sentence.
 - **Only the SHA-256 hash is stored.** The plaintext is returned once, at mint,
   and never again — not to support, not to a query. A leaked backup or a log line
   then discloses nothing usable. This is what makes keeping an access log safe.
+- **Outbound customer links.** The carrier receives the live quote, payment,
+  or job-photo URL. Message history and message webhooks receive a placeholder.
+  Retries mint a fresh URL with the original purpose and expiry. Revoking the
+  original link also revokes the links created by retries.
 - **Purpose is stored and checked, never inferred from the route.** A token
   minted to VIEW a quote cannot be replayed against the route that ACCEPTS it.
   Without this, one leaked view link accepts the quote.

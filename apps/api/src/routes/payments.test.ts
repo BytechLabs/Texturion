@@ -170,7 +170,7 @@ function buildHarness(options: {
   rest.rpc("api_evaluate_flags", () => ({}));
   rest.rpc("api_mint_public_link", () => "link-0001");
   rest.rpc("api_revoke_public_link", () => null);
-  rest.rpc("gate_outbound_send", (args) => {
+  rest.rpc("api_gate_public_link_send", (args) => {
     if (options.optedOut) {
       return { outcome: "opted_out" };
     }

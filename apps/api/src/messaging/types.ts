@@ -11,6 +11,8 @@ export interface MessageRow {
   conversation_id: string;
   direction: "inbound" | "outbound" | "note";
   body: string;
+  /** Original public link IDs in body order, with null for unrecognized links. */
+  public_link_ids?: (string | null)[] | null;
   telnyx_message_id: string | null;
   status: "received" | "queued" | "sent" | "delivered" | "failed" | null;
   segments: number | null;

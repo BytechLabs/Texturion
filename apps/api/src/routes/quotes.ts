@@ -490,15 +490,7 @@ quotesRoutes.post(
       return errorResponse(c, "conflict", "quote is no longer a draft");
     }
 
-    /*
-     * The text, composed HERE rather than on three clients. The tokens never
-     * leave this Worker: returning them was what made the old shape look
-     * finished while nothing was ever delivered.
-     *
-     * The VIEW link is what the customer opens. Accepting carries its own
-     * token, which the page fetches — a forwarded link, or one scraped from an
-     * SMS log, cannot commit anybody to a price.
-     */
+    // The carrier receives the live link. The app and integrations see a placeholder.
     const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/q/${viewLink.token}`;
     const text = quoteSms({
       // #228: what the CUSTOMER reads, not what the crew does. A quote is the
@@ -559,13 +551,19 @@ quotesRoutes.post(
       .eq("id", id);
 
     try {
-      await dispatchOutbound(env, db, message, {
+      const dispatched = await dispatchOutbound(env, db, message, {
         from: fromNumber,
         to: view.contact_phone_e164,
         text,
         mediaUrls: [],
         clearance,
       });
+      if (!dispatched.telnyx_message_id) {
+        await releaseSend(db, companyId, id);
+        return errorResponse(c, "conflict", "The quote text failed. Retry it in the conversation.", {
+          key: "apiRefusals.quoteTextRetry",
+        });
+      }
     } catch (error) {
       // The message row survives — the outbox owns retrying a carrier that was
       // briefly unreachable, and deleting it would lose the text. What must not
@@ -608,9 +606,6 @@ quotesRoutes.post(
       });
     });
 
-    // No tokens. The accept token is the customer's to receive, once, in a text
-    // they already have — handing it back to the sender is a second copy of a
-    // credential with nothing to do.
     return c.json({
       ...withEffectiveStatus(sent[0], new Date(), c.get("role")),
       message_id: message.id,

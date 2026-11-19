@@ -515,18 +515,13 @@ paymentRequestRoutes.post(
       .eq("id", request.id)
       .eq("company_id", companyId);
 
-    try {
-      await dispatchOutbound(env, db, message, {
-        from: fromNumber,
-        to: view.contact_phone_e164,
-        text,
-        mediaUrls: [],
-        clearance,
-      });
-    } catch (error) {
-      await cancelQuietly(env, db, companyId, request.id, paymentLink.id, link.id);
-      throw error;
-    }
+    await dispatchOutbound(env, db, message, {
+      from: fromNumber,
+      to: view.contact_phone_e164,
+      text,
+      mediaUrls: [],
+      clearance,
+    });
 
     await insertConversationEvents(db, [
       {

@@ -107,7 +107,7 @@ it.each([
   });
   stubFetch(sb.route);
 
-  const response = await call(path, { method });
+  const response = await call(path, method === "POST" ? acceptRequest() : { method });
 
   expect(response.status).toBe(404);
   expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
@@ -455,24 +455,8 @@ describe("POST /q/:token/accept", () => {
 });
 
 /**
- * #581 finding 1 — the token in the customer's text message cannot accept.
- *
- * ## The defect these were written for
- *
- * `POST /q/:token/accept` resolved `quote_view`: the same token that
- * `POST /v1/quotes/:id/send` writes into the SMS body. That body is stored as
- * `messages.body` forever, and it is read by every member holding
- * `conversations.read` — which includes `read_only`, the role the capability
- * table gives no write anywhere — by any API key with `messages:read`, and by
- * any customer-supplied webhook endpoint subscribed to `message.sent`.
- *
- * So the ability to bind the business to a price, record it as the CUSTOMER's
- * own decision, create a job from it, and revoke the real customer's link in
- * the process, was held by all of them. There is no authenticated route in the
- * product that does that, and nothing that undoes it.
- *
- * The credential is now minted when the customer OPENS the page and returned
- * only in that response — the one channel that reaches them and nobody else.
+ * The quote page issues a single-use credential for the customer's decision.
+ * History and message webhooks omit the link that opens the page.
  *
  * ## Why nothing caught it
  *

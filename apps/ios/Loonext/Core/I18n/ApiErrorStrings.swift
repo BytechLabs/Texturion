@@ -275,6 +275,8 @@ enum ApiErrorStrings {
                 "A pending invite for this email already exists.",
             "apiRefusals.numberCountryMismatch":
                 "chosen_number_e164 must be a {country} number (the company's country).",
+            "apiRefusals.privateLinkRetryUnavailable": "Send a new private link to this customer.",
+            "apiRefusals.quoteTextRetry": "The quote text failed. Retry it in the conversation.",
             "apiRefusals.numberNotAssigned":
                 "chosen_number_e164 is not an assigned US/CA geographic number.",
             "apiRefusals.optOutNotActive": "This number is not opted out.",
@@ -620,6 +622,8 @@ enum ApiErrorStrings {
                 "Une invitation à cette adresse courriel est déjà en attente.",
             "apiRefusals.numberCountryMismatch":
                 "Choisissez un numéro du pays où votre espace de travail est enregistré ({country}).",
+            "apiRefusals.privateLinkRetryUnavailable": "Envoyez un nouveau lien privé à ce client.",
+            "apiRefusals.quoteTextRetry": "Le texto du devis a échoué. Réessayez dans la conversation.",
             "apiRefusals.numberNotAssigned":
                 "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
             "apiRefusals.optOutNotActive": "Ce numéro ne figure pas dans la liste de désabonnement.",

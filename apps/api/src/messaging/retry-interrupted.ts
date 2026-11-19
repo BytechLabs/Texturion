@@ -112,6 +112,7 @@ async function retryOne(
     from,
     to,
     text: (requeued).body ?? "",
+    refreshPublicLinks: true,
     mediaUrls,
     clearance,
   });
