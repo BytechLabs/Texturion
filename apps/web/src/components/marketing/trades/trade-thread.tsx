@@ -27,9 +27,9 @@ import { avatarInitials } from "@loonext/shared";
  * outside, and no demo-labeling chip is attached (owner amendment 2026-07-08).
  */
 
-import { CheckCheck, CircleCheck, ImageIcon, Lock, Play } from "lucide-react";
+import { CheckCheck, CircleCheck, ImageIcon, Lock } from "lucide-react";
 
-import { DemoStatusPill } from "@/components/marketing/thread-demo/thread-primitives";
+import { DemoStatusPill, VoicemailPill } from "@/components/marketing/thread-demo/thread-primitives";
 import { formatCallDuration } from "@/lib/format/call-duration";
 import { cn } from "@/lib/utils";
 
@@ -145,8 +145,10 @@ function OutboundBeat({
   beat,
   done,
   doneLabel,
+  threadCopy,
 }: {
   beat: TradeOutboundBeat;
+  threadCopy: ThreadDemoCopy;
   done: boolean;
   doneLabel: string;
 }) {
@@ -167,7 +169,7 @@ function OutboundBeat({
           <span>{beat.time}</span>
           <span aria-hidden> · </span>
           <span>
-            Delivered{" "}
+            {threadCopy.delivered}{" "}
             <CheckCheck
               aria-hidden
               className="inline size-3"
@@ -184,8 +186,10 @@ function NoteBeat({
   beat,
   done,
   doneLabel,
+  threadCopy,
 }: {
   beat: TradeNoteBeat;
+  threadCopy: ThreadDemoCopy;
   done: boolean;
   doneLabel: string;
 }) {
@@ -199,7 +203,7 @@ function NoteBeat({
       >
         <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
           <Lock className="size-3" strokeWidth={1.75} aria-hidden />
-          Internal note · {beat.by}
+          {threadCopy.internalNote} · {beat.by}
         </span>
         <span className={cn(done && "line-through")}>{beat.body}</span>
       </div>
@@ -236,21 +240,6 @@ function callSentence(
     : copy.callAnswered;
 }
 
-/**
- * The D43 voicemail player AT REST. The product's real player is a button
- * that fetches a signed URL; here it is the same pill in the same tokens,
- * rendered as a span, because the depiction adds zero tab stops (Law 11) and
- * there is no recording behind it. Same rule <ComposerAtRest> follows.
- */
-function VoicemailPill({ seconds }: { seconds: number }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-paper px-2.5 py-1 text-[12px] font-medium text-app-ink">
-      <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
-      Play voicemail ({formatCallDuration(seconds)})
-    </span>
-  );
-}
-
 function CallBeat({
   beat,
   threadCopy,
@@ -264,7 +253,7 @@ function CallBeat({
       {beat.voicemail && (
         <>
           <span className="flex justify-center">
-            <VoicemailPill seconds={beat.voicemail.seconds} />
+            <VoicemailPill seconds={beat.voicemail.seconds} copy={threadCopy} />
           </span>
           {/* The words, right where the message is (#367): a line that only
               says a voicemail exists still leaves the reader having to play
@@ -308,23 +297,23 @@ function renderBeat(
   }
   if (beat.kind === "outbound") {
     return (
-      <OutboundBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />
+      <OutboundBeat threadCopy={threadCopy} key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />
     );
   }
-  return <NoteBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />;
+  return <NoteBeat threadCopy={threadCopy} key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />;
 }
 
 /** Static composer pill at rest, matching the app's composer card (empty
  *  draft, Send inactive). Pure depiction: spans only, zero tab stops. */
-function ComposerAtRest() {
+function ComposerAtRest({ copy }: { copy: ThreadDemoCopy }) {
   return (
     <div className="border-t border-app-line bg-app-paper px-3 pb-3 pt-2">
       <div className="flex items-end gap-1 rounded-app-card border border-app-line bg-app-paper px-2 py-1.5">
         <span className="min-h-9 flex-1 px-2 py-2 text-[14px] leading-6 text-muted-foreground">
-          Text message
+          {copy.composerPlaceholder}
         </span>
         <span className="mb-0.5 inline-flex h-8 items-center gap-1.5 rounded-app-ctrl bg-primary px-3 text-[13px] font-semibold opacity-45">
-          Send
+          {copy.composerSend}
         </span>
       </div>
     </div>
@@ -355,7 +344,7 @@ export function TradeThread({
       <div className="flex flex-col gap-3 px-4 py-4">
         {script.beats.map((beat) => renderBeat(beat, doneSet, doneLabels, threadCopy))}
       </div>
-      <ComposerAtRest />
+      <ComposerAtRest copy={threadCopy} />
     </div>
   );
 }

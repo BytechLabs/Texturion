@@ -188,7 +188,8 @@ class AuthManager(
         password: String,
         displayName: String,
         captchaToken: String? = null,
-    ): Boolean = when (val result = auth.signUp(email, password, displayName, captchaToken)) {
+        locale: String = "en",
+    ): Boolean = when (val result = auth.signUp(email, password, displayName, captchaToken, locale)) {
         is SignUpResult.SignedIn -> {
             sessionStore.save(result.session.toSession())
             true

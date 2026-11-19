@@ -484,8 +484,14 @@ func formatMonthlyCents(_ cents: Int) -> String {
 /// Which makes this right only while the amount really is the reader's currency.
 /// Use `formatMoneyIn` for anything filed in one currency and quoted to
 /// everybody, like the USD-only extra-number line.
-func formatCents(_ cents: Int) -> String {
-    "$" + String(format: "%.2f", locale: settingsPosixLocale, Double(cents) / 100.0)
+func formatCents(_ cents: Int, locale: String? = nil) -> String {
+    let dollars = Double(cents) / 100.0
+    if locale == "fr-CA" {
+        let amount = dollars.formatted(.number.locale(Locale(identifier: "fr_CA"))
+            .precision(.fractionLength(2)).grouping(.never))
+        return amount + " $"
+    }
+    return "$" + String(format: "%.2f", locale: settingsPosixLocale, dollars)
 }
 
 /// Money whose currency is not necessarily the reader's — `formatMoney`'s twin
@@ -637,9 +643,9 @@ func extraNumberMonthlyCents(_ plan: String?) -> Int? {
 /// used to print was the defect in miniature — to a Canadian reader "$5" means
 /// CA$5 for a line the card takes US$5 for. `formatMoneyIn` states the currency
 /// exactly when it differs from the reader's.
-func extraNumberMonthly(_ plan: String?, audience: BillingCurrency) -> String? {
+func extraNumberMonthly(_ plan: String?, audience: BillingCurrency, locale: String? = nil) -> String? {
     guard let cents = extraNumberMonthlyCents(plan) else { return nil }
-    return formatMoneyIn(cents, extraNumberCurrency, audience: audience) + "/mo"
+    return formatMoneyIn(cents, extraNumberCurrency, audience: audience, locale: locale) + (locale == "fr-CA" ? "/mois" : "/mo")
 }
 
 /// Why this workspace cannot buy one more number, or nil when it can.
@@ -785,7 +791,7 @@ func enableUsTextingCopy(
     paused: Bool,
     locale: String? = nil
 ) -> EnableUsTextingCopy {
-    let fee = formatMonthlyCents(usRegistrationFeeCents(currency))
+    let fee = formatMoneyIn(usRegistrationFeeCents(currency), currency, audience: currency, locale: locale)
     func t(_ key: String, _ vars: [String: String] = [:]) -> String {
         AppStrings.translate(locale, key, vars)
     }
@@ -883,18 +889,19 @@ struct PlanFacts: Equatable, Sendable {
 /// moves this card and the cancel answer together. Unprefixed "$": it is the
 /// reader's own money, and "CA$39" to a Canadian reads as though we expect them
 /// to be confused about it. Web's twin is `planFactsFor` in plan-facts.ts.
-func planFacts(_ plan: String?, _ currency: BillingCurrency) -> PlanFacts? {
+func planFacts(_ plan: String?, _ currency: BillingCurrency, locale: String? = nil) -> PlanFacts? {
+    let interval = locale == "fr-CA" ? "/mois" : "/mo"
     switch plan {
     case "starter":
         return PlanFacts(
             name: "Starter",
-            price: formatMonthlyCents(planPriceCents("starter", currency)) + "/mo",
+            price: formatMoneyIn(planPriceCents("starter", currency), currency, audience: currency, locale: locale) + interval,
             seats: starterSeats, numbers: starterNumbers, voiceMinutes: 2500
         )
     case "pro":
         return PlanFacts(
             name: "Pro",
-            price: formatMonthlyCents(planPriceCents("pro", currency)) + "/mo",
+            price: formatMoneyIn(planPriceCents("pro", currency), currency, audience: currency, locale: locale) + interval,
             seats: proSeats, numbers: proNumbers, voiceMinutes: 6000
         )
     default:
@@ -1768,8 +1775,8 @@ private func tooExpensiveCancellationOffer(
     let currency = billingCurrencyFor(stored: billingCurrency, country: country)
     // Unprefixed "$": it is the reader's own money. `formatMonthlyCents` drops
     // the cents on a whole dollar, which is what `formatMoney` does too.
-    let starter = formatMonthlyCents(planPriceCents("starter", currency))
-    let pro = formatMonthlyCents(planPriceCents("pro", currency))
+    let starter = formatMoneyIn(planPriceCents("starter", currency), currency, audience: currency, locale: locale)
+    let pro = formatMoneyIn(planPriceCents("pro", currency), currency, audience: currency, locale: locale)
     // True on both routes back: both end at a Starter subscription built from
     // the Starter prices, and the metered allowances ride those same prices.
     let price = t(
@@ -2022,10 +2029,10 @@ private func missingFeatureCancellationOffer(locale: String? = nil) -> Cancellat
 ///
 /// A workspace already paused gets nil too. The offer is over for them, and what
 /// they have instead is `pausedMonthlyPrice`.
-func pauseOfferPrice(_ pause: BillingPause?) -> String? {
+func pauseOfferPrice(_ pause: BillingPause?, locale: String? = nil) -> String? {
     guard let pause, pause.isEligible, !pauseIsActive(pause),
           let cents = pause.monthly_cents else { return nil }
-    return formatMonthlyCents(cents)
+    return formatMoneyIn(cents, .usd, audience: .usd, locale: locale)
 }
 
 /// Is this workspace paused RIGHT NOW?
@@ -2048,9 +2055,9 @@ func pauseIsActive(_ pause: BillingPause?) -> Bool {
 /// licensed line IS the holding fee, so printing the plan's own price over it
 /// would be this screen telling somebody they are paying many times what they
 /// are — about their own money, on the billing screen.
-func pausedMonthlyPrice(_ pause: BillingPause?) -> String? {
+func pausedMonthlyPrice(_ pause: BillingPause?, locale: String? = nil) -> String? {
     guard pauseIsActive(pause), let cents = pause?.monthly_cents else { return nil }
-    return formatMonthlyCents(cents)
+    return formatMoneyIn(cents, .usd, audience: .usd, locale: locale)
 }
 
 /// The pause price to answer `seasonal` with, or nil to leave the shared answer
@@ -2064,8 +2071,8 @@ func pausedMonthlyPrice(_ pause: BillingPause?) -> String? {
 /// workspace that could pause, because "your number survives the winter" is not
 /// an answer to "this costs too much" — it is a different offer wearing the
 /// same slot. The three reasons that answer nothing still answer nothing.
-func pauseAnswerPrice(reason: String?, pause: BillingPause?) -> String? {
-    reason == cancellationReasonSeasonal ? pauseOfferPrice(pause) : nil
+func pauseAnswerPrice(reason: String?, pause: BillingPause?, locale: String? = nil) -> String? {
+    reason == cancellationReasonSeasonal ? pauseOfferPrice(pause, locale: locale) : nil
 }
 
 /// The offer, in the same voice the cancel card's other answers use.
@@ -2142,7 +2149,7 @@ func pausedConfirmationMessage(monthlyCents: Int?, locale: String? = nil) -> Str
     return AppStrings.translate(
         locale,
         "settings.pausedConfirmPriced",
-        ["price": formatMonthlyCents(monthlyCents)]
+        ["price": formatMoneyIn(monthlyCents, .usd, audience: .usd, locale: locale)]
     )
 }
 
@@ -2499,7 +2506,8 @@ func heldNumbersState(
         view,
         read: read,
         billingWritesEnabled: billingWritesEnabled,
-        audience: audience
+        audience: audience,
+        locale: locale
     )
     return HeldNumbersState(
         copy: heldNumbersCopy(
@@ -2518,7 +2526,8 @@ func heldNumbersOffer(
     _ view: HeldNumbers,
     read: PauseRead,
     billingWritesEnabled: Bool,
-    audience: BillingCurrency
+    audience: BillingCurrency,
+    locale: String? = nil
 ) -> HeldNumbersOffer {
     // A pause outranks everything below it: it is the one state with its own
     // one-press way out, and that press is on the card directly above this one.
@@ -2554,7 +2563,7 @@ func heldNumbersOffer(
           let currency = view.extra_number_currency.flatMap(BillingCurrency.init(rawValue:))
     else { return .noPurchase }
 
-    return .buy(price: formatMoneyIn(cents, currency, audience: audience) + "/mo")
+    return .buy(price: formatMoneyIn(cents, currency, audience: audience, locale: locale) + (locale == "fr-CA" ? "/mois" : "/mo"))
 }
 
 /// The sentences, given what is on offer.

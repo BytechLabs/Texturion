@@ -45,17 +45,19 @@ const crewElsewhere = (currency: BillingCurrency, copy: HomeCopy) =>
 /** The question list for one currency; `faqsForCountry` picks which. */
 function homeFaqs(
   audience: BillingCurrency,
+  locale: MarketingLocale,
   copy: HomeCopy,
 ): readonly HomeFaq[] {
-  const starter = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience);
-  const pro = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", audience);
-  const registration = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience);
+  const starter = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience, locale);
+  const pro = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", audience, locale);
+  const registration = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience, locale);
   // The first month is a SUM, so it is the figure that can go wrong while both
   // of its parts stay right. Added here rather than written down.
   const firstMonth = formatMoney(
     PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
     "usd",
     audience,
+    locale,
   );
   return [
     {
@@ -125,13 +127,13 @@ function homeFaqs(
   ];
 }
 
-export const HOME_FAQS: readonly HomeFaq[] = homeFaqs("usd", homeEn);
+export const HOME_FAQS: readonly HomeFaq[] = homeFaqs("usd", "en", homeEn);
 
 export function faqsForCountry(
   country: Country,
   locale: MarketingLocale = "en",
 ): { q: string; a: string }[] {
-  return homeFaqs(currencyForCountry(country), homeCopy(locale))
+  return homeFaqs(currencyForCountry(country), locale, homeCopy(locale))
     .filter((f) => !f.only || f.only === country)
     .map((f) => ({
       q: country === "ca" && f.qCa ? f.qCa : f.q,

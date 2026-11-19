@@ -115,7 +115,7 @@ function PaymentRow({
   cancelling: boolean;
 }) {
   const tone = toneFor(row.state);
-  const amount = formatMoney(row.amount_cents, row.currency);
+  const amount = formatMoney(row.amount_cents, row.currency, row.currency, t.locale);
   return (
     <li
       className={cn(
@@ -145,7 +145,7 @@ function PaymentRow({
         {row.state === "refunded" && row.amount_refunded_cents !== null && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {t("payments.refundedBack", {
-              amount: formatMoney(row.amount_refunded_cents, row.currency),
+              amount: formatMoney(row.amount_refunded_cents, row.currency, row.currency, t.locale),
             })}
           </p>
         )}

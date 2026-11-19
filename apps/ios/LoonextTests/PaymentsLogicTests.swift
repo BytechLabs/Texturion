@@ -508,7 +508,7 @@ final class PaymentsLogicTests: XCTestCase {
         let request = try JSONDecoder().decode(PaymentRequest.self, from: Data(json.utf8))
         XCTAssertEqual(request.resolvedState, .paid)
         XCTAssertEqual(request.billingCurrency, .cad)
-        XCTAssertEqual(request.amountLabel, "$250")
+        XCTAssertEqual(request.amountLabel(locale: "en"), "$250")
 
         let account = PayoutAccount(
             connected: true,
@@ -542,7 +542,7 @@ final class PaymentsLogicTests: XCTestCase {
         """
         let request = try JSONDecoder().decode(PaymentRequest.self, from: Data(json.utf8))
         XCTAssertEqual(request.billingCurrency, .usd)
-        XCTAssertEqual(request.amountLabel, "$250")
+        XCTAssertEqual(request.amountLabel(locale: "en"), "$250")
         XCTAssertTrue(paymentRequestCancellable(request.facts))
     }
 

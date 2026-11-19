@@ -497,12 +497,12 @@ private struct PlanCard: View {
             }
         } else if shape == .paused {
             pausedPlan
-        } else if let facts = planFacts(company.plan, company.billedIn),
+        } else if let facts = planFacts(company.plan, company.billedIn, locale: appLocale),
                   case .unconfirmed(let checking) = shape {
             // BEFORE the ordinary plan card, not after it: this branch exists
             // precisely to stop that one rendering on a fact nobody has read.
             unconfirmedPlan(facts: facts, checking: checking)
-        } else if let facts = planFacts(company.plan, company.billedIn) {
+        } else if let facts = planFacts(company.plan, company.billedIn, locale: appLocale) {
             SettingsCard(title: t("settings.planTitle"), anchor: "plan") {
                 HStack(spacing: 10) {
                     // #328: priced in what this workspace's card is actually
@@ -711,7 +711,7 @@ private struct PlanCard: View {
         // back off the same value that decided the branch keeps the two from
         // ever describing different pauses.
         let paused = read.answer
-        let facts = planFacts(paused?.resume_plan ?? company.plan, company.billedIn)
+        let facts = planFacts(paused?.resume_plan ?? company.plan, company.billedIn, locale: appLocale)
         SettingsCard(title: t("settings.planTitle")) {
             HStack(spacing: 10) {
                 Text(
@@ -726,7 +726,7 @@ private struct PlanCard: View {
             // figure — see `pausedStateLines`. Nothing here falls back to the
             // plan price.
             ForEach(
-                pausedStateLines(price: pausedMonthlyPrice(paused), locale: appLocale),
+                pausedStateLines(price: pausedMonthlyPrice(paused, locale: appLocale), locale: appLocale),
                 id: \.self
             ) { line in
                 Text(t("settings.planAllowanceLine", ["line": line]))
@@ -773,7 +773,7 @@ private struct PlanCard: View {
             do {
                 let resumed = try await scope.repo.resumePlan(scope.companyId)
                 scope.showMessage(
-                    planFacts(resumed.plan, company.billedIn)
+                    planFacts(resumed.plan, company.billedIn, locale: locale)
                         .map {
                             AppStrings.translate(
                                 locale,
@@ -1003,7 +1003,7 @@ private struct ChangePlanSheet: View {
             // The currency the year was COLLECTED in, printed as its own money.
             let paid = BillingCurrency(rawValue: prepaid.currency) ?? .usd
             let credit = prepaid.conversion.map {
-                formatMoneyIn($0.credit_cents, paid, audience: paid)
+                formatMoneyIn($0.credit_cents, paid, audience: paid, locale: appLocale)
             }
             let copy = prepaidConversionCopy(
                 from: prepaid.plan, to: targetPlan, credit: credit, locale: appLocale
@@ -1014,7 +1014,7 @@ private struct ChangePlanSheet: View {
                 Text(
                     t(
                         "settings.prepaidPaidUpFront",
-                        ["amount": formatMoneyIn(prepaid.amount_cents, paid, audience: paid)]
+                        ["amount": formatMoneyIn(prepaid.amount_cents, paid, audience: paid, locale: appLocale)]
                     )
                 )
                 .font(.footnote)
@@ -1130,7 +1130,7 @@ private struct ModulesCard: View {
                                     "settings.moduleRow",
                                     [
                                         "name": module.label,
-                                        "price": formatMonthlyCents(module.monthly_cents),
+                                        "price": formatMoneyIn(module.monthly_cents, .usd, audience: .usd, locale: appLocale),
                                     ]
                                 ),
                                 supporting: module.blurb,
@@ -1171,7 +1171,7 @@ private struct ModulesCard: View {
                     message: enabling
                         ? t(
                             "settings.moduleAddBody",
-                            ["price": formatMonthlyCents(module.monthly_cents)]
+                            ["price": formatMoneyIn(module.monthly_cents, .usd, audience: .usd, locale: appLocale)]
                         )
                         : t("settings.moduleRemoveBody", ["name": module.label]),
                     confirmLabel: t(
@@ -1650,13 +1650,14 @@ private struct CancelCard: View {
             // new between the consequence copy and the button.
             // #722: and the workspace's own list must offer the pause.
             if company.allowed_actions.allows("pause"),
-               let price = pauseAnswerPrice(reason: chosen, pause: read.answer) {
+               let price = pauseAnswerPrice(reason: chosen, pause: read.answer, locale: appLocale) {
                 PauseOfferNote(
                     scope: scope,
                     price: price,
                     resumePlanName: planFacts(
                         read.answer?.resume_plan ?? company.plan,
-                        company.billedIn
+                        company.billedIn,
+                        locale: appLocale
                     )?.name,
                     onPaused: onPauseChanged
                 )

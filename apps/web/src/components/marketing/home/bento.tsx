@@ -140,9 +140,7 @@ export function Bento({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         {/* 3 · Saved replies (anchor: the "/" picker). */}
         <FrCard className="p-6">
           <CellHeader title={copy.bentoTemplatesTitle}>
-            Type &quot;/&quot; and send your on-my-way, quote-follow-up, or
-            booking text in two taps. Write them once, stop retyping them
-            forever.
+            {copy.bentoTemplatesBody}
           </CellHeader>
           <PanelFrame
             className="mt-5"

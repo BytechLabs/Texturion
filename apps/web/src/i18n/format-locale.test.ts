@@ -126,19 +126,11 @@ const FIXED_LOCALE: readonly { file: string; why: string }[] = [
     why: "The customer-facing quote page: a stranger's language is unknown, and a quote is stated in Canadian dollars and dates.",
   },
   {
-    file: "components/settings/pause-plan.tsx",
-    why: "A USD price quoted with a hard-coded $ prefix, deliberately: the offer says what it is and does not guess a currency symbol.",
-  },
-  {
     file: "app/(marketing)/compare/verification.ts",
     why: "Marketing pages carry their own locale in the route (D138), not the app's setting.",
   },
   {
     file: "components/marketing/interactive/missed-text-calculator.tsx",
-    why: "Marketing calculator, USD.",
-  },
-  {
-    file: "components/marketing/interactive/missed-text-calculator-static.tsx",
     why: "Marketing calculator, USD.",
   },
 ];

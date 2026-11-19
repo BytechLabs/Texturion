@@ -216,7 +216,12 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(409);
     const responseBody = await res.json();
     expect(responseBody).toEqual({
-      error: { code: "conflict", message: expect.stringContaining("Seat limit") },
+      error: {
+        code: "conflict",
+        message: expect.stringContaining("Seat limit"),
+        message_key: "apiRefusals.teamInviteSeatLimit",
+        message_vars: { active: "2", pending: "1", plan: "Starter", seats: "3" },
+      },
     });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
@@ -236,7 +241,12 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(409);
     const responseBody = await res.json();
     expect(responseBody).toEqual({
-      error: { code: "conflict", message: expect.stringContaining("15 seats") },
+      error: {
+        code: "conflict",
+        message: expect.stringContaining("15 seats"),
+        message_key: "apiRefusals.teamInviteSeatLimit",
+        message_vars: { active: "14", pending: "1", plan: "Pro", seats: "15" },
+      },
     });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
@@ -274,7 +284,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
     const generated = sb.find("POST", "/auth/v1/admin/generate_link");
     expect(generated.map((call) => call.body)).toEqual([
-      { type: "invite", email: "new@crew.example" },
+      { type: "invite", email: "new@crew.example", data: { locale: "fr-CA" } },
     ]);
     expect(resend.calls).toHaveLength(1);
     expect(resend.calls[0]).toMatchObject({

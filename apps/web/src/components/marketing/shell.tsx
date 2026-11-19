@@ -77,7 +77,7 @@ export function MarketingShell({
           home HeroCountryChooser, the branch helpers, and the /pricing toggle
           all read this single provider, so every surface moves the same state.
           A saved choice also applies across routes. */}
-      <CountryProvider initialCountry={locale === "fr-CA" ? "ca" : "us"}>
+      <CountryProvider initialCountry={locale === "fr-CA" ? "ca" : "us"} locale={locale}>
         <Nav locale={locale} />
         {/* id="content" is the nav skip link's target; keep it in sync with
             nav.tsx's .frn-skip href. tabIndex={-1} makes it a programmatic

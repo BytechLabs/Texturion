@@ -14,7 +14,7 @@ const PATH = "/fr";
  * client-side signal. So the figure in the description is the USD one, and
  * everything the page RENDERS still follows the reader's own country.
  */
-const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "cad", "fr-CA");
 
 const OG_DESCRIPTION = `${homeFr.ogDescription} ${STARTER_USD} ${homeFr.metaPrice}`;
 

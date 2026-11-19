@@ -54,7 +54,7 @@ export function AssignTrackEmbed({
             {copy.embedTomorrow}
           </span>
         </span>
-        <DemoStatusPill status="waiting" />
+        <DemoStatusPill status="waiting" locale={locale} />
         <DemoAvatar name={PEOPLE.dale} className="size-6 text-[10px]" />
       </div>
       <div className="flex items-center gap-2.5 rounded-app-card px-3 py-2.5">
@@ -66,7 +66,7 @@ export function AssignTrackEmbed({
             {copy.embedComingToday}
           </span>
         </span>
-        <DemoStatusPill status="new" />
+        <DemoStatusPill status="new" locale={locale} />
       </div>
       <div className="flex items-center gap-2.5 rounded-app-card px-3 py-2.5">
         <span className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ export function AssignTrackEmbed({
             {copy.embedAllDone}
           </span>
         </span>
-        <DemoStatusPill status="closed" />
+        <DemoStatusPill status="closed" locale={locale} />
         <DemoAvatar name={PEOPLE.priya} className="size-6 text-[10px]" />
       </div>
     </div>
@@ -151,7 +151,7 @@ export function SavedRepliesEmbed({
       <div className="mt-2 flex items-center gap-2 rounded-app-ctrl border border-app-line bg-app-paper px-3 py-2">
         <Slash className="size-3.5 shrink-0 text-app-muted-2" strokeWidth={1.75} aria-hidden />
         <span className="text-[13px] text-app-muted-2">
-          Type / for saved replies
+          {copy.embedTemplatePlaceholder}
         </span>
       </div>
     </div>

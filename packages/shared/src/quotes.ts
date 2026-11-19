@@ -225,7 +225,7 @@ export function quoteSms(args: {
   /** The CUSTOMER's language. See paymentRequestSms — required, not defaulted. */
   locale: Locale;
 }): string {
-  const amount = formatMoney(args.amountCents, args.currency);
+  const amount = formatMoney(args.amountCents, args.currency, args.currency, args.locale);
   const description = args.description.trim();
   return QUOTE_SMS[args.locale](
     args.businessName.trim(),

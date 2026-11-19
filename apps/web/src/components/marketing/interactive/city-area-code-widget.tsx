@@ -17,7 +17,9 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { useCountry } from "@/components/marketing/country";
-import { APP_LINKS } from "@/lib/marketing/site";
+import { businessNumberCopy } from "@/i18n/marketing/business-number";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { APP_LINKS, appLink } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
 import { resolveQuery } from './city-lookup';
@@ -47,7 +49,8 @@ function DayOneTick() {
   );
 }
 
-export function CityAreaCodeWidget() {
+export function CityAreaCodeWidget({ locale = "en" }: { locale?: MarketingLocale } = {}) {
+  const copy = businessNumberCopy(locale);
   const { country } = useCountry();
   // Seed the default frame to a local example for the visitor's country, so a
   // US visitor sees a US number (and the honest carrier-wait line) and a
@@ -162,7 +165,7 @@ export function CityAreaCodeWidget() {
         htmlFor="area-code-city"
         className="text-[0.875rem] font-semibold text-[color:var(--fr-ink)]"
       >
-        Find your local area code
+        {copy.areaCodeTitle}
       </label>
       <div className="relative mt-2">
         <input
@@ -177,7 +180,7 @@ export function CityAreaCodeWidget() {
           aria-activedescendant={
             open && activeIndex >= 0 ? optionId(activeIndex) : undefined
           }
-          placeholder="Type a city or area code"
+          placeholder={copy.areaCodePlaceholder}
           onChange={(e) => {
             touched.current = true;
             setQuery(e.target.value);
@@ -195,7 +198,7 @@ export function CityAreaCodeWidget() {
             id={listboxId}
             ref={listRef}
             role="listbox"
-            aria-label="Matching cities and area codes"
+            aria-label={copy.areaCodeMatches}
             className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[10px] bg-[color:var(--fr-card)] py-1 shadow-[var(--fr-shadow-card)]"
           >
             {results.map((r, i) => {
@@ -237,54 +240,41 @@ export function CityAreaCodeWidget() {
         {selected ? (
           <div className="min-w-0">
             <p className="text-[0.9375rem] text-[color:var(--fr-ink)]">
-              A{" "}
-              <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                ({selected.areaCode})
-              </span>{" "}
-              number for{" "}
-              <span className="font-medium">
-                {selected.city.startsWith("Area code")
+              {copy.areaCodeRegion
+                .replace("{code}", `(${selected.areaCode})`)
+                .replace("{region}", selected.city.startsWith("Area code")
                   ? (selected.regionLabel ?? selected.country)
-                  : selected.city}
-              </span>
-              {selected.regionLabel &&
-                !selected.city.startsWith("Area code") && (
-                  <span className="text-[color:var(--fr-ink-70)]">
-                    , {selected.regionLabel}
-                  </span>
-                )}
-              .
+                  : [selected.city, selected.regionLabel].filter(Boolean).join(", "))}
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-[0.75rem] text-[color:var(--fr-ink-70)]">
               {selected.country === "CA" ? (
                 <>
                   <DayOneTick />
-                  Canadian number, texting works the same day you sign up.
+                  {copy.areaCodeCa}
                 </>
               ) : (
-                "US number, receiving works day one; texting turns on in about a week."
+                copy.areaCodeUs
               )}
             </p>
           </div>
         ) : (
           <p className="text-[0.875rem] text-[color:var(--fr-ink-70)]">
-            No match, try a nearby city or a 3-digit area code.
+            {copy.areaCodeNoMatch}
           </p>
         )}
       </div>
 
       {selected && (
         <a
-          href={APP_LINKS.signup}
+          href={appLink(APP_LINKS.signup, locale)}
           className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
-          Get your ({selected.areaCode}) number →
+          {copy.areaCodeSignup.replace("{code}", `(${selected.areaCode})`)}
         </a>
       )}
 
       <p className="mt-3 text-[0.75rem] text-[color:var(--fr-ink-55)]">
-        Local numbers are available across the US and Canada, in the area code
-        you choose.
+        {copy.areaCodeAvailability}
       </p>
     </div>
   );

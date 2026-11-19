@@ -1370,7 +1370,7 @@ private fun PlanCard(
     // inch below on the same screen, "Starter is $39 a month instead of $109"
     // out of the cancellation answer. One of those was provably wrong and both
     // were on screen at once.
-    val facts = planFacts(company.plan, company.billing_currency, company.country)
+    val facts = planFacts(company.plan, company.billing_currency, company.country, locale)
     if (facts == null) {
         SettingsCard(title = t("settings.planTitle"), anchor = "plan") {
             Text(
@@ -1388,7 +1388,7 @@ private fun PlanCard(
     val answer = pause.answer
     val paused = pausedStateCopy(
         answer,
-        planFacts(answer?.resume_plan, company.billing_currency, company.country)?.name,
+        planFacts(answer?.resume_plan, company.billing_currency, company.country, locale)?.name,
     )
     // The plan's own terms, which are only true of a plan that is running. The
     // pause read decides, and it decides POSITIVELY: `isRunning` is false for a
@@ -1881,7 +1881,7 @@ private fun ColumnScope.PrepaidYearPanel(
     // absent value reads as USD, matching `billingCurrencyOf` on the server: a
     // missing field must not stop the panel naming the amount.
     val paid = billingCurrencyOrNull(open.currency) ?: BillingCurrency.USD
-    val credit = open.conversion?.let { formatMoney(it.credit_cents, paid) }
+    val credit = open.conversion?.let { formatMoney(it.credit_cents, paid, locale = LocalAppLocale.current) }
     // The sentences are the promise, so they come from the shared rule rather than
     // being typed out here — see `prepaidConversionCopy`.
     val copy = prepaidConversionCopy(open.plan, targetPlan, credit, LocalAppLocale.current)
@@ -1894,7 +1894,7 @@ private fun ColumnScope.PrepaidYearPanel(
     )
     Spacer(Modifier.height(4.dp))
     Text(
-        t("settings.prepaidPaidUpFront", "amount" to formatMoney(open.amount_cents, paid)),
+        t("settings.prepaidPaidUpFront", "amount" to formatMoney(open.amount_cents, paid, locale = LocalAppLocale.current)),
         style = MaterialTheme.typography.bodySmall,
     )
     open.conversion?.let {
@@ -1966,7 +1966,7 @@ private fun ModulesCard(scope: SettingsScope) {
                         label = t(
                             "settings.moduleRow",
                             "name" to module.label,
-                            "price" to formatMonthlyCents(module.monthly_cents),
+                            "price" to formatMonthlyCents(module.monthly_cents, LocalAppLocale.current),
                         ),
                         supporting = module.blurb,
                         checked = module.enabled,
@@ -1995,7 +1995,7 @@ private fun ModulesCard(scope: SettingsScope) {
             body = if (enabling) {
                 t(
                     "settings.moduleAddBody",
-                    "price" to formatMonthlyCents(module.monthly_cents),
+                    "price" to formatMonthlyCents(module.monthly_cents, LocalAppLocale.current),
                 )
             } else {
                 t("settings.moduleRemoveBody", "name" to module.label)

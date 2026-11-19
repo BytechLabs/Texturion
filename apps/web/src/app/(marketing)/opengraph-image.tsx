@@ -44,7 +44,7 @@ export const contentType = "image/png";
  * what #328 can buy on a static image, and it is worth buying — a stale share
  * card is the one price surface nobody thinks to re-check.
  */
-const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "usd", "en");
 
 // Night-act palette (hex literals: Satori doesn't evaluate CSS variables).
 const INK_11PM = "#141610"; // #362: the olive dark ground

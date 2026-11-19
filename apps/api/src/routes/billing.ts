@@ -5,6 +5,7 @@ import {
   EXTRA_NUMBER_MONTHLY_CENTS,
   formatMoney,
   PLAN_PRICE_CENTS,
+  resolveLocale,
   stateMachines,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -42,6 +43,7 @@ import {
   PREPAY_PLAN_FIELD,
   prepayEligibility,
 } from "../billing/prepay";
+import type { PrepayEligibility } from "../billing/prepay";
 import {
   allVoiceOveragePrices,
   isPlanModule,
@@ -117,12 +119,32 @@ const confirmCheckoutSchema = z.object({
   sessionId: z.string().min(1),
 });
 
+const PREPAY_REFUSAL_KEYS: Partial<Record<NonNullable<PrepayEligibility["reason"]>, string>> = {
+  not_activated: "apiRefusals.billingPrepayActivateFirst",
+  subscription_unhealthy: "apiRefusals.billingPrepayFixPayment",
+  no_subscription: "apiRefusals.billingPrepaySubscribeFirst",
+  already_prepaid: "apiRefusals.billingPrepayAlreadyPaid",
+  plan_change_pending: "apiRefusals.billingPrepayWaitForPlanChange",
+  referral_month_pending: "apiRefusals.billingPrepayWaitForReferral",
+};
+
+const PAUSE_REFUSAL_KEYS: Partial<Record<NonNullable<PauseEligibility["reason"]>, string>> = {
+  no_subscription: "apiRefusals.billingPauseSubscribeFirst",
+  already_paused: "apiRefusals.billingAlreadyPaused",
+  subscription_unhealthy: "apiRefusals.billingPauseFixPayment",
+  plan_change_pending: "apiRefusals.billingPauseWaitForPlanChange",
+  already_prepaid: "apiRefusals.billingPausePrepaid",
+  prepaid_coupon_orphaned: "apiRefusals.billingPausePrepaidContact",
+  referral_month_pending: "apiRefusals.billingPauseWaitForReferral",
+};
+
 interface BillingCompany {
   id: string;
   plan: PlanId | null;
   pending_plan_effective_at?: string | null;
   pending_plan_schedule_id?: string | null;
   country: string;
+  locale: string | null;
   us_texting_enabled: boolean;
   subscription_status: LocalSubscriptionStatus;
   stripe_customer_id: string | null;
@@ -147,7 +169,7 @@ async function fetchCompany(
   const { data, error } = await db
     .from("companies")
     .select(
-      "id,plan,country,us_texting_enabled,subscription_status," +
+      "id,plan,country,locale,us_texting_enabled,subscription_status," +
         "stripe_customer_id,stripe_subscription_id,registration_fee_paid_at," +
         // #328: the currency every line item on this session is charged in.
         "billing_currency," +
@@ -303,6 +325,7 @@ billingRoutes.post("/checkout", async (c) => {
       c,
       "validation_failed",
       "Body must be { plan: 'starter' | 'pro' }.",
+      { key: "apiRefusals.billingInvalidPlan" },
     );
   }
   const { plan } = parsed.data;
@@ -321,6 +344,7 @@ billingRoutes.post("/checkout", async (c) => {
       c,
       "validation_failed",
       `Unknown module: ${unknownModules[0]}.`,
+      { key: "apiRefusals.billingUnknownModule", vars: { module: unknownModules[0] } },
     );
   }
   const selectedModules = requestedModules.filter(isPlanModule);
@@ -406,6 +430,15 @@ billingRoutes.post("/checkout", async (c) => {
       `${PLAN_NAME[plan]} allows ${seats} members and this workspace has ` +
         `${memberCount} — deactivate ${over} ` +
         `${over === 1 ? "member" : "members"} before checking out.${alternative}`,
+      {
+        key: "apiRefusals.billingCheckoutSeatLimit",
+        vars: {
+          plan: PLAN_NAME[plan],
+          seats: String(seats),
+          members: String(memberCount),
+          over: String(over),
+        },
+      },
     );
   }
 
@@ -441,6 +474,7 @@ billingRoutes.post("/checkout", async (c) => {
         c,
         "validation_failed",
         `The ${MODULE_CATALOG[moduleKey].label} add-on isn't available yet.`,
+        { key: "apiRefusals.billingModuleUnavailable", vars: { module: MODULE_CATALOG[moduleKey].label } },
       );
     }
     lineItems.push({ price, quantity: 1 });
@@ -597,7 +631,7 @@ billingRoutes.post("/confirm-checkout", async (c) => {
     await c.req.json().catch(() => null),
   );
   if (!parsed.success) {
-    return errorResponse(c, "validation_failed", "Body must be { sessionId }.");
+    return errorResponse(c, "validation_failed", "Body must be { sessionId }.", { key: "apiRefusals.billingSessionRequired" });
   }
 
   const companyId = c.get("companyId");
@@ -797,6 +831,7 @@ billingRoutes.post("/portal", async (c) => {
       c,
       "conflict",
       "No billing account yet — complete checkout first.",
+      { key: "apiRefusals.billingAccountRequired" },
     );
   }
 
@@ -887,6 +922,7 @@ billingRoutes.post("/change-plan", async (c) => {
       c,
       "validation_failed",
       "Body must be { plan: 'starter' | 'pro' }.",
+      { key: "apiRefusals.billingInvalidPlan" },
     );
   }
   const target = parsed.data.plan;
@@ -897,10 +933,11 @@ billingRoutes.post("/change-plan", async (c) => {
       c,
       "conflict",
       "No subscription to change — complete checkout first.",
+      { key: "apiRefusals.billingSubscriptionRequired" },
     );
   }
   if (company.plan === target) {
-    return errorResponse(c, "conflict", `Already on the ${target} plan.`);
+    return errorResponse(c, "conflict", `Already on the ${target} plan.`, { key: "apiRefusals.billingAlreadyOnPlan", vars: { plan: PLAN_NAME[target] } });
   }
   // A canceled subscription keeps `plan` + `stripe_subscription_id` populated
   // (handleSubscriptionDeleted only flips subscription_status), so without this
@@ -911,6 +948,7 @@ billingRoutes.post("/change-plan", async (c) => {
       c,
       "conflict",
       "Your subscription is canceled — resubscribe to change plans.",
+      { key: "apiRefusals.billingResubscribeToChange" },
     );
   }
   if (target === "starter" && company.pending_plan_effective_at &&
@@ -942,6 +980,7 @@ billingRoutes.post("/change-plan", async (c) => {
       "conflict",
       "Your plan is paused. Resume it first, then switch plans — that way you " +
         "choose when the new plan starts billing.",
+      { key: "apiRefusals.billingResumeBeforeChanging" },
     );
   }
 
@@ -996,7 +1035,7 @@ billingRoutes.post("/change-plan", async (c) => {
       // reads as an offer rather than a wall, which is the point — the previous
       // version of this sentence sent them to support for up to eleven months.
       const credit = preview
-        ? formatMoney(preview.credit_cents, billingCurrencyOf(preview.currency))
+        ? formatMoney(preview.credit_cents, billingCurrencyOf(preview.currency), undefined, resolveLocale(null, company.locale))
         : null;
       return errorResponse(
         c,
@@ -1005,6 +1044,14 @@ billingRoutes.post("/change-plan", async (c) => {
             ? `that year and puts ${credit} of it back on your account as credit, ` +
               `which comes off your next invoices. Confirm and we'll switch you over.`
             : `that year. Confirm and we'll switch you over.`}`,
+        {
+          key: credit ? "apiRefusals.billingConfirmPrepaidConversionCredit" : "apiRefusals.billingConfirmPrepaidConversion",
+          vars: {
+            plan: openPrepaid.plan,
+            date: openPrepaid.granted_through.slice(0, 10),
+            credit: credit ?? "",
+          },
+        },
       );
     }
     // A credit is held per currency in Stripe, so one issued in a currency this
@@ -1021,6 +1068,13 @@ billingRoutes.post("/change-plan", async (c) => {
           `this workspace is now billed in ${billed.toUpperCase()}, so we can't put ` +
           `the unused part back as credit automatically. Get in touch and we'll ` +
           `sort it out with you — you won't lose it.`,
+        {
+          key: "apiRefusals.billingPrepaidCurrencyMismatch",
+          vars: {
+            paid: (collected ?? "usd").toUpperCase(),
+            current: billed.toUpperCase(),
+          },
+        },
       );
     }
     await convertPrepaidYear(env, db, company, target);
@@ -1031,6 +1085,7 @@ billingRoutes.post("/change-plan", async (c) => {
       "conflict",
       "Your prepaid year is still running on this plan, so switching would move " +
         "those paid months onto a different price. Get in touch and we'll sort it out.",
+      { key: "apiRefusals.billingPrepaidPlanLocked" },
     );
   }
 
@@ -1154,6 +1209,7 @@ billingRoutes.post("/change-plan", async (c) => {
       c,
       "conflict",
       "Release your extra phone number before downgrading to Starter.",
+      { key: "apiRefusals.billingDowngradeReleaseNumber" },
     );
   }
   const memberCount = await countActiveMembers(db, company.id);
@@ -1163,6 +1219,7 @@ billingRoutes.post("/change-plan", async (c) => {
       c,
       "conflict",
       `Starter allows ${starterSeats} members — deactivate extra members before downgrading.`,
+      { key: "apiRefusals.billingDowngradeMemberLimit", vars: { seats: String(starterSeats) } },
     );
   }
 
@@ -1253,12 +1310,12 @@ billingRoutes.post("/change-plan", async (c) => {
     });
     await clearPendingDowngrade(db, company.id, schedule.id);
     if (saved === "seat_limit") {
-      return errorResponse(c, "conflict", `Starter allows ${starterSeats} seats. Revoke extra invites or remove members before downgrading.`);
+      return errorResponse(c, "conflict", `Starter allows ${starterSeats} seats. Revoke extra invites or remove members before downgrading.`, { key: "apiRefusals.billingDowngradeSeatLimit", vars: { seats: String(starterSeats) } });
     }
     if (saved === "number_limit") {
-      return errorResponse(c, "conflict", "Release your extra phone number before downgrading to Starter.");
+      return errorResponse(c, "conflict", "Release your extra phone number before downgrading to Starter.", { key: "apiRefusals.billingDowngradeReleaseNumber" });
     }
-    return errorResponse(c, "conflict", "Your subscription just changed. Refresh Billing and try again.");
+    return errorResponse(c, "conflict", "Your subscription just changed. Refresh Billing and try again.", { key: "apiRefusals.billingSubscriptionChanged" });
   }
 
   // #345: a downgrade is the half worth having most. It takes effect at the
@@ -1291,7 +1348,7 @@ billingRoutes.post("/cancel-plan-change", async (c) => {
   if (!scheduleId) return c.json({ pending_plan: null });
   if (company.plan !== "pro" || !company.pending_plan_effective_at ||
       Date.parse(company.pending_plan_effective_at) <= Date.now()) {
-    return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.");
+    return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.", { key: "apiRefusals.billingPlanChangeApplied" });
   }
 
   const stripe = getStripe(env);
@@ -1299,7 +1356,7 @@ billingRoutes.post("/cancel-plan-change", async (c) => {
   const downgrade = pendingDowngrade(env, schedule);
   if (downgrade) {
     if (Date.parse(downgrade.effectiveAt) <= Date.now()) {
-      return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.");
+      return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.", { key: "apiRefusals.billingPlanChangeApplied" });
     }
     await stripe.subscriptionSchedules.release(scheduleId, {}, {
       idempotencyKey: idempotencyKey(company.id, "release_plan_schedule", scheduleId),
@@ -1447,7 +1504,9 @@ billingRoutes.post("/prepay", async (c) => {
                   // The console.error in prepayEligibility is where it is
                   // reported, to the person who can run stripe:setup.
                   "Paying for a year up front isn't available right now.";
-    return errorResponse(c, "conflict", message);
+    const key = PREPAY_REFUSAL_KEYS[eligibility.reason ?? "not_provisioned"] ?? "apiRefusals.billingPrepayUnavailable";
+    const date = eligibility.open?.granted_through.slice(0, 10);
+    return errorResponse(c, "conflict", message, { key, vars: date ? { date } : undefined });
   }
 
   const plan = company.plan!;
@@ -1457,6 +1516,7 @@ billingRoutes.post("/prepay", async (c) => {
       c,
       "conflict",
       "Paying for a year up front isn't available right now.",
+      { key: "apiRefusals.billingPrepayUnavailable" },
     );
   }
 
@@ -1695,6 +1755,7 @@ billingRoutes.post("/pause", async (c) => {
       c,
       "conflict",
       pauseRefusal({ eligible: false, reason: "already_paused" }),
+      { key: "apiRefusals.billingAlreadyPaused" },
     );
   }
 
@@ -1706,7 +1767,9 @@ billingRoutes.post("/pause", async (c) => {
   }
   const eligibility = await pauseEligibility(env, db, company, subscription);
   if (!eligibility.eligible || !subscription) {
-    return errorResponse(c, "conflict", pauseRefusal(eligibility));
+    const key = PAUSE_REFUSAL_KEYS[eligibility.reason ?? "not_provisioned"] ?? "apiRefusals.billingPauseUnavailable";
+    const date = eligibility.open?.granted_through.slice(0, 10);
+    return errorResponse(c, "conflict", pauseRefusal(eligibility), { key, vars: date ? { date } : undefined });
   }
 
   // Read from the CATALOG, not just from the env var. `pauseLicensedPrice` only
@@ -1724,7 +1787,7 @@ billingRoutes.post("/pause", async (c) => {
     // licensed item is a subscription mid-something (a schedule that just
     // released, a manual edit in the dashboard), and the useful answer is to
     // try again rather than a stack trace.
-    return errorResponse(c, "conflict", "Pausing isn't available right now.");
+    return errorResponse(c, "conflict", "Pausing isn't available right now.", { key: "apiRefusals.billingPauseUnavailable" });
   }
 
   await getStripe(env).subscriptions.update(
@@ -1785,6 +1848,7 @@ billingRoutes.post("/pause", async (c) => {
       "conflict",
       "Your plan hasn't paused yet. If you resumed earlier today, try again " +
         "tomorrow — you won't be charged twice for pausing.",
+      { key: "apiRefusals.billingPauseMayTakeTime" },
     );
   }
 
@@ -1822,10 +1886,10 @@ billingRoutes.post("/resume", async (c) => {
   const company = await fetchCompany(db, c.get("companyId"));
 
   if (!workspaceAllows(company, c.get("role"), "resume")) {
-    return errorResponse(c, "conflict", "Your plan isn't paused.");
+    return errorResponse(c, "conflict", "Your plan isn't paused.", { key: "apiRefusals.billingPlanNotPaused" });
   }
   if (!company.stripe_subscription_id || company.plan === null) {
-    return errorResponse(c, "conflict", "No subscription to resume.");
+    return errorResponse(c, "conflict", "No subscription to resume.", { key: "apiRefusals.billingNoSubscriptionToResume" });
   }
 
   const stripe = getStripe(env);
@@ -1837,6 +1901,7 @@ billingRoutes.post("/resume", async (c) => {
       c,
       "conflict",
       "You have a plan change waiting to take effect. Once it lands you can resume.",
+      { key: "apiRefusals.billingResumeWaitForPlanChange" },
     );
   }
 
@@ -1846,7 +1911,7 @@ billingRoutes.post("/resume", async (c) => {
     // swap back — the mirror will clear `paused_at` on its next pass. Telling
     // the customer to try again is better than swapping a line we cannot
     // identify.
-    return errorResponse(c, "conflict", "Resuming isn't available right now.");
+    return errorResponse(c, "conflict", "Resuming isn't available right now.", { key: "apiRefusals.billingResumeUnavailable" });
   }
 
   await stripe.subscriptions.update(
@@ -1898,6 +1963,7 @@ billingRoutes.post("/resume", async (c) => {
       "conflict",
       "Your plan hasn't come back yet. Give it a minute and try again — you " +
         "won't be charged twice for resuming.",
+      { key: "apiRefusals.billingResumeMayTakeTime" },
     );
   }
 
@@ -2160,7 +2226,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
   // what is a bad request.
   const parsedId = z.uuid().safeParse(c.req.param("id"));
   if (!parsedId.success) {
-    return errorResponse(c, "validation_failed", "That isn't a number id.");
+    return errorResponse(c, "validation_failed", "That isn't a number id.", { key: "apiRefusals.billingInvalidNumberId" });
   }
   const numberId = parsedId.data;
 
@@ -2171,6 +2237,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "validation_failed",
       "Idempotency-Key header (a client-generated UUID) is required.",
+      { key: "apiRefusals.idempotencyKeyRequired" },
     );
   }
 
@@ -2187,6 +2254,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "conflict",
       "Start your subscription again first — then you can bring this number back.",
+      { key: "apiRefusals.billingStartBeforeRestoringNumber" },
     );
   }
   // #277: a paused workspace cannot be sold anything. Same gate, same reasoning,
@@ -2230,6 +2298,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "conflict",
       `Starter tops out at ${maxTotalNumbers("starter")} numbers. Move to Pro to bring this one back.`,
+      { key: "apiRefusals.billingRestoreNumberLimit", vars: { count: String(maxTotalNumbers("starter")) } },
     );
   }
   const price = extraNumberPrice(env, company.plan);
@@ -2240,6 +2309,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "conflict",
       "Extra numbers aren't available yet. Contact support.",
+      { key: "apiRefusals.extraNumberUnavailable" },
     );
   }
 
@@ -2254,6 +2324,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "conflict",
       "A plan change is scheduled on your account. Bring this number back after it takes effect at the period end.",
+      { key: "apiRefusals.billingRestoreWaitForPlanChange" },
     );
   }
 
@@ -2285,6 +2356,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
         c,
         "conflict",
         "Another change to your numbers just landed. Try again in a moment.",
+        { key: "apiRefusals.billingNumberChangeRetry" },
       );
     }
     // The plan's numbers are all spoken for by rows that are not on hold — a
@@ -2294,6 +2366,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       c,
       "conflict",
       "Another of your numbers is still being set up, so there's no room to bring this one back yet. Try again once it's finished.",
+      { key: "apiRefusals.billingRestoreWaitForNumberSetup" },
     );
   }
 
@@ -2333,6 +2406,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
           c,
           "conflict",
           "Another change to your numbers is in flight. Try again in a moment.",
+          { key: "apiRefusals.billingNumberChangeRetry" },
         );
       }
       throw error_;
@@ -2475,6 +2549,7 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "validation_failed",
       "Body must be { module, enabled }.",
+      { key: "apiRefusals.billingInvalidModuleRequest" },
     );
   }
   const { module: requestedModule, enabled } = parsed.data;
@@ -2484,6 +2559,7 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "conflict",
       "Calling is included on every plan now — there's nothing to turn on or pay for. Reload the app to see the current plan.",
+      { key: "apiRefusals.billingCallingIncluded" },
     );
   }
 
@@ -2493,6 +2569,7 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "conflict",
       "No subscription yet — complete checkout first.",
+      { key: "apiRefusals.billingAddOnsRequireSubscription" },
     );
   }
   // #44: a canceled (in-grace) or otherwise dead subscription cannot take
@@ -2503,6 +2580,7 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "conflict",
       "Your subscription is canceled — resubscribe to change add-ons.",
+      { key: "apiRefusals.billingResubscribeForAddOns" },
     );
   }
   const price = modulePrice(env, requestedModule);
@@ -2513,6 +2591,7 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "validation_failed",
       `The ${MODULE_CATALOG[requestedModule].label} add-on isn't available yet.`,
+      { key: "apiRefusals.billingModuleUnavailable", vars: { module: MODULE_CATALOG[requestedModule].label } },
     );
   }
   /**
@@ -2557,6 +2636,12 @@ billingRoutes.post("/modules", async (c) => {
       "conflict",
       `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[requestedModule].label} — ` +
         "that way you start paying for it on the day you can use it.",
+      {
+        key: "apiRefusals.billingResumeBeforeAddingModule",
+        vars: {
+          module: MODULE_CATALOG[requestedModule].label,
+        },
+      },
     );
   }
 

@@ -95,7 +95,7 @@ export function SavedRepliesPicker({
           />
         </span>
         <span className="mb-0.5 inline-flex h-8 items-center gap-1.5 rounded-app-ctrl bg-primary px-3 text-[13px] font-semibold">
-          Send
+          {copy.pickerSend}
           <CornerDownLeft className="size-3.5" strokeWidth={2} aria-hidden />
         </span>
       </div>

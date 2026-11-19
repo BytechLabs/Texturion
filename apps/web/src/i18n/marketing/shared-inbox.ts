@@ -34,6 +34,7 @@ export const sharedInboxEn = {
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Shared inbox",
+  dateline: "1 OWNER PER CONVERSATION",
 
   h1: "Every customer text, in one inbox the whole crew can see.",
   heroSub:
@@ -145,6 +146,7 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
 
   breadcrumbHome: "Accueil",
   breadcrumbSelf: "Boîte de réception partagée",
+  dateline: "1 RESPONSABLE PAR CONVERSATION",
 
   h1: "Chaque texto de client, dans une boîte que toute l'équipe voit.",
   heroSub:

@@ -21,7 +21,7 @@ import { formatMoney } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
 import { useId, useState } from "react";
 
-import { APP_LINKS } from "@/lib/marketing/site";
+import { APP_LINKS, appLink } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 import { CrewSizeSliderSource } from "./crew-size-slider-source";
 import type { SliderRival } from "./crew-size-slider-source";
@@ -70,8 +70,8 @@ export function loonextPrice(
 }
 
 // Both prices are in USD so the savings use the same currency.
-function usd(n: number, audience: BillingCurrency): string {
-  return formatMoney(n * 100, "usd", audience);
+function usd(n: number, audience: BillingCurrency, locale: MarketingLocale): string {
+  return formatMoney(n * 100, "usd", audience, locale);
 }
 
 export interface RivalSeatPricing {
@@ -142,7 +142,7 @@ export function CrewSizeSlider({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(loonext.price, audience)}{ui.perMonth}
+                {usd(loonext.price, audience, locale)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
@@ -159,12 +159,12 @@ export function CrewSizeSlider({
         <div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              {copy.sliderRivalBefore} {usd(perUserMonthly, audience)}
+              {copy.sliderRivalBefore} {usd(perUserMonthly, audience, locale)}
               {copy.sliderRivalAfter}
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(perUser, audience)}{ui.perMonth}
+                {usd(perUser, audience, locale)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
                 {seats > 1 ? copy.sliderClimbing : ""}
@@ -184,18 +184,18 @@ export function CrewSizeSlider({
         <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
           {copy.sliderAtBefore} {seats} {copy.sliderAtMiddle}{" "}
           <span className="fr-mono-data text-[color:var(--fr-ink)]">
-            {usd(savings, audience)} {copy.sliderLessAMonth}
+            {usd(savings, audience, locale)} {copy.sliderLessAMonth}
           </span>{" "}
-          {copy.sliderWithLoonext} {usd(loonext.price, audience)}{" "}
-          {copy.sliderFlatInsteadOf} {seats} × {usd(perUserMonthly, audience)}.
+          {copy.sliderWithLoonext} {usd(loonext.price, audience, locale)}{" "}
+          {copy.sliderFlatInsteadOf} {seats} × {usd(perUserMonthly, audience, locale)}.
         </p>
       )}
 
       <a
-        href={APP_LINKS.signupForPlan(loonext.plan === "Starter" ? "starter" : "pro")}
+        href={appLink(APP_LINKS.signupForPlan(loonext.plan === "Starter" ? "starter" : "pro"), locale)}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
-        {ui.startForBefore} {usd(loonext.price, audience)} {ui.startForAfter}
+        {ui.startForBefore} {usd(loonext.price, audience, locale)} {ui.startForAfter}
       </a>
 
       <CrewSizeSliderSource

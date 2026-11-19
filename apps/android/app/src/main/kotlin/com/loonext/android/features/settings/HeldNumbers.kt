@@ -459,12 +459,12 @@ fun canBringBack(state: HeldNumbers, numberId: String, price: String?): Boolean 
  * either is the same — offer no paid route. Guessing a currency for a figure on
  * a consent button is the failure #522 documents.
  */
-fun heldNumberPrice(state: HeldNumbers, company: CompanyView): String? {
+fun heldNumberPrice(state: HeldNumbers, company: CompanyView, locale: String? = null): String? {
     val cents = state.extra_number_cents ?: return null
     val priced = billingCurrencyOrNull(state.extra_number_currency) ?: return null
     val audience = billingCurrencyOrNull(company.billing_currency)
         ?: currencyForCountry(company.country)
-    return formatMoney(cents, priced, audience) + "/mo"
+    return formatMoney(cents, priced, audience, locale) + if (locale == "fr-CA") "/mois" else "/mo"
 }
 
 /**
@@ -536,8 +536,9 @@ fun HeldNumberActions(
     onChanged: () -> Unit,
 ) {
     val state = held ?: return
-    val price = heldNumberPrice(state, company)
-    val routes = heldNumberRoutes(state, number.id, price, LocalAppLocale.current)
+    val locale = LocalAppLocale.current
+    val price = heldNumberPrice(state, company, locale)
+    val routes = heldNumberRoutes(state, number.id, price, locale)
         ?: return
 
     Text(

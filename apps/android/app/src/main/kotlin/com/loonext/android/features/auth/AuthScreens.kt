@@ -318,7 +318,7 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
 
                     is PendingAuthAction.SignUp -> {
                         val signedIn = authManager.signUp(
-                            action.email, action.password, action.name, captchaToken,
+                            action.email, action.password, action.name, captchaToken, locale,
                         )
                         if (!signedIn) {
                             confirmationEmail = action.email

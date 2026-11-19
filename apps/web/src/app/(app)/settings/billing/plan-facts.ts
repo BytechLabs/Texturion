@@ -46,7 +46,7 @@ function planFacts(
     //
     // Unprefixed: it is their own money, and "CA$39" to a Canadian reads as
     // though we expect them to be confused about it.
-    price: `${formatMoney(PLAN_PRICE_CENTS[currency][id], currency)}/mo`,
+    price: `${formatMoney(PLAN_PRICE_CENTS[currency][id], currency, currency, t.locale)}${t.locale === "fr-CA" ? "/mois" : "/mo"}`,
     // #85: the plan card no longer leads with a hard message-count ceiling. The
     // allowance is a fair-use line (the exact figure lives in the fair-use
     // policy the billing page links to), and the usage screen shows real usage.

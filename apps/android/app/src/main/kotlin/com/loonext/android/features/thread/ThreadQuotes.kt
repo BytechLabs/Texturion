@@ -253,7 +253,7 @@ private fun QuoteRow(
     // The row carries its own currency, the way a payment request does: a quote
     // is denominated when it is written, and a workspace that later changes
     // billing currency must not restate old prices.
-    val money = formatMoney(quote.amount_cents, quote.money)
+    val money = formatMoney(quote.amount_cents, quote.money, locale = LocalAppLocale.current)
 
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp),

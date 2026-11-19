@@ -105,7 +105,7 @@ function InboxRow({ row, item }: { row: RowState; item: HeroInboxRow }) {
   );
 }
 
-export function HeroInbox({ script }: { script: readonly HeroInboxRow[] }) {
+export function HeroInbox({ script, heading }: { script: readonly HeroInboxRow[]; heading: string }) {
   const [rows, setRows] = useState<RowState[]>(() =>
     finishedRows(script.length),
   );
@@ -151,7 +151,7 @@ export function HeroInbox({ script }: { script: readonly HeroInboxRow[] }) {
     <div className="p-2">
       {/* Compact inbox header: the app's own voice for its own count. */}
       <div className="flex items-center justify-between px-[10px] pb-1 pt-1.5">
-        <span className="text-[13px] font-semibold text-app-ink">Inbox</span>
+        <span className="text-[13px] font-semibold text-app-ink">{heading}</span>
         {unreadCount > 0 && (
           <span className="bg-primary inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none">
             {unreadCount}

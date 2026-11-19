@@ -42,8 +42,8 @@ const WEEKS_PER_MONTH = 4.33;
  * It used to say `currency: "USD"` outright, which was a claim about somebody
  * else's money: these are the reader's numbers, not a price of ours.
  */
-function money(dollars: number, currency: BillingCurrency): string {
-  return formatMoney(Math.round(dollars * 100), currency);
+function money(dollars: number, currency: BillingCurrency, locale: MarketingLocale): string {
+  return formatMoney(Math.round(dollars * 100), currency, currency, locale);
 }
 
 /** A labelled numeric field with a range slider + exact number input. */
@@ -160,7 +160,7 @@ export function MissedTextCalculator({
           </span>
           {/* The one Flare display element (§3.4.3): 48px+, bold, mono. */}
           <MonoFigure
-            value={money(monthly, currency)}
+            value={money(monthly, currency, locale)}
             suffix={copy.mathPerMonth}
             tone="flare"
             className="mt-1"
@@ -171,17 +171,16 @@ export function MissedTextCalculator({
         </p>
         {/* The formula, always visible: we show our work (§S8). */}
         <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          {missed} × {ratePct}% × {money(value, currency)} × 4.33 weeks
+          {missed} × {ratePct}% × {money(value, currency, locale)} × {copy.mathWeeks}
         </p>
       </div>
 
       <p className="mt-4 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        This is arithmetic on your numbers, not a claim of ours. Change any of
-        them. We only multiply what you type. That&apos;s{" "}
+        {copy.mathNoteBefore}{" "}
         <span className="fr-mono-data text-[color:var(--fr-ink)]">
           <PlanPrice plan="starter" />
         </span>{" "}
-        a month against the figure above.
+        {copy.mathNoteAfter}
       </p>
     </div>
   );

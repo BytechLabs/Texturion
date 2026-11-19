@@ -33,6 +33,7 @@ export const tradesEn = {
   pickerFillsIn: "fills in the customer's name by itself.",
   pickerHeading: "Saved replies",
   pickerSearch: "Search saved replies…",
+  pickerSend: "Send",
 
   doneNote:
     "Tap any message to mark it done. The whole crew sees what's handled.",
@@ -57,6 +58,7 @@ export const tradesFr: Translated<typeof tradesEn> = {
   pickerFillsIn: "remplit le nom du client tout seul.",
   pickerHeading: "Réponses enregistrées",
   pickerSearch: "Chercher dans les réponses enregistrées…",
+  pickerSend: "Envoyer",
 
   doneNote:
     "Touchez n'importe quel message pour le marquer terminé. Toute l'équipe voit ce qui est réglé.",

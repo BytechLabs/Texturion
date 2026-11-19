@@ -19,7 +19,7 @@ import { ImageResponse } from "next/og";
  * user gets instead of the image, and a share card whose picture and
  * description quote different prices is worse than either alone.
  */
-const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "usd", "en");
 
 export const alt = `Loonext pricing, ${STARTER_USD}/mo flat for the whole crew`;
 export const size = { width: 1200, height: 630 };

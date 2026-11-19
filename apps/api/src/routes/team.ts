@@ -145,10 +145,10 @@ async function seatUsage(
 }
 
 async function companyPlan(db: Db, companyId: string) {
-  const [company] = unwrap<{ plan: string | null; pending_plan?: string | null }[]>(
+  const [company] = unwrap<{ plan: string | null; pending_plan?: string | null; locale?: string }[]>(
     await db
       .from("companies")
-      .select("plan,pending_plan")
+      .select("plan,pending_plan,locale")
       .eq("id", companyId)
       .is("deleted_at", null)
       .limit(1),
@@ -157,8 +157,8 @@ async function companyPlan(db: Db, companyId: string) {
   if (!company) {
     throw new ApiError("not_found", "No such company.");
   }
-  const { plan, pending_plan: pending } = company;
-  return { plan, seatPlan: pending ?? plan };
+  const { plan, pending_plan: pending, locale } = company;
+  return { plan, seatPlan: pending ?? plan, locale: locale === "fr-CA" ? locale : "en" };
 }
 
 export const teamRoutes = new Hono<AppEnv>();
@@ -232,7 +232,7 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
   }
   if (target.role === "owner") {
     // The owner membership row is immutable (SPEC §10).
-    return errorResponse(c, "conflict", "The owner role cannot be changed.");
+    return errorResponse(c, "conflict", "The owner role cannot be changed.", { key: "apiRefusals.teamOwnerRoleFixed" });
   }
 
   // #538 — TAKING POWERS OFF YOURSELF HAS TO BE DELIBERATE.
@@ -408,6 +408,7 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
       c,
       "conflict",
       "An owner can't leave their own workspace. Close it in settings, or contact us to move it to someone else.",
+      { key: "apiRefusals.teamOwnerCannotLeave" },
     );
   }
 
@@ -423,7 +424,7 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
     tasks?: number;
   };
   if (result.outcome === "not_found" || result.outcome === "owner") {
-    return errorResponse(c, "conflict", "You can't leave this workspace.");
+    return errorResponse(c, "conflict", "You can't leave this workspace.", { key: "apiRefusals.teamCannotLeave" });
   }
 
   const moved = {
@@ -556,13 +557,14 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
   }
   if (result.outcome === "owner") {
     // The owner membership cannot be deactivated (SPEC §10).
-    return errorResponse(c, "conflict", "The owner cannot be deactivated.");
+    return errorResponse(c, "conflict", "The owner cannot be deactivated.", { key: "apiRefusals.teamOwnerCannotDeactivate" });
   }
   if (result.outcome === "bad_destination") {
     return errorResponse(
       c,
       "validation_failed",
       "Hand the work to someone who is still on the team, or leave it unassigned.",
+      { key: "apiRefusals.teamHandoffRequiresActiveMember" },
     );
   }
 
@@ -753,7 +755,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   const body = resendInviteId ? null : await parseJsonBody(c, inviteSchema);
   const db = getDb(env);
 
-  const { plan, seatPlan } = await companyPlan(db, companyId);
+  const { plan, seatPlan, locale } = await companyPlan(db, companyId);
   const seats = seatLimit(seatPlan);
   const reservation = await db.rpc("api_create_invite", {
     p_company_id: companyId,
@@ -767,7 +769,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   });
   if (reservation.error?.code === PENDING_PLAN_SEAT_LIMIT) {
     await capture(env, "team_invite_refused", companyId, { reason: "seat_limit" });
-    return errorResponse(c, "conflict", "This workspace has reached the seat limit for its scheduled plan.");
+    return errorResponse(c, "conflict", "This workspace has reached the seat limit for its scheduled plan.", { key: "apiRefusals.teamInviteScheduledSeatLimit" });
   }
   const result = unwrap<InviteCreation>(reservation, "invite create");
 
@@ -780,6 +782,15 @@ async function createOrResendInvite(c: Context<AppEnv>) {
       "conflict",
       `Seat limit reached: ${seats} seats on the ${seatPlan ?? "starter"} plan ` +
         `(${result.active} active members, ${result.pending} pending invites).`,
+      {
+        key: "apiRefusals.teamInviteSeatLimit",
+        vars: {
+          seats: String(seats),
+          plan: seatPlan === "pro" ? "Pro" : "Starter",
+          active: String(result.active),
+          pending: String(result.pending),
+        },
+      },
     );
   }
   if (result.outcome === "duplicate") {
@@ -790,7 +801,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   if (result.outcome === "not_found") return errorResponse(c, "not_found", "No such company.");
   if (result.outcome === "invite_not_found") return errorResponse(c, "not_found", "No invite to resend.");
   if (result.outcome === "plan_changed") {
-    return errorResponse(c, "conflict", "Your plan changed. Try the invite again.");
+    return errorResponse(c, "conflict", "Your plan changed. Try the invite again.", { key: "apiRefusals.teamInvitePlanChanged" });
   }
   if (result.outcome === "revoke_cooldown" || result.outcome === "daily_limit" || result.outcome === "resend_limit") {
     const messages = {
@@ -807,6 +818,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   const { data: linkData, error } = await db.auth.admin.generateLink({
     type: "invite",
     email,
+    options: { data: { locale } },
   });
   const alreadyRegistered = error?.code === "email_exists";
   const tokenHash = linkData.properties?.hashed_token;
@@ -1056,6 +1068,7 @@ teamRoutes.post("/invites/accept", async (c) => {
       c,
       "conflict",
       "This invite is no longer valid (accepted, revoked, or expired).",
+      { key: "apiRefusals.teamInviteNoLongerValid" },
     );
   }
 
@@ -1092,6 +1105,13 @@ teamRoutes.post("/invites/accept", async (c) => {
       c,
       "conflict",
       `Seat limit reached: ${seats} seats on the ${seatPlan ?? "starter"} plan.`,
+      {
+        key: "apiRefusals.teamSeatLimit",
+        vars: {
+          seats: String(seats),
+          plan: seatPlan === "pro" ? "Pro" : "Starter",
+        },
+      },
     );
   }
 
@@ -1140,7 +1160,7 @@ teamRoutes.post("/invites/accept", async (c) => {
         .from("invites")
         .update({ accepted_at: new Date().toISOString() })
         .eq("id", invite.id);
-      return errorResponse(c, "conflict", "Already a member of this company.");
+      return errorResponse(c, "conflict", "Already a member of this company.", { key: "apiRefusals.teamAlreadyMember" });
     }
 
     // They left and were invited back. Clear the mark and take the role from

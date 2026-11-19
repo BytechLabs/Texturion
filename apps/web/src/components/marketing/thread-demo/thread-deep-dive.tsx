@@ -60,9 +60,9 @@ function Beat({
     >
       {beat.kind === "inbound" && <InboundBubble beat={beat} />}
       {beat.kind === "outbound" && (
-        <OutboundBubble beat={beat} state={beat.delivered} />
+        <OutboundBubble beat={beat} state={beat.delivered} locale={locale} />
       )}
-      {beat.kind === "note" && <NoteBubble beat={beat} />}
+      {beat.kind === "note" && <NoteBubble locale={locale} beat={beat} />}
       {beat.kind === "event" && <EventLine beat={beat} />}
       {beat.kind === "call" && <CallLine beat={beat} locale={locale} />}
     </div>
@@ -167,7 +167,7 @@ export function ThreadDeepDive({
         {/* Marketing controls, OUTSIDE the frame (cobalt is the marketing
             voice; it never enters the product embed). */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <DeepDiveInlineCta />
+          <DeepDiveInlineCta locale={locale} />
           {!reduced &&
             (!engaged || done ? (
               <button

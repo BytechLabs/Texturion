@@ -107,13 +107,15 @@ final class AuthManager {
         email: String,
         password: String,
         displayName: String,
-        captchaToken: String? = nil
+        captchaToken: String? = nil,
+        locale: String = MessageLocale.en
     ) async throws -> Bool {
         switch try await auth.signUp(
             email: email,
             password: password,
             displayName: displayName,
-            captchaToken: captchaToken
+            captchaToken: captchaToken,
+            locale: locale
         ) {
         case .signedIn(let authSession):
             sessionStore.save(authSession.session)

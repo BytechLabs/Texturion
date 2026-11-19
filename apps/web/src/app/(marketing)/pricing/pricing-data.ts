@@ -40,12 +40,12 @@ import type {
 const S = PLAN_PRICING.starter;
 const P = PLAN_PRICING.pro;
 
-const price = (plan: PlanId, audience: BillingCurrency) =>
-  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience);
+const price = (plan: PlanId, audience: BillingCurrency, locale: MarketingLocale) =>
+  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience, locale);
 
 /** The one-time US texting registration fee, on the invoice it lands on. */
-const registrationFee = (audience: BillingCurrency) =>
-  formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience);
+const registrationFee = (audience: BillingCurrency, locale: MarketingLocale) =>
+  formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience, locale);
 
 /**
  * Plan plus the one-time fee: what a US shop actually pays in month one.
@@ -53,18 +53,19 @@ const registrationFee = (audience: BillingCurrency) =>
  * Derived rather than written. It is the only figure on the page that is a SUM,
  * so it is the only one that can go wrong while both of its parts stay right.
  */
-const firstMonth = (plan: PlanId, audience: BillingCurrency) =>
+const firstMonth = (plan: PlanId, audience: BillingCurrency, locale: MarketingLocale) =>
   formatMoney(
     PLAN_PRICE_CENTS.usd[plan] + US_REGISTRATION_FEE_CENTS.usd,
     "usd",
     audience,
+    locale,
   );
 
 /** The dateline chip: the page's load-bearing fact (§5.1). US default. */
 export const pricingDateline = (locale: MarketingLocale = "en") =>
   fill(pricingCopy(locale).datelineUs, {
-    firstMonth: firstMonth("starter", "usd"),
-    starter: price("starter", "usd"),
+    firstMonth: firstMonth("starter", "usd", locale),
+    starter: price("starter", "usd", locale),
   });
 
 /** The English dateline, for tests and any English-only surface. */
@@ -72,7 +73,7 @@ export const PRICING_DATELINE = pricingDateline("en");
 
 /** Canadian businesses texting Canadian customers skip registration. */
 export const pricingDatelineCa = (locale: MarketingLocale = "en") =>
-  fill(pricingCopy(locale).datelineCa, { starter: price("starter", "cad") });
+  fill(pricingCopy(locale).datelineCa, { starter: price("starter", "cad", locale) });
 
 /** The English Canadian dateline, for tests and any English-only surface. */
 export const PRICING_DATELINE_CA = pricingDatelineCa("en");
@@ -103,7 +104,7 @@ export function plansFor(
       // Starter and Pro are the plan names on the invoice, so they read the
       // same in both languages.
       name: "Starter",
-      price: price("starter", currency),
+      price: price("starter", currency, locale),
       tagline: copy.planStarterTagline,
       features: [
         fill(copy.planSeats, { seats: String(S.seats) }),
@@ -116,7 +117,7 @@ export function plansFor(
     {
       id: "pro",
       name: "Pro",
-      price: price("pro", currency),
+      price: price("pro", currency, locale),
       tagline: copy.planProTagline,
       badge: copy.planProBadge,
       highlighted: true,
@@ -167,7 +168,7 @@ function ledgerFor(
     {
       id: "plan",
       term: copy.ledgerPlanTerm,
-      figure: `${price("starter", currency)} or ${price("pro", currency)}/mo`,
+      figure: fill(copy.ledgerPlanFigure, { starter: price("starter", currency, locale), pro: price("pro", currency, locale) }),
       detail: fill(copy.ledgerPlanDetail, {
         starterSeats: String(S.seats),
         proSeats: String(P.seats),
@@ -177,11 +178,11 @@ function ledgerFor(
       id: "registration",
       term: copy.ledgerRegisterTerm,
       figure: fill(copy.ledgerRegisterFigure, {
-        fee: registrationFee(currency),
+        fee: registrationFee(currency, locale),
       }),
       detail: fill(copy.ledgerRegisterDetail, {
-        firstMonth: firstMonth("starter", currency),
-        starter: price("starter", currency),
+        firstMonth: firstMonth("starter", currency, locale),
+        starter: price("starter", currency, locale),
       }),
     },
     {
@@ -200,8 +201,8 @@ function ledgerFor(
       id: "extra-numbers",
       term: copy.ledgerExtraNumbersTerm,
       figure: fill(copy.ledgerExtraNumbersFigure, {
-        starter: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.starter, EXTRA_NUMBER_CURRENCY, currency),
-        pro: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.pro, EXTRA_NUMBER_CURRENCY, currency),
+        starter: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.starter, EXTRA_NUMBER_CURRENCY, currency, locale),
+        pro: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.pro, EXTRA_NUMBER_CURRENCY, currency, locale),
       }),
       detail: copy.ledgerExtraNumbersDetail,
     },
@@ -234,7 +235,7 @@ export const ledgerCa = (locale: MarketingLocale = "en"): LedgerEntry[] => {
         id: entry.id,
         term: copy.ledgerNoRegisterTerm,
         figure: fill(copy.ledgerNoRegisterFigure, {
-          zero: formatMoney(0, "usd", "cad"),
+          zero: formatMoney(0, "usd", "cad", locale),
         }),
         detail: copy.ledgerNoRegisterDetail,
       };
@@ -280,7 +281,7 @@ export const elsewhereRows = (
   {
     label: copy.elsewhereSoftware,
     cells: [
-      fill(copy.elsewhereFlat, { starter: price("starter", "usd") }),
+      fill(copy.elsewhereFlat, { starter: price("starter", "usd", locale) }),
       french ? "49 $ US/personne/mois × 3 = 147 $ US" : "$49/user/mo × 3 = $147",
       french
         ? "19 $ US/personne/mois × 3 = 57 $ US (facturation mensuelle)"
@@ -307,7 +308,7 @@ export const elsewhereRows = (
     label: copy.elsewhereTotal,
     total: true,
     cells: [
-      french ? "29 $ US" : price("starter", "usd"),
+      price("starter", french ? "cad" : "usd", locale),
       french ? "~172 $ US" : "~$172",
       copy.elsewhereQuoTotal,
     ],
@@ -320,7 +321,7 @@ export const ELSEWHERE_ROWS: LedgerTableRow[] = elsewhereRows("en");
 
 export const elsewhereFootnote = (locale: MarketingLocale = "en") =>
   fill(pricingCopy(locale).elsewhereFootnote, {
-    fee: registrationFee("usd"),
+    fee: registrationFee("usd", locale),
   });
 
 /** The English footnote, for tests and any English-only surface. */

@@ -273,7 +273,7 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
   const priceLabel =
     view.extra_number_cents === null
       ? null
-      : formatMoney(view.extra_number_cents, view.extra_number_currency);
+      : formatMoney(view.extra_number_cents, view.extra_number_currency, undefined, t.locale);
   const planName = view.plan === "pro" ? "Pro" : "Starter";
   const {allowance} = view;
   const many = view.held.length > 1;

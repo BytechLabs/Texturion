@@ -11,6 +11,8 @@
  * §3.4.3), so the swap is seamless.
  */
 
+import { formatMoney } from "@loonext/shared";
+
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { homeCopy } from "@/i18n/marketing/home";
 import { MonoFigure } from "@/components/marketing/fr";
@@ -23,23 +25,6 @@ const WEEKS_PER_MONTH = 4.33;
 const MONTHLY = Math.round(
   MISSED * (RATE_PCT / 100) * JOB_VALUE * WEEKS_PER_MONTH,
 );
-
-/**
- * The visitor's own dollars, in whatever currency they think in.
- *
- * It used to say `currency: "USD"`, which was a claim about somebody else's
- * money: the job value is a number the reader recognises as theirs, not a price
- * of ours. A bare "$" is what `formatMoney` gives a reader looking at their own
- * currency, and at these figures the two render character for character, so the
- * island swap stays seamless for a Canadian too.
- *
- * The one figure on this card that IS ours is the plan price, and a server
- * component cannot read the country — so it crosses the boundary as
- * <PlanPrice/> rather than as a string (#328).
- */
-function money(n: number): string {
-  return `$${n.toLocaleString("en-US")}`;
-}
 
 function StaticField({ label, display }: { label: string; display: string }) {
   return (
@@ -65,6 +50,7 @@ export function MissedTextCalculatorStatic({
   locale?: MarketingLocale;
 } = {}) {
   const copy = homeCopy(locale);
+  const money = (dollars: number) => formatMoney(dollars * 100, "usd", "usd", locale);
   return (
     <div className="fr-card p-6">
       <div className="grid gap-5">
@@ -98,17 +84,16 @@ export function MissedTextCalculatorStatic({
           </span>
         </p>
         <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          {MISSED} × {RATE_PCT}% × {money(JOB_VALUE)} × 4.33 weeks
+          {MISSED} × {RATE_PCT}% × {money(JOB_VALUE)} × {copy.mathWeeks}
         </p>
       </div>
 
       <p className="mt-4 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        This is arithmetic on your numbers, not a claim of ours. Change any of
-        them. We only multiply what you type. That&apos;s{" "}
+        {copy.mathNoteBefore}{" "}
         <span className="fr-mono-data text-[color:var(--fr-ink)]">
           <PlanPrice plan="starter" />
         </span>{" "}
-        a month against the figure above.
+        {copy.mathNoteAfter}
       </p>
     </div>
   );

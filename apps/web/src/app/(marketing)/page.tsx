@@ -58,7 +58,7 @@ import { absoluteUrl } from "@/lib/marketing/site";
  *     Canadian reading a SERP snippet, but it is wrong by one currency rather
  *     than wrong forever: when the USD price moves, this moves with it.
  */
-const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "usd", "en");
 
 const OG_TITLE = "Somebody texted your business at 9:04 last night.";
 const OG_DESCRIPTION =

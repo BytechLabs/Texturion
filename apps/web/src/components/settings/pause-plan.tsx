@@ -5,7 +5,8 @@ import { PauseCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DEFAULT_LOCALE } from "@loonext/shared";
+import { DEFAULT_LOCALE, formatMoney } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { PLAN_FACTS } from "@/app/(app)/settings/billing/plan-facts";
 import { AnswerNote } from "@/components/settings/cancellation-answer";
@@ -122,26 +123,9 @@ export function pauseQueryEnabled(
   );
 }
 
-/**
- * Money the SERVER quoted, formatted the way the prepaid-year card beside it on
- * this screen formats the figure IT is given.
- *
- * A bare "$" and no currency claim, deliberately. The pause is a single Stripe
- * price id (`STRIPE_PAUSE_PRICE_ID`), the response carries cents and no
- * currency, and `formatMoney` cannot be used without asserting one: labelling it
- * with the workspace's `billing_currency` would state a fact the API does not
- * give us, and hardcoding "US$" would state a different one. The amount itself
- * is exact either way, and it is the amount somebody is agreeing to.
- *
- * Plan prices on this screen are a different case and DO go through
- * `formatMoney` — those come from the shared price book, which knows its own
- * currency.
- */
-function monthly(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
+// The pause API returns cents alone, so display an unqualified dollar sign.
+function monthly(cents: number, locale: Locale): string {
+  return formatMoney(cents, "usd", "usd", locale);
 }
 
 /**
@@ -183,7 +167,7 @@ export function pauseOfferHeading(
   t: Translate = EN,
 ): string {
   return t("settingsMore.pauseOfferHeading", {
-    amount: monthly(monthlyCents),
+    amount: monthly(monthlyCents, t.locale),
   });
 }
 
@@ -191,14 +175,14 @@ export function pauseOfferBody(
   monthlyCents: number,
   t: Translate = EN,
 ): string {
-  return t("settingsMore.pauseOfferBody", { amount: monthly(monthlyCents) });
+  return t("settingsMore.pauseOfferBody", { amount: monthly(monthlyCents, t.locale) });
 }
 
 export function pauseOfferAction(
   monthlyCents: number,
   t: Translate = EN,
 ): string {
-  return t("settingsMore.pauseOfferAction", { amount: monthly(monthlyCents) });
+  return t("settingsMore.pauseOfferAction", { amount: monthly(monthlyCents, t.locale) });
 }
 
 /** Said once, where the press happened — the paused card is a screen away. */
@@ -365,7 +349,7 @@ export function PausedPlanCard({
               {t("settingsMore.pausedPayingLead")}{" "}
               <span className="font-medium text-foreground">
                 {t("settingsMore.pausedPayingAmount", {
-                  amount: monthly(data.monthly_cents),
+                  amount: monthly(data.monthly_cents, t.locale),
                 })}
               </span>{" "}
               {since

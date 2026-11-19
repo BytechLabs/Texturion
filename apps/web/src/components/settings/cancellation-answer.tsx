@@ -421,6 +421,7 @@ export function WinbackAnswer({ company }: { company: CompanyView }) {
   if (!open || !stated.data) return null;
 
   const offer = cancellationOffer({
+    locale: t.locale,
     reason: stated.data.reason,
     plan: company.plan,
     phase: "grace",

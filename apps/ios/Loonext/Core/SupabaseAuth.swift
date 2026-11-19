@@ -64,16 +64,16 @@ struct SupabaseAuth: Sendable {
         email: String,
         password: String,
         displayName: String? = nil,
-        captchaToken: String? = nil
+        captchaToken: String? = nil,
+        locale: String = MessageLocale.en
     ) async throws -> SignUpResult {
-        var fields: [String: Any] = ["email": email, "password": password]
-        // Mirrors the web: a DB trigger copies data.display_name to profiles.
+        var metadata = ["locale": MessageLocale.resolve(contact: locale, company: nil)]
         if let displayName, !displayName.isEmpty {
-            fields["data"] = ["display_name": displayName]
+            metadata["display_name"] = displayName
         }
         let data = try await request(
             "signup",
-            body: authBody(fields, captchaToken: captchaToken)
+            body: authBody(["email": email, "password": password, "data": metadata], captchaToken: captchaToken)
         )
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["access_token"] != nil {

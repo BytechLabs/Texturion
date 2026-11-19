@@ -201,7 +201,7 @@ private struct ChangeEmailBlock: View {
         Task {
             do {
                 let token = try await scope.repo.freshAccessToken()
-                try await SettingsAuthClient().updateEmail(accessToken: token, newEmail: trimmed)
+                try await SettingsAuthClient().updateEmail(accessToken: token, newEmail: trimmed, locale: appLocale)
                 editing = false
                 newEmail = ""
                 scope.showMessage(

@@ -1182,7 +1182,7 @@ export async function syncSubscription(
 async function startCancellationLifecycle(
   env: Env,
   db: SupabaseClient,
-  company: { id: string; name: string; canceled_at: string | null },
+  company: { id: string; name: string; canceled_at: string | null; locale: string | null },
   subscription: Stripe.Subscription,
   fallbackEpochSeconds?: number,
 ): Promise<void> {
@@ -1241,7 +1241,7 @@ async function startCancellationLifecycle(
   await suspendCompanyNumbers(env, company.id);
   await recordAndSendGraceNotice(
     env,
-    { id: company.id, name: company.name, canceled_at: canceledAt },
+    { ...company, canceled_at: canceledAt },
     1,
   );
 }
@@ -1287,12 +1287,13 @@ async function handleSubscriptionDeleted(
       cancel_at_period_end: false,
     })
     .eq("stripe_subscription_id", subscription.id)
-    .select("id,name,canceled_at,deleted_at,pending_plan_schedule_id");
+    .select("id,name,locale,canceled_at,deleted_at,pending_plan_schedule_id");
   if (error) throw new Error(`cancellation mirror failed: ${error.message}`);
   const company = (data ?? [])[0] as
     | {
         id: string;
         name: string;
+        locale: string | null;
         canceled_at: string | null;
         deleted_at: string | null;
         pending_plan_schedule_id?: string | null;

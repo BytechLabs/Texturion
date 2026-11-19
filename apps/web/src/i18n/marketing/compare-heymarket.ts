@@ -119,6 +119,8 @@ export const compareHeymarketEn = {
   aiRivalNote:
     "Their pricing page prices each AI Agent message at three times the $0.03 base rate, charged on top of seats.",
   totalLabel: "Monthly total",
+  totalOurs: "$29",
+  totalRival: "~$172/mo",
   footnote:
     "Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified {date}: Standard $49/user/mo (annual) with a 2-user minimum, SMS $0.03/segment (MMS 2 credits), and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. Neither total includes any AI usage: theirs bills AI Agent messages at 3x the base rate, and ours is included. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.",
 } as const;
@@ -241,6 +243,8 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
   aiRivalNote:
     "Leur page facture chaque message AI Agent à trois fois le tarif de base de 0,03 $ US, en plus des places.",
   totalLabel: "Total mensuel",
+  totalOurs: "29 $ US",
+  totalRival: "Environ 172 $ US/mois",
   footnote:
     "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Heymarket viennent de heymarket.com/pricing, revérifiés le {date} : Standard à 49 $ US/personne/mois (annuel), minimum de 2 places, SMS à 0,03 $ US/segment (MMS : 2 crédits) et frais 10DLC de 10 $ US/mois par campagne. Le total d'environ 172 $ US suppose 3 places, 500 textos d'un segment et une campagne; les textos de plus de 160 caractères comptent plusieurs segments et coûtent davantage. Aucun total ne comprend l'utilisation de l'IA : Heymarket facture les messages AI Agent à trois fois le tarif de base et la nôtre est incluse. Les frais uniques d'inscription sont exclus des deux totaux (les nôtres sont de 29 $ US). Si un chiffre change, dites-le-nous et nous le corrigerons.",
 };

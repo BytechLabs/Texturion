@@ -242,7 +242,7 @@ function PrepaidYearNotice({
   const t = useT();
   const paid = billingCurrencyOf(open.currency);
   const credit = open.conversion
-    ? formatMoney(open.conversion.credit_cents, paid)
+    ? formatMoney(open.conversion.credit_cents, paid, paid, t.locale)
     : null;
   const used = open.conversion?.consumed_months ?? null;
   // The sentences are the promise, so they come from the shared rule rather than
@@ -258,7 +258,7 @@ function PrepaidYearNotice({
           <dt className="text-muted-foreground">
             {t("settings.planPrepaidPaid")}
           </dt>
-          <dd className="tabular-nums">{formatMoney(open.amount_cents, paid)}</dd>
+          <dd className="tabular-nums">{formatMoney(open.amount_cents, paid, paid, t.locale)}</dd>
         </div>
         {used !== null && (
           <div className="flex justify-between gap-4">
@@ -322,7 +322,7 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
   // owner reading a US price here would be reading it beside a Canadian
   // invoice, on the screen where the number is the whole decision.
   const currency = billingCurrencyOf(company.billing_currency);
-  const targetPrice = formatMoney(PLAN_PRICE_CENTS[currency][target], currency);
+  const targetPrice = formatMoney(PLAN_PRICE_CENTS[currency][target], currency, currency, t.locale);
 
   function reset(next: boolean) {
     if (!next) {

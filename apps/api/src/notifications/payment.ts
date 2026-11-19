@@ -148,20 +148,16 @@ export function paymentAlert(
   input: PaymentNotification,
   contactName: string,
 ): PaymentAlert {
-  const amount =
-    input.amountCents !== null &&
-    input.amountCents > 0 &&
-    isBillingCurrency(input.currency)
-      ? formatMoney(input.amountCents, input.currency)
-      : null;
-
-  // Which of the three outcomes' sentences to read, in whichever language is
-  // asked for. The figure is already formatted by the time it gets here, and
-  // the copy takes it as a plain string.
   const copy = (locale: Locale) => PAYMENT_PUSH_COPY[locale][input.outcome];
   const description = input.description?.trim() ?? "";
   return {
-    title: (locale) => copy(locale).title(contactName, amount),
+    title: (locale) => {
+      const { amountCents, currency } = input;
+      const amount = amountCents !== null && amountCents > 0 && isBillingCurrency(currency)
+        ? formatMoney(amountCents, currency, currency, locale)
+        : null;
+      return copy(locale).title(contactName, amount);
+    },
     // A member's own words when they typed any — somebody else's sentence,
     // which passes through in whatever language they wrote it. Only the
     // fallback is ours to translate.

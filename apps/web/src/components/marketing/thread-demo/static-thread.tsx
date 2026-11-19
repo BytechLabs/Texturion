@@ -64,11 +64,11 @@ export function StaticThread({
             }
             case "outbound": {
               return (
-                <OutboundBubble key={beat.id} beat={beat} state={beat.delivered} />
+                <OutboundBubble key={beat.id} beat={beat} state={beat.delivered} locale={locale} />
               );
             }
             case "note": {
-              return <NoteBubble key={beat.id} beat={beat} />;
+              return <NoteBubble locale={locale} key={beat.id} beat={beat} />;
             }
             case "event": {
               return <EventLine key={beat.id} beat={beat} />;

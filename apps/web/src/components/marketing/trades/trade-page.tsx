@@ -271,7 +271,7 @@ export function TradePage({
           </p>
         </div>
         <PanelFrame
-          caption={THREAD_CAPTION}
+          caption={copy.doneNote}
           ariaLabel={content.threadAriaLabel}
           className="mx-auto mt-12 w-full max-w-[36rem]"
         >

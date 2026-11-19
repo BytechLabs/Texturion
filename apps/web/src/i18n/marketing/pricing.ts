@@ -180,6 +180,7 @@ export const pricingEn = {
   ctaTitle: "You've seen the whole price list. That's the point.",
   ctaChipAfter: "· Month to month · 30-day money-back guarantee",
   ledgerPlanTerm: "Your plan",
+  ledgerPlanFigure: "{starter} or {pro}/mo",
   ledgerPlanDetail:
     "Month to month. Starter covers {starterSeats} people, Pro covers {proSeats}, flat either way.",
   ledgerRegisterTerm: "Register with the phone companies",
@@ -429,6 +430,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
   ctaTitle: "Vous avez vu toute la liste de prix. C'est bien le but.",
   ctaChipAfter: "· Au mois · Garantie de remboursement de 30 jours",
   ledgerPlanTerm: "Votre forfait",
+  ledgerPlanFigure: "{starter} ou {pro}/mois",
   ledgerPlanDetail:
     "Au mois. Starter couvre {starterSeats} personnes, Pro en couvre {proSeats}, prix fixe dans les deux cas.",
   ledgerRegisterTerm: "S'enregistrer auprès des compagnies de téléphone",

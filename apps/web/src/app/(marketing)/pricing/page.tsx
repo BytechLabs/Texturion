@@ -9,9 +9,9 @@ import { absoluteUrl } from "@/lib/marketing/site";
 
 const PATH = "/pricing";
 
-const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
-const PRO_USD = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd");
-const REGISTRATION_USD = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd");
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "usd", "en");
+const PRO_USD = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", "usd", "en");
+const REGISTRATION_USD = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", "usd", "en");
 
 const FIGURES = {
   starter: STARTER_USD,

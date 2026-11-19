@@ -328,6 +328,7 @@ export function CancelSubscriptionCard({
    * pause is not a "no".
    */
   const offer = cancellationOffer({
+    locale: t.locale,
     reason,
     plan: company.plan,
     billingCurrency: company.billing_currency,

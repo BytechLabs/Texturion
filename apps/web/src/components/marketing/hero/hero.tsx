@@ -149,7 +149,7 @@ export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
                 ariaLabel={copy.heroInboxAria}
               >
                 <AppSurface>
-                  <HeroInbox script={inboxRows} />
+                  <HeroInbox script={inboxRows} heading={copy.heroInboxHeading} />
                 </AppSurface>
               </PanelFrame>
             </div>

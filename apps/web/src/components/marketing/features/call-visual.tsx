@@ -52,7 +52,7 @@ function RingingCard({ copy }: { copy: CallsCopy }) {
               line names WHICH business line it came in on — the detail that
               makes a second number mean something. */}
           <span className="block truncate text-[12px] tabular-nums text-app-muted">
-            (555) 0134 · to your shop line
+            (555) 0134 · {copy.visualShopLine}
           </span>
         </span>
       </div>

@@ -30,7 +30,7 @@ import { Reveal } from "@/components/marketing/ui/reveal";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { navCopy } from "@/i18n/marketing/nav";
-import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS, appLink, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /* -------------------------------------------------------------------------- */
 /* Dateline header (§5.1): converged mark, the arithmetic chip, H1, lead, CTAs. */
@@ -61,7 +61,7 @@ export function CompareHero({
           {lead}
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <CtaButton href={APP_LINKS.signup}>{nav.ctaPrimary}</CtaButton>
+          <CtaButton href={appLink(APP_LINKS.signup, locale)}>{nav.ctaPrimary}</CtaButton>
           <CtaButton
             href={locale === "fr-CA" ? "/fr/tarifs" : LIVE_ROUTES.pricing}
             variant="secondary"
@@ -279,7 +279,7 @@ export function CompareCta({
           {sub}
         </p>
         <div className="mt-8 flex justify-center">
-          <CtaButton href={APP_LINKS.signup} size="lg">
+          <CtaButton href={appLink(APP_LINKS.signup, locale)} size="lg">
             {nav.ctaPrimary}
           </CtaButton>
         </div>

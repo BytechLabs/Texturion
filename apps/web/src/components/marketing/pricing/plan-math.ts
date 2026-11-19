@@ -111,7 +111,7 @@ export function firstMonthTotalDollars(
  * those correct while the currency threads through.
  */
 export function usd(n: number, currency: BillingCurrency = "usd"): string {
-  return formatMoney(Math.round(n * 100), currency);
+  return formatMoney(Math.round(n * 100), currency, currency, "en");
 }
 
 /**
