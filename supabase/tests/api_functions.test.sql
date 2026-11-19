@@ -592,23 +592,22 @@ end $$;
 
 -- ===========================================================================
 -- F6. api_prune_webhook_events: bounded, oldest-first retention over the
---     webhook idempotency ledger. Prunes ONLY processed rows past the cutoff;
---     an unprocessed row (still owed a replay) and an attempts-exhausted row
---     (the forensic record behind a §11 Sentry alert) are never eligible.
+--     webhook ledger. Active rows stay available for replay.
 -- ===========================================================================
 do $$
 declare
   n int;
 begin
   insert into public.webhook_events
-    (provider, event_id, event_type, payload, received_at, processed_at, attempts)
+    (provider, event_id, event_type, payload, received_at, processed_at, abandoned_at, attempts)
   values
-    ('telnyx', 'f6-old-1', 't', '{}'::jsonb, now() - interval '90 days', now() - interval '90 days', 0),
-    ('telnyx', 'f6-old-2', 't', '{}'::jsonb, now() - interval '60 days', now() - interval '60 days', 0),
-    ('stripe', 'f6-old-3', 't', '{}'::jsonb, now() - interval '45 days', now() - interval '45 days', 0),
-    ('telnyx', 'f6-recent', 't', '{}'::jsonb, now() - interval '2 days',  now() - interval '2 days',  0),
-    ('telnyx', 'f6-unproc', 't', '{}'::jsonb, now() - interval '80 days', null, 0),
-    ('telnyx', 'f6-failed', 't', '{}'::jsonb, now() - interval '70 days', null, 5);
+    ('telnyx', 'f6-old-1', 't', '{}'::jsonb, now() - interval '90 days', now() - interval '90 days', null, 0),
+    ('telnyx', 'f6-old-2', 't', '{}'::jsonb, now() - interval '60 days', now() - interval '60 days', null, 0),
+    ('stripe', 'f6-old-3', 't', '{}'::jsonb, now() - interval '45 days', now() - interval '45 days', null, 0),
+    ('telnyx', 'f6-recent', 't', '{}'::jsonb, now() - interval '2 days', now() - interval '2 days', null, 0),
+    ('telnyx', 'f6-unproc', 't', '{}'::jsonb, now() - interval '80 days', null, null, 0),
+    ('telnyx', 'f6-failed', 't', '{}'::jsonb, now() - interval '40 days', null, now() - interval '39 days', 5),
+    ('telnyx', 'f6-recent-failure', 't', '{}'::jsonb, now() - interval '2 days', null, now() - interval '1 day', 5);
 
   -- The batch ceiling is honoured, and it takes the OLDEST rows first.
   n := public.api_prune_webhook_events(now() - interval '30 days', 2);
@@ -624,8 +623,8 @@ begin
 
   -- A second pass drains the rest of the eligible tail.
   n := public.api_prune_webhook_events(now() - interval '30 days', 1000);
-  if n is distinct from 1 then
-    raise exception 'F6 FAILED: expected the remaining 1 eligible row, got %', n;
+  if n is distinct from 2 then
+    raise exception 'F6 FAILED: expected one processed and one abandoned row, got %', n;
   end if;
 
   -- Retention window: anything newer than the cutoff stays, so the dedupe
@@ -634,12 +633,12 @@ begin
     raise exception 'F6 FAILED: a 2-day-old row is inside the window and must survive';
   end if;
 
-  -- Unprocessed rows are never retention's business, however old.
   if not exists (select 1 from public.webhook_events where event_id = 'f6-unproc') then
     raise exception 'F6 FAILED: an unprocessed row was pruned — it is still owed a replay';
   end if;
-  if not exists (select 1 from public.webhook_events where event_id = 'f6-failed') then
-    raise exception 'F6 FAILED: an attempts-exhausted row was pruned — it is the forensic record';
+  if exists (select 1 from public.webhook_events where event_id = 'f6-failed')
+     or not exists (select 1 from public.webhook_events where event_id = 'f6-recent-failure') then
+    raise exception 'F6 FAILED: the retention window must also apply to abandoned events';
   end if;
 
   -- Idempotent, and a non-positive limit is a safe no-op rather than an error.
@@ -651,7 +650,7 @@ begin
     raise exception 'F6 FAILED: a non-positive limit must be a no-op';
   end if;
 
-  raise notice 'F6 PASSED: api_prune_webhook_events prunes only processed rows past the window, oldest-first, bounded';
+  raise notice 'F6 PASSED: processed and abandoned rows are pruned past the window';
 end $$;
 
 -- ===========================================================================

@@ -607,4 +607,25 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company uuid := '21000000-0000-4000-8000-000000000001';
+  v_number uuid := '31000000-0000-4000-8000-000000000001';
+  v_result jsonb;
+begin
+  v_result := public.thread_inbound_message(v_company, v_number, '+16135559991',
+    'Can you help today?', 'replayed-inbound-old', 'UTC', 50, 50, false, 0, now() - interval '1 hour');
+  if v_result->>'allow_automated_reply' is distinct from 'false'
+     or v_result->>'crew_notify_state' is distinct from 'pending'
+     or v_result->>'message_id' is null then
+    raise exception 'Late inbound must thread and notify with automated replies disabled';
+  end if;
+
+  v_result := public.thread_inbound_message(v_company, v_number, '+16135559992',
+    'Can you help now?', 'replayed-inbound-fresh', 'UTC', 50, 50, false, 0, now() - interval '3 minutes');
+  if v_result->>'allow_automated_reply' is distinct from 'true' then
+    raise exception 'Fresh inbound must remain eligible for automated replies';
+  end if;
+end $$;
+
 rollback;
