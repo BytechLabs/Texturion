@@ -737,6 +737,9 @@ data class LeadSourceReport(
     /** Conversations with no source at all. A row, never an omission. */
     val unknown: Int = 0,
     val total: Int = 0,
+    val new_customer: Int? = null,
+    val returning: Int? = null,
+    val outreach: Int? = null,
     /** 0-1, or null when the window held no conversations at all. */
     val coverage: Double? = null,
     /** The caveat to print above the table, or null when there is none. */

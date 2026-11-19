@@ -328,6 +328,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Where the customers came from (#301) -------------------------------------
         "inbox.leadSourcesTitle" to "Where your customers come from",
+        "inbox.leadSourcesBreakdown" to "New customers {new} · Returning customers {returning} · Your outreach {outreach}",
         "inbox.leadSourcesNoneSetUp" to
             "You haven't told us yet. Put a source on the numbers you " +
             "advertise — the one on the truck, the one in the ad — and " +
@@ -738,6 +739,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Where the customers came from -------------------------------------------------------
         "inbox.leadSourcesTitle" to "D'où viennent vos clients",
+        "inbox.leadSourcesBreakdown" to "Nouveaux clients {new} · Clients de retour {returning} · Vos prises de contact {outreach}",
         "inbox.leadSourcesNoneSetUp" to
             "Vous ne nous l'avez pas encore dit. Attribuez une source aux numéros " +
             "que vous annoncez — celui sur le camion, celui dans la publicité — et " +

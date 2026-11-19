@@ -61,8 +61,13 @@ export interface LeadSourceReport {
    * of the widget ones, which we can place exactly.
    */
   unknown: number;
-  /** Every conversation in the window, attributed or not. */
+  /** New customers in the window, including unknown sources. */
   total: number;
+  new_customer: number;
+  /** Conversations with an earlier qualifying lead for the same contact. */
+  returning: number;
+  /** Conversations the crew started in the window. */
+  outreach: number;
   /**
    * The fraction we can actually account for, 0–1, or null when there were no
    * conversations at all. Null rather than 0 because "nothing happened" and
@@ -78,6 +83,8 @@ export interface LeadSourceRollupRow {
   name: string | null;
   by_number: number;
   by_person: number;
+  returning?: number;
+  outreach?: number;
   /**
    * #232: started at the website widget, and therefore NOT in the two counts
    * above or in this row's `total` — the SQL takes them out. See the migration
@@ -112,8 +119,12 @@ export function buildLeadSourceReport(
   const sources: LeadSourceCount[] = [];
   let unknown = 0;
   let widget = 0;
+  let returning = 0;
+  let outreach = 0;
 
   for (const row of rows) {
+    returning += row.returning ?? 0;
+    outreach += row.outreach ?? 0;
     const byNumber = row.by_number || 0;
     const byPerson = row.by_person || 0;
     const byWidget = row.by_widget || 0;
@@ -160,6 +171,9 @@ export function buildLeadSourceReport(
     widget,
     unknown,
     total,
+    new_customer: total,
+    returning,
+    outreach,
     coverage: total === 0 ? null : attributed / total,
   };
 }

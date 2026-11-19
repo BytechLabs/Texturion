@@ -38,7 +38,7 @@ struct LeadSourcesCard: View {
 
     var body: some View {
         // Loading, or a month in which nothing happened. Silence, not a zero.
-        if let report, report.total > 0 {
+        if let report, report.total + (report.returning ?? 0) + (report.outreach ?? 0) > 0 {
             // #540: the same heading treatment as the other three measures. Two of
             // the four carried their title inside the card and two above it, which
             // read as two different species of panel in one list.
@@ -46,12 +46,21 @@ struct LeadSourcesCard: View {
             MeasureHeader(AppStrings.translate(appLocale, "inbox.leadSourcesTitle"))
             PaperCard {
                 VStack(alignment: .leading, spacing: 0) {
+                    if let count = report.new_customer {
+                        Text(AppStrings.translate(appLocale, "inbox.leadSourcesBreakdown", [
+                            "new": String(count),
+                            "returning": String(report.returning ?? 0),
+                            "outreach": String(report.outreach ?? 0),
+                        ]))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    }
 
                     // #232: unless the website is answering, in which case
                     // there IS something true to show and "you haven't set any
                     // sources up" would be a reproach aimed at somebody whose
                     // attribution is already working.
-                    if report.sources.isEmpty && report.widget == 0 {
+                    if report.total > 0 && report.sources.isEmpty && report.widget == 0 {
                         // Sources exist as a feature and this workspace has
                         // set none up, so every conversation is unknown.
                         Text(AppStrings.translate(appLocale, "inbox.leadSourcesNoneSetUp"))
@@ -79,7 +88,7 @@ struct LeadSourcesCard: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 8)
-                    } else {
+                    } else if report.total > 0 {
                         body(for: report)
                     }
                 }
@@ -117,20 +126,20 @@ struct LeadSourcesCard: View {
         }
         .padding(.top, 10)
 
-        // One sentence per number rather than an "s" glued on: French pluralises
-        // the noun AND its article, which a suffix cannot reach.
-        Text(
-            AppStrings.translate(
-                appLocale,
-                report.total == 1
-                    ? "inbox.leadSourcesFooterOne"
-                    : "inbox.leadSourcesFooterMany",
-                ["count": String(report.total)]
+        if report.new_customer == nil {
+            Text(
+                AppStrings.translate(
+                    appLocale,
+                    report.total == 1
+                        ? "inbox.leadSourcesFooterOne"
+                        : "inbox.leadSourcesFooterMany",
+                    ["count": String(report.total)]
+                )
             )
-        )
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .padding(.top, 10)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.top, 10)
+        }
     }
 }
 

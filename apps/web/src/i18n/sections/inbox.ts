@@ -394,6 +394,7 @@ export const inboxEn = {
 
   // --- Where the customers came from (lead-sources-card.tsx) ----------------
   leadSourcesTitle: "Where your customers come from",
+  leadSourcesBreakdown: "New customers {new} · Returning customers {returning} · Your outreach {outreach}",
   leadSourcesLeading:
     "Most of the work you can account for came from {name} — {count} of {total}.",
   leadSourcesMore: "{count} more",
@@ -903,6 +904,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- Where the customers came from -----------------------------------------
   leadSourcesTitle: "D'où viennent vos clients",
+  leadSourcesBreakdown: "Nouveaux clients {new} · Clients de retour {returning} · Vos prises de contact {outreach}",
   leadSourcesLeading:
     "La majorité du travail que vous pouvez attribuer vient de {name} — " +
     "{count} sur {total}.",

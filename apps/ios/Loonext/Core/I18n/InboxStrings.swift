@@ -327,6 +327,7 @@ enum InboxStrings {
 
             // --- Where customers come from (#301 LeadSourcesCard.swift) -----------------------
             "inbox.leadSourcesTitle": "Where your customers come from",
+            "inbox.leadSourcesBreakdown": "New customers {new} · Returning customers {returning} · Your outreach {outreach}",
             "inbox.leadSourcesNoneSetUp":
                 "You haven't told us yet. Put a source on the numbers you "
                 + "advertise — the one on the truck, the one in the ad — and "
@@ -782,6 +783,7 @@ enum InboxStrings {
 
             // --- Where customers come from (#301 LeadSourcesCard.swift) -----------------------
             "inbox.leadSourcesTitle": "D'où viennent vos clients",
+            "inbox.leadSourcesBreakdown": "Nouveaux clients {new} · Clients de retour {returning} · Vos prises de contact {outreach}",
             "inbox.leadSourcesNoneSetUp":
                 "Vous ne nous l'avez pas encore dit. Attribuez une source aux "
                 + "numéros que vous annoncez — celui sur le camion, celui dans "

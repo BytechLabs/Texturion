@@ -155,6 +155,9 @@ export interface LeadSourceReport {
   /** Conversations with no source at all. A row, never an omission. */
   unknown: number;
   total: number;
+  new_customer?: number;
+  returning?: number;
+  outreach?: number;
   /** 0–1, or null when the window held no conversations at all. */
   coverage: number | null;
   /** The caveat to print above the table, or null when there is none. */

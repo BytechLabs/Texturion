@@ -2,7 +2,7 @@ create or replace function public.report_lead_opening(p_company_id uuid, p_conve
 returns table (opened_at timestamptz, channel text)
 language sql stable rows 1
 set search_path = ''
-as $
+as $$
   with candidates as (
     (
       select m.created_at as opened_at, 'text'::text as channel

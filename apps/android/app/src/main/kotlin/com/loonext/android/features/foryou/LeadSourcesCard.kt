@@ -74,7 +74,7 @@ fun LeadSourcesCard(
     onSetUpSources: () -> Unit,
 ) {
     // Loading, or a month in which nothing happened. Silence, not a zero.
-    if (report == null || report.total == 0) return
+    if (report == null || report.total + (report.returning ?: 0) + (report.outreach ?: 0) == 0) return
 
     // #540: the same heading treatment as the other three measures — see
     // PipelineCard for why the four have to agree.
@@ -85,6 +85,19 @@ fun LeadSourcesCard(
     MeasureHeader(t("inbox.leadSourcesTitle"))
     PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
+            report.new_customer?.let { count ->
+                Text(
+                    t(
+                        "inbox.leadSourcesBreakdown",
+                        "new" to count.toString(),
+                        "returning" to (report.returning ?: 0).toString(),
+                        "outreach" to (report.outreach ?: 0).toString(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (report.total == 0) return@Column
 
             // #232: unless the website is answering, in which case there IS
             // something true to show and "you haven't set any sources up"
@@ -146,16 +159,18 @@ fun LeadSourcesCard(
                 SourceRow(t("inbox.leadSourcesUnknown"), report.unknown, max, muted = true)
             }
 
-            Text(
-                t(
-                    if (report.total == 1) "inbox.leadSourcesFooterOne"
-                    else "inbox.leadSourcesFooterMany",
-                    "count" to report.total.toString(),
-                ),
-                modifier = Modifier.padding(top = 10.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (report.new_customer == null) {
+                Text(
+                    t(
+                        if (report.total == 1) "inbox.leadSourcesFooterOne"
+                        else "inbox.leadSourcesFooterMany",
+                        "count" to report.total.toString(),
+                    ),
+                    modifier = Modifier.padding(top = 10.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
     }

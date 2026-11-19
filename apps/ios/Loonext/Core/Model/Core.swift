@@ -841,6 +841,9 @@ struct LeadSourceReport: Codable, Sendable {
     /// Conversations with no source at all. A row, never an omission.
     @Default<DefaultZero> var unknown: Int
     @Default<DefaultZero> var total: Int
+    var new_customer: Int? = nil
+    var returning: Int? = nil
+    var outreach: Int? = nil
     /// 0-1, or nil when the window held no conversations at all.
     let coverage: Double?
     /// The caveat to print above the table, or nil when there is none.
