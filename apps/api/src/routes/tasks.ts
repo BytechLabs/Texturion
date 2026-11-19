@@ -1950,8 +1950,8 @@ tasksRoutes.post(
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
     const userId = c.get("userId");
-    const access = await resolveNumberAccess(db, { companyId, userId, role: c.get("role") });
-
+    const accessScope = { companyId, userId, role: c.get("role") };
+    let access: Awaited<ReturnType<typeof resolveNumberAccess>> | undefined;
     let ids = body.ids;
     if (ids === undefined) {
       // Filter mode. The SAME builder the list uses, so what gets acted on is
@@ -1969,6 +1969,7 @@ tasksRoutes.post(
         .eq("company_id", companyId)
         .is("deleted_at", null);
       if (filter.has_location) {
+        access = await resolveNumberAccess(db, accessScope);
         taskQuery = taskQuery.not("map_lat", "is", null);
         if (access.hiddenNumberIds?.length) {
           taskQuery = taskQuery.or(
@@ -2014,6 +2015,7 @@ tasksRoutes.post(
       }
     }
 
+    access ??= await resolveNumberAccess(db, accessScope);
     const result = unwrap<TaskBulkResult>(
       await db.rpc("api_bulk_tasks", {
         p_company_id: companyId,

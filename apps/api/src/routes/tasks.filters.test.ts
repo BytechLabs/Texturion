@@ -201,14 +201,36 @@ describe("GET /v1/tasks: the #690 filters", () => {
     expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBeNull();
   });
 
-  it("refuses bad values and the map combination before reading", async () => {
-    for (const q of ["contact_id=nope", "created_by=nope", "source=fax", "has_location=true&source=call"]) {
+  it("refuses invalid filter values and map file filters before reading", async () => {
+    for (const q of [
+      "contact_id=nope",
+      "created_by=nope",
+      "source=fax",
+      "has_location=true&has_attachments=true",
+    ]) {
       const list = stubRoute(restMatch(env, "GET", "tasks"), () => []);
       stubFetch(jwksRoute(auth), members(), noRules(), list.route);
       const response = await request("GET", `/v1/tasks?${q}`);
       expect(response.status).toBe(422);
       expect(list.calls).toHaveLength(0);
     }
+  });
+
+  it("filters map rows by customer, creator and source", async () => {
+    const conversations = stubRoute(restMatch(env, "GET", "conversations"), () => [{ id: CONV_A }]);
+    const map = stubRoute(restMatch(env, "GET", "task_map_rows"), () => []);
+    stubFetch(jwksRoute(auth), members(), noRules(), conversations.route, map.route, ...tail());
+
+    const response = await request(
+      "GET",
+      `/v1/tasks?has_location=true&contact_id=${CONTACT_ID}&created_by=me&source=call`,
+    );
+
+    expect(response.status).toBe(200);
+    const filters = map.calls[0].url.searchParams;
+    expect(filters.get("or")).toBe(`(contact_id.eq.${CONTACT_ID},conversation_id.in.(${CONV_A}))`);
+    expect(filters.get("created_by_user_id")).toBe(`eq.${auth.subject}`);
+    expect(filters.get("source_call_id")).toBe("not.is.null");
   });
 
   it("sorts by updated, newest first, and pages on (updated_at, id)", async () => {

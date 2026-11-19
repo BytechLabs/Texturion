@@ -27,16 +27,16 @@ import { sourceText, stripComments } from "../test/source-tree";
 
 const ROUTES = join(import.meta.dirname);
 
-/**
- * Every `c.req.query("x")` a route reads.
- *
- * Comments stripped first, so prose naming a parameter is not a parameter.
- */
 function queryKeys(file: string): Set<string> {
   const source = stripComments(sourceText(join(ROUTES, file)));
-  return new Set(
+  const keys = new Set(
     [...source.matchAll(/c\.req\.query\(\s*"([^"]+)"/g)].map((m) => m[1]),
   );
+  if (file === "tasks.ts") {
+    const parser = source.match(/^function parseTaskListQuery\b[\s\S]*?^}/m)?.[0] ?? "";
+    for (const [, key] of parser.matchAll(/\bquery\.(\w+)/g)) keys.add(key);
+  }
+  return keys;
 }
 
 /**
