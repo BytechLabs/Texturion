@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchField } from "@/components/ui/search-field";
 import { useT } from "@/i18n/provider";
 import { useContacts } from "@/lib/api/contacts";
 import { useConversations } from "@/lib/api/conversations";
@@ -35,7 +35,7 @@ export function TaskCustomerField({ id, name, onSelect }: {
       </Button>
       {looking && (
         <div className="rounded-md border border-border p-2">
-          <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+          <SearchField value={search} onValueChange={setSearch}
             aria-label={t("tasks.chooseCustomer")} placeholder={t("tasks.chooseCustomer")} />
           {flattenPages(contacts.data).slice(0, 8).map((contact) => (
             <Button key={contact.id} type="button" variant="ghost" className="w-full justify-start"

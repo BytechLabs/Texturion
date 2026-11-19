@@ -29,6 +29,9 @@ vi.mock("next/dynamic", () => ({
 vi.mock("../task-empty", () => ({
   EmptyTasks: () => <p>{EN.tasks.emptyTitle}</p>,
 }));
+vi.mock("../use-task-drawer", () => ({
+  useTaskDrawer: () => ({ hrefForTask: (id: string) => `/tasks?task=${id}` }),
+}));
 
 
 const state: TaskPageState = { view: "map", tab: "all" };
@@ -55,7 +58,7 @@ describe("Map view empty states (#752)", () => {
   afterEach(cleanup);
 
   it("explains the pause and announces zero map matches for unlocated tasks", async () => {
-    answer(page([]), page([{ id: "a" }]));
+    answer(page([]), page([{ id: "a", due_at: new Date().toISOString() }]));
     render(<MapView state={{ ...state, q: "inspection" }} />);
     expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeInstanceOf(Element);
     expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
@@ -68,7 +71,9 @@ describe("Map view empty states (#752)", () => {
   });
 
   it("keeps existing pins visible during the pause", () => {
-    answer(page([{ id: "existing-pin", lat: 49.28, lng: -123.12 }]), page([]));
+    answer(page([{
+      id: "existing-pin", title: "Known address", due_at: new Date().toISOString(), lat: 49.28, lng: -123.12,
+    }]), page([]));
     render(<MapView state={state} />);
     expect(screen.getByText("existing-pin")).toBeInstanceOf(Element);
     expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
