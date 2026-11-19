@@ -171,6 +171,7 @@ export function eventSentence(
     // one they cannot does not send them back to try the same file again.
     case "media_refused": {
       const {reason} = event.payload;
+      if (reason === "download_failed") return t("thread.sysMediaDownloadFailed");
       if (reason === "too_large") return t("thread.sysMediaTooLarge");
       if (reason === "empty") return t("thread.sysMediaEmpty");
       if (reason === "type_mismatch") return t("thread.sysMediaTypeMismatch");

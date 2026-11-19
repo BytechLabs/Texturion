@@ -655,6 +655,7 @@ export const threadEn = {
    * is stable. (The same trap, and the same answer, as the first-run hints in
    * `sections/inbox.ts`.)
    */
+  sysMediaDownloadFailed: "An attachment could not be downloaded. Ask the sender to resend it.",
   sysMediaTooLarge:
     "A file this customer sent was too big to save — ask them to send a smaller one",
   sysMediaEmpty:
@@ -1389,6 +1390,7 @@ export const threadFr: Translated<typeof threadEn> = {
   sysPaymentDisputed: "Sa banque a repris {amount}",
   sysPaymentDisputedGeneric: "Sa banque a repris ce paiement",
   sysPaymentWithDescription: "{line} — {description}",
+  sysMediaDownloadFailed: "Impossible de télécharger une pièce jointe. Demandez à la personne de la renvoyer.",
   sysMediaTooLarge:
     "Un fichier envoyé par ce client était trop gros pour être conservé — " +
     "demandez-lui d'en envoyer un plus petit",

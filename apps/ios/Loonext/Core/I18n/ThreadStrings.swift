@@ -680,6 +680,7 @@ enum ThreadStrings {
             "thread.sysPaymentDisputed": "Their bank pulled back {amount}",
             "thread.sysPaymentDisputedGeneric": "Their bank pulled this payment back",
             "thread.sysPaymentWithDescription": "{line} — {description}",
+            "thread.sysMediaDownloadFailed": "An attachment could not be downloaded. Ask the sender to resend it.",
             "thread.sysMediaTooLarge":
                 "A file this customer sent was too big to save — ask them to send a "
                 + "smaller one",
@@ -1478,6 +1479,7 @@ enum ThreadStrings {
             "thread.sysPaymentDisputed": "Sa banque a repris {amount}",
             "thread.sysPaymentDisputedGeneric": "Sa banque a repris ce paiement",
             "thread.sysPaymentWithDescription": "{line} — {description}",
+            "thread.sysMediaDownloadFailed": "Impossible de télécharger une pièce jointe. Demandez à la personne de la renvoyer.",
             "thread.sysMediaTooLarge":
                 "Un fichier envoyé par ce client était trop gros pour être conservé "
                 + "— demandez-lui d'en envoyer un plus petit",

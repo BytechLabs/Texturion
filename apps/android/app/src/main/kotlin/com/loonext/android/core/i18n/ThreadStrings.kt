@@ -754,6 +754,7 @@ object ThreadStrings : AppStrings.Section {
          * and the guard would report Android as the client that reworded it. So
          * these seven stay long, deliberately.
          */
+        "thread.sysMediaDownloadFailed" to "An attachment could not be downloaded. Ask the sender to resend it.",
         "thread.sysMediaTooLarge" to
             "A file this customer sent was too big to save — ask them to send a smaller one",
         "thread.sysMediaEmpty" to
@@ -1540,6 +1541,7 @@ object ThreadStrings : AppStrings.Section {
         // parity guard compares the ENGLISH above; these are held to the same
         // standard by hand, because a French crew reading a different reason
         // than an English one is the same defect in a second language.
+        "thread.sysMediaDownloadFailed" to "Impossible de télécharger une pièce jointe. Demandez à la personne de la renvoyer.",
         "thread.sysMediaTooLarge" to
             "Un fichier envoyé par ce client était trop gros pour être conservé — " +
             "demandez-lui d'en envoyer un plus petit",

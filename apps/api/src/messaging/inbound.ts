@@ -26,6 +26,7 @@ import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { deadline } from "../http/deadline";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { captureEvent } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
@@ -34,7 +35,7 @@ import { stripImageLocation } from "../attachments/location";
 import { qualifyReferralForSender } from "../referrals/referrals";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
-import { insertConversationEvents } from "../routes/core/events";
+import type { ConversationEventRow } from "../routes/core/events";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { maybeSendAwayReply } from "./away-reply";
 import { maybeSendOffRamp } from "./off-ramp";
@@ -60,6 +61,8 @@ import {
   MMS_BUCKET,
 } from "./media";
 import type { TelnyxEvent, ThreadResult } from "./types";
+
+const INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
 
 /**
  * The threading RPC's return with the #39 additive key: `notification_alert`
@@ -884,24 +887,27 @@ export type MediaRefusalReason =
    * a Zip64 archive, something past the scan ceiling. Held rather than passed
    * on, because "we did not look" is not a reason to hand somebody a file.
    */
-  | "unreadable";
+  | "unreadable"
+  | "download_failed";
 
-/**
- * Record a refusal where the crew will actually see it.
- *
- * Best-effort by construction. This runs inside the inbound pipeline, and a
- * failure to write the EXPLANATION must never fail delivery of the message the
- * explanation is about — the customer's text matters more than our note about
- * their attachment. The console line stays for the same reason the event was
- * added: two records of a refusal are cheap, and one of them survives a database
- * that has not been migrated yet.
- */
+interface InboundMediaOwner {
+  companyId: string;
+  conversationId: string | null;
+  messageId: string;
+}
+
+interface InboundMediaItem {
+  url: string;
+  content_type?: string;
+}
+
+type MediaDownload =
+  | { bytes: ArrayBuffer; contentType: string }
+  | { reason: MediaRefusalReason; contentType?: string; sizeBytes?: number };
+
 async function recordMediaRefusal(
   db: SupabaseClient,
-  args: {
-    companyId: string;
-    conversationId: string | null;
-    messageId: string;
+  args: InboundMediaOwner & {
     index: number;
     reason: MediaRefusalReason;
     contentType?: string | null;
@@ -914,63 +920,32 @@ async function recordMediaRefusal(
     `inbound media ${args.index} for message ${args.messageId} refused (${args.reason})`,
   );
   if (!args.conversationId) return;
-  try {
-    await insertConversationEvents(db, [
-      {
-        company_id: args.companyId,
-        conversation_id: args.conversationId,
-        // Nobody on the crew did this, and the sender is not a user. A null
-        // actor is what the timeline already uses for events the system
-        // originates.
-        actor_user_id: null,
-        type: "media_refused",
-        payload: {
-          reason: args.reason,
-          message_id: args.messageId,
-          index: args.index,
-          // Deliberately NOT the file name or the source URL: the name is
-          // attacker-controlled text that would render in the thread, and the
-          // URL is a live handle to bytes we just declined to store.
-          content_type: args.contentType ?? null,
-          size_bytes: args.sizeBytes ?? null,
-          // #317: `zip_macro`, `pdf_launch`, … — our own finding, not anything
-          // the sender chose, so it is safe to render and useful to search on.
-          scan_reason: args.scanReason ?? null,
-        },
-      },
-    ]);
-  } catch (error) {
-    console.warn(
-      `media_refused event write failed for message ${args.messageId}: ${String(error)}`,
-    );
+  const event: ConversationEventRow = {
+    company_id: args.companyId,
+    conversation_id: args.conversationId,
+    actor_user_id: null,
+    type: "media_refused",
+    payload: {
+      reason: args.reason,
+      message_id: args.messageId,
+      index: args.index,
+      content_type: args.contentType ?? null,
+      size_bytes: args.sizeBytes ?? null,
+      scan_reason: args.scanReason ?? null,
+    },
+  };
+  const { error } = await db.from("conversation_events").insert([event]);
+  if (error && error.code !== "23505") {
+    const message = `media refusal write failed for message ${args.messageId}: ${error.message}`;
+    if (args.reason === "download_failed") throw new Error(message);
+    console.warn(message);
   }
 }
 
 async function downloadInboundMedia(
   db: SupabaseClient,
-  args: {
-    companyId: string;
-    conversationId: string | null;
-    messageId: string;
-    media: { url: string; content_type?: string; size?: number }[];
-  },
+  args: InboundMediaOwner & { media: InboundMediaItem[] },
 ): Promise<void> {
-  // #121: storage is free — inbound media is ALWAYS saved (the old #12
-  // cap-and-drop is gone). Cost exposure is handled by the usage-alerts
-  // cron's storage-abuse arm (customer + ops email at absolute tiers), a
-  // human follow-up instead of silently dropping a customer's pictures.
-  // D30 per-message item cap: process the first 10, skip the rest. Skipping
-  // (not throwing) keeps the ledger row processable — retrying would never
-  // change how many items the sender attached.
-  if (args.media.length > MAX_INBOUND_MEDIA_ITEMS) {
-    await recordMediaRefusal(db, {
-      companyId: args.companyId,
-      conversationId: args.conversationId,
-      messageId: args.messageId,
-      index: MAX_INBOUND_MEDIA_ITEMS,
-      reason: "too_many_items",
-    });
-  }
   const items = args.media.slice(0, MAX_INBOUND_MEDIA_ITEMS);
 
   // Skip items already stored (idempotent replay).
@@ -988,159 +963,114 @@ async function downloadInboundMedia(
     ),
   );
 
+  let failure: Error | null = null;
   for (const [index, item] of items.entries()) {
     if (stored.has(item.url)) continue;
-
-    const response = await fetch(item.url);
-    if (!response.ok) {
-      // Transient CDN failure: throw so the ledger row stays unprocessed and
-      // the §11 sweeper retries the whole (idempotent) pipeline.
-      throw new Error(
-        `media download failed (HTTP ${response.status}) for message ${args.messageId}`,
-      );
+    try {
+      await storeInboundMediaItem(db, args, index, item);
+    } catch (error) {
+      failure ??= error instanceof Error ? error : new Error(String(error));
     }
-    // #189: canonicalize vendor spellings (audio/x-wav, audio/amr-nb, …) so
-    // deliverable media isn't dropped over a MIME synonym; the canonical type
-    // is also what gets stored (the bucket's allowed_mime_types match it).
+  }
+  if (args.media.length > MAX_INBOUND_MEDIA_ITEMS) {
+    await recordMediaRefusal(db, {
+      ...args,
+      index: MAX_INBOUND_MEDIA_ITEMS,
+      reason: "too_many_items",
+    });
+  }
+  if (failure) throw failure;
+}
+
+async function fetchInboundMedia(item: InboundMediaItem, messageId: string): Promise<MediaDownload> {
+  const download = deadline(INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS);
+  try {
+    const response = await fetch(item.url, { signal: download.signal });
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {});
+      const { status } = response;
+      if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        return { reason: "download_failed" };
+      }
+      throw new Error(`media download failed (HTTP ${status}) for message ${messageId}`);
+    }
     const contentType = canonicalMmsType(
-      response.headers.get("content-type")?.split(";")[0]?.trim() ||
-        item.content_type ||
-        "",
+      response.headers.get("content-type")?.split(";")[0]?.trim() || item.content_type || "",
     );
     if (!(INBOUND_MEDIA_TYPES as readonly string[]).includes(contentType)) {
-      // Permanent condition (a type carriers relayed but we can't serve):
-      // skipping is the §7 validation outcome — retrying would never change it.
-      await recordMediaRefusal(db, {
-        companyId: args.companyId,
-        conversationId: args.conversationId,
-        messageId: args.messageId,
-        index,
-        reason: "unsupported_type",
-        contentType,
-      });
-      continue;
+      void response.body?.cancel().catch(() => {});
+      return { reason: "unsupported_type", contentType };
     }
-    // Reject obviously-oversized media BEFORE reading it into Worker memory: a
-    // carrier relaying a huge file would otherwise be fully buffered into RAM
-    // only to be discarded. Content-Length can be absent or wrong, so the
-    // post-read byteLength check below stays the authoritative guard.
     const declaredLength = Number(response.headers.get("content-length"));
-    if (
-      Number.isFinite(declaredLength) &&
-      declaredLength > MAX_INBOUND_MEDIA_BYTES
-    ) {
-      await recordMediaRefusal(db, {
-        companyId: args.companyId,
-        conversationId: args.conversationId,
-        messageId: args.messageId,
-        index,
-        reason: "too_large",
-        contentType,
-        sizeBytes: declaredLength,
-      });
-      continue;
+    if (declaredLength > MAX_INBOUND_MEDIA_BYTES) {
+      void response.body?.cancel().catch(() => {});
+      return { reason: "too_large", contentType, sizeBytes: declaredLength };
     }
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_INBOUND_MEDIA_BYTES) {
-      await recordMediaRefusal(db, {
-        companyId: args.companyId,
-        conversationId: args.conversationId,
-        messageId: args.messageId,
-        index,
+      return {
         reason: bytes.byteLength === 0 ? "empty" : "too_large",
         contentType,
         sizeBytes: bytes.byteLength,
-      });
-      continue;
+      };
     }
+    return { bytes, contentType };
+  } finally {
+    download.clear();
+  }
+}
 
-    // #317 — the bytes have to BE what the carrier said they are.
-    //
-    // The uploaded-attachment route has re-derived the type from the leading
-    // bytes since D19 ("never trusting the client-declared type"). This path did
-    // not, and it is the one the issue calls uncontrolled: anyone who knows the
-    // number can send us a file, no signup and no relationship required, and the
-    // declaration comes from a carrier CDN relaying whatever the sender's phone
-    // claimed.
-    //
-    // `bytesMatchDeclaredType` refuses a KNOWN executable signature whatever it
-    // claims to be, and refuses bytes that sniff to a different concrete media
-    // class than the declaration. It deliberately ACCEPTS bytes with no
-    // distinctive magic, which is most audio and video — dropping a customer's
-    // voice note because we have no signature for AMR would be the silent-drop
-    // failure this whole change is about.
-    if (!bytesMatchDeclaredType(new Uint8Array(bytes), contentType)) {
-      await recordMediaRefusal(db, {
-        companyId: args.companyId,
-        conversationId: args.conversationId,
-        messageId: args.messageId,
-        index,
-        reason: "type_mismatch",
-        contentType,
-        sizeBytes: bytes.byteLength,
-      });
-      continue;
-    }
+async function storeInboundMediaItem(
+  db: SupabaseClient,
+  args: InboundMediaOwner,
+  index: number,
+  item: InboundMediaItem,
+): Promise<void> {
+  const download = await fetchInboundMedia(item, args.messageId);
+  if ("reason" in download) {
+    await recordMediaRefusal(db, { ...args, index, ...download });
+    return;
+  }
+  const { bytes, contentType } = download;
+  const file = new Uint8Array(bytes);
+  const details = { ...args, index, contentType, sizeBytes: bytes.byteLength };
 
-    // #317 — the bytes are the type they claim, the type is allowed, and NOW
-    // we look at what is inside.
-    //
-    // Everything above stops the wrong file TYPE. It cannot stop a malicious
-    // file of an allowed one, and the allow-list includes the two formats that
-    // carry payloads: PDF, and the OpenXML/ODF family, which are ZIP
-    // containers. This is the path the issue calls uncontrolled — anyone who
-    // knows a number printed on a truck can send it a file — and we are the
-    // ones who store it, sign a URL for it, and put it on a tech's phone.
-    //
-    // Refused BEFORE the upload, so a blocked file never becomes an object at
-    // all. The event below is what stops that being a silent drop.
-    const scan = scanAttachment(new Uint8Array(bytes), contentType);
-    if (scan.verdict !== "clean") {
-      await recordMediaRefusal(db, {
-        companyId: args.companyId,
-        conversationId: args.conversationId,
-        messageId: args.messageId,
-        index,
-        reason: scan.verdict === "blocked" ? "unsafe_content" : "unreadable",
-        contentType,
-        sizeBytes: bytes.byteLength,
-        scanReason: scan.reason,
-      });
-      continue;
-    }
+  if (!bytesMatchDeclaredType(file, contentType)) {
+    await recordMediaRefusal(db, { ...details, reason: "type_mismatch" });
+    return;
+  }
 
-    // #294 / D128 — the customer's own coordinates, arriving on their own photo.
-    //
-    // Both of D28's doors, not just the one the crew uploads through. A homeowner
-    // texting a picture of a leaking pipe sends the position of their kitchen, and we
-    // are the ones who store it and sign a URL for it. They never agreed to that and
-    // could not have; the business has their address already if it needs one.
-    //
-    // In place on the same buffer that is about to be uploaded, after the scan so it
-    // never runs on a file we were going to refuse.
-    stripImageLocation(new Uint8Array(bytes), contentType);
-
-    const path = mediaStoragePath(args.companyId, args.messageId, index);
-    const upload = await db.storage.from(MMS_BUCKET).upload(path, bytes, {
-      contentType,
-      upsert: true, // replays re-write the same object
+  const scan = scanAttachment(file, contentType);
+  if (scan.verdict !== "clean") {
+    await recordMediaRefusal(db, {
+      ...details,
+      reason: scan.verdict === "blocked" ? "unsafe_content" : "unreadable",
+      scanReason: scan.reason,
     });
-    if (upload.error) {
-      throw new Error(`media store failed (${path}): ${upload.error.message}`);
-    }
+    return;
+  }
 
-    const { error } = await db.from("message_attachments").insert({
-      message_id: args.messageId,
-      company_id: args.companyId,
-      storage_path: path,
-      content_type: contentType,
-      size_bytes: bytes.byteLength,
-      source_url: item.url,
-    });
-    // A concurrent replay may have inserted the row between our lookup and
-    // now — the (message_id, source_url) unique makes that a benign conflict.
-    if (error && error.code !== "23505") {
-      throw new Error(`message_attachments insert failed: ${error.message}`);
-    }
+  stripImageLocation(file, contentType);
+
+  const path = mediaStoragePath(args.companyId, args.messageId, index);
+  const upload = await db.storage.from(MMS_BUCKET).upload(path, bytes, {
+    contentType,
+    upsert: true,
+  });
+  if (upload.error) {
+    throw new Error(`media store failed (${path}): ${upload.error.message}`);
+  }
+
+  const { error } = await db.from("message_attachments").insert({
+    message_id: args.messageId,
+    company_id: args.companyId,
+    storage_path: path,
+    content_type: contentType,
+    size_bytes: bytes.byteLength,
+    source_url: item.url,
+  });
+  // A concurrent replay can insert the attachment first.
+  if (error && error.code !== "23505") {
+    throw new Error(`message_attachments insert failed: ${error.message}`);
   }
 }

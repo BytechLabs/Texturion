@@ -861,6 +861,67 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     return rows[0].payload as Record<string, unknown>;
   }
 
+  it.each([
+    { status: 404, permanent: true },
+    { status: 503, permanent: false },
+  ])("keeps other attachments when a download returns $status", async ({ status, permanent }) => {
+    const mediaUrls = [MEDIA_URL + "0", MEDIA_URL + "1", MEDIA_URL + "2"];
+    const downloads = stubRoute(
+      (url, request) => request.method === "GET" && mediaUrls.includes(url.href),
+      ({ url }) => url.href === mediaUrls[1]
+        ? new Response(null, { status })
+        : new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+            headers: { "content-type": "image/jpeg" },
+          }),
+    );
+    const attachmentLookup = stubRoute(restMatch(env, "GET", "message_attachments"), () => []);
+    const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    const events = eventsStub();
+    serve(
+      numberStub(), threadStub({}), awayDisabledStub(),
+      attachmentLookup, downloads, upload, attachmentInsert, events,
+    );
+
+    const handle = handleInboundMessage(env, inboundEvent({
+      media: mediaUrls.map((url) => ({ url, content_type: "image/jpeg" })),
+    }));
+    if (permanent) {
+      await handle;
+      expect(refusal(events)).toMatchObject({ reason: "download_failed", index: 1 });
+    } else {
+      await expect(handle).rejects.toThrow("media download failed (HTTP 503)");
+      expect(events.calls).toHaveLength(0);
+    }
+
+    expect(downloads.calls).toHaveLength(3);
+    expect(upload.calls).toHaveLength(2);
+    expect(attachmentInsert.calls).toHaveLength(2);
+  });
+
+  it("treats a previously recorded refusal as a successful replay", async () => {
+    const events = stubRoute(restMatch(env, "POST", "conversation_events"), () =>
+      Response.json({ code: "23505" }, { status: 409 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      stubRoute(restMatch(env, "GET", "message_attachments"), () => []),
+      stubRoute(
+        (url, request) => request.method === "GET" && url.href === MEDIA_URL,
+        () => new Response(null, { status: 404 }),
+      ),
+      events,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ media: [{ url: MEDIA_URL }] }));
+    expect(refusal(events)).toMatchObject({ reason: "download_failed", index: 0 });
+  });
+
   it("refuses a PDF that runs a script when it opens — the right type, the wrong insides", async () => {
     // The gap the type checks structurally cannot close. This file IS a PDF,
     // `application/pdf` IS on the allow-list, and `bytesMatchDeclaredType`
