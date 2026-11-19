@@ -8,6 +8,7 @@ import type { DashboardLayout } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CalendarAttentionItem } from "@/lib/api/calendar";
 import type { Call, ForYou, SpamReviewItem } from "@/lib/api/types";
 import { countDistinctWork, ForYouView } from "./for-you-view";
 
@@ -16,6 +17,7 @@ const state: {
   forYou: ForYou;
   calls: Call[];
   spamReview: SpamReviewItem[];
+  scheduleDecisions: CalendarAttentionItem[];
   /** #540: the panels this member has put away. */
   hidden: string[];
   /** #736: the member's arranged page, or undefined for the default. */
@@ -26,6 +28,7 @@ const state: {
   forYou: { waiting_on_you: [], my_tasks: [], unread: [], triage: null },
   calls: [],
   spamReview: [],
+  scheduleDecisions: [],
   hidden: [],
 };
 
@@ -38,6 +41,10 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "co-1", role: "member" }),
   // #239: the response-time panel resolves the company for its own query.
   useCompanyId: () => "co-1",
+}));
+vi.mock("@/lib/api/calendar", () => ({
+  useCalendarAttention: () => ({ data: { attention: state.scheduleDecisions } }),
+  useResolveCalendarAttention: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 // #239: the panel is part of this surface now, but it is not what these tests
 // are about — they assert the queue's anatomy. Stubbed to its "nothing to
@@ -204,6 +211,28 @@ beforeEach(() => {
   state.hidden = [];
   state.layout = undefined;
   state.pending = false;
+  state.scheduleDecisions = [];
+});
+
+it("shows schedule decisions on For You with the reported actions", () => {
+  state.scheduleDecisions = [{
+    id: "link",
+    state: "event_removed",
+    provider_condition: "event_removed",
+    allowed_actions: ["resolve_event_removed"],
+    task: { id: "job", title: "Fit the new pump", due_at: null },
+    connection: { id: "calendar", provider: "google", calendar_label: "Crew", time_zone: "America/Edmonton" },
+    ours: null,
+    theirs: null,
+    differences: { start: false, end: false, time_zone: false, title: false, description: false },
+    display_timestamps: { ours_changed_at: null, provider_observed_at: null, attention_at: "2026-11-19T17:00:00Z" },
+    ours_changed_by: null,
+    refusal: null,
+  }];
+  const html = render();
+  expect(html).toContain('id="schedule-decisions"');
+  expect(html).toContain("Fit the new pump");
+  expect(html).toContain("The job was moved");
 });
 
 describe("ForYouView while the queue loads", () => {

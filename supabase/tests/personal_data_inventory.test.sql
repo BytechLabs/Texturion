@@ -47,7 +47,7 @@ declare
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
     -- #245: exact task/calendar scheduling snapshots. Titles can name a
     -- person or address; descriptions participate by hash only.
-    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
+    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans', 'calendar_attention_notices',
     -- #689 E: what changed on a task (titles, notes, addresses) and what the
     -- crew said about it. Free text a member typed, so personal data.
     'task_events', 'task_comments',

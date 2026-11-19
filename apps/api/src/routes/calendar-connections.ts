@@ -76,6 +76,7 @@ interface CalendarAttentionRow {
   link_id: string;
   task_id: string;
   connection_id: string;
+  connection_user_id?: string;
   provider: CalendarProviderName;
   provider_calendar_id: string;
   provider_calendar_name: string | null;
@@ -695,7 +696,7 @@ calendarConnectionRoutes.post(
       const authorized = await authorizedProviderForAttention({
         env,
         companyId,
-        userId,
+        userId: attention.connection_user_id ?? userId,
         connectionId: attention.connection_id,
         expectedProvider: attention.provider,
       });

@@ -19,6 +19,9 @@ import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ReferralMoment
 import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.model.ResponseTimeReport
+import com.loonext.android.core.model.ScheduleDecisionRequest
+import com.loonext.android.core.model.ScheduleDecisionResult
+import com.loonext.android.core.model.ScheduleDecisionsResponse
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.SpamReviewPage
 import com.loonext.android.core.model.Task
@@ -151,6 +154,12 @@ class MeRepository(private val api: ApiClient) {
 class ForYouRepository(private val api: ApiClient) {
     suspend fun forYou(companyId: String): ForYou =
         api.get("/v1/for-you", companyId = companyId)
+
+    suspend fun scheduleDecisions(companyId: String): ScheduleDecisionsResponse =
+        api.get("/v1/calendar/attention", companyId = companyId)
+
+    suspend fun resolveScheduleDecision(companyId: String, id: String, request: ScheduleDecisionRequest): ScheduleDecisionResult =
+        api.post("/v1/calendar/attention/$id/resolve", request, companyId = companyId)
 
     /**
      * #239: the response-time report. Its own call rather than a section of

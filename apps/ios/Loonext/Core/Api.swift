@@ -109,6 +109,16 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/for-you", companyId: companyId)
     }
 
+    func scheduleDecisions(companyId: String) async throws -> ScheduleDecisionsResponse {
+        try await api.get("/v1/calendar/attention", companyId: companyId)
+    }
+
+    func resolveScheduleDecision(
+        companyId: String, id: String, decision: ScheduleDecisionRequest
+    ) async throws -> ScheduleDecisionResult {
+        try await api.post("/v1/calendar/attention/\(id)/resolve", body: decision, companyId: companyId)
+    }
+
     /// #239: the response-time report. Its own call rather than a section of
     /// /v1/for-you — it answers a different question (how are we doing) from the
     /// queue (what needs doing), and it is windowed, so folding it in would make

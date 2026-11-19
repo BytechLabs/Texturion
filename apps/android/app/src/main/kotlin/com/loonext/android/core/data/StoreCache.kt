@@ -33,6 +33,7 @@ class StoreCache {
  */
 object CacheKeys {
     fun forYou(companyId: String) = "forYou/$companyId"
+    fun scheduleDecisions(companyId: String) = "scheduleDecisions/$companyId"
     /** #342: spam marks that do not look like spam. */
     fun spamReview(companyId: String) = "spamReview/$companyId"
     fun recentCalls(companyId: String) = "recentCalls/$companyId"

@@ -26,6 +26,7 @@ final class AllowedActionsRosterTests: XCTestCase {
         RosterRow(machine: "task", model: "Core/Model/Tasks.swift", screen: "Features/Tasks/TaskRecordMenu.swift"),
         RosterRow(machine: "call", model: "Core/Model/Calls.swift", screen: "Features/Calls/CallsLogic.swift"),
         RosterRow(machine: "scheduled_message", model: "Core/Model/Messaging.swift", screen: "Features/Inbox/ScheduledSheet.swift"),
+        RosterRow(machine: "calendar_link", model: "Core/Model/ScheduleDecision.swift", screen: "Features/ForYou/ScheduleDecisionsSection.swift"),
         RosterRow(machine: "quote", model: "Features/Quotes/QuotesApi.swift", screen: "Features/Quotes/ThreadQuotes.swift"),
         RosterRow(machine: "payment_request", model: "Features/Payments/PaymentsApi.swift", screen: "Features/Payments/ThreadPayments.swift"),
         RosterRow(machine: "subscription", model: "Core/Model/Core.swift", screen: "Features/Settings/BillingSection.swift"),
@@ -41,7 +42,6 @@ final class AllowedActionsRosterTests: XCTestCase {
     /// Machines with actions that the phone does not offer, and why.
     private static let notOffered: [String: String] = [
         "calendar_connection": "Calendar connections are connected and removed on the web; the phones do not manage them.",
-        "calendar_link": "Calendar links are managed on the web; the phones do not manage them.",
     ]
 
     private func mentionsField(_ relative: String) throws -> Bool {

@@ -1,19 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { deliverPush } from "../notifications/deliver";
 import type { CalendarCredentialRefreshUnavailableError } from "./authorization";
 import { openCalendarCredential, sealCalendarCredential } from "./crypto";
 import { hashCalendarDescription } from "./providers/normalize";
 import { CalendarEventNotFoundError, CalendarFullResyncRequiredError, CalendarPreconditionError, CalendarProviderError, CalendarReauthRequiredError } from './providers/types';
 import type { CalendarChangeNotice, CalendarProvider, CalendarRemoteEvent } from './providers/types';
 import type { CalendarScheduleSnapshot } from "./sync";
-import { calendarAuthorizer, calendarOwnerDisclosurePayload, createCalendarSyncStore, drainCalendarSync } from './worker';
+import { calendarAuthorizer, calendarOwnerDisclosurePayload, createCalendarSyncStore, drainCalendarSync, sendCalendarAttentionNotices } from './worker';
 import type { CalendarConnectionRow, CalendarLinkRow, CalendarOutboxRow, CalendarOwnerDisclosureRow, CalendarReminderReplanRow, CalendarSyncStore, CalendarTaskRow, CalendarWebhookSubscriptionRow } from './worker';
 import { completeEnv } from "../test/support";
 import type { Env } from "../env";
 
 const APP_ORIGIN = "https://app.example.test";
 const KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+vi.mock("../notifications/deliver", () => ({ deliverPush: vi.fn() }));
 
 function configuredEnv(): Env {
   return {
@@ -239,6 +242,28 @@ afterEach(() => {
 });
 
 describe("calendar sync worker", () => {
+  it("delivers a private schedule decision push to the connecting member", async () => {
+    const rpc = vi.fn(() => ({ data: [{ company_id: "company", link_id: "link", user_id: "connector" }], error: null }));
+    const db = { rpc } as unknown as SupabaseClient;
+    const env = { ...configuredEnv(), APP_ORIGIN };
+
+    await sendCalendarAttentionNotices(env, db);
+
+    expect(rpc).toHaveBeenCalledWith("api_claim_calendar_attention_notices", { p_limit: 25 });
+    expect(deliverPush).toHaveBeenCalledExactlyOnceWith(env, db, expect.objectContaining({
+      category: "operational",
+      companyId: "company",
+      userIds: ["connector"],
+      content: { written: "us" },
+      collapseKey: "calendar-attention:link",
+    }));
+    const payload = vi.mocked(deliverPush).mock.calls[0][2].web;
+    expect(payload("fr-CA")).toMatchObject({
+      title: "Décision d'horaire requise",
+      url: `${APP_ORIGIN}/for-you#schedule-decisions`,
+    });
+  });
+
   it("explains an unverified disconnect cleanup honestly in both locales", () => {
     const english = calendarOwnerDisclosurePayload(
       "cleanup_failed",

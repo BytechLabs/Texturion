@@ -64,7 +64,7 @@ declare
     'widget_verifications',
     'calendar_feed_tokens',
     'calendar_connections', 'oauth_states', 'webhook_subscriptions',
-    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
+    'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans', 'calendar_attention_notices',
     -- #689 E: a task's history and its comments.
     'task_events', 'task_comments',
     'record_activity',

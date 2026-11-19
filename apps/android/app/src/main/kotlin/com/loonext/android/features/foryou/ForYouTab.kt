@@ -103,6 +103,7 @@ import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.LoadErrorVariant
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
@@ -196,6 +197,11 @@ fun ForYouTab(
         key = CacheKeys.forYou(companyId),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.forYou(companyId) }
+    val scheduleDecisions = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.scheduleDecisions(companyId),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.scheduleDecisions(companyId).attention }
 
     // #239: the response-time report. Its own cache-first read rather than a
     // section of /v1/for-you, because it answers a different question (how are
@@ -432,6 +438,28 @@ fun ForYouTab(
             modifier = modifier,
         ) {
           Box(Modifier.fillMaxSize()) {
+            val decisionPanel: (@Composable () -> Unit)? = when (val decisions = scheduleDecisions) {
+                is LoadState.Ready -> if (decisions.value.isEmpty()) null else ({
+                    androidx.compose.runtime.key(companyId) {
+                        ScheduleDecisionsCard(
+                            rows = decisions.value,
+                            onResolve = { id, request ->
+                                graph.forYouRepo.resolveScheduleDecision(companyId, id, request)
+                                refreshKey++
+                            },
+                            onOpenTask = { onOpenTask?.invoke(it) },
+                        )
+                    }
+                })
+                is LoadState.Failed -> ({
+                    LoadError(
+                        message = t("calendarFeed.attentionLoadFailed"),
+                        onRetry = { refreshKey++ },
+                        variant = LoadErrorVariant.Inline,
+                    )
+                })
+                LoadState.Loading -> null
+            }
             ForYouList(
                 forYou = current.value,
                 // #342: spam marks that do not look like spam.
@@ -529,6 +557,7 @@ fun ForYouTab(
                 onSaveLayout = ::saveLayout,
                 onSaveHidden = ::saveHidden,
                 onAnnounce = { announcement = it },
+                scheduleDecisions = decisionPanel,
                 modifier = Modifier.fillMaxSize(),
             )
             LayoutAnnouncement(announcement)
@@ -589,6 +618,7 @@ internal fun ForYouList(
     /** #736: a spoken confirmation with nothing to save. */
     onAnnounce: (String) -> Unit,
     modifier: Modifier = Modifier,
+    scheduleDecisions: (@Composable () -> Unit)? = null,
 ) {
     val locale = LocalAppLocale.current
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -666,17 +696,23 @@ internal fun ForYouList(
         item(key = "title") {
             Column(Modifier.padding(top = 15.dp)) {
                 ScreenTitle(t("inbox.forYouTitle"))
-                Text(
-                    when {
-                        total == 0 -> t("inbox.forYouAllCaughtUp")
-                        total == 1 -> t("inbox.forYouWorkOne")
-                        else -> t("inbox.forYouWorkMany", "count" to total.toString())
-                    },
-                    modifier = Modifier.padding(top = 5.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (total > 0 || scheduleDecisions == null) {
+                    Text(
+                        when (total) {
+                            0 -> t("inbox.forYouAllCaughtUp")
+                            1 -> t("inbox.forYouWorkOne")
+                            else -> t("inbox.forYouWorkMany", "count" to total.toString())
+                        },
+                        modifier = Modifier.padding(top = 5.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+        }
+
+        if (scheduleDecisions != null) {
+            item(key = "schedule-decisions") { scheduleDecisions() }
         }
 
         // #342: before the caught-up well, because "you're all caught up" is
@@ -729,7 +765,7 @@ internal fun ForYouList(
 
         // The activation/empty variant (screen-18 grammar): a centered inset
         // well instead of the queue cards.
-        if (total == 0) {
+        if (total == 0 && scheduleDecisions == null) {
             item(key = "caught-up") { CaughtUpWell(Modifier.animateItem()) }
         }
 
@@ -1114,7 +1150,7 @@ internal fun ForYouList(
 
 /** Tracked micro-header + a radius-22 paper card of rows. */
 @Composable
-private fun QueueSection(
+internal fun QueueSection(
     label: String,
     count: Int? = null,
     modifier: Modifier = Modifier,

@@ -1290,10 +1290,12 @@ begin
   raise notice 'CS-10 PASSED: renewal lease, crash recovery, commit, retry and grants';
 end $$;
 
--- CS-11. Attention is own-member scoped, human choices are atomic, and the
--- security-definer surface never inherits PostgreSQL's default PUBLIC grant.
+-- CS-11. Only connectors and workspace owners or admins can resolve attention.
 do $$
 declare
+  v_owner_id constant uuid := 'ca000000-0000-4000-8000-00000000000a';
+  v_admin_id constant uuid := 'ca000000-0000-4000-8000-000000000071';
+  v_member_id constant uuid := 'ca000000-0000-4000-8000-000000000072';
   v_pull public.calendar_connections%rowtype;
   v_task public.tasks%rowtype;
   v_link public.task_calendar_links%rowtype;
@@ -1307,6 +1309,13 @@ declare
   v_signature text;
   v_moved_due timestamptz := now() + interval '8 days';
 begin
+  insert into auth.users (id, email) values
+    (v_admin_id, 'calendar-admin@test.local'),
+    (v_member_id, 'calendar-unrelated-member@test.local');
+  insert into public.company_members (company_id, user_id, role) values
+    (pg_temp.company_id(), v_admin_id, 'admin'),
+    (pg_temp.company_id(), v_member_id, 'member');
+
   update public.calendar_connections set sync_due_at = now()
    where id = pg_temp.connection_id();
   select * into v_pull
@@ -1365,6 +1374,27 @@ begin
      or v->'attention'->>'link_state' is distinct from 'conflict' then
     raise exception 'CS-11 FAILED: own attention detail %', v;
   end if;
+  v := public.api_get_calendar_attention(
+    pg_temp.company_id(), v_admin_id, pg_temp.link_id()
+  );
+  if v->>'outcome' is distinct from 'found'
+     or v->'attention'->>'connection_user_id' is distinct from pg_temp.user_id()::text
+     or not exists (
+       select 1 from public.api_list_calendar_attention(pg_temp.company_id(), v_owner_id)
+        where link_id = pg_temp.link_id()
+     ) then
+    raise exception 'CS-11 FAILED: workspace owner or admin cannot review attention %', v;
+  end if;
+  v := public.api_resolve_calendar_conflict(
+    pg_temp.company_id(), v_member_id, pg_temp.link_id(), 'use_app'
+  );
+  if v->>'outcome' is distinct from 'not_found'
+     or exists (
+       select 1 from public.api_list_calendar_attention(pg_temp.company_id(), v_member_id)
+        where link_id = pg_temp.link_id()
+     ) then
+    raise exception 'CS-11 FAILED: unrelated member accessed attention %', v;
+  end if;
   v := public.api_resolve_calendar_conflict(
     pg_temp.company_id(), pg_temp.user_id(), pg_temp.link_id(), 'not_sure'
   );
@@ -1421,6 +1451,11 @@ begin
   if v->>'outcome' is distinct from 'refused'
      or (select due_at from public.tasks where id = pg_temp.task_id()) is not null then
     raise exception 'CS-11 FAILED: refusal subtype transition retained unsafe due %', v;
+  end if;
+  if (select count(*) from public.api_claim_calendar_attention_notices()
+       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) is distinct from 1
+     or exists (select 1 from public.api_claim_calendar_attention_notices()) then
+    raise exception 'CS-11 FAILED: refusal observations must yield one push attempt for the connector';
   end if;
   v := public.api_for_you(
     pg_temp.company_id(), pg_temp.user_id(), now(), 20, null
@@ -1748,6 +1783,7 @@ begin
 
   select * into v_task from public.tasks where id = pg_temp.task_id();
   select * into v_link from public.task_calendar_links where id = pg_temp.link_id();
+  perform public.api_claim_calendar_attention_notices();
   v := public.api_mark_calendar_event_removed(
     pg_temp.company_id(), pg_temp.connection_id(), 'attention-worker',
     v_pull.pull_generation, pg_temp.task_id(), 'instance-2026-1',
@@ -1763,6 +1799,10 @@ begin
   );
   if v->>'outcome' is distinct from 'event_removed' then
     raise exception 'CS-11 FAILED: removed replay was not idempotent %', v;
+  end if;
+  if (select count(*) from public.api_claim_calendar_attention_notices()
+       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) is distinct from 1 then
+    raise exception 'CS-11 FAILED: repeated removal must yield one push attempt for the connector';
   end if;
   v := public.api_for_you(
     pg_temp.company_id(), pg_temp.user_id(), now(), 20, null
@@ -1847,10 +1887,14 @@ begin
     raise exception 'CS-11 FAILED: removed-event move escaped sync window %', v;
   end if;
   v := public.api_resolve_calendar_event_removed(
-    pg_temp.company_id(), pg_temp.user_id(), pg_temp.link_id(),
+    pg_temp.company_id(), v_admin_id, pg_temp.link_id(),
     'moved', v_moved_due
   );
   if v->>'outcome' is distinct from 'moved'
+     or not exists (
+       select 1 from public.tasks where id = pg_temp.task_id()
+         and schedule_changed_by = v_admin_id and due_at = v_moved_due
+     )
      or not exists (
        select 1 from public.calendar_outbox
         where connection_id = pg_temp.connection_id()
@@ -1918,7 +1962,7 @@ begin
   if v->>'outcome' is distinct from 'committed' then
     raise exception 'CS-11 FAILED: attention pull commit %', v;
   end if;
-  raise notice 'CS-11 PASSED: attention recovers on valid provider state and remains own-scoped';
+  raise notice 'CS-11 PASSED: attention recovers and remains role scoped';
 end $$;
 
 -- CS-12. Tasks becoming eligible after connection enqueue their first create;

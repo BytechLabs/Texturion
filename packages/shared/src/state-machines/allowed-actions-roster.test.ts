@@ -34,10 +34,6 @@ interface Served {
 const NO_CALENDAR_CONNECTION: Reader = {
   none: "Calendar connections are connected and removed on the web; the phones do not manage them.",
 };
-const NO_CALENDAR_LINK: Reader = {
-  none: "Calendar links are managed on the web; the phones do not manage them.",
-};
-
 const ROSTER: Record<string, Served> = {
   call: {
     api: "apps/api/src/routes/calls.ts",
@@ -59,9 +55,9 @@ const ROSTER: Record<string, Served> = {
   },
   calendar_link: {
     api: "apps/api/src/routes/calendar-connections.ts",
-    web: "apps/web/src/components/settings/calendar-connections-card.tsx",
-    android: NO_CALENDAR_LINK,
-    ios: NO_CALENDAR_LINK,
+    web: "apps/web/src/components/for-you/calendar-attention-panel.tsx",
+    android: `${ANDROID  }features/foryou/ScheduleDecisionsCard.kt`,
+    ios: `${IOS  }Features/ForYou/ScheduleDecisionsSection.swift`,
   },
   subscription: {
     api: "apps/api/src/routes/core/company-view.ts",

@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { syncTaskReminders as regenerateTaskReminders } from "../messaging/appointment-reminders";
 import { deliverPush } from "../notifications/deliver";
+import { reportHandledFailure } from "../observability/capture";
 import { generateToken, hashToken } from "../public-links/tokens";
 import { authorizeCalendarConnection } from './authorization';
 import type { CalendarCredentialClaimResult, CalendarCredentialRefreshStore } from './authorization';
@@ -87,6 +88,12 @@ export interface CalendarOwnerDisclosureRow {
   user_id: string;
   reason: "reauth_required" | "sync_stale" | "cleanup_failed";
   generation: number;
+}
+
+interface CalendarAttentionNotice {
+  company_id: string;
+  link_id: string;
+  user_id: string;
 }
 
 export interface CalendarTaskRow {
@@ -2371,6 +2378,37 @@ export async function discloseCalendarOwner(
   }
 }
 
+export async function sendCalendarAttentionNotices(env: Env, db: SupabaseClient): Promise<void> {
+  const { data, error } = await db.rpc("api_claim_calendar_attention_notices", { p_limit: CLAIM_LIMIT });
+  rpcError("api_claim_calendar_attention_notices", error);
+  const notices = (data ?? []) as CalendarAttentionNotice[];
+  for (const notice of notices) {
+    const failures: unknown[] = [];
+    try {
+      await deliverPush(env, db, {
+        category: "operational",
+        companyId: notice.company_id,
+        userIds: [notice.user_id],
+        content: { written: "us" },
+        collapseKey: `calendar-attention:${notice.link_id}`,
+        failures,
+        web: (locale) => ({
+          title: locale === "fr-CA" ? "Décision d'horaire requise" : "Schedule decision needed",
+          body: locale === "fr-CA"
+            ? "Un événement de votre calendrier a changé. Ouvrez Pour vous pour décider de la suite."
+            : "An event changed in your connected calendar. Open For You to review it.",
+          url: `${env.APP_ORIGIN}/for-you#schedule-decisions`,
+        }),
+      });
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      await reportHandledFailure(env, "calendar-attention-push", failures[0]);
+    }
+  }
+}
+
 /** Cloudflare cron entrypoint: bounded and safe to run every five minutes. */
 export async function runCalendarSyncJob(env: Env): Promise<void> {
   const db = getDb(env);
@@ -2386,4 +2424,5 @@ export async function runCalendarSyncJob(env: Env): Promise<void> {
     appOrigin: env.APP_ORIGIN,
     workerId,
   });
+  await sendCalendarAttentionNotices(env, db);
 }

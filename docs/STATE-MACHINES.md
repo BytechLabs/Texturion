@@ -29,7 +29,7 @@
 | `calendar_connection` | `calendar_connections.status` | 4 | internal | check | web only |
 | `calendar_outbox` | `calendar_outbox.state` | 4 | internal | check | server only |
 | `calendar_reminder_replan` | `calendar_reminder_replans.state` | 4 | internal | check | server only |
-| `calendar_link` | `task_calendar_links.link_state` | 5 | internal | check | web only |
+| `calendar_link` | `task_calendar_links.link_state` | 5 | internal | check | web, Android, iOS |
 | `calendar_push_subscription` | `webhook_subscriptions.status` | 6 | internal | check | server only |
 | `webhook_delivery` | `webhook_deliveries.status` | 4 | internal | check | web, Android, iOS (Webhooks settings) |
 | `subscription` | `companies.subscription_status` | 6 | provider | enum + forward-only trigger (per subscription id) | web, Android, iOS |
