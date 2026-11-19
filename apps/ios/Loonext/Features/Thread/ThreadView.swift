@@ -513,9 +513,7 @@ private struct ThreadBody: View {
                 timelinePane(
                     names: names,
                     contactName: contactName,
-                    allowFailureActions: detail.viewer_level == "text"
-                        && viewerRole != MemberRole.readOnly
-                        && controller.contact?.opted_out != true
+                    allowFailureActions: canContactPhone && controller.threadOptedOut != true
                 )
 
                 presenceStrip(detail: detail)
@@ -1134,28 +1132,10 @@ private struct ThreadBody: View {
                 mintAttachmentUrl: {
                     try await controller.mintAttachmentUrl($0, variant: $1)
                 },
-                actions: MessageBubbleActions(
-                    onToggleDone: { controller.toggleDone(message) },
-                    onTogglePin: { controller.togglePin(message) },
-                    onRetry: { controller.retrySend(message.id) },
-                    onMakeTask: {
-                        // The sheet seeds its own editable title from the body
-                        // (#214 also pre-fills a due + address via enrichment).
-                        makeTaskFor = message
-                    },
-                    onCopied: { controller.markCopied() },
-                    // #217: the bubble's task indicator opens that task's detail
-                    // ABOVE this thread (the shell's existing openTaskId route,
-                    // which passes onOpenConversation so the task can jump back
-                    // to its source message).
-                    onOpenTask: { AppRouter.shared.openTaskId = $0 },
-                    onDelete: deleteMessageAction(for: message),
-                    onSendAgain: allowFailureActions ? { draftFailedText(message.body) } : nil,
-                    onCall: allowFailureActions ? {
-                        if let detail = controller.conversation {
-                            startCall(detail: detail, contactName: contactName)
-                        }
-                    } : nil
+                actions: messageActions(
+                    for: message,
+                    contactName: contactName,
+                    allowFailureActions: allowFailureActions
                 ),
                 onSelectPhone: canLinkPhones ? { messagePhone = MessagePhoneSelection(number: $0) } : nil,
                 reaction: reactions[message.id]
@@ -1190,6 +1170,30 @@ private struct ThreadBody: View {
         case .dayDivider(let label, _):
             DayDividerLine(label: label)
         }
+    }
+
+    private func messageActions(
+        for message: Message,
+        contactName: String,
+        allowFailureActions: Bool
+    ) -> MessageBubbleActions {
+        var actions = MessageBubbleActions(
+            onToggleDone: { controller.toggleDone(message) },
+            onTogglePin: { controller.togglePin(message) },
+            onRetry: { controller.retrySend(message.id) },
+            onMakeTask: { makeTaskFor = message },
+            onCopied: { controller.markCopied() },
+            onOpenTask: { AppRouter.shared.openTaskId = $0 },
+            onDelete: deleteMessageAction(for: message)
+        )
+        if allowFailureActions {
+            actions.onSendAgain = { draftFailedText(message.body) }
+            actions.onCall = {
+                guard let detail = controller.conversation else { return }
+                startCall(detail: detail, contactName: contactName)
+            }
+        }
+        return actions
     }
 
     private func draftFailedText(_ body: String) {

@@ -530,7 +530,7 @@ private fun ThreadLoaded(
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
     val drafts = remember { ComposerDrafts(context.applicationContext) }
     val composer = rememberComposerState(controller.conversationId, drafts)
-    val allowFailureActions = canContactPhone && controller.contact?.opted_out != true
+    val allowFailureActions = canContactPhone && controller.threadOptedOut != true
     val finishDraftCopy = t("thread.finishCurrentDraft")
 
     // #507: the wrap-up a crew member speaks into their own phone after a call
