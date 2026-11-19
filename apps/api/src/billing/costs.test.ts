@@ -141,14 +141,7 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
     // over the registry so a new feature raises the number here instead of
     // going uncounted.
     //
-    // 375¢ = $3.75: the previous 355¢ plus the thread catch-up's 500 x 0.04¢
-    // (#247), a 5.6% rise for the feature with the LARGEST input in the
-    // product. That is not a coincidence and it is the whole argument for
-    // THREAD_SUMMARY_MONTHLY_CAP being 500 rather than the 1,500 every other
-    // on-demand feature gets: at 1,500 this line would read 415¢, a 17% rise
-    // paid for the least proven surface here. Sizing the cap is how a cost
-    // centre buys its place on this line, and the cap is the cheap thing to
-    // raise later.
+    // 380¢ includes the shorter catch-up output and one voicemail intake retry.
     //
     // Before it: 205¢ plus the crew wrap-up's 1,500 x 0.1¢ (#507), whose cap
     // was sized DOWN for the same reason — see CALL_WRAPUP_MONTHLY_CAP.
@@ -159,6 +152,6 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
       (total, spec) => total + spec.cap * spec.unitCostCents,
       0,
     );
-    expect(atCap).toBeCloseTo(375, 6); // $3.75
+    expect(atCap).toBeCloseTo(380, 6);
   });
 });

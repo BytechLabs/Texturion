@@ -448,9 +448,21 @@ class ThreadSummaryCardTest {
     // ---- the failure copy ---------------------------------------------------
 
     @Test
+    fun `empty selections and cached failures cannot be retried`() {
+        val emptyResults = listOf(
+            ThreadSummary(reason = "nothing_to_show"),
+            ThreadSummary(reason = "unusable_output", cached = true),
+        )
+        for (result in emptyResults) {
+            val state = catchUpState(true, false, result) as CatchUpState.Refused
+            assertFalse(state.askAgain)
+        }
+    }
+
+    @Test
     fun `every reason this card can show has copy of its own`() {
         val fallback = threadSummaryMessage("something nobody has written yet")
-        for (reason in THREAD_SUMMARY_REASONS) {
+        for (reason in THREAD_SUMMARY_REASONS.filterNot { it == "nothing_to_show" }) {
             assertNotEquals(
                 "'$reason' falls through to the generic shrug, which is how real " +
                     "breakage hides behind what looks like nothing to say",

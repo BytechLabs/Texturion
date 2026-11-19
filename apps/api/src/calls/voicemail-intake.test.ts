@@ -18,7 +18,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildIntake,
   buildIntakeMessages,
-  intakeFromRaw,
   isEmptyIntake,
   parseIntakeOutput,
   shouldExtractIntake,
@@ -73,9 +72,12 @@ describe("parsing the model", () => {
     expect(Object.keys(out as object)).toEqual(["problem"]);
   });
 
-  it("rejects the whole answer on a wrong type", () => {
-    // A half-parsed summary is worse than none: the crew cannot tell which half.
-    expect(parseIntakeOutput(answer('{"problem":["a","b"]}'))).toBeNull();
+  it.each([
+    ["object response", { response: { problem: ["leaking"], address: 104 } }],
+    ["choices", { choices: [{ message: { content: '{"problem":["leaking"],"address":104}' } }] }],
+    ["result", { result: { response: '{"problem":["leaking"],"address":104}' } }],
+  ])("keeps usable fields from %s", (_name, raw) => {
+    expect(parseIntakeOutput(raw)).toEqual({ address: "104" });
   });
 
   it("returns null for anything that is not an object", () => {
@@ -92,7 +94,7 @@ describe("what we store", () => {
       address: "12 Mill Road",
       callback: null,
       name: null,
-    });
+    }, "");
     expect(intake?.problem).toBe("water heater leaking");
     expect(intake?.address).toBe("12 Mill Road");
   });
@@ -105,7 +107,7 @@ describe("what we store", () => {
       address: "none",
       callback: "N/A",
       name: "not provided",
-    });
+    }, "");
     expect(intake?.address).toBeNull();
     expect(intake?.callback).toBeNull();
     expect(intake?.name).toBeNull();
@@ -118,7 +120,7 @@ describe("what we store", () => {
       address: "Aucune.",
       callback: "inconnu",
       name: "Non précisé",
-    })).toEqual({
+    }, "Fuite au sous-sol")).toEqual({
       problem: "Fuite au sous-sol",
       address: null,
       callback: null,
@@ -129,7 +131,7 @@ describe("what we store", () => {
   it("returns null when the model found nothing at all", () => {
     // Not an empty object: that renders as a labelled section with four blanks.
     expect(
-      buildIntake({ problem: null, address: null, callback: null, name: null }),
+      buildIntake({ problem: null, address: null, callback: null, name: null }, ""),
     ).toBeNull();
   });
 
@@ -139,20 +141,15 @@ describe("what we store", () => {
       address: null,
       callback: null,
       name: null,
-    });
+    }, "");
     expect(intake?.problem?.length).toBe(300);
     expect(intake?.problem?.endsWith("…")).toBe(true);
   });
 
-  it("bounds a callback harder than a problem", () => {
-    // A 300-character phone number is a model reciting the transcript back.
-    const intake = buildIntake({
-      problem: null,
-      address: null,
-      callback: "5".repeat(200),
-      name: null,
-    });
-    expect(intake?.callback?.length).toBe(60);
+  it("keeps only a callback number found in the transcript", () => {
+    const output = { problem: "no heat", callback: "613-555-0142" };
+    expect(buildIntake(output, "Call me at (613) 555-0142, please")?.callback).toBe("613-555-0142");
+    expect(buildIntake(output, "Call me at (613) 555-0143, please")?.callback).toBeNull();
   });
 
   it("isEmptyIntake agrees with buildIntake's null", () => {
@@ -164,16 +161,6 @@ describe("what we store", () => {
     ).toBe(false);
   });
 
-  it("goes from raw model output to stored fields in one step", () => {
-    expect(
-      intakeFromRaw({ response: '{"problem":"furnace is dead","address":"9 Oak St"}' }),
-    ).toEqual({
-      problem: "furnace is dead",
-      address: "9 Oak St",
-      callback: null,
-      name: null,
-    });
-  });
 });
 
 describe("the prompt", () => {

@@ -34,6 +34,7 @@
  *     any that survive.
  */
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
+import { modelJson, modelText } from "../ai/output";
 import type { AiFeatureSpec } from "../ai/run";
 import { closureReason, formatZonedStamp, hasBusinessHours, isAfterHours, parseHhmm } from '@loonext/shared';
 import type { BusinessHours, HoursException, Locale } from '@loonext/shared';
@@ -543,83 +544,11 @@ function stringArrayFrom(value: unknown): string[] | null {
   return null;
 }
 
-/**
- * Extract the model's drafts. Workers AI text models return
- * `{ response: string }`; a bare string is tolerated.
- *
- * Deliberately forgiving about SHAPE and strict about CONTENT: an instruct
- * model wraps JSON in prose, renames the key, or emits a bare array often
- * enough that a single rigid path threw away perfectly good drafts and left the
- * composer saying "nothing to suggest". Anything that yields strings is
- * accepted here; `sanitizeSuggestions` is the gate that decides what is safe to
- * show. A last-resort line parse covers a model that ignored JSON entirely.
- */
-export function modelText(raw: unknown): string | null {
-  if (typeof raw === "string") return raw;
-  if (!raw || typeof raw !== "object") return null;
-  const envelope = raw as Record<string, unknown>;
-
-  // The documented Workers AI text shape.
-  if (typeof envelope.response === "string") return envelope.response;
-  // Some models answer in the OpenAI shape instead, where the text lives under
-  // choices[0].message.content. Production returned zero candidates on every
-  // real thread precisely because only `response` was read, so an envelope we
-  // did not recognise looked exactly like a model with nothing to say.
-  const {choices} = envelope;
-  if (Array.isArray(choices) && choices.length > 0) {
-    const first = choices[0] as Record<string, unknown> | undefined;
-    const message = first?.message as Record<string, unknown> | undefined;
-    if (typeof message?.content === "string") return message.content;
-    if (typeof first?.text === "string") return first.text;
-  }
-  // A REST-style wrapper around either of the above.
-  if (envelope.result && typeof envelope.result === "object") {
-    return modelText(envelope.result);
-  }
-  for (const key of ["output_text", "text", "content", "generated_text"]) {
-    const value = envelope[key];
-    if (typeof value === "string") return value;
-  }
-  return null;
-}
-
-/** The envelope's own key names, for diagnosing an unrecognised shape. */
-export function envelopeShape(raw: unknown): string {
-  if (typeof raw === "string") return "string";
-  if (!raw || typeof raw !== "object") return typeof raw;
-  return Object.keys(raw).toSorted().join(",") || "{}";
-}
-
 export function parseSuggestionOutput(raw: unknown): string[] {
+  const json = modelJson(raw);
+  if (json !== undefined) return stringArrayFrom(json) ?? [];
   const text = modelText(raw);
   if (!text) return [];
-
-  const candidates: string[] = [text];
-  // Prose around a JSON object or array: try the outermost span of each.
-  for (const [open, close] of [
-    ["{", "}"],
-    ["[", "]"],
-  ] as const) {
-    const start = text.indexOf(open);
-    const end = text.lastIndexOf(close);
-    if (start !== -1 && end > start) candidates.push(text.slice(start, end + 1));
-  }
-
-  let parsedSomething = false;
-  for (const candidate of candidates) {
-    let json: unknown;
-    try {
-      json = JSON.parse(candidate);
-    } catch {
-      continue;
-    }
-    parsedSomething = true;
-    const found = stringArrayFrom(json);
-    if (found) return found;
-  }
-  // The model DID emit JSON, it just held no drafts. Falling through to the
-  // line parse here would hand back the raw JSON as a message to send.
-  if (parsedSomething) return [];
 
   // Nothing parsed — the usual reason is TRUNCATION: the reply ran into the
   // token ceiling mid-object, so there is no closing brace and every span

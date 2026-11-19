@@ -274,7 +274,6 @@ export async function runAiFeature(
       }
       console.error(
         `ai ${spec.key}: ${attempt.model} returned nothing usable`,
-        JSON.stringify(raw)?.slice(0, 300) ?? "null",
       );
     }
     return { ok: false, reason: "model_error" };

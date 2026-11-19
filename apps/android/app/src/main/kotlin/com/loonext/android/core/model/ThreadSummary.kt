@@ -324,6 +324,7 @@ val THREAD_SUMMARY_REASONS: List<String> = listOf(
     "too_short",
     "rate_limited",
     "unusable_output",
+    "nothing_to_show",
     // #581: Lou stopped spending because the workspace stopped paying.
     "subscription_inactive",
     THREAD_SUMMARY_NOT_ALLOWED,
@@ -362,6 +363,7 @@ fun threadSummaryMessage(reason: String?, locale: String? = null): String = AppS
         // Deliberately says what the rule IS: a person who reads this learns
         // that every line is quoted, which makes the card trustworthy.
         "unusable_output" -> "domain.catchUpUnusable"
+        "nothing_to_show" -> "domain.catchUpNone"
         // #581: billing, not breakage — and it must not say "try again", because
         // trying again is not what fixes it. The same KEY the send paths use for
         // a lapsed subscription, so a crew that meets both in one afternoon

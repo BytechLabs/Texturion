@@ -100,9 +100,10 @@ import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor } from '../http/pagination';
 import type { Cursor } from '../http/pagination';
-import { buildSuggestionMessages, envelopeShape, parseSuggestionOutput, sanitizeWithReport, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_FEATURE_SPEC, SUGGEST_REPLY_MAX_DRAFT_CHARS, SUGGEST_REPLY_MAX_OUTPUT_TOKENS, SUGGEST_REPLY_MODEL, threadTextOf } from '../messaging/reply-suggestions';
+import { captureUnusableModelOutput, envelopeShape } from '../ai/output';
+import { buildSuggestionMessages, parseSuggestionOutput, sanitizeWithReport, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_FEATURE_SPEC, SUGGEST_REPLY_MAX_DRAFT_CHARS, SUGGEST_REPLY_MAX_OUTPUT_TOKENS, SUGGEST_REPLY_MODEL, threadTextOf } from '../messaging/reply-suggestions';
 import type { SuggestionMessage } from '../messaging/reply-suggestions';
-import { buildSummaryMessages, parseSummaryOutput, sanitizeSummary, selectSummaryWindow, summaryEnvelopeShape, THREAD_SUMMARY_CONTEXT_MESSAGES, THREAD_SUMMARY_FEATURE_SPEC, THREAD_SUMMARY_MAX_OUTPUT_TOKENS, THREAD_SUMMARY_MODEL } from '../messaging/thread-summary';
+import { buildSummaryMessages, parseSummaryOutput, sanitizeSummary, selectSummaryWindow, THREAD_SUMMARY_CACHE_VERSION, THREAD_SUMMARY_CONTEXT_MESSAGES, THREAD_SUMMARY_FEATURE_SPEC, THREAD_SUMMARY_MAX_OUTPUT_TOKENS, THREAD_SUMMARY_MODEL } from '../messaging/thread-summary';
 import type { SummaryLine, SummaryMessage } from '../messaging/thread-summary';
 import { reportHandledFailure } from "../observability/capture";
 import {
@@ -1718,6 +1719,11 @@ conversationsRoutes.post(
         `reply suggestions unusable: ${parsed.length} candidate(s), 0 passed ` +
           `(${JSON.stringify(report.dropped)})`,
       );
+      const diagnostics = captureUnusableModelOutput(env, companyId, SUGGEST_REPLY_FEATURE_SPEC.key, run.raw, {
+        candidates: parsed.length,
+        ...report.dropped,
+      });
+      executionCtxOf(c)?.waitUntil(diagnostics);
       // The counts ride along so a workspace hitting this can say WHICH rule
       // fired. They carry no message text — only how many drafts each rule
       // removed — and they are what turns "nothing to suggest" from a shrug
@@ -1914,17 +1920,10 @@ conversationsRoutes.post(
     // product sends.
     const cached = await readCachedSummary(db, companyId, id);
     if (cached && cached.last_message_id === newest.id) {
-      // A STORED EMPTY SUMMARY IS AN ANSWER, not a missing one. This exact
-      // thread state already went to the model and nothing survived the rules,
-      // so pressing again buys the same nothing at full price — and
-      // `unusable_output` is the one refusal a person is likely to retry,
-      // because it looks like a glitch. Cached against the same
-      // `last_message_id` as a successful summary, so any new message on the
-      // thread gets a fresh attempt.
       if (cached.lines.length === 0) {
         return c.json({
           lines: [],
-          reason: "unusable_output" as const,
+          reason: cached.emptyReason,
           cached: true,
           ...carrier,
         });
@@ -2007,39 +2006,25 @@ conversationsRoutes.post(
       return c.json({ lines: [], reason: run.reason, ...carrier });
     }
 
-    const parsed = parseSummaryOutput(run.raw);
-    const report = sanitizeSummary(parsed, window);
+    const selection = parseSummaryOutput(run.raw);
+    const report = sanitizeSummary(selection.lines, window);
     // The thread is longer than the window, so the card must not read as
     // covering the whole history. Computed from the raw row count, before
     // `selectSummaryWindow` trimmed it.
     const truncated = history.length >= THREAD_SUMMARY_CONTEXT_MESSAGES;
     if (report.kept.length === 0) {
-      // The model answered and nothing survived — most often because it wrote
-      // lines it could not point at, which is precisely the failure the
-      // citation rule exists to catch. Worth distinguishing from an unreachable
-      // model: it means the prompt or the rules are what need work.
-      void reportHandledFailure(
-        env,
-        "thread-summary-unusable",
-        new Error(`${parsed.length} candidate(s), 0 passed (${JSON.stringify(report.dropped)})`),
-      );
-      // CACHED, exactly like a success. This used to return before the write,
-      // so the most expensive call this product makes was the only one with no
-      // memory of having been made — and the refusal it returns is the one a
-      // person retries, because it reads as a glitch rather than as an answer.
-      // The diagnostics below ride on the call that really happened; the cached
-      // repeat carries the reason alone.
-      await writeCachedSummary(db, companyId, id, newest.id, [], truncated);
+      const reason = selection.nothingToShow ? "nothing_to_show" : "unusable_output";
+      await writeCachedSummary(db, companyId, id, newest.id, [], truncated, reason);
+      if (reason === "nothing_to_show") return c.json({ lines: [], reason, ...carrier });
+
+      const dropped = { candidates: selection.lines.length, ...report.dropped };
+      const diagnostics = captureUnusableModelOutput(env, companyId, THREAD_SUMMARY_FEATURE_SPEC.key, run.raw, dropped);
+      executionCtxOf(c)?.waitUntil(diagnostics);
       return c.json({
         lines: [],
-        reason: "unusable_output" as const,
-        // Counts only, never any line text — safe to hand back to the
-        // workspace that asked, and what turns "nothing to show" from a shrug
-        // into something anyone can act on.
-        dropped: { candidates: parsed.length, ...report.dropped },
-        // The envelope's KEY NAMES only. Zero candidates with nothing dropped
-        // means we did not recognise the shape at all, and this is what names it.
-        envelope: summaryEnvelopeShape(run.raw),
+        reason,
+        dropped,
+        envelope: envelopeShape(run.raw),
         ...carrier,
       });
     }
@@ -2055,7 +2040,7 @@ conversationsRoutes.post(
       // everything was: a card that came back thinner than it should have is
       // the same question ("which rule fired?") asked more quietly.
       ...(discarded > 0
-        ? { dropped: { candidates: parsed.length, ...report.dropped } }
+        ? { dropped: { candidates: selection.lines.length, ...report.dropped } }
         : {}),
     });
   },
@@ -2110,20 +2095,8 @@ async function readOptOutState(
   };
 }
 
-/**
- * Write-through, for a catch-up AND for the finding that this thread state
- * produces nothing usable.
- *
- * BOTH OUTCOMES ARE CACHED, and the empty one is the one that was missing. A
- * summary is the largest input this product sends, so a request that spends the
- * unit and returns nothing is the most expensive thing here — and it returns the
- * one reason a person retries. Anchoring it to the same `last_message_id` keeps
- * the contract identical to a success: unchanged thread, no second call; a new
- * message, a fresh attempt.
- *
- * Failing to cache costs one repeat model call and must never cost the person
- * their catch-up, so the error is logged and swallowed.
- */
+type EmptySummaryReason = "nothing_to_show" | "unusable_output";
+
 async function writeCachedSummary(
   db: Db,
   companyId: string,
@@ -2131,13 +2104,14 @@ async function writeCachedSummary(
   lastMessageId: string,
   lines: SummaryLine[],
   truncated: boolean,
+  emptyReason?: EmptySummaryReason,
 ): Promise<void> {
   const stored = await db.from("conversation_summaries").upsert(
     {
       conversation_id: conversationId,
       company_id: companyId,
       last_message_id: lastMessageId,
-      lines: { lines, truncated },
+      lines: { version: THREAD_SUMMARY_CACHE_VERSION, lines, truncated, emptyReason },
       model: THREAD_SUMMARY_MODEL,
       created_at: new Date().toISOString(),
     },
@@ -2154,7 +2128,7 @@ async function readCachedSummary(
   companyId: string,
   conversationId: string,
 ): Promise<
-  | { last_message_id: string; lines: SummaryLine[]; truncated: boolean }
+  | { last_message_id: string; lines: SummaryLine[]; truncated: boolean; emptyReason?: EmptySummaryReason }
   | null
 > {
   const rows = await db
@@ -2175,17 +2149,15 @@ async function readCachedSummary(
   // A summary written by a model we no longer call is not something to serve
   // silently. Ignoring it re-summarises once and then the row is current again.
   if (row.model !== THREAD_SUMMARY_MODEL) return null;
-  const payload = row.lines as { lines?: unknown; truncated?: unknown } | null;
-  // A payload we cannot read is NOT an empty summary. Since an empty one is now
-  // an answer the caller serves without calling the model, the two have to stay
-  // distinguishable: a row whose shape we do not recognise falls through to a
-  // fresh summary, which costs one call, rather than becoming a refusal a
-  // workspace can never get past.
-  if (!Array.isArray(payload?.lines)) return null;
+  const payload = row.lines as { version?: unknown; lines?: unknown; truncated?: unknown; emptyReason?: unknown } | null;
+  if (payload?.version !== THREAD_SUMMARY_CACHE_VERSION || !Array.isArray(payload.lines)) return null;
+  const { emptyReason } = payload;
+  if (payload.lines.length === 0 && emptyReason !== "nothing_to_show" && emptyReason !== "unusable_output") return null;
   return {
     last_message_id: row.last_message_id,
     lines: payload.lines as SummaryLine[],
     truncated: payload.truncated === true,
+    emptyReason: emptyReason === "nothing_to_show" || emptyReason === "unusable_output" ? emptyReason : undefined,
   };
 }
 

@@ -10604,3 +10604,17 @@ inbound call clears the escalation deadline and records the member who handled
 it. The sweep checks recorded activity before widening. A preparation failure
 may re-arm its own claim up to three times. Once delivery starts, the claim stays
 closed so another sweep cannot send the same page again.
+
+## D166 - Catch me up selects whole messages (#794)
+
+Lou returns message numbers for each section. The server checks the citation
+and speaker, removes duplicates, and displays the complete text from the
+cited message. A message can include a qualification after its first sentence,
+so all three clients let its text wrap in the card. The cache is versioned by
+the selection format and stores explicit empty selections. An empty selection
+or a cached empty result has no Retry control.
+
+The input estimate is 19,500 characters. The 128-token output limit covers
+seven references, section keys and JSON whitespace. At the recorded Workers
+AI rates, the estimated upper bound is 0.0269 cents per request, rounded up to
+0.03 cents in the price model.

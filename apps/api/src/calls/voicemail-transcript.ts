@@ -144,7 +144,7 @@ export function transcriptText(raw: unknown): string | null {
   const bag = raw as Record<string, unknown>;
   for (const key of ["text", "transcription", "output_text"]) {
     const value = bag[key];
-    if (typeof value === "string" && value.trim() !== "") return value;
+    if (typeof value === "string") return value;
   }
   // Some bindings wrap the payload one level deeper.
   if (bag.result && typeof bag.result === "object") {

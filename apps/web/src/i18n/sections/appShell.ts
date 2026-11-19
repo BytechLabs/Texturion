@@ -1078,7 +1078,7 @@ export const appShellEn = {
   auditSettingEnrichDue: "Lou's due-date pre-fill",
   auditSettingSuggestReplies: "Lou's reply drafts",
   auditSettingTranscribeVoicemail: "voicemail transcripts",
-  auditSettingVoicemailIntake: "asking callers what the job is",
+  auditSettingVoicemailIntake: "extracting details from voicemail transcripts",
   auditSettingCallWrapup: "dictating a wrap-up after a call",
   auditSettingSummarizeThreads: "conversation catch-ups",
   /** Joining that list: "a, b and c". The comma-joined head, then the last. */
@@ -2183,7 +2183,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
   auditSettingEnrichDue: "le préremplissage d'échéance de Lou",
   auditSettingSuggestReplies: "les propositions de réponse de Lou",
   auditSettingTranscribeVoicemail: "la transcription des messages vocaux",
-  auditSettingVoicemailIntake: "la question posée aux appelants sur le travail",
+  auditSettingVoicemailIntake: "l’extraction des détails des transcriptions de messages vocaux",
   auditSettingCallWrapup: "la dictée d'un compte rendu après un appel",
   auditSettingSummarizeThreads: "les rattrapages de conversation",
   auditListAnd: "{items} et {last}",

@@ -40,13 +40,20 @@
  *
  * Security posture (inherits #214's, which the transcript is subject to too):
  * the transcript is a stranger's speech and therefore attacker-controllable. It
- * is fenced in explicit markers, declared untrusted, parsed as strict JSON,
- * schema-validated, and rejected whole on any deviation. There is no tool use.
+ * is fenced in explicit markers, declared untrusted, parsed as JSON,
+ * and each field is validated before storage. There is no tool use.
  */
-import { z } from "zod";
-
+import { modelField, modelJson } from "../ai/output";
 import type { AiFeatureSpec } from "../ai/run";
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
+
+const CALLBACK_MAX_CHARS = 60;
+const INTAKE_FIELD_LIMITS = [
+  ["problem", 600],
+  ["address", 600],
+  ["callback", CALLBACK_MAX_CHARS],
+  ["name", 120],
+] as const;
 
 /**
  * The same 8B model reply drafting already uses, for the same reason: a
@@ -189,20 +196,7 @@ export function isEmptyIntake(intake: VoicemailIntake): boolean {
   );
 }
 
-/**
- * The exact JSON schema the model is forced into. Every field nullish because
- * most voicemails contain only some of them, and `.strip()` (zod's default)
- * drops anything chatty the model adds. A wrong TYPE fails validation and the
- * whole intake is rejected — a half-parsed summary is worse than none.
- */
-const modelOutputSchema = z.object({
-  problem: z.string().max(600).nullish(),
-  address: z.string().max(600).nullish(),
-  callback: z.string().max(60).nullish(),
-  name: z.string().max(120).nullish(),
-});
-
-export type VoicemailIntakeModelOutput = z.infer<typeof modelOutputSchema>;
+export type VoicemailIntakeModelOutput = Partial<Record<(typeof INTAKE_FIELD_LIMITS)[number][0], string | null>>;
 
 /**
  * The injection-hardened system prompt.
@@ -247,38 +241,18 @@ export function buildIntakeMessages(
   ];
 }
 
-/**
- * Extract + validate the model's JSON. Workers AI text models answer
- * `{ response: string }`; a bare string is tolerated. Any parse or schema
- * failure returns null, which the caller treats as "no intake" — never as a
- * partial one.
- */
 export function parseIntakeOutput(raw: unknown): VoicemailIntakeModelOutput | null {
-  const text =
-    typeof raw === "string"
-      ? raw
-      : (typeof (raw as { response?: unknown } | null)?.response === "string"
-        ? (raw as { response: string }).response
-        : null);
-  if (!text) return null;
-
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // Prose around the object: take the outermost brace span and retry once.
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-      json = JSON.parse(text.slice(start, end + 1));
-    } catch {
-      return null;
-    }
+  const json = modelJson(raw);
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const fields = json as Record<string, unknown>;
+  const result: VoicemailIntakeModelOutput = {};
+  for (const [key, max] of INTAKE_FIELD_LIMITS) {
+    if (!Object.hasOwn(fields, key)) continue;
+    const value = fields[key];
+    const parsed = modelField(value, max);
+    if (value === null || parsed !== null) result[key] = parsed;
   }
-
-  const parsed = modelOutputSchema.safeParse(json);
-  return parsed.success ? parsed.data : null;
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /**
@@ -308,20 +282,17 @@ function cleanField(value: string | null | undefined, max: number): string | nul
  * Returns null when the model found nothing — an empty object stored on the row
  * would render as a labelled section with four blanks in it.
  */
-export function buildIntake(output: VoicemailIntakeModelOutput): VoicemailIntake | null {
+export function buildIntake(output: VoicemailIntakeModelOutput, transcript: string): VoicemailIntake | null {
+  const callback = cleanField(output.callback, CALLBACK_MAX_CHARS);
+  const digits = callback?.replaceAll(/\D/g, "") ?? "";
+  const spokenNumber = callback !== null && /^\+?[\d\s().-]+$/.test(callback)
+    && digits.length >= 7 && Array.from(transcript.matchAll(/\+?\(?\d[\d\s().-]+\d/g))
+      .some(([number]) => number.replaceAll(/\D/g, "") === digits);
   const intake: VoicemailIntake = {
     problem: cleanField(output.problem, VOICEMAIL_INTAKE_MAX_FIELD_CHARS),
     address: cleanField(output.address, VOICEMAIL_INTAKE_MAX_FIELD_CHARS),
-    // A callback number is short by nature; a 300-character one is a model
-    // reciting the transcript back, not a number.
-    callback: cleanField(output.callback, 60),
+    callback: spokenNumber ? callback : null,
     name: cleanField(output.name, 120),
   };
   return isEmptyIntake(intake) ? null : intake;
-}
-
-/** Parse and assemble in one step — what the caller actually wants. */
-export function intakeFromRaw(raw: unknown): VoicemailIntake | null {
-  const output = parseIntakeOutput(raw);
-  return output === null ? null : buildIntake(output);
 }
