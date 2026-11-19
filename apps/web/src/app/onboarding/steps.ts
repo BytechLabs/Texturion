@@ -68,7 +68,7 @@ export interface OnboardingDraft {
    * "never asked" distinguishable from "solo", so a skipped question must not
    * arrive as a bucket. Lives in the draft rather than going straight to the
    * server because the question is asked before the company exists, and the
-   * three creation call sites (number, business, port) each carry it through.
+   * number and port creation paths each carry it through.
    */
   crewSize?: CrewSizeBucket;
   /**
@@ -102,6 +102,7 @@ export interface OnboardingSnapshot {
   } | null;
   /** GET /v1/registration rows (wizard data included for owner/admin). */
   registration: RegistrationState | null;
+  canManageRegistration: boolean;
   draft: OnboardingDraft;
 }
 
@@ -154,11 +155,14 @@ function pastSubmission(row: { status: string }): boolean {
   return (
     row.status === "submitted" ||
     row.status === "pending" ||
-    row.status === "approved"
+    row.status === "approved" ||
+    row.status === "suspended"
   );
 }
 
-export function brandRowComplete(row: RegistrationRow | null): boolean {
+export function brandRowComplete(
+  row: Pick<RegistrationRow, "status" | "data" | "sole_proprietor"> | null,
+): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
   const data = row.data;
@@ -172,7 +176,9 @@ export function brandRowComplete(row: RegistrationRow | null): boolean {
   return ["companyName", "ein"].every((key) => present(data, key));
 }
 
-export function campaignRowComplete(row: RegistrationRow | null): boolean {
+export function campaignRowComplete(
+  row: Pick<RegistrationRow, "status" | "data"> | null,
+): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
   const data = row.data;
@@ -180,6 +186,16 @@ export function campaignRowComplete(row: RegistrationRow | null): boolean {
   return ["messageFlow", "sample1", "sample2"].every((key) =>
     present(data, key),
   );
+}
+
+export function pendingRegistrationStep(snapshot: OnboardingSnapshot): "texting" | "business" | null {
+  const { company, registration } = snapshot;
+  if (!company || !owesUsRegistration(company)) return null;
+  const campaign = registration?.campaign ?? company.registration.campaign;
+  if (campaign?.status === "approved") return null;
+  if (!campaignRowComplete(campaign)) return "texting";
+  const brand = registration?.brand ?? company.registration.brand;
+  return brandRowComplete(brand) ? null : "business";
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +219,7 @@ export function applicableSteps(snapshot: OnboardingSnapshot): WizardStep[] {
     ? owesUsRegistration(snapshot.company)
     : draftOwesUsRegistration(snapshot.draft);
   return owes
-    ? ["name", "number", "business", "texting", "plan"]
+    ? ["name", "number", "texting", "plan", "business"]
     : ["name", "number", "plan"];
 }
 
@@ -229,35 +245,19 @@ export function setupComplete(snapshot: OnboardingSnapshot): boolean {
 export function resolveOnboardingLocation(
   snapshot: OnboardingSnapshot,
 ): OnboardingLocation {
-  const { company, registration, draft } = snapshot;
+  const { company, draft } = snapshot;
 
   if (!company) {
-    if (!draft.name?.trim()) return { kind: "step", step: "name" };
-    if (!draft.country || !draft.areaCode) {
-      return { kind: "step", step: "number" };
-    }
-    return { kind: "step", step: draftOwesUsRegistration(draft) ? "business" : "number" };
+    return { kind: "step", step: draft.name?.trim() ? "number" : "name" };
   }
 
   if (hasPaid(company.subscription_status)) {
-    // Covers port-in signups too: setting-up renders the honest transfer item
-    // (upload LOA + bill → submit → carrier window, PORTING.md §8.1) until the
-    // ported/bridge number goes active. This routing only governs /onboarding
-    // pages — a user following the item's CTA into /settings/numbers is never
-    // pulled back here.
-    return setupComplete(snapshot) ? { kind: "inbox" } : { kind: "setting-up" };
+    if (setupComplete(snapshot)) return { kind: "inbox" };
+    const step = snapshot.canManageRegistration ? pendingRegistrationStep(snapshot) : null;
+    return step ? { kind: "step", step } : { kind: "setting-up" };
   }
 
-  // incomplete / incomplete_expired / canceled → still needs (re)checkout.
-  if (owesUsRegistration(company)) {
-    if (!brandRowComplete(registration?.brand ?? null)) {
-      return { kind: "step", step: "business" };
-    }
-    if (!campaignRowComplete(registration?.campaign ?? null)) {
-      return { kind: "step", step: "texting" };
-    }
-  }
-  return { kind: "step", step: "plan" };
+  return { kind: "step", step: stepAllowed("plan", snapshot) ? "plan" : "texting" };
 }
 
 /**
@@ -269,7 +269,7 @@ export function stepAllowed(
   step: WizardStep,
   snapshot: OnboardingSnapshot,
 ): boolean {
-  const { company, draft } = snapshot;
+  const { company, registration } = snapshot;
 
   if (step === "name") {
     // The workspace name is fixed at creation here (it stays editable later in
@@ -285,38 +285,25 @@ export function stepAllowed(
     // only the never-checked-out states. A 'canceled' company already ordered
     // its number, so it locks like a paid one (the server would 409 an edit).
     return (
-      company === null ||
-      company.subscription_status === "incomplete" ||
-      company.subscription_status === "incomplete_expired"
+      company === null
+        ? Boolean(snapshot.draft.name?.trim())
+        : company.subscription_status === "incomplete" ||
+          company.subscription_status === "incomplete_expired"
     );
   }
 
-  if (company === null) {
-    // business needs the local draft to be able to create the company on
-    // submit; texting/plan need the company to exist.
-    return (
-      step === "business" &&
-      Boolean(draft.name?.trim() && draft.country && draft.areaCode) &&
-      draftOwesUsRegistration(draft)
-    );
+  if (company === null) return false;
+
+  if (hasPaid(company.subscription_status)) {
+    return snapshot.canManageRegistration && pendingRegistrationStep(snapshot) === step;
   }
 
-  if (hasPaid(company.subscription_status)) return false; // → setting-up
-
-  if (step === "business") return owesUsRegistration(company);
-  if (step === "texting") {
-    return owesUsRegistration(company) &&
-      brandRowComplete(snapshot.registration?.brand ?? null);
-  }
-  // plan: reachable once any owed registration drafts are submittable —
-  // matches the POST /v1/billing/checkout 409 gate (SPEC §4.1 step 4).
-  if (owesUsRegistration(company)) {
-    return (
-      brandRowComplete(snapshot.registration?.brand ?? null) &&
-      campaignRowComplete(snapshot.registration?.campaign ?? null)
-    );
-  }
-  return true;
+  const owes = owesUsRegistration(company);
+  if (step === "business") return false;
+  if (step === "texting") return owes;
+  const campaign = registration?.campaign ?? company.registration.campaign;
+  return !owes || campaignRowComplete(campaign) ||
+    (company.subscription_status === "canceled" && campaign === null);
 }
 
 /** Progress-dots position: 1-based index within the applicable steps. */

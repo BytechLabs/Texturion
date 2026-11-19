@@ -39,6 +39,7 @@ export function WorkspaceStatusBanner() {
   const company = useCompany();
   const { role } = useActiveCompany();
   const now = useNow(); // ticks the progressive provisioning copy
+  const completionStep = company.data?.registration.completion_step;
 
   const state: RegistrationUiState | null = company.data
     ? deriveRegistrationUiState({
@@ -87,7 +88,9 @@ export function WorkspaceStatusBanner() {
   const otpPhone = typeof brandData?.mobilePhone === "string" ? brandData.mobilePhone : null;
 
   const message =
-    state.kind === "setup_unfinished_member"
+    completionStep
+      ? t(completionStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded")
+      : state.kind === "setup_unfinished_member"
       ? t("shell.regSetupUnfinishedMember")
       : state.kind === "subscription_canceled"
         ? t("shell.regSubscriptionCanceled")
@@ -119,7 +122,11 @@ export function WorkspaceStatusBanner() {
   const billing = "/settings/billing";
   const numbers = "/settings/numbers";
   const rawAction: { href: string; label: string } | null =
-    state.kind === "setup_unfinished_member"
+    completionStep
+      ? canOpen("numbers")
+        ? { href: `/onboarding/${completionStep}`, label: t("shell.regFinishRegistration") }
+        : null
+      : state.kind === "setup_unfinished_member"
       ? null
       : state.kind === "subscription_canceled"
         ? { href: billing, label: t("shell.navBilling") }

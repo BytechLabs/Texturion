@@ -41,6 +41,8 @@ enum ApiErrorStrings {
                 "Choose a different main number before undoing this merge.",
             "apiRefusals.conversationNotFound": "No such conversation.",
             "apiRefusals.idempotencyKeyLength": "Idempotency-Key must contain 1 to 255 characters.",
+            "apiRefusals.billingCheckoutTextingRequired":
+                "Complete the US texting details before checkout.",
             "apiRefusals.inviteAlreadyPending":
                 "A pending invite for this email already exists.",
             "apiRefusals.numberCountryMismatch":
@@ -57,6 +59,12 @@ enum ApiErrorStrings {
             "apiRefusals.scheduledTextKeyUsed":
                 "Idempotency-Key was already used for a different scheduled text.",
             "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
+            "apiRefusals.registrationChanged":
+                "The registration changed. Refresh before editing it.",
+            "apiRefusals.registrationCheckoutRequired":
+                "Finish checkout before entering business details.",
+            "apiRefusals.registrationSubmissionInProgress":
+                "The registration is being submitted. Refresh before editing it.",
             "apiRefusals.textEnablementAlreadyPending":
                 "This number already has a text-enablement in progress.",
             "apiRefusals.textEnablementNumberInUse":
@@ -143,6 +151,8 @@ enum ApiErrorStrings {
                 "Choisissez un autre numéro principal avant d’annuler la fusion.",
             "apiRefusals.conversationNotFound": "Cette conversation est introuvable.",
             "apiRefusals.idempotencyKeyLength": "L’en-tête Idempotency-Key doit contenir de 1 à 255 caractères.",
+            "apiRefusals.billingCheckoutTextingRequired":
+                "Fournissez les renseignements sur vos textos vers les États-Unis avant de passer au paiement.",
             "apiRefusals.inviteAlreadyPending":
                 "Une invitation à cette adresse courriel est déjà en attente.",
             "apiRefusals.numberCountryMismatch":
@@ -159,6 +169,12 @@ enum ApiErrorStrings {
             "apiRefusals.scheduledTextKeyUsed":
                 "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
             "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",
+            "apiRefusals.registrationChanged":
+                "L’inscription a changé. Actualisez la page avant de la modifier.",
+            "apiRefusals.registrationCheckoutRequired":
+                "Terminez le paiement avant de saisir les renseignements sur votre entreprise.",
+            "apiRefusals.registrationSubmissionInProgress":
+                "La demande d’inscription est en cours d’envoi. Actualisez la page avant de la modifier.",
             "apiRefusals.textEnablementAlreadyPending":
                 "L’activation des textos est déjà en cours pour ce numéro.",
             "apiRefusals.textEnablementNumberInUse":

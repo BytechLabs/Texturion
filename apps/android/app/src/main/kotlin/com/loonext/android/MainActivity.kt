@@ -903,6 +903,7 @@ private fun ReadyShell(
                     TwoFactorDeadlineBanner(hydratedMe.company) {
                         push(Overlay.Settings(SettingsSection.Profile))
                     }
+                    RegistrationSetupBanner(hydratedMe.company?.registration?.completion_step, role)
                 },
                 floatingAction = if (tab == ShellTab.Inbox) {
                     {
@@ -1293,6 +1294,26 @@ private fun ReadyShellFrame(offline: Boolean, content: @Composable BoxScope.() -
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth(), content = content)
+    }
+}
+
+@Composable
+private fun RegistrationSetupBanner(step: String?, role: String?) {
+    val message = when (step) {
+        "business" -> t("shell.regBusinessDetailsNeeded")
+        "texting" -> t("shell.regTextingDetailsNeeded")
+        else -> return
+    }
+    val context = LocalContext.current
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(message, style = MaterialTheme.typography.bodySmall)
+            if (MemberRole.has(role, Capability.NUMBERS_MANAGE)) {
+                TextButton(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, "$APP_ORIGIN/onboarding".toUri()))
+                }) { Text(t("shell.regFinishRegistration")) }
+            }
+        }
     }
 }
 

@@ -14,6 +14,8 @@ import {
 import { brandDraftSchema, buildBrandPayload, buildCampaignContentUpdate, buildCampaignPayload, campaignDraftSchema, isSoleProprietorDraft } from './wizard';
 import type { BrandDraft, CampaignDraft } from './wizard';
 import { capture } from "../analytics/posthog";
+import { hasLiveSubscription } from "../billing/plans";
+import type { LocalSubscriptionStatus } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
@@ -21,6 +23,8 @@ import { sendEmail } from "../email/resend";
 import { captureException, opsNotice } from "../observability/capture";
 import { pushRegistrationApproved } from "../notifications/registration-approved";
 import type { Env } from "../env";
+
+const BRAND_SUBMISSION_LEASE_MS = 5 * 60_000;
 
 /**
  * The §4.4 10DLC registration state machine.
@@ -68,6 +72,7 @@ export interface RegistrationRow {
   rejected_at: string | null;
   deactivated_at: string | null;
   otp_nudged_at: string | null;
+  brand_submission_lease_until?: string | null;
 }
 
 interface RegistrationCompany {
@@ -75,7 +80,8 @@ interface RegistrationCompany {
   name: string;
   country: string;
   us_texting_enabled: boolean;
-  subscription_status: string;
+  subscription_status: LocalSubscriptionStatus;
+  registration_fee_paid_at: string | null;
   /** #303 ladder step. Optional: rows read before the column shipped. */
   aup_enforcement?: AupEnforcement | null;
   /** #277 pause. Optional: rows read before the column shipped. */
@@ -85,11 +91,11 @@ interface RegistrationCompany {
 const ROW_COLUMNS =
   "id,company_id,kind,status,sole_proprietor,telnyx_id,data,rejection_reason," +
   "submission_count,reactivation_count,submitted_at,approved_at,rejected_at," +
-  "deactivated_at,otp_nudged_at";
+  "deactivated_at,otp_nudged_at,brand_submission_lease_until";
 
 const COMPANY_COLUMNS =
   "id,name,country,us_texting_enabled,subscription_status,aup_enforcement," +
-  "paused_at";
+  "paused_at,registration_fee_paid_at";
 
 async function fetchCompany(
   db: SupabaseClient,
@@ -1046,6 +1052,25 @@ async function submitBrand(
   return updated;
 }
 
+async function claimBrandSubmission(
+  db: SupabaseClient,
+  brand: RegistrationRow,
+): Promise<RegistrationRow | null> {
+  const now = Date.now();
+  const lease = brand.brand_submission_lease_until;
+  if (lease && Date.parse(lease) > now) return null;
+
+  const { data, error } = await db
+    .from("messaging_registrations")
+    .update({ brand_submission_lease_until: new Date(now + BRAND_SUBMISSION_LEASE_MS).toISOString() })
+    .eq("id", brand.id)
+    .eq("status", brand.status)
+    .filter("brand_submission_lease_until", lease ? "eq" : "is", lease ?? "null")
+    .select(ROW_COLUMNS);
+  if (error) throw new Error(`brand submission claim failed: ${error.message}`);
+  return (data?.[0] ?? null) as unknown as RegistrationRow | null;
+}
+
 async function submitCampaign(
   env: Env,
   db: SupabaseClient,
@@ -1191,6 +1216,9 @@ async function runSubmitRegistration(
   if (!owesUsRegistration(company)) {
     return { action: "noop", reason: "US registration is not required." };
   }
+  if (company.registration_fee_paid_at === null || !hasLiveSubscription(company.subscription_status)) {
+    return { action: "noop", reason: "US registration payment is required." };
+  }
 
   const { brand, campaign } = await fetchRegistrationRows(db, companyId);
   if (!brand || !campaign) {
@@ -1229,12 +1257,26 @@ async function runSubmitRegistration(
   }
 
   if (brand.status === "draft" || brand.status === "rejected") {
-    const draft = parseBrandDraft(brand);
-    if (!draft) {
+    if (!parseBrandDraft(brand)) {
       return { action: "noop", reason: "Brand draft data is incomplete." };
     }
-    const updated = await submitBrand(env, db, brand, draft);
-    return { action: "brand_submitted", brand: updated, campaign };
+    const claimed = await claimBrandSubmission(db, brand);
+    if (!claimed?.brand_submission_lease_until) {
+      return { action: "noop", reason: "Brand submission is already in progress." };
+    }
+    try {
+      const draft = parseBrandDraft(claimed);
+      if (!draft) return { action: "noop", reason: "Brand draft data is incomplete." };
+      const updated = await submitBrand(env, db, claimed, draft);
+      return { action: "brand_submitted", brand: updated, campaign };
+    } finally {
+      const { error } = await db
+        .from("messaging_registrations")
+        .update({ brand_submission_lease_until: null })
+        .eq("id", claimed.id)
+        .eq("brand_submission_lease_until", claimed.brand_submission_lease_until);
+      if (error) void captureException(env, error, { source: "api", company_id: companyId });
+    }
   }
 
   if (
@@ -1740,18 +1782,22 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
     }
   }
 
-  // R2 recovery: approved brands whose campaign never got submitted (the
-  // webhook-time attempt failed and the campaign row is still a draft).
-  const { data: approvedBrands, error: brandError } = await db
+  // A failed submission can leave a draft that the status poll cannot see.
+  const { data: brands, error: brandError } = await db
     .from("messaging_registrations")
     .select(ROW_COLUMNS)
     .eq("kind", "brand")
-    .eq("status", "approved");
+    .in("status", ["draft", "approved"]);
   if (brandError) {
     throw new Error(`messaging_registrations lookup failed: ${brandError.message}`);
   }
-  for (const brand of (approvedBrands ?? []) as unknown as RegistrationRow[]) {
+  for (const brand of (brands ?? []) as unknown as RegistrationRow[]) {
     try {
+      if (brand.status === "draft") {
+        const result = await submitRegistration(env, brand.company_id);
+        if (result.action === "brand_submitted") summary.transitioned += 1;
+        continue;
+      }
       const company = await fetchCompany(db, brand.company_id);
       if (company.subscription_status === "canceled") continue;
       const { campaign } = await fetchRegistrationRows(db, brand.company_id);

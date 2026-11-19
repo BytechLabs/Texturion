@@ -148,7 +148,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
   app.route("/v1/registration", registrationRoutes);
   app.onError((error, c) => {
     if (error instanceof ApiError) {
-      return errorResponse(c, error.code, error.message);
+      return errorResponse(c, error.code, error.message, error.reference);
     }
     return c.json(
       { error: { code: "internal_error", message: String(error) } },
@@ -261,6 +261,30 @@ describe("PUT /v1/registration", () => {
       jsonInit("PUT", { brand: BRAND_BODY }),
     );
     expect(res.status).toBe(403);
+  });
+
+  it("accepts texting details before checkout and blocks a brand write", async () => {
+    const harness = buildHarness({ subscription_status: "incomplete", registration_fee_paid_at: null });
+    const saveCampaign = await harness.request("/v1/registration", jsonInit("PUT", { campaign: CAMPAIGN_BODY }));
+    expect(saveCampaign.status).toBe(200);
+    const saveBusiness = await harness.request("/v1/registration", jsonInit("PUT", { brand: BRAND_BODY }));
+    expect(saveBusiness.status).toBe(409);
+    await expect(saveBusiness.json()).resolves.toMatchObject({
+      error: { message_key: "apiRefusals.registrationCheckoutRequired" },
+    });
+    expect(harness.rest.rows("messaging_registrations").map((row) => row.kind)).toEqual(["campaign"]);
+    expect(harness.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(0);
+  });
+
+  it("submits a paid workspace's brand after the owner saves its business details", async () => {
+    const harness = buildHarness();
+    harness.rest.insert("messaging_registrations", { company_id: COMPANY_ID, kind: "campaign", data: CAMPAIGN_BODY });
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    harness.telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({ data: { brandId: "brand-1" } }));
+    const res = await harness.request("/v1/registration", jsonInit("PUT", { brand: BRAND_BODY }));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ brand: { status: "submitted" } });
+    expect(harness.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(1);
   });
 
   it("upserts brand + campaign drafts (EIN branch)", async () => {

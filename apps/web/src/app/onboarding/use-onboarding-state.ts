@@ -1,6 +1,6 @@
 "use client";
 
-import type { MemberRole } from "@loonext/shared";
+import { roleHasCapability, type MemberRole } from "@loonext/shared";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -94,9 +94,10 @@ export function useOnboardingState(): OnboardingState {
     return {
       company: company.data ?? null,
       registration: registration.data ?? null,
+      canManageRegistration: role !== null && roleHasCapability(role, "numbers.manage"),
       draft,
     };
-  }, [loading, error, company.data, registration.data, draft]);
+  }, [loading, error, company.data, registration.data, draft, role]);
 
   return {
     // Order matters: with no session /v1/me never fires, so `loading` would

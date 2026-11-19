@@ -358,15 +358,10 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
     },
   );
 
-  it("US company with NO registration rows → checkout proceeds (#381/#458)", async () => {
-    // The `business` step moved behind the paywall, so an empty registration
-    // is the normal pre-checkout state for every new US signup. Refusing here
-    // would 409 all of them. Submission is still safe: `submitRegistration`
-    // no-ops on an incomplete draft, and the trigger in routes/registration.ts
-    // fires when the details land.
+  it("checks out a new US workspace with texting details only", async () => {
     const harness = makeHarness([
       companyEndpoint(companyRow()),
-      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => completeRegistrationRows().slice(1)),
       checkoutSessionEndpoint(),
     ]);
     const response = await post(
@@ -374,7 +369,9 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
       { plan: "starter" },
       harness,
     );
-    expect(response.status).not.toBe(409);
+    expect(response.status).toBe(200);
+    const registrationRead = harness.callsTo("GET", /messaging_registrations/)[0];
+    expect(registrationRead.url.searchParams.get("kind")).toBe("eq.campaign");
   });
 
   it("US company with an incomplete campaign draft → 409", async () => {
@@ -392,21 +389,18 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
     expect(response.status).toBe(409);
   });
 
-  it("CA company owing US registration is treated the same as a US one", async () => {
-    // #381/#458: same reordering, same empty-is-fine rule. What matters is
-    // that the CA-owing branch still runs the gate at all — a PARTIAL draft
-    // must still be refused here, which the test above covers.
+  it("requires texting details for a new Canadian workspace that enables US texting", async () => {
     const harness = makeHarness([
       companyEndpoint(companyRow({ country: "CA", us_texting_enabled: true })),
       endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
-      checkoutSessionEndpoint(),
     ]);
     const response = await post(
       "/v1/billing/checkout",
       { plan: "starter" },
       harness,
     );
-    expect(response.status).not.toBe(409);
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("POST", /checkout\/sessions/)).toHaveLength(0);
   });
 });
 

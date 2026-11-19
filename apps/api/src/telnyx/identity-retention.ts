@@ -1,5 +1,5 @@
 /**
- * Clear registration identity fields from abandoned drafts after 30 days (#381).
+ * Remove abandoned brand drafts after 30 days.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -20,10 +20,7 @@ export async function runIdentityRetentionJob(
 
   const cleared = (data as number) ?? 0;
   if (cleared > 0) {
-    // Logged rather than emailed. Nothing here needs a human — it is the
-    // system doing what it should — but the count is worth having in the
-    // record if anybody ever asks how long we hold this.
-    console.log(`identity retention: cleared identity fields from ${cleared} abandoned draft(s)`);
+    console.log(`identity retention: removed ${cleared} abandoned brand draft(s)`);
   }
   return cleared;
 }

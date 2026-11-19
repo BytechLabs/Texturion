@@ -593,6 +593,7 @@ export interface CompanyView {
   registration: {
     brand: RegistrationSummary | null;
     campaign: RegistrationSummary | null;
+    completion_step?: "texting" | "business" | null;
   };
 }
 

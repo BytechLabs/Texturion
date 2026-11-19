@@ -18,6 +18,7 @@ function snap(partial: Partial<OnboardingSnapshot>): OnboardingSnapshot {
   return {
     company: null,
     registration: null,
+    canManageRegistration: true,
     draft: {},
     ...partial,
   };

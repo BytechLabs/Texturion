@@ -57,6 +57,7 @@ interface SnapshotOptions {
   } | null;
   brand?: Partial<RegistrationRow> | null;
   campaign?: Partial<RegistrationRow> | null;
+  canManageRegistration?: boolean;
   draft?: OnboardingDraft;
 }
 
@@ -93,6 +94,7 @@ function snapshot(options: SnapshotOptions = {}): OnboardingSnapshot {
       options.brand === undefined && options.campaign === undefined
         ? null
         : { brand, campaign },
+    canManageRegistration: options.canManageRegistration ?? true,
     draft: options.draft ?? {},
   };
 }
@@ -173,8 +175,8 @@ describe("brandRowComplete / campaignRowComplete", () => {
     ).toBe(false);
   });
 
-  it("submitted/pending/approved rows count as complete without data", () => {
-    for (const status of ["submitted", "pending", "approved"] as const) {
+  it("submitted rows count as complete without data", () => {
+    for (const status of ["submitted", "pending", "approved", "suspended"] as const) {
       expect(brandRowComplete(row({ status }))).toBe(true);
       expect(campaignRowComplete(row({ kind: "campaign", status }))).toBe(true);
     }
@@ -214,10 +216,10 @@ describe(resolveOnboardingLocation, () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("resumes an interrupted business form from the draft", () => {
+  it("resumes older pre-workspace drafts at the number step", () => {
     expect(
       resolveOnboardingLocation(snapshot({ draft: COMPLETE_DRAFT })),
-    ).toEqual({ kind: "step", step: "business" });
+    ).toEqual({ kind: "step", step: "number" });
   });
 
   it("CA-no-US draft without a company → back to the number step (company is created there)", () => {
@@ -231,13 +233,13 @@ describe(resolveOnboardingLocation, () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("requires a brand before texting or checkout", () => {
+  it("opens checkout when the campaign is complete and the brand is missing", () => {
     expect(
       resolveOnboardingLocation(snapshot({
         company: {},
         campaign: { data: COMPLETE_CAMPAIGN_DATA },
       })),
-    ).toEqual({ kind: "step", step: "business" });
+    ).toEqual({ kind: "step", step: "plan" });
   });
 
   it("brand complete but campaign missing → texting step", () => {
@@ -270,6 +272,29 @@ describe(resolveOnboardingLocation, () => {
         snapshot({ company: { country: "CA", usTexting: false } }),
       ),
     ).toEqual({ kind: "step", step: "plan" });
+  });
+
+  it("resumes a paid signup at business when its campaign is ready", () => {
+    expect(resolveOnboardingLocation(snapshot({
+      company: { status: "active" },
+      campaign: { data: COMPLETE_CAMPAIGN_DATA },
+    }))).toEqual({ kind: "step", step: "business" });
+  });
+
+  it("leaves teammates on the setup checklist when the owner needs to enter details", () => {
+    const state = snapshot({
+      company: { status: "active" },
+      campaign: { data: COMPLETE_CAMPAIGN_DATA },
+      canManageRegistration: false,
+    });
+    expect(resolveOnboardingLocation(state)).toEqual({ kind: "setting-up" });
+    expect(stepAllowed("business", state)).toBe(false);
+  });
+
+  it("resumes an older paid signup without a campaign at texting", () => {
+    expect(resolveOnboardingLocation(snapshot({
+      company: { status: "active" },
+    }))).toEqual({ kind: "step", step: "texting" });
   });
 
   it("canceled subscription resumes at the plan step (resubscribe)", () => {
@@ -368,9 +393,10 @@ describe(resolveOnboardingLocation, () => {
 
 describe(stepAllowed, () => {
   it("name locks at creation; number stays editable until checkout (#79)", () => {
-    const before = snapshot({ company: null });
+    const before = snapshot({ company: null, draft: { name: "Mike's Plumbing" } });
     expect(stepAllowed("name", before)).toBe(true);
     expect(stepAllowed("number", before)).toBe(true);
+    expect(stepAllowed("number", snapshot({ company: null }))).toBe(false);
     // Company exists but unpaid: the workspace name is fixed at creation, but the
     // number/country step stays open so a wrong-country pick can be switched (#79).
     const unpaid = snapshot({ company: {} });
@@ -389,17 +415,20 @@ describe(stepAllowed, () => {
     ).toBe(false);
   });
 
-  it("business needs a complete local draft when the company is missing", () => {
+  it("business opens only after checkout", () => {
     expect(stepAllowed("business", snapshot({ company: null }))).toBe(false);
     expect(
       stepAllowed(
         "business",
         snapshot({ company: null, draft: COMPLETE_DRAFT }),
       ),
-    ).toBe(true);
+    ).toBe(false);
+    const campaign = { data: COMPLETE_CAMPAIGN_DATA };
+    expect(stepAllowed("business", snapshot({ company: {}, campaign }))).toBe(false);
+    expect(stepAllowed("business", snapshot({ company: { status: "active" }, campaign }))).toBe(true);
   });
 
-  it("registration steps close for CA-no-US companies and after payment", () => {
+  it("skips registration for CA-only companies and closes checkout after payment", () => {
     const caOnly = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepAllowed("business", caOnly)).toBe(false);
     expect(stepAllowed("texting", caOnly)).toBe(false);
@@ -417,7 +446,6 @@ describe(stepAllowed, () => {
         "plan",
         snapshot({
           company: {},
-          brand: { data: COMPLETE_BRAND_DATA },
           campaign: { kind: "campaign", data: COMPLETE_CAMPAIGN_DATA },
         }),
       ),
@@ -432,7 +460,7 @@ describe(stepAllowed, () => {
 describe("applicableSteps / stepProgress", () => {
   it("US signups walk 5 steps; CA-no-US walks 3", () => {
     expect(applicableSteps(snapshot({ company: null, draft: COMPLETE_DRAFT })))
-      .toEqual(["name", "number", "business", "texting", "plan"]);
+      .toEqual(["name", "number", "texting", "plan", "business"]);
     expect(
       applicableSteps(
         snapshot({ company: { country: "CA", usTexting: false } }),
@@ -444,8 +472,9 @@ describe("applicableSteps / stepProgress", () => {
     const ca = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
-    expect(stepProgress("business", us)).toEqual({ index: 3, total: 5 });
-    expect(stepProgress("texting", us)).toEqual({ index: 4, total: 5 });
+    expect(stepProgress("texting", us)).toEqual({ index: 3, total: 5 });
+    expect(stepProgress("plan", us)).toEqual({ index: 4, total: 5 });
+    expect(stepProgress("business", us)).toEqual({ index: 5, total: 5 });
   });
 });
 
@@ -458,15 +487,15 @@ describe("previousStepHref (honest Back navigation)", () => {
   });
 
   it("walks back to the nearest EDITABLE step for a US company", () => {
-    const us = snapshot({ company: {}, brand: { data: COMPLETE_BRAND_DATA } });
+    const campaign = { data: COMPLETE_CAMPAIGN_DATA };
+    const us = snapshot({ company: {}, campaign });
     expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
-    expect(previousStepHref("texting", us)).toBe("/onboarding/business");
-    expect(previousStepHref("business", us)).toBe("/onboarding/number");
+    expect(previousStepHref("texting", us)).toBe("/onboarding/number");
+    expect(previousStepHref("business", snapshot({ company: { status: "active" }, campaign }))).toBeNull();
   });
 
-  it("still allows Back to number pre-company (name/number editable until creation)", () => {
+  it("allows Back to name before creating the workspace", () => {
     const draftUs = snapshot({ company: null, draft: COMPLETE_DRAFT });
-    expect(previousStepHref("business", draftUs)).toBe("/onboarding/number");
     expect(previousStepHref("number", draftUs)).toBe("/onboarding/name");
   });
 

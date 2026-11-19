@@ -3,9 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isLocale, resolveLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -25,38 +24,19 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { apiFetch } from "@/lib/api/client";
-import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { keys } from "@/lib/api/keys";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
-import { writeCompanyCookie } from "@/lib/company/cookie";
-import { browserTimezone } from "@/lib/format/time";
-import {
-  clearReferralCode,
-  referralCodeForCreate,
-} from "@/lib/referral/capture";
-import {
-  clearFirstTouch,
-  firstTouchForCreate,
-} from "@/lib/marketing/first-touch";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 import { regionNames } from "../area-codes";
-import { clearOnboardingDraft } from "../local-draft";
 import { normalizeNanpPhone, normalizeWebsite } from "../normalize";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { previousStepHref, stepProgress } from "../steps";
+import { stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 import { TCR_VERTICALS, verticalOptions } from "../verticals";
 
 /**
- * G7 step 3 — business identity. Feeds 10DLC registration:
- * the form writes the brand draft under the canonical Telnyx payload keys
- * (SPEC §4.4 mapping; validated server-side by apps/api/src/telnyx/wizard.ts).
- * The EIN yes/no branch is the standard-vs-sole-proprietor XOR; every field
- * carries a one-line plain-English "why we ask" hint (G7). On the branch that
- * owes registration this screen also creates the company (AUP checkbox →
- * POST /v1/companies) before saving the draft.
+ * Collects the business details needed for carrier registration after checkout.
  */
 
 const EIN_RE = /^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/;
@@ -186,9 +166,6 @@ export default function BusinessIdentityPage() {
   const t = useT();
   const { state, ready } = useWizardStepGuard("business");
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const createCompany = useCreateCompany();
-  const createdCompanyId = useRef<string | null>(null);
   const saveRegistration = useSaveOnboardingRegistration();
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -199,8 +176,7 @@ export default function BusinessIdentityPage() {
     document.title = `${t("onboarding.tabBusinessDetails")} · Loonext`;
   }, [t]);
 
-  const country: "US" | "CA" =
-    state.company?.country ?? state.draft.country ?? "US";
+  const country = state.company?.country ?? "US";
   const schema = useMemo(() => buildSchema(country, t), [country, t]);
 
   const form = useForm<FormValues>({
@@ -209,13 +185,9 @@ export default function BusinessIdentityPage() {
   });
 
   const brandRow = state.registration?.brand ?? null;
-  const brandLocked =
-    brandRow !== null &&
-    brandRow.status !== "draft" &&
-    brandRow.status !== "rejected";
 
   // Seed once: saved draft data (resume / fix-and-resubmit) + the owner's
-  // account email as the brand contact prefill (SPEC §4.1 step 3).
+  // account email as the brand contact prefill.
   useEffect(() => {
     if (!ready || seeded) return;
     setSeeded(true);
@@ -254,49 +226,22 @@ export default function BusinessIdentityPage() {
   }, [ready, seeded, brandRow, form]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
-  if (!ready || !state.snapshot) return <StepLoading />;
+  if (!ready || !state.snapshot || !state.company || !state.companyId) return <StepLoading />;
 
+  const { company, companyId } = state;
   const progress = stepProgress("business", state.snapshot);
   const hasEin = form.watch("hasEin");
   const einName =
     country === "US" ? t("onboarding.einNameUs") : t("onboarding.einNameCa");
   const regions = regionNames(country, t.locale);
 
-  // Already submitted to carriers → nothing to edit here (409 server-side).
-  if (brandLocked) {
-    return (
-      <StepShell
-        step="business"
-        backHref={previousStepHref("business", state.snapshot) ?? undefined}
-        index={progress.index}
-        total={progress.total}
-        title={t("onboarding.businessTitle")}
-      >
-        <div className="space-y-6">
-          <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            {t("onboarding.businessLocked")}
-          </p>
-          <Button
-            size="lg"
-            className="w-full"
-            onClick={() => router.push("/onboarding/texting")}
-          >
-            {t("onboarding.continue")}
-          </Button>
-        </div>
-      </StepShell>
-    );
-  }
-
   async function onSubmit(values: FormValues) {
     setFormError(null);
     const soleProp = values.hasEin === "no";
     const website = normalizeWebsite(values.website);
-    const displayName =
-      state.company?.name ?? state.draft.name?.trim() ?? "";
 
     const brand: Record<string, unknown> = {
-      displayName,
+      displayName: company.name,
       email: values.email,
       phone: values.phone,
       vertical: values.vertical,
@@ -322,55 +267,16 @@ export default function BusinessIdentityPage() {
     };
 
     try {
-      let companyId = state.companyId ?? createdCompanyId.current;
-      if (companyId && customerLocale && customerLocale !== state.company?.locale) {
+      if (customerLocale && customerLocale !== company.locale) {
         await apiFetch("/v1/company", {
           method: "PATCH",
           companyId,
           body: { locale: customerLocale },
         });
       }
-      if (!companyId) {
-        // D15: the creating browser's timezone rides along silently.
-        const timezone = browserTimezone();
-        const company = await createCompany.mutateAsync({
-          name: state.draft.name?.trim() ?? "",
-          country,
-          locale: activeLocale,
-          requested_area_code: state.draft.areaCode ?? "",
-          // Choose-your-number: carry the onboarding pick through to the order.
-          ...(state.draft.chosenNumber
-            ? { chosen_number_e164: state.draft.chosenNumber }
-            : {}),
-          ...(country === "CA" ? { us_texting_enabled: true } : {}),
-          ...(timezone ? { timezone } : {}),
-          // #370: the crew size answered back on the name step.
-          ...(state.draft.crewSize ? { crew_size: state.draft.crewSize } : {}),
-          // #288: and how they say they heard about us.
-          ...(state.draft.signupSource
-            ? { signup_source: state.draft.signupSource }
-            : {}),
-          // #501: the link this signup arrived through, if it arrived through one.
-          ...referralCodeForCreate(),
-          // #296: which marketing page started this, if we recorded one.
-          ...firstTouchForCreate(),
-        });
-        companyId = company.id;
-        createdCompanyId.current = company.id;
-        writeCompanyCookie(company.id);
-        clearReferralCode();
-        clearFirstTouch();
-      }
-      if (!companyId) throw new Error("no active company after create");
       await saveRegistration.mutateAsync({ companyId, brand });
-      if (state.company === null) {
-        // The next step's guard resolves the company through GET /v1/me —
-        // wait for the new membership to be visible before navigating.
-        await queryClient.invalidateQueries({ queryKey: keys.me });
-        clearOnboardingDraft();
-      }
       trackOnboardingStepCompleted("business");
-      router.push("/onboarding/texting");
+      router.replace("/onboarding/setting-up");
     } catch (cause) {
       setFormError(
         cause instanceof ApiError
@@ -380,12 +286,11 @@ export default function BusinessIdentityPage() {
     }
   }
 
-  const saving = createCompany.isPending || saveRegistration.isPending;
+  const saving = form.formState.isSubmitting;
 
   return (
     <StepShell
       step="business"
-      backHref={previousStepHref("business", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
       title={t("onboarding.businessTitle")}

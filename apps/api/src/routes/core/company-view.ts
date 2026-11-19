@@ -18,6 +18,8 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { registrationRowSubmittable } from "../../billing/registration-draft";
+import type { RegistrationRow as RegistrationDraftRow } from "../../billing/registration-draft";
 import type { Env } from "../../env";
 import { effectiveCnamDisplayName } from "../../telnyx/voice";
 
@@ -138,12 +140,11 @@ const NUMBER_COLUMNS =
 
 const REGISTRATION_COLUMNS =
   "kind,status,sole_proprietor,rejection_reason,submission_count," +
-  "submitted_at,approved_at,rejected_at,deactivated_at";
+  "submitted_at,approved_at,rejected_at,deactivated_at,data";
 
-interface RegistrationRow {
-  kind: "brand" | "campaign";
-  [key: string]: unknown;
-}
+type RegistrationRow = RegistrationDraftRow & Record<string, unknown>;
+
+type RegistrationCompletionStep = "texting" | "business";
 
 export interface CompanyView {
   [key: string]: unknown;
@@ -178,8 +179,9 @@ export interface CompanyView {
    *  surfaces — the store-rules kill-switch. Config, not a DB column. */
   billing_writes_enabled: boolean;
   registration: {
-    brand: RegistrationRow | null;
-    campaign: RegistrationRow | null;
+    brand: Omit<RegistrationRow, "data"> | null;
+    campaign: Omit<RegistrationRow, "data"> | null;
+    completion_step: RegistrationCompletionStep | null;
   };
 }
 
@@ -506,6 +508,8 @@ export async function loadCompanyView(
     modulesRes,
     "company_modules lookup",
   );
+  const brand = registrations.find((row) => row.kind === "brand");
+  const campaign = registrations.find((row) => row.kind === "campaign");
 
 
   // #515: the money columns leave here only for a caller who holds
@@ -530,12 +534,32 @@ export async function loadCompanyView(
       billing_writes_enabled: billingWritesEnabled(env),
       ...(mfaProgress?.data ? { mfa_setup: mfaProgress.data } : {}),
       registration: {
-        brand: registrations.find((row) => row.kind === "brand") ?? null,
-        campaign: registrations.find((row) => row.kind === "campaign") ?? null,
+        brand: registrationSummary(brand),
+        campaign: registrationSummary(campaign),
+        completion_step: registrationCompletionStep(company, brand, campaign),
       },
     },
     caller.role,
   );
+}
+
+function registrationCompletionStep(
+  company: Record<string, unknown>,
+  brand: RegistrationRow | undefined,
+  campaign: RegistrationRow | undefined,
+): RegistrationCompletionStep | null {
+  const owesRegistration = company.country === "US" ||
+    (company.country === "CA" && company.us_texting_enabled === true);
+  if (company.subscription_status !== "active" || !owesRegistration) return null;
+  if (campaign?.status === "approved") return null;
+  if (!campaign || !registrationRowSubmittable(campaign)) return "texting";
+  return brand && registrationRowSubmittable(brand) ? null : "business";
+}
+
+function registrationSummary(row: RegistrationRow | undefined) {
+  if (!row) return null;
+  const { data: _draft, ...summary } = row;
+  return summary;
 }
 
 /**

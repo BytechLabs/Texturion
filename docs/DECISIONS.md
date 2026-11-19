@@ -70,9 +70,9 @@ marketing page when a broader pass is wanted.
 - Profile geo-permissions: **US + Canada only** (SMS-pumping defense, layer 1).
 - **Registration state machine** (`messaging_registrations` table: brand + campaign rows,
   statuses draft → submitted → pending → approved/rejected):
-  - Onboarding wizard collects brand data (legal name, EIN or no-EIN → **Sole Proprietor path**
-    with mobile OTP, address, website, opt-in flow description). Auto-submit via
-    Telnyx API immediately after payment. No manual steps.
+  - The onboarding wizard collects texting details before payment and brand details
+    after payment. Loonext submits to Telnyx once both drafts and the registration
+    fee are in place. Sole proprietors confirm the mobile OTP after submission.
   - US-bound outbound is **blocked until campaign approval** (carriers hard-block unregistered
     10DLC since Feb 2025; approval 3–7+ business days). Canada-bound outbound from Canadian
     companies works **immediately** (no 10DLC for CA→CA; CASL rules apply instead).
@@ -158,6 +158,11 @@ requests. Wireless number type alone cannot establish that a carrier needs a
 personal identifier. The port form takes the transfer PIN. When a losing
 carrier confirms it needs more, handle the request through Telnyx porting
 support.
+
+The number step creates the workspace. Collect the texting draft before
+checkout and the business details after payment, so abandoned checkouts do
+not leave new brand drafts. The daily retention job removes brand drafts
+older than 30 days for workspaces that never paid and have no carrier record.
 
 [Telnyx Create Brand](https://developers.telnyx.com/api-reference/brands/create-brand) ·
 [TCR CSP User Guide](https://www.campaignregistry.com/wp-content/uploads/CSP-User-Guide_Feb-4-2026_Temp_comp.pdf) ·

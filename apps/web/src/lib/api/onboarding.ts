@@ -61,8 +61,9 @@ export function useSaveOnboardingRegistration() {
           ...(input.campaign ? { campaign: input.campaign } : {}),
         },
       }),
-    onSuccess: (state, { companyId }) => {
+    onSuccess: async (state, { companyId }) => {
       queryClient.setQueryData(keys.registration(companyId), state);
+      await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
