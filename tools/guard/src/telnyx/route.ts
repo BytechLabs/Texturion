@@ -66,6 +66,7 @@ export function accountWideRule(method: string, path: string): RuleName | null {
 /** The rule for a registry entry of class `refused`, by the area it is in. */
 export function refusedRule(entry: PolicyEntry): RuleName {
   if (entry.path.startsWith("/v2/documents")) return "refused.documents";
+  if (entry.key === "GET /v2/messages/:id") return "read.account_wide";
   return accountWideRule("POST", entry.path) ?? "refused.registry";
 }
 
