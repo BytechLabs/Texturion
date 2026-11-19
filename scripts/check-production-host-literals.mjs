@@ -347,15 +347,19 @@ export function judge(files, { sanctioned = SANCTIONED, legacy = LEGACY } = {}) 
     if (hosts.length > allowed) {
       const where = hosts.map((h) => `${h.line} (${h.host})`).join(", ");
       failures.push(
-        `${file} line ${where}: ${hosts.length} production host(s)` +
-          (allowed ? `, ${allowed} allowed as legacy` : "") +
+        [
+          `${file} line ${where}: ${hosts.length} production host(s)`,
+          (allowed ? `, ${allowed} allowed as legacy` : ""),
           `. A nonprod build still sends this to production; ${fixFor(file)}`,
+        ].join(""),
       );
     } else if (hosts.length < allowed) {
       failures.push(
-        `${file}: legacy count is ${allowed} but ${hosts.length} remain. Lower LEGACY in ` +
-          `scripts/check-production-host-literals.mjs to ${hosts.length}` +
+        [
+          `${file}: legacy count is ${allowed} but ${hosts.length} remain. Lower LEGACY in `,
+          `scripts/check-production-host-literals.mjs to ${hosts.length}`,
           (hosts.length === 0 ? " (delete the entry)" : ""),
+        ].join(""),
       );
     }
   }

@@ -158,8 +158,7 @@ async function lookupZone(token) {
 const config = await configuredFloor();
 if (config.known) {
   console.log(
-    `zone ${ZONE_NAME}: min_tls_version = ${config.value}` +
-      (config.editable ? " (editable with this token)" : " (read-only for this token)"),
+    `zone ${ZONE_NAME}: min_tls_version = ${config.value}${config.editable ? " (editable with this token)" : " (read-only for this token)"}`,
   );
 } else {
   console.log(`zone ${ZONE_NAME}: min_tls_version unknown — ${config.why}`);

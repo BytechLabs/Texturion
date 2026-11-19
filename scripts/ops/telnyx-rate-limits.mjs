@@ -102,7 +102,7 @@ for (const r of results) {
   const value = r.error
     ? `network: ${r.error}`
     : typeof r.limit === "number"
-      ? `${r.limit}/${r.window}s`.padEnd(12) + `(HTTP ${r.status})`
+      ? `${`${r.limit}/${r.window}s`.padEnd(12)}(HTTP ${r.status})`
       : `no header (HTTP ${r.status})`;
   console.log(`  ${r.family.padEnd(24)} ${value}`);
   console.log(`  ${" ".repeat(24)} ${r.matters}`);

@@ -199,9 +199,7 @@ export class TelnyxApiError extends Error {
       .filter((text) => text.length > 0)
       .join("; ");
     super(
-      `Telnyx ${status} on ${requestLabel}` +
-        (codes.length > 0 ? ` [codes ${codes.join(", ")}]` : "") +
-        (summary ? ` — ${summary}` : ""),
+      `Telnyx ${status} on ${requestLabel}${codes.length > 0 ? ` [codes ${codes.join(", ")}]` : ""}${summary ? ` — ${summary}` : ""}`,
     );
     this.name = "TelnyxApiError";
     this.status = status;

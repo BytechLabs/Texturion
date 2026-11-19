@@ -229,7 +229,9 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `Shared barrel: ${checkedNames} exported name(s) across ${checkedModules} ` +
-    `module(s), every one forwarded from index.ts` +
+  [
+    `Shared barrel: ${checkedNames} exported name(s) across ${checkedModules} `,
+    `module(s), every one forwarded from index.ts`,
     (keptInternal > 0 ? `; ${keptInternal} marked @internal.` : "."),
+  ].join(""),
 );

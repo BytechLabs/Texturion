@@ -1850,11 +1850,12 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
     throw new ApiError("validation_failed", "q: too long (max 200).");
   }
   const extra = await resolveExtraTaskFilters(c, db, q.extraInput);
-  const embeds =
-    (q.tagId === undefined ? "" : ",task_tags!inner(tag_id)") +
-    (q.assignee === undefined ? "" : ",task_assignees!inner(user_id)") +
-    (extra.referencedHidden === undefined ? "" : REFERENCE_EMBED) +
-    `,${CALENDAR_HOLD_EMBED}`;
+  const embeds = [
+    q.tagId === undefined ? "" : ",task_tags!inner(tag_id)",
+    q.assignee === undefined ? "" : ",task_assignees!inner(user_id)",
+    extra.referencedHidden === undefined ? "" : REFERENCE_EMBED,
+    `,${CALENDAR_HOLD_EMBED}`,
+  ].join("");
 
   const { entries, withheld, capped } = await readTaskEntries(db, {
     companyId,

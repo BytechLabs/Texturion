@@ -165,8 +165,7 @@ async function main(): Promise<void> {
     // fictional, and nothing here dispatches it, so the gate is lifted for
     // this one transaction and for no other statement.
     psqlSync(
-      "begin;\nset local loonext.deploy_env = 'local';\n" +
-      volumeFixtureSql({
+      `begin;\nset local loonext.deploy_env = 'local';\n${volumeFixtureSql({
         company: COMPANY,
         owner: ownerId,
         number: NUMBER,
@@ -178,7 +177,7 @@ async function main(): Promise<void> {
         provisioningKey: "capacity-251-rig",
         companyName: "Rig Capacity Fixture",
         active: true,
-      }) + "\ncommit;\n",
+      })}\ncommit;\n`,
     );
     process.stderr.write(
       `capacity: seeded ${conversations} conversations and ${messages} messages in ` +

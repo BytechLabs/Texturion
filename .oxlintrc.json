@@ -197,7 +197,6 @@
     "vitest/prefer-called-once": "off", // 93
     "typescript/no-misused-promises": "off", // 87
     "eslint/no-shadow": "off", // 83
-    "eslint/prefer-template": "off", // 74
     "react/jsx-handler-names": "off", // 66
     "typescript/restrict-template-expressions": "off", // 65
     "unicorn/no-array-for-each": "off", // 54

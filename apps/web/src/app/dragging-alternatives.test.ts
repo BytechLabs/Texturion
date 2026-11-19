@@ -153,10 +153,13 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
 
     expect(
       unknown,
-      "These files start a drag and no single-pointer alternative is " +
-        "recorded for them. WCAG 2.2 2.5.7 requires one. Add the file to " +
-        "DRAG_SURFACES with the code that implements the way out — and build " +
-        "that way out first:\n  " + unknown.join("\n  "),
+      [
+        "These files start a drag and no single-pointer alternative is ",
+        "recorded for them. WCAG 2.2 2.5.7 requires one. Add the file to ",
+        "DRAG_SURFACES with the code that implements the way out — and build ",
+        "that way out first:\n  ",
+        unknown.join("\n  "),
+      ].join(""),
     ).toEqual([]);
   });
 
@@ -207,10 +210,12 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
 
     expect(
       swallowed,
-      "The exemption list now covers files that DRAG_SURFACES says are real " +
-        "drag operations with alternatives. Those two claims contradict each " +
-        "other, and the wider one silently disables this check:\n  " +
+      [
+        "The exemption list now covers files that DRAG_SURFACES says are real ",
+        "drag operations with alternatives. Those two claims contradict each ",
+        "other, and the wider one silently disables this check:\n  ",
         swallowed.join("\n  "),
+      ].join(""),
     ).toEqual([]);
   });
 

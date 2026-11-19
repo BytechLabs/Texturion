@@ -1048,7 +1048,7 @@ describe("POST /v1/billing/portal", () => {
     const form = harness.callsTo("POST", sessionPath)[0].form();
     expect(form.get("configuration")).toBe(ownerConfiguration.id);
     expect(form.get("customer")).toBe("cus_1");
-    expect(form.get("return_url")).toBe(env.APP_ORIGIN + "/settings/billing");
+    expect(form.get("return_url")).toBe(`${env.APP_ORIGIN}/settings/billing`);
     expect(form.get("flow_data[type]")).toBeNull();
   });
 

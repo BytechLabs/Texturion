@@ -78,7 +78,7 @@ export function opsClient() {
   const base = url.replace(/\/+$/, "");
   const headers = {
     apikey: key,
-    Authorization: "Bearer " + key,
+    Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
   };
 
@@ -198,10 +198,9 @@ export function showRows(label, rows) {
   }
   for (const row of rows) {
     console.log(
-      "    " +
-        Object.entries(row)
+      `    ${Object.entries(row)
           .map(([key, value]) => `${key}=${value === null ? "null" : value}`)
-          .join("  "),
+          .join("  ")}`,
     );
   }
   console.log("");

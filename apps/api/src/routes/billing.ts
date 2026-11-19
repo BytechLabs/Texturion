@@ -496,8 +496,7 @@ billingRoutes.post("/checkout", async (c) => {
     // refusing to sell is worse.
     if (currencyError) {
       console.error(
-        `[billing] could not record the checkout currency for ${company.id}: ` +
-          currencyError.message,
+        `[billing] could not record the checkout currency for ${company.id}: ${currencyError.message}`,
       );
     }
   }
@@ -976,12 +975,10 @@ billingRoutes.post("/change-plan", async (c) => {
       return errorResponse(
         c,
         "conflict",
-        `You have already paid for a year of ${openPrepaid.plan}, and it runs until ` +
-          `${openPrepaid.granted_through.slice(0, 10)}. Switching to ${target} ends ` +
-          (credit
+        `You have already paid for a year of ${openPrepaid.plan}, and it runs until ${openPrepaid.granted_through.slice(0, 10)}. Switching to ${target} ends ${credit
             ? `that year and puts ${credit} of it back on your account as credit, ` +
               `which comes off your next invoices. Confirm and we'll switch you over.`
-            : `that year. Confirm and we'll switch you over.`),
+            : `that year. Confirm and we'll switch you over.`}`,
       );
     }
     // A credit is held per currency in Stripe, so one issued in a currency this
@@ -1354,9 +1351,7 @@ billingRoutes.post("/prepay", async (c) => {
           : eligibility.reason === "no_subscription"
             ? "Subscribe first — a year up front pays for a plan you already have."
             : eligibility.reason === "already_prepaid"
-              ? "You have already paid for a year. It runs until " +
-                new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
-                "."
+              ? `You have already paid for a year. It runs until ${new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10)}.`
               : eligibility.reason === "plan_change_pending"
                 ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
                 : eligibility.reason === "referral_month_pending"
@@ -1448,12 +1443,15 @@ function pauseRefusal(eligibility: PauseEligibility): string {
       return "Sort out your payment method first, then you can pause.";
     case "plan_change_pending":
       return "You have a plan change waiting to take effect. Once it lands you can pause.";
-    case "already_prepaid":
-      return (
-        "You have already paid for a year, and it runs until " +
-        new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
-        ". Pausing would spend those months on a hold instead of on the plan you bought."
-      );
+    case "already_prepaid": {
+      const paidThrough = new Date(eligibility.open?.granted_through ?? "")
+        .toISOString()
+        .slice(0, 10);
+      return [
+        `You have already paid for a year, and it runs until ${paidThrough}.`,
+        " Pausing would spend those months on a hold instead of on the plan you bought.",
+      ].join("");
+    }
     case "prepaid_coupon_orphaned":
       // The `prepayments` row is missing but the year is plainly running, so we
       // cannot name a date the way `already_prepaid` does. Say the true thing:

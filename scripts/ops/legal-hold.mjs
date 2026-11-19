@@ -25,7 +25,7 @@ await runScript("legal-hold", async ({ args, apply, db, script }) => {
   const rows = await db.select(
     "companies",
     "id,name,deleted_at,purge_after,legal_hold_at,legal_hold_reason",
-    { id: "eq." + companyId },
+    { id: `eq.${companyId}` },
   );
   const company = rows[0];
   if (!company) fail(`no company with id ${companyId}`);

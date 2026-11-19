@@ -119,16 +119,18 @@ export function scopeErrors(scope, files) {
   const suggestion = suggestScope(touched);
   const names = foreign.map((r) => r.replace("apps/", "")).join(" and ");
   return [
-    `scope "(${scope})" contradicts the diff — it also changes ${names}. ` +
-      `A customer reading the ${names} release notes sees "${scope}:" as the ` +
-      `first word. ` +
+    [
+      `scope "(${scope})" contradicts the diff — it also changes ${names}. `,
+      `A customer reading the ${names} release notes sees "${scope}:" as the `,
+      `first word. `,
       (suggestion
         ? `Use "(${suggestion})" for this diff, or split the commit.`
-        : `Use a scope covering every client it touches, or split the commit.`) +
+        : `Use a scope covering every client it touches, or split the commit.`),
       `\n        offending paths: ${files
         .filter((f) => foreign.some((root) => f.startsWith(`${root}/`)))
         .slice(0, 5)
         .join("\n                         ")}`,
+    ].join(""),
   ];
 }
 

@@ -575,7 +575,7 @@ const FOCUS_WALK = (maxStops) => {
   };
   const describe = (el) => {
     const cls = (el.className || "").toString().split(/\s+/).filter(Boolean).slice(0, 2);
-    return `${el.tagName.toLowerCase()}${cls.length ? "." + cls.join(".") : ""}`;
+    return `${el.tagName.toLowerCase()}${cls.length > 0 ? `.${cls.join(".")}` : ""}`;
   };
 
   const el = document.activeElement;
@@ -1116,8 +1116,7 @@ if (needsAuth) {
     });
   }
   console.log(
-    `theme-audit: swept ${swept} route/width pairs for document scroll` +
-      (skipped.length ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""),
+    `theme-audit: swept ${swept} route/width pairs for document scroll${skipped.length > 0 ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""}`,
   );
 }
 

@@ -146,13 +146,15 @@ if (dynamic.length > 0) {
 
 if (broken.length > 0) {
   console.error(
-    `Public routes: ${broken.length} of ${paths.length} do not answer on ${BASE}.\n` +
-      broken.map((b) => `  ${String(b.status).padEnd(8)} ${b.path}`).join("\n") +
-      `\n\nThese are pages a visitor can reach from the site. A 500 here is ` +
-      `invisible to every other gate in this repo — the build is green, the ` +
-      `HTML prerenders, the route tests pass, and the URL is still broken. ` +
-      `That is exactly how three legal pages, including the published ` +
+    [
+      `Public routes: ${broken.length} of ${paths.length} do not answer on ${BASE}.\n`,
+      broken.map((b) => `  ${String(b.status).padEnd(8)} ${b.path}`).join("\n"),
+      `\n\nThese are pages a visitor can reach from the site. A 500 here is `,
+      `invisible to every other gate in this repo — the build is green, the `,
+      `HTML prerenders, the route tests pass, and the URL is still broken. `,
+      `That is exactly how three legal pages, including the published `,
       `accessibility statement, stayed 500 for months.`,
+    ].join(""),
   );
   process.exit(1);
 }

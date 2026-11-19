@@ -1316,19 +1316,18 @@ for (const [name, client] of Object.entries(CLIENTS)) {
     if (allowed === undefined) {
       problems.push(
         `  ${file}: ${count} hardcoded user-facing string(s) in a file that had none.
-` +
-          `    → ${client.fix}.` +
-          nameThem(literalsByFile[file]),
+    → ${client.fix}.${nameThem(literalsByFile[file])}`,
       );
       continue;
     }
     if (count > allowed) {
       problems.push(
-        `  ${file}: ${count} hardcoded string(s), the ledger allows ${allowed}.
-` +
-          "    → a NEW literal joined a file that was already waiting to be " +
-          "extracted. Translate it now rather than adding to the backlog." +
+        [
+          `  ${file}: ${count} hardcoded string(s), the ledger allows ${allowed}.\n`,
+          "    → a NEW literal joined a file that was already waiting to be extracted. ",
+          "Translate it now rather than adding to the backlog.",
           nameThem(literalsByFile[file]),
+        ].join(""),
       );
     } else if (count < allowed) {
       problems.push(

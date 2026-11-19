@@ -189,8 +189,7 @@ if (slow.length > 0) {
 }
 
 console.log(
-  "CAPACITY_RESULT " +
-    JSON.stringify({
+  `CAPACITY_RESULT ${JSON.stringify({
       schema: "loonext.capacity.v1",
       scenario: "hot-query-volume",
       environment: "local-postgres",
@@ -212,7 +211,7 @@ console.log(
         "Best of three warm local Postgres timings; not production end-to-end latency.",
         "A 200ms attention threshold is not a system ceiling.",
       ],
-    }),
+    })}`,
 );
 
 console.log(

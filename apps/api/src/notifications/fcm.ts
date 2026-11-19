@@ -224,8 +224,7 @@ async function getAccessToken(
       .slice(0, 300)
       .trim();
     throw new Error(
-      `FCM OAuth token exchange failed with HTTP ${response.status}` +
-        (detail ? ` — ${detail}` : ""),
+      `FCM OAuth token exchange failed with HTTP ${response.status}${detail ? ` — ${detail}` : ""}`,
     );
   }
   const body = (await response.json()) as {

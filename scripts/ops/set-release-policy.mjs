@@ -88,7 +88,7 @@ await runScript("set-release-policy", async ({ args, apply, db, script }) => {
   const current = await db.select(
     "app_release_policy",
     "platform,recommended_version,minimum_version,message,update_url,updated_at",
-    { platform: "eq." + platform },
+    { platform: `eq.${platform}` },
   );
   const before = current[0];
   if (!before) fail(`no policy row for platform ${platform}`);
@@ -126,7 +126,7 @@ await runScript("set-release-policy", async ({ args, apply, db, script }) => {
   const sessions = await db.select(
     "user_sessions",
     "session_id,app_version,last_seen_at",
-    { client: "eq." + platform, revoked_at: "is.null" },
+    { client: `eq.${platform}`, revoked_at: "is.null" },
   );
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const live = sessions.filter((s) => Date.parse(s.last_seen_at) > cutoff);
@@ -138,8 +138,7 @@ await runScript("set-release-policy", async ({ args, apply, db, script }) => {
   if (minimum) {
     const unknown = blocked.filter((s) => !s.app_version).length;
     console.log(
-      `  BLOCKED by a ${minimum} floor: ${blocked.length}` +
-        (unknown ? ` (${unknown} of them report no version at all)` : ""),
+      `  BLOCKED by a ${minimum} floor: ${blocked.length}${unknown ? ` (${unknown} of them report no version at all)` : ""}`,
     );
     console.log(
       "  Each of those is a person who cannot use their business phone until they update.\n",

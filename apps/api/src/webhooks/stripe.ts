@@ -1462,11 +1462,13 @@ async function handleInvoicePaymentFailed(
           ? `You can also pay the open invoice directly: ${invoice.hosted_invoice_url}\n\n`
           : "";
         const text =
-          `Hi,\n\nA payment for ${company.name}'s Loonext subscription failed, so ` +
-          `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n` +
-          `Update your payment method to resume texting: ${portal}\n\n` +
-          invoiceLine +
-          `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
+          [
+            `Hi,\n\nA payment for ${company.name}'s Loonext subscription failed, so `,
+            `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n`,
+            `Update your payment method to resume texting: ${portal}\n\n`,
+            invoiceLine,
+            `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`,
+          ].join("");
         const to = await billingRecipients(env, company.id, db);
         if (to.length === 0) {
           void captureException(env, "No billing contacts for payment notice", {
@@ -1521,12 +1523,9 @@ async function handlePaymentActionRequired(
   if (to.length === 0) return;
   const link = invoice.hosted_invoice_url;
   const text =
-    `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ` +
-    `${company.name}.\n\n` +
-    (link
+    `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ${company.name}.\n\n${link
       ? `Confirm it here: ${link}\n\n`
-      : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`) +
-    `Texting continues normally once the payment is confirmed.\n\nLoonext`;
+      : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`}Texting continues normally once the payment is confirmed.\n\nLoonext`;
   await sendEmail(env, {
     to,
     subject: "Action needed: confirm your Loonext payment",

@@ -413,9 +413,11 @@ function main(argv) {
     if (out) writeFileSync(out, text);
     else process.stdout.write(text);
     console.error(
-      `trace-to-fixture: ${report.events} events, ${report.numbers} numbers renumbered` +
-        (report.foreignNumbers ? ` (${report.foreignNumbers} outside NANP, now NANP)` : "") +
+      [
+        `trace-to-fixture: ${report.events} events, ${report.numbers} numbers renumbered`,
+        (report.foreignNumbers ? ` (${report.foreignNumbers} outside NANP, now NANP)` : ""),
         `, ${report.ids} identifiers replaced.`,
+      ].join(""),
     );
   } catch (cause) {
     console.error(`trace-to-fixture: ${cause instanceof Error ? cause.message : String(cause)}`);

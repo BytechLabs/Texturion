@@ -560,19 +560,23 @@ describe("#347 — a query against a tenant table carries its company scope", ()
       const allowed = ALLOWED[key];
       if (!allowed) {
         problems.push(
-          `NEW unscoped query on a tenant table: ${key}\n` +
-            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n") +
+          [
+            `NEW unscoped query on a tenant table: ${key}\n`,
+            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n"),
             `\n    → add .eq("company_id", …), or list it in ALLOWED with why it is safe.`,
+          ].join(""),
         );
         continue;
       }
       if (sites.length !== allowed.count) {
         problems.push(
-          `${key}: ${sites.length} unscoped site(s), allow-list says ${allowed.count}.\n` +
-            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n") +
+          [
+            `${key}: ${sites.length} unscoped site(s), allow-list says ${allowed.count}.\n`,
+            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n"),
             (sites.length > allowed.count
               ? "\n    → a NEW unscoped query joined an already-exempt file. Scope it, or raise the count and say why."
               : "\n    → one was removed or scoped. Lower the count so the slot cannot be reused silently."),
+          ].join(""),
         );
       }
     }

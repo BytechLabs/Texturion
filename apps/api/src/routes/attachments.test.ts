@@ -1972,7 +1972,7 @@ describe("GET /v1/attachments (list one owner)", () => {
     const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);
     for (const qs of [
-      "owner_type=bogus&owner_id=" + TASK_ID,
+      `owner_type=bogus&owner_id=${TASK_ID}`,
       "owner_type=task",
     ]) {
       const res = await apiRequest(

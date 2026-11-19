@@ -731,8 +731,7 @@ async function fanOutPush(
         }
       } else if (!result.ok) {
         throw new Error(
-          `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
-            (result.errorBody ? ` — ${result.errorBody}` : ""),
+          `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}${result.errorBody ? ` — ${result.errorBody}` : ""}`,
         );
       }
     } catch (cause) {
@@ -814,8 +813,7 @@ async function fanOutPush(
         }
       } else if (!result.ok) {
         throw new Error(
-          `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
-            (result.errorBody ? ` — ${result.errorBody}` : ""),
+          `native push delivery failed with HTTP ${result.status} for device token ${device.id}${result.errorBody ? ` — ${result.errorBody}` : ""}`,
         );
       }
     } catch (cause) {

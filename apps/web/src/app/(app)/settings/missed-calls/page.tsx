@@ -183,11 +183,10 @@ function TextBackCard({
                 <p
                   aria-live="polite"
                   className={
-                    "text-[11px] text-muted-foreground transition-opacity duration-150 " +
-                    (messageField.state === "saving" ||
+                    `text-[11px] text-muted-foreground transition-opacity duration-150 ${messageField.state === "saving" ||
                     messageField.state === "saved"
                       ? "opacity-100"
-                      : "opacity-0")
+                      : "opacity-0"}`
                   }
                 >
                   {messageField.state === "saving"

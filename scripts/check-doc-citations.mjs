@@ -165,11 +165,9 @@ if (real.length > 0) {
 }
 
 console.log(
-  `Document citations: ${checked} cited path(s) all resolve` +
-    (ignored.size > 0
+  `Document citations: ${checked} cited path(s) all resolve${ignored.size > 0
       ? `, ${ignored.size} gitignored path(s) the docs tell you to create`
-      : "") +
-    (skipped.length > 0
+      : ""}${skipped.length > 0
       ? `, and ${skipped.length} historical document(s) skipped.`
-      : "."),
+      : "."}`,
 );
