@@ -29,6 +29,10 @@ vi.mock("@/lib/api/tags", () => ({
 vi.mock("@/lib/api/me", () => ({
   useMe: () => ({ data: { user_id: "me-1" } }),
 }));
+vi.mock("@/lib/api/contacts", () => ({ useContacts: () => ({ data: undefined }) }));
+vi.mock("@/lib/api/conversations", () => ({
+  useConversations: () => ({ data: undefined, isPending: false }),
+}));
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({
     data: {
@@ -128,7 +132,7 @@ describe("#689 New task", () => {
 
   it("links a contact when opened from a contact", async () => {
     openWith({ contactId: "c1", contactName: "Pat Plumber" });
-    expect(screen.getByText("For Pat Plumber")).toBeInstanceOf(Element);
+    expect(screen.getByText("Pat Plumber")).toBeInstanceOf(Element);
     typeTitle("Quote the boiler");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());

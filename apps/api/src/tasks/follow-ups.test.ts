@@ -7,6 +7,7 @@ import { productionSources, sourceText } from "../test/source-tree";
 const routes = resolve(import.meta.dirname, "../routes");
 const followUpByRpc = new Map([
   ["create_task", "afterTaskCreated"],
+  ["create_task_with_date", "afterTaskCreated"],
   ["api_create_public_task", "afterTaskCreated"],
   ["api_bulk_tasks", "afterTasksCompleted"],
   ["set_task_done", "afterTasksCompleted"],

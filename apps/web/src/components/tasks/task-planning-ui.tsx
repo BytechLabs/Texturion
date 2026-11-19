@@ -297,6 +297,7 @@ export function RepeatField({
   draft,
   due,
   linked,
+  textingCustomer,
   existing,
   onChange,
 }: {
@@ -306,6 +307,7 @@ export function RepeatField({
   due: string | null | undefined;
   /** Linked to a conversation or contact: defaults to "after it's done". */
   linked: boolean;
+  textingCustomer?: { name?: string | null };
   /** The task already repeats, so Pause and Stop are offered. */
   existing: boolean;
   onChange: (next: RepeatDraft | null) => void;
@@ -331,6 +333,7 @@ export function RepeatField({
           draft={draft}
           due={due}
           linked={linked}
+          textingCustomer={textingCustomer}
           existing={existing}
           onClose={() => setOpen(false)}
           onApply={(next) => {
@@ -353,6 +356,7 @@ function RepeatDialog({
   draft,
   due,
   linked,
+  textingCustomer,
   existing,
   onClose,
   onApply,
@@ -361,6 +365,7 @@ function RepeatDialog({
   draft: RepeatDraft | null;
   due: string | null | undefined;
   linked: boolean;
+  textingCustomer?: { name?: string | null };
   existing: boolean;
   onClose: () => void;
   onApply: (next: RepeatDraft) => void;
@@ -539,6 +544,16 @@ function RepeatDialog({
             )}
           </div>
 
+          {work.kind === "schedule" && textingCustomer && (
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="repeat-remind-customer">
+                {textingCustomer.name ? t("tasks.repeatTextCustomer", { name: textingCustomer.name })
+                  : t("tasks.repeatTextEveryVisit")}
+              </Label>
+              <Switch id="repeat-remind-customer" checked={work.remindCustomer ?? false}
+                onCheckedChange={(remindCustomer) => patch({ remindCustomer })} />
+            </div>
+          )}
           {existing && (
             <div className="flex items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
               <Label htmlFor="repeat-pause" className="text-[13px] font-medium">

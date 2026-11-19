@@ -174,8 +174,11 @@ struct QuickAddSheet: View {
 
     private func dueText(_ result: QuickAddResult) -> String? {
         guard let date = parseWireTimestamp(result.dueAt) else { return nil }
+        if !result.dueHasTime {
+            return taskDateKey(date) + " · " + t("contactsTasks.anyTime")
+        }
         return TimestampFormat.label(
-            date, style: result.dueHasTime ? .long : .short, locale: appLocale)
+            date, style: .long, locale: appLocale)
     }
 
     // MARK: Add
@@ -195,12 +198,15 @@ struct QuickAddSheet: View {
                     companyId: companyId,
                     title: title,
                     assignedUserId: result.assignee?.userId,
-                    dueAt: result.dueAt,
+                    dueAt: result.dueHasTime ? result.dueAt : nil,
                     conversationId: nil,
                     contactId: nil,
                     priority: priority,
                     labelIds: result.labels.map { $0.id },
-                    assigneeIds: assigneeIds
+                    assigneeIds: assigneeIds,
+                    dueOn: result.dueHasTime ? nil : parseWireTimestamp(result.dueAt).map {
+                        taskDateKey($0)
+                    }
                 )
                 Haptics.confirm()
                 onCreated()

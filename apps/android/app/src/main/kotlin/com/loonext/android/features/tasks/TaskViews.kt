@@ -48,6 +48,7 @@ fun sanitizeTaskFilters(raw: JsonObject): JsonObject {
                 text != null && UUID_RE.matches(text)
 
             "unassigned", "overdue", "has_location", "has_attachments", "has_references" -> bool != null
+            "confirmed" -> bool == false
             "due_before", "due_after" -> text != null && ISO_RE.matches(text)
             "priority" -> text != null && text.isNotEmpty() &&
                 text.split(",").all { it in TaskPriority.PICKER }
@@ -108,6 +109,7 @@ fun taskViewToState(filters: JsonObject, meUserId: String): TaskViewState {
         source = clean.str("source"),
         hasAttachments = clean.flag("has_attachments"),
         hasReferences = clean.flag("has_references"),
+        notConfirmed = (clean["confirmed"] as? JsonPrimitive)?.booleanOrNull == false,
         dueAfter = if (dueChip == null) clean.str("due_after") else null,
         dueBefore = if (dueChip == null) clean.str("due_before") else null,
         group = TaskGroup.entries.firstOrNull { it.wire == clean.str("group") } ?: TaskGroup.Status,
@@ -148,6 +150,7 @@ fun taskStateToView(state: TaskViewState, meUserId: String): JsonObject {
         extra.source?.let { put("source", JsonPrimitive(it)) }
         if (extra.hasAttachments) put("has_attachments", JsonPrimitive(true))
         if (extra.hasReferences) put("has_references", JsonPrimitive(true))
+        if (extra.notConfirmed) put("confirmed", JsonPrimitive(false))
         if (extra.group != TaskGroup.Status) put("group", JsonPrimitive(extra.group.wire))
     }
     return sanitizeTaskFilters(raw)

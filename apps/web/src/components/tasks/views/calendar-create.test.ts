@@ -19,8 +19,8 @@ import {
 describe(slotDueValue, () => {
   const day = dayFromKey("2026-11-12");
 
-  it("month: the clicked day at the morning default", () => {
-    expect(slotDueValue(day, null)).toBe("2026-11-12T09:00");
+  it("month: the clicked day without a time", () => {
+    expect(slotDueValue(day, null)).toBe("2026-11-12");
   });
 
   it("week: the clicked day and hour", () => {

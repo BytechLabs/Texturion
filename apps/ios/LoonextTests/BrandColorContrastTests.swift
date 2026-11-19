@@ -167,6 +167,10 @@ final class BrandColorContrastTests: XCTestCase {
                 assertReadable(BrandColor.destructive, "destructive", on: bg, bgName, floor: aa, dark: dark)
                 assertReadable(BrandColor.overdueAmber, "overdueAmber", on: bg, bgName, floor: aa, dark: dark)
             }
+            assertReadable(
+                BrandColor.paperFixed, "map stop number",
+                on: BrandColor.mapPin, "mapPin", floor: aa, dark: dark
+            )
         }
     }
 
@@ -188,13 +192,6 @@ final class BrandColorContrastTests: XCTestCase {
             for (bgName, bg) in [("canvas", BrandColor.canvas), ("paper", BrandColor.paper)] {
                 assertReadable(BrandColor.coral, "coral (attention dot)", on: bg, bgName, floor: nonText, dark: dark)
             }
-            // #219: the map pin is deliberately theme-INDEPENDENT because it
-            // sits on raster tiles rather than on our surfaces. What still has
-            // to hold is its own glyph against its own balloon.
-            assertReadable(
-                BrandColor.paperFixed, "map pin glyph",
-                on: BrandColor.mapPin, "mapPin", floor: nonText, dark: dark
-            )
         }
     }
 

@@ -69,7 +69,7 @@ describe("#739 month", () => {
     cell.focus();
     fireEvent.keyDown(cell, { key: "Enter" });
     expect(openNewTask).toHaveBeenCalledWith({
-      due: "2026-11-12T09:00",
+      due: "2026-11-12",
       timeZone: "America/Toronto",
     });
   });
@@ -78,7 +78,7 @@ describe("#739 month", () => {
     render(<CalendarView state={STATE} />);
     fireEvent.click(screen.getByRole("button", { name: "New task on Wednesday, November 11" }));
     expect(openNewTask).toHaveBeenCalledWith({
-      due: "2026-11-11T09:00",
+      due: "2026-11-11",
       timeZone: "America/Toronto",
     });
   });

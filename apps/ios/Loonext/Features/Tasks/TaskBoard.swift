@@ -342,6 +342,9 @@ private struct BoardCard: View {
 
     private func dueLine(overdue: Bool) -> TimedText {
         timedDue(locale: appLocale) { due in
+            if let day = task.due_on {
+                return day + " · " + AppStrings.translate(appLocale, "contactsTasks.anyTime")
+            }
             guard task.due_at != nil else { return "" }
             if overdue { return AppStrings.translate(appLocale, "contactsTasks.dueOverdue") }
             return AppStrings.translate(

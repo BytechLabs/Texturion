@@ -574,6 +574,171 @@ begin
   raise notice 'ST-5 PASSED: timeline, calendar access and reminders handle a task with no conversation';
 end $$;
 
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  member_id constant uuid := 'a5000000-0000-4000-8000-00000000000b';
+  conversation constant uuid := 'a5000000-0000-4000-8000-0000000000e1';
+  customer constant uuid := 'a5000000-0000-4000-8000-0000000000a1';
+  other_customer constant uuid := 'a5000000-0000-4000-8000-0000000000a2';
+  job uuid;
+  outcome jsonb;
+begin
+  insert into public.tasks (company_id, title, due_at, created_by_user_id)
+  values (company, 'Link a booking', now() + interval '2 days', owner_id)
+  returning id into job;
+  update public.company_members set deactivated_at = null
+   where company_id = company and user_id = member_id;
+
+  outcome := public.set_task_links(company, job, member_id, null, conversation);
+  if outcome->>'outcome' is distinct from 'no_conversation' then
+    raise exception 'A member could link a booking to a hidden line: %', outcome;
+  end if;
+  outcome := public.set_task_links(company, job, owner_id, other_customer, conversation);
+  if outcome->>'outcome' is distinct from 'contact_mismatch' then
+    raise exception 'A booking accepted a customer outside the selected conversation: %', outcome;
+  end if;
+
+  outcome := public.set_task_links(company, job, owner_id, null, conversation);
+  if outcome->>'outcome' is distinct from 'updated'
+     or (outcome->'task'->>'contact_id')::uuid is distinct from customer
+     or (outcome->'task'->>'reminders_off')::boolean is distinct from true
+     or not exists (select 1 from public.task_events where task_id = job and kind = 'customer') then
+    raise exception 'The booking did not inherit its selected customer and access: %', outcome;
+  end if;
+
+  outcome := public.api_set_task_confirmation(company, job, member_id, true);
+  if outcome->>'outcome' is distinct from 'not_found' then
+    raise exception 'A denied member could confirm a booking: %', outcome;
+  end if;
+  outcome := public.api_set_task_confirmation(company, job, owner_id, true);
+  if outcome->'task'->>'confirmed_by' is distinct from 'crew'
+     or not exists (select 1 from public.task_events
+                     where task_id = job and kind = 'confirmation' and actor_user_id = owner_id) then
+    raise exception 'Crew confirmation did not retain its actor: %', outcome;
+  end if;
+  outcome := public.api_set_task_confirmation(company, job, owner_id, false);
+  if outcome->'task'->>'confirmed_at' is not null or outcome->'task'->>'confirmed_by' is not null then
+    raise exception 'Crew confirmation was not cleared: %', outcome;
+  end if;
+end $$;
+
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  day_only constant date := current_date + 2;
+  job uuid;
+  outcome jsonb;
+begin
+  outcome := public.create_task_with_date(company, null, 'Visit on a day', null, null, null, owner_id, day_only);
+  if outcome->>'outcome' is distinct from 'created'
+     or (outcome->'task'->>'due_on')::date is distinct from day_only
+     or (outcome->'task'->>'due_time_set')::boolean is distinct from false
+     or outcome->'task'->>'due_at' is not null then
+    raise exception 'Creating a day-only task must leave the time unset: %', outcome;
+  end if;
+  job := (outcome->'task'->>'id')::uuid;
+  outcome := public.update_task(company, job, null, null, now() + interval '2 days', false, owner_id);
+  if outcome->>'outcome' is distinct from 'updated'
+     or outcome->'task'->>'due_on' is not null
+     or (outcome->'task'->>'due_time_set')::boolean is distinct from true then
+    raise exception 'Replacing a day with a timed booking did not clear the day-only value: %', outcome;
+  end if;
+end $$;
+
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  conversation constant uuid := 'a5000000-0000-4000-8000-0000000000e1';
+  t0 constant timestamptz := now() + interval '7 days';
+  job uuid;
+  queued uuid;
+  outcome jsonb;
+  series uuid;
+begin
+  insert into public.tasks (company_id, title, due_at, created_by_user_id, conversation_id)
+  values (company, 'Correct a booking', t0, owner_id, conversation)
+  returning id into job;
+  perform public.update_task(company, job, null, null, t0 + interval '1 hour', false, owner_id);
+  if exists (select 1 from public.scheduled_messages where task_id = job and origin = 'correction') then
+    raise exception 'An unadvertised job queued a correction';
+  end if;
+
+  insert into public.scheduled_messages
+    (company_id, conversation_id, task_id, origin, reminder_offset_minutes, body,
+     send_at, clock_timezone, clock_source, expires_at, created_by)
+  values (company, conversation, job, 'reminder', 1440, 'Visit', now(), 'UTC', 'company',
+    now() + interval '1 day', owner_id)
+  returning id into queued;
+  update public.scheduled_messages set status = 'sent' where id = queued;
+  outcome := public.update_task(company, job, null, null, t0 + interval '2 hours', false, owner_id);
+  if (select count(*) from public.scheduled_messages
+       where task_id = job and origin = 'correction' and status = 'pending'
+         and send_at = now() + interval '10 minutes'
+         and id::text = outcome->'correction'->>'id') is distinct from 1::bigint then
+    raise exception 'A moved booking did not queue exactly one correction with time to undo';
+  end if;
+  perform public.update_task(company, job, null, null, t0 + interval '3 hours', false, owner_id);
+  if (select count(*) from public.scheduled_messages
+       where task_id = job and origin = 'correction' and status = 'pending') is distinct from 1::bigint then
+    raise exception 'A second move did not supersede the queued correction';
+  end if;
+  perform public.update_task(company, job, null, null, t0 + interval '1 hour', false, owner_id);
+  if exists (select 1 from public.scheduled_messages
+              where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'Undo failed to cancel the correction';
+  end if;
+  update public.tasks set deleted_at = now() where id = job;
+  if not exists (select 1 from public.scheduled_messages
+                  where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'An advertised cancellation did not queue a correction';
+  end if;
+  update public.tasks set deleted_at = null where id = job;
+  if exists (select 1 from public.scheduled_messages
+              where task_id = job and origin = 'correction' and status = 'pending') then
+    raise exception 'Restoring the booking did not cancel its correction';
+  end if;
+
+  outcome := public.set_task_due_on(company, job, owner_id, current_date + 7);
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"schedule","unit":"day","remind_customer":true,"ends":{"kind":"after","after":3}}');
+  series := (outcome->'task'->>'series_id')::uuid;
+  if outcome->>'outcome' is distinct from 'set'
+     or (select count(*) from public.tasks t where t.series_id = series and t.deleted_at is null
+           and t.due_on is not null and t.due_at is null and not t.reminders_off) is distinct from 2::bigint
+     or not exists (select 1 from public.calendar_reminder_replans r join public.tasks t on t.id = r.task_id
+                     where t.series_id = series and t.occurrence_no = 2) then
+    raise exception 'An opted-in date-only series did not replan its future visits: %', outcome;
+  end if;
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"schedule","unit":"day","remind_customer":false,"ends":{"kind":"after","after":3}}');
+  if exists (select 1 from public.tasks t where t.series_id = series and t.deleted_at is null and not t.reminders_off) then
+    raise exception 'Opting out did not turn off the remaining appointment reminders';
+  end if;
+  perform public.api_edit_task_series(company, job, owner_id,
+    jsonb_build_object('due_at', t0 + interval '1 hour'));
+  if not exists (select 1 from public.tasks t where t.series_id = series and t.occurrence_no = 2
+                  and t.due_at is not null and t.due_on is null and t.reminders_off) then
+    raise exception 'Adding a time to future visits lost the date or reenabled reminders';
+  end if;
+  outcome := public.api_set_task_repeat(company, job, owner_id,
+    '{"kind":"after_done","unit":"day","remind_customer":true}');
+  series := (outcome->'task'->>'series_id')::uuid;
+  if (select remind_customer from public.task_series where id = series) is distinct from false then
+    raise exception 'An after-done series accepted customer reminders: %', outcome;
+  end if;
+  perform public.set_task_done(company, job, true, owner_id);
+  if not exists (select 1 from public.tasks t where t.series_id = series and t.occurrence_no = 2
+                  and t.reminders_off and not exists (
+                    select 1 from public.calendar_reminder_replans r where r.task_id = t.id
+                  )) then
+    raise exception 'An after-done repeat did not spawn a visit with reminders off';
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL STANDALONE TASK TESTS PASSED' as result;

@@ -57,7 +57,7 @@ export async function afterTaskCreated(
   for (const assigneeUserId of assigneeIds) {
     await notifyAssignedTask(c, { companyId, actorUserId: userId, assigneeUserId, task, taskId });
   }
-  if (task.due_at && task.conversation_id && task.reminders_off === false) {
+  if ((task.due_at || task.due_on) && task.conversation_id && task.reminders_off === false) {
     await syncRemindersAfterWrite(c, { companyId, userId, taskId });
   }
 }

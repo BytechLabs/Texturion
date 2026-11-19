@@ -127,6 +127,7 @@ const CLASSIFIED: Record<string, Classification> = {
   "tasks#POST /tasks/:id/tags": "trigger:task_events",
   "tasks#DELETE /tasks/:id/tags/:tag_id": "trigger:task_events",
   "tasks#PUT /tasks/:id/reminders": "trigger:task_events",
+  "tasks#PUT /tasks/:id/confirmation": "trigger:task_events",
   "tasks#DELETE /tasks/:id": "trigger:task_events",
   "task-activity#POST /tasks/:id/comments": "records",
   "task-activity#PATCH /tasks/:id/comments/:commentId":

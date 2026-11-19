@@ -22,10 +22,13 @@ export function QuickAddPreview({ parsed }: { parsed: QuickAddResult }) {
   if (parsed.assignee) {
     rows.push({ label: t("tasks.quickAssignee"), value: parsed.assignee.name });
   }
-  if (parsed.dueAt) {
+  const dueLabel = parsed.dueOn
+    ? `${parsed.dueOn} · ${t("tasks.anyTime")}`
+    : (parsed.dueAt ? formatTimestamp(parsed.dueAt, { style: "long", t }) : null);
+  if (dueLabel) {
     rows.push({
       label: t("tasks.quickDue"),
-      value: formatTimestamp(parsed.dueAt, { style: "long", t }),
+      value: dueLabel,
     });
   }
   if (parsed.priority) {

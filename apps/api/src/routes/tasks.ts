@@ -228,7 +228,10 @@ interface TaskFilters {
   conversationId: string | undefined;
   dueBefore: string | undefined;
   dueAfter: string | undefined;
+  dueOnBefore?: string;
+  dueOnAfter?: string;
   overdue: boolean;
+  confirmed?: boolean;
   search?: string;
   /** #693: any of these priorities. */
   priorities?: string[];
@@ -282,12 +285,22 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   if (filters.conversationId !== undefined) {
     q = q.eq("conversation_id", filters.conversationId);
   }
-  if (filters.dueBefore !== undefined) q = q.lte("due_at", filters.dueBefore);
-  if (filters.dueAfter !== undefined) q = q.gte("due_at", filters.dueAfter);
+  if (filters.dueBefore !== undefined) {
+    q = filters.dueOnBefore
+      ? q.or(`due_at.lte.${filters.dueBefore},due_on.lte.${filters.dueOnBefore}`)
+      : q.lte("due_at", filters.dueBefore);
+  }
+  if (filters.dueAfter !== undefined) {
+    q = filters.dueOnAfter
+      ? q.or(`due_at.gte.${filters.dueAfter},due_on.gte.${filters.dueOnAfter}`)
+      : q.gte("due_at", filters.dueAfter);
+  }
   if (filters.overdue) {
     // Overdue = past due AND not yet done (a done task is never "overdue").
     q = q.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
   }
+  if (filters.confirmed === true) q = q.not("confirmed_at", "is", null);
+  if (filters.confirmed === false) q = q.is("confirmed_at", null);
   if (filters.priorities && filters.priorities.length > 0) {
     q = q.in("priority", filters.priorities);
   }
@@ -453,7 +466,7 @@ function priorityKeysetFilter(cursor: PriorityCursor): string {
  */
 export const TASK_COLUMNS =
   "id,company_id,number,message_id,source_call_id,conversation_id,contact_id,title,description," +
-  "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
+  "assigned_user_id,due_at,due_on,due_time_set,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
   "addr_country,addr_provenance," +
@@ -639,6 +652,7 @@ const createSchema = z
   assignee_ids: assigneeIdsSchema.optional(),
   assigned_user_id: z.uuid().nullable().optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  due_on: z.iso.date().optional(),
   // #214: the confirmed enriched (or hand-entered) job address.
   address: addressSchema.nullable().optional(),
   // #693: priority (default normal), workspace tags, and a repeat.
@@ -679,6 +693,9 @@ const patchSchema = z
     assignee_ids: assigneeIdsSchema.optional(),
     assigned_user_id: z.uuid().nullable().optional(),
     due_at: z.iso.datetime({ offset: true }).nullable().optional(),
+    due_on: z.iso.date().nullable().optional(),
+    contact_id: z.uuid().nullable().optional(),
+    conversation_id: z.uuid().nullable().optional(),
     // #214: replace the whole address block (null clears it).
     address: addressSchema.nullable().optional(),
     priority: prioritySchema.optional(),
@@ -698,7 +715,10 @@ const patchSchema = z
       "repeat" in body ||
       "assigned_user_id" in body ||
       body.assignee_ids !== undefined ||
+      "contact_id" in body ||
+      "conversation_id" in body ||
       "due_at" in body ||
+      "due_on" in body ||
       "address" in body,
     { message: "Provide at least one field to update." },
   );
@@ -712,6 +732,12 @@ const STATUS_VALUES = ["open", "done"] as const;
  * error/HTTP surface. `task` is left untyped (it is `to_jsonb(tasks)` — the
  * TASK_COLUMNS shape) and returned to the client as-is.
  */
+const taskCorrectionSchema = z.object({
+  id: z.uuid(),
+  body: z.string(),
+  recipient: z.string().nullable(),
+});
+
 const taskOutcomeSchema = z.object({
   outcome: z.enum([
     "created",
@@ -733,7 +759,11 @@ const taskOutcomeSchema = z.object({
     "too_many",
     "conflict",
     "bad_priority",
+    "anchored",
+    "unscheduled",
+    "bad_due_precision",
   ]),
+  correction: taskCorrectionSchema.nullish(),
   task: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
@@ -775,12 +805,17 @@ export const tasksRoutes = new Hono<AppEnv>();
  */
 tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
+  if (body.due_on && body.due_at) {
+    return errorResponse(c, "validation_failed", "Provide a time or a date for this job.", {
+      key: "apiRefusals.bookingDuePrecision",
+    });
+  }
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
 
   // #693: a schedule repeats from a date. Said before anything is written.
-  if (body.repeat?.kind === "schedule" && !body.due_at) {
+  if (body.repeat?.kind === "schedule" && !body.due_at && !body.due_on) {
     throw new ApiError("validation_failed", "repeat: a schedule needs a due date to start from.");
   }
 
@@ -858,7 +893,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // §7 error/HTTP surface; the DB tasks_broadcast trigger fires the ID-only
   // `task.changed` for free (T1.3), so the route publishes no realtime
   // (SPEC §8 broadcast-from-DB).
-  const { data, error } = await db.rpc("create_task", {
+  const parameters = {
     p_company_id: companyId,
     p_message_id: body.message_id ?? null,
     p_call_id: body.source_call_id ?? null,
@@ -876,7 +911,10 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     p_contact_id: body.contact_id ?? null,
     p_conversation_id: body.conversation_id ?? null,
     p_priority: body.priority ?? "normal",
-  });
+  };
+  const { data, error } = body.due_on === undefined
+    ? await db.rpc("create_task", parameters)
+    : await db.rpc("create_task_with_date", { ...parameters, p_due_on: body.due_on });
   if (error) throw new Error(`create_task failed: ${error.message}`);
   const result = parseTaskOutcome(data);
 
@@ -1318,7 +1356,10 @@ const taskSelectionSchema = z.strictObject({
   conversation_id: z.uuid().optional(),
   due_before: taskDueFilter.optional(),
   due_after: taskDueFilter.optional(),
+  due_on_before: z.iso.date().optional(),
+  due_on_after: z.iso.date().optional(),
   overdue: z.boolean().optional(),
+  confirmed: z.boolean().optional(),
   has_location: z.boolean().optional(),
   q: z.string().trim().max(200).optional(),
   priority: z.array(prioritySchema).min(1).optional(),
@@ -1342,7 +1383,10 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     conversation_id: query.conversation_id,
     due_before: query.due_before,
     due_after: query.due_after,
+    due_on_before: query.due_on_before,
+    due_on_after: query.due_on_after,
     overdue: query.overdue === "true" || undefined,
+    confirmed: query.confirmed === "true" ? true : (query.confirmed === "false" ? false : query.confirmed),
     has_location: query.has_location === "true" || undefined,
     q: query.q,
     priority: query.priority
@@ -1364,7 +1408,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     throw new ApiError("validation_failed", "sort must be created, due, priority or updated.");
   }
 
-  const anyFilter = Object.values(filters).some(Boolean);
+  const anyFilter = Object.values(filters).some((value) => value !== undefined);
   const assignee = filters.assigned_user_id === "me"
     ? userId
     : filters.assigned_user_id ?? (anyFilter ? undefined : userId);
@@ -1482,6 +1526,9 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueBefore,
     dueAfter,
     overdue,
+    confirmed: extraInput.confirmed,
+    dueOnBefore: extraInput.due_on_before,
+    dueOnAfter: extraInput.due_on_after,
     search,
     priorities,
     tagId,
@@ -1686,6 +1733,9 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         dueBefore: q.dueBefore,
         dueAfter: q.dueAfter,
         overdue: q.overdue,
+        confirmed: q.extraInput.confirmed,
+        dueOnBefore: q.extraInput.due_on_before,
+        dueOnAfter: q.extraInput.due_on_after,
         search: q.search,
         priorities: q.priorities,
         tagId: q.tagId,
@@ -1870,6 +1920,9 @@ tasksRoutes.post(
           dueBefore: filter.due_before,
           dueAfter: filter.due_after,
           overdue: filter.overdue === true,
+          confirmed: filter.confirmed,
+          dueOnBefore: filter.due_on_before,
+          dueOnAfter: filter.due_on_after,
           search: filter.q,
           priorities: filter.priority,
           tagId: filter.tag_id,
@@ -2527,6 +2580,11 @@ async function loadTaskActivity(
 tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
+  if ("due_on" in body && "due_at" in body) {
+    return errorResponse(c, "validation_failed", "Provide a time or a date for this job.", {
+      key: "apiRefusals.bookingDuePrecision",
+    });
+  }
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
@@ -2570,6 +2628,8 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     body.priority !== undefined ||
     "due_at" in body ||
     "address" in body;
+  const touchesCustomer = "contact_id" in body || "conversation_id" in body;
+  let correction: z.infer<typeof taskCorrectionSchema> | null | undefined;
   const desiredCrew = requestedAssignees(body);
   const touchesAssignee = desiredCrew !== undefined;
 
@@ -2585,7 +2645,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   //
   // The RPC's own not_member check stays as the authoritative one; this only
   // moves the ordinary case in front of the first write.
-  if (touchesMeta && desiredCrew !== undefined && desiredCrew.length > 0) {
+  if ((touchesMeta || touchesCustomer || "due_on" in body) && desiredCrew !== undefined && desiredCrew.length > 0) {
     const members = unwrap<{ user_id: string }[]>(
       await db
         .from("company_members")
@@ -2606,6 +2666,51 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // Track the freshest task row an RPC returned, and whether the task exists.
   let latest: Record<string, unknown> | null = null;
   let found = false;
+
+  if (touchesCustomer) {
+    if (body.conversation_id) {
+      await requireConversationAccess(db, {
+        companyId, userId, role: c.get("role"), conversationId: body.conversation_id, need: "note",
+      });
+    }
+    const result = parseTaskOutcome(unwrap(await db.rpc("set_task_links", {
+      p_company_id: companyId,
+      p_task_id: id,
+      p_actor_user_id: userId,
+      p_contact_id: body.contact_id ?? null,
+      p_conversation_id: body.conversation_id ?? null,
+    }), "link job customer"));
+    if (result.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such task.", { key: "apiRefusals.bookingNotFound" });
+    }
+    if (result.outcome === "anchored") {
+      return errorResponse(c, "validation_failed", "A task created from a text or call keeps its customer.", {
+        key: "apiRefusals.bookingSourceCustomer",
+      });
+    }
+    if (result.outcome !== "updated" && result.outcome !== "unchanged") {
+      return errorResponse(c, "validation_failed", "Choose an available customer or conversation.", {
+        key: "apiRefusals.bookingCustomerUnavailable",
+      });
+    }
+    found = true;
+    latest = result.task ?? null;
+  }
+
+  if ("due_on" in body) {
+    const result = parseTaskOutcome(unwrap(await db.rpc("set_task_due_on", {
+      p_company_id: companyId,
+      p_task_id: id,
+      p_actor_user_id: userId,
+      p_due_on: body.due_on ?? null,
+    }), "set job date"));
+    if (result.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such task.", { key: "apiRefusals.bookingNotFound" });
+    }
+    found = true;
+    latest = result.task ?? latest;
+    ({ correction } = result);
+  }
 
   // #689 D: "time changed" needs the value that is about to be overwritten,
   // which the RPC does not return.
@@ -2636,6 +2741,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     if (result.task) latest = result.task;
+    if ("due_at" in body) ({ correction } = result);
     if (
       result.outcome === "updated" &&
       before &&
@@ -2782,6 +2888,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
         : null;
     }
     if (body.due_at) changes.due_at = body.due_at;
+    if (body.due_on) changes.due_on = body.due_on;
     if (Object.keys(changes).length > 0) {
       await editTaskSeries(db, { companyId, taskId: id, userId, changes });
     }
@@ -2794,7 +2901,10 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
   if (latest) {
-    return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(latest)));
+    return c.json(await withLabelsAndRepeatOne(db, companyId, withSource({
+      ...latest,
+      ...(correction ? { correction } : {}),
+    })));
   }
   if (found) {
     const current = await findTask(db, companyId, id);
@@ -2965,6 +3075,26 @@ tasksRoutes.delete(
   },
 );
 
+tasksRoutes.put("/tasks/:id/confirmation", requireCapability("conversations.note"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const { confirmed } = await parseJsonBody(c, z.strictObject({ confirmed: z.boolean() }));
+  const result = parseTaskOutcome(unwrap(await db.rpc("api_set_task_confirmation", {
+    p_company_id: c.get("companyId"),
+    p_task_id: pathUuid(c, "id"),
+    p_actor_user_id: c.get("userId"),
+    p_confirmed: confirmed,
+  }), "confirm job"));
+  if (result.outcome === "not_found") {
+    return errorResponse(c, "not_found", "No such task.", { key: "apiRefusals.bookingNotFound" });
+  }
+  if (result.outcome === "unscheduled") {
+    return errorResponse(c, "validation_failed", "Set a date for this open job before confirming it.", {
+      key: "apiRefusals.bookingConfirmationNeedsDate",
+    });
+  }
+  return c.json({ confirmed_at: result.task?.confirmed_at ?? null, confirmed_by: result.task?.confirmed_by ?? null });
+});
+
 /**
  * PUT /v1/tasks/:id/reminders — stop (or restart) this job's reminders.
  *
@@ -3051,10 +3181,12 @@ tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) 
       p_actor_user_id: userId,
     });
     if (error) throw new Error(`api_delete_task_series failed: ${error.message}`);
-    if ((data as { outcome?: string } | null)?.outcome === "not_found") {
+    const result = parseTaskOutcome(data);
+    if (result.outcome === "not_found") {
       return errorResponse(c, "not_found", "No such task.");
     }
     await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
+    if (result.correction) return c.json({ correction: result.correction });
     return c.body(null, 204);
   }
 
@@ -3083,5 +3215,6 @@ tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) 
   // soft-deleted task, so this is the same call every other write makes.
   await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
+  if (result.correction) return c.json({ correction: result.correction });
   return c.body(null, 204);
 });

@@ -114,6 +114,7 @@ export interface RepeatDraft {
   endOn: string;
   endAfter: number;
   paused: boolean;
+  remindCustomer?: boolean;
 }
 
 /** A job tied to a conversation or contact reads better as "after it's done". */
@@ -142,13 +143,14 @@ export function draftFromRepeat(repeat: TaskRepeat): RepeatDraft {
     endOn: repeat.ends.on ?? "",
     endAfter: repeat.ends.after ?? 5,
     paused: repeat.paused,
+    ...(repeat.remind_customer === undefined ? {} : { remindCustomer: repeat.remind_customer }),
   };
 }
 
 /** The local calendar day a due value (ISO instant or datetime-local) falls on. */
 export function dueDay(due: string | null | undefined): Date | null {
   if (!due) return null;
-  const date = new Date(due);
+  const date = new Date(due.length === 10 ? `${due}T00:00` : due);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -210,6 +212,7 @@ export interface RepeatRequest {
   nth_weekday?: number;
   ends: { kind: RepeatEndKind; on?: string; after?: number };
   paused?: boolean;
+  remind_customer?: boolean;
 }
 
 /**
@@ -226,6 +229,7 @@ export function draftToRequest(
     kind: draft.kind,
     unit: draft.unit,
     every: draft.every,
+    ...(schedule && draft.remindCustomer !== undefined ? { remind_customer: draft.remindCustomer } : {}),
     ends: { kind: draft.endKind },
   };
   if (schedule && draft.unit === "week") {

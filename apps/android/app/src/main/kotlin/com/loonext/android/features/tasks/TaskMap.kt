@@ -7,6 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.OvalShape
 import android.location.LocationManager
@@ -20,6 +24,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +42,11 @@ import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,7 +73,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -79,6 +89,10 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.rememberShimmerBrush
 import com.loonext.android.ui.theme.BrandColor
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.math.abs
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -127,6 +141,7 @@ fun TaskMapView(
 ) {
     val mutations = remember(companyId) { TaskMutations(graph.api) }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
+    var selectedDay by remember(companyId) { mutableStateOf<LocalDate?>(LocalDate.now()) }
 
     // Realtime: the same triggers as the list/board — any task change or done
     // flip revalidates the pin set quietly.
@@ -144,29 +159,79 @@ fun TaskMapView(
 
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskMapFilterKey(assigneeUserId, unassigned, due, q, extra),
+        taskMapFilterKey(assigneeUserId, unassigned, due, q, extra) + "|" + (selectedDay?.toString() ?: "-"),
     )
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
-        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra)
+        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra, selectedDay)
     }
 
-    when (val current = state) {
-        is LoadState.Loading -> TaskMapSkeleton(modifier)
-        is LoadState.Failed -> LoadError(
-            current.message,
-            onRetry = { refreshKey++ },
-            modifier = modifier,
-        )
+    Column(modifier.fillMaxSize()) {
+        TaskMapDays(selectedDay, onSelect = { selectedDay = it })
+        when (val current = state) {
+            is LoadState.Loading -> TaskMapSkeleton(Modifier.weight(1f))
+            is LoadState.Failed -> LoadError(
+                current.message,
+                onRetry = { refreshKey++ },
+                modifier = Modifier.weight(1f),
+            )
+            is LoadState.Ready -> TaskMapContent(
+                rows = orderedMapRows(current.value, selectedDay),
+                onOpenTask = onOpenTask,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
 
-        is LoadState.Ready -> TaskMapContent(
-            rows = current.value,
-            onOpenTask = onOpenTask,
-            modifier = modifier,
-        )
+private fun orderedMapRows(rows: List<Task>, day: LocalDate?): List<Task> {
+    val zone = ZoneId.systemDefault()
+    return rows.asSequence()
+        .filterNot { it.done }
+        .map { task ->
+            val instant = parseInstant(task.due_at)
+            Triple(task, task.due_on ?: instant?.atZone(zone)?.toLocalDate()?.toString(), instant)
+        }
+        .filter { day == null || it.second == day.toString() }
+        .sortedWith(compareBy({ it.second ?: "9999" }, { it.third ?: Instant.MAX }, { it.first.id }))
+        .map { it.first }
+        .toList()
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskMapDays(day: LocalDate?, onSelect: (LocalDate?) -> Unit) {
+    val today = LocalDate.now()
+    val tomorrow = today.plusDays(1)
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(selected = day == today, onClick = { onSelect(today) },
+            label = { Text(t("contactsTasks.mapToday")) })
+        FilterChip(selected = day == tomorrow, onClick = { onSelect(tomorrow) },
+            label = { Text(t("contactsTasks.mapTomorrow")) })
+        FilterChip(selected = day != null && day != today && day != tomorrow, onClick = { showPicker = true },
+            label = { Text(t("contactsTasks.mapPickDay")) })
+        FilterChip(selected = day == null, onClick = { onSelect(null) },
+            label = { Text(t("contactsTasks.mapAllOpen")) })
+    }
+    if (showPicker) {
+        val picker = rememberDatePickerState(initialSelectedDateMillis =
+            (day ?: today).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    picker.selectedDateMillis?.let { onSelect(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
+                    showPicker = false
+                }) { Text(t("contactsTasks.mapPickDay")) }
+            },
+        ) { DatePicker(state = picker) }
     }
 }
 
@@ -197,6 +262,7 @@ internal fun taskMapFilterKey(
         extra.priorities.sorted().joinToString(","),
         extra.dueBefore.orEmpty(),
         extra.dueAfter.orEmpty(),
+        extra.notConfirmed.toString(),
     ).joinToString("|")
 
 // Web-parity camera constants (map-island.tsx): continental-US fallback view,
@@ -285,6 +351,16 @@ private fun openDirections(context: Context, lat: Double, lng: Double) {
     }
 }
 
+private fun openRoute(context: Context, stops: List<Task>) {
+    val points = stops.take(9).mapNotNull(::taskPinCoords).map { (lat, lng) -> "$lat,$lng" }
+    val destination = points.lastOrNull() ?: return
+    val uri = Uri.parse("https://www.google.com/maps/dir/").buildUpon()
+        .appendQueryParameter("api", "1")
+        .appendQueryParameter("destination", destination)
+    if (points.size > 1) uri.appendQueryParameter("waypoints", points.dropLast(1).joinToString("|"))
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri.build())) }
+}
+
 @Composable
 private fun TaskMapContent(
     rows: List<Task>,
@@ -294,6 +370,8 @@ private fun TaskMapContent(
     val haptics = rememberHaptics()
     val context = LocalContext.current
     val model = remember(rows) { buildTaskMapModel(rows) }
+    val stops = remember(rows) { rows.filter { taskPinCoords(it) != null } }
+    val stopNumbers = remember(stops) { stops.mapIndexed { index, task -> task.id to index + 1 }.toMap() }
 
     var selectedKey by remember { mutableStateOf<String?>(null) }
     val selected = model.groups.firstOrNull { it.key == selectedKey }
@@ -320,6 +398,23 @@ private fun TaskMapContent(
     }
 
     Column(modifier.fillMaxSize()) {
+        if (stops.isNotEmpty()) {
+            TextButton(onClick = { openRoute(context, stops) }, modifier = Modifier.padding(horizontal = 18.dp)) {
+                Text(t("contactsTasks.mapOpenRoute"))
+            }
+            if (stops.size > 9) Text(t("contactsTasks.mapRouteLimit"), Modifier.padding(horizontal = 24.dp))
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                stops.forEachIndexed { index, task ->
+                    TextButton(onClick = { onOpenTask(task.id) }) {
+                        Text("${index + 1}. ${task.title}")
+                        if (task.confirmed_at != null) Text(" · " + t("contactsTasks.mapConfirmed"))
+                    }
+                }
+            }
+        }
         // #428: named, not left blank. A map with no streets is confusing until
         // somebody says why, and the fix belongs to the owner rather than support.
         // Same sentence as the web twin, asserted by a test on each side.
@@ -379,6 +474,7 @@ private fun TaskMapContent(
         ) {
             OsmTaskMap(
                 groups = model.groups,
+                stopNumbers = stopNumbers,
                 locate = locate,
                 onPickGroup = { key ->
                     if (key != null) haptics.tap()
@@ -711,6 +807,7 @@ private class MapSyncState {
 @Composable
 private fun OsmTaskMap(
     groups: List<TaskPinGroup>,
+    stopNumbers: Map<String, Int>,
     locate: LocatePoint?,
     onPickGroup: (String?) -> Unit,
     modifier: Modifier = Modifier,
@@ -788,7 +885,7 @@ private fun OsmTaskMap(
             }
         },
         update = { map ->
-            syncPins(map, sync, groups, pinColor, pick)
+            syncPins(map, sync, groups, stopNumbers, pinColor, pick)
             syncLocate(map, sync, locate, dotColor)
         },
     )
@@ -803,11 +900,14 @@ private fun syncPins(
     map: MapView,
     sync: MapSyncState,
     groups: List<TaskPinGroup>,
+    stopNumbers: Map<String, Int>,
     pinColor: Int,
     pick: State<(String?) -> Unit>,
 ) {
     val key = "$pinColor|" +
-        groups.joinToString("|") { "${it.key}@${it.lat},${it.lng}#${it.tasks.size}" }
+        groups.joinToString("|") { group ->
+            group.key + ":" + group.tasks.joinToString(",") { stopNumbers[it.id].toString() }
+        }
     if (key == sync.pinsKey) return
     sync.pinsKey = key
 
@@ -816,15 +916,10 @@ private fun syncPins(
     groups.forEach { group ->
         val marker = Marker(map).apply {
             position = GeoPoint(group.lat, group.lng)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            // The stock osmdroid teardrop tinted to the theme's primary role —
-            // the flat-pin look of the web island, zero custom colors.
-            ContextCompat.getDrawable(map.context, org.osmdroid.library.R.drawable.marker_default)
-                ?.mutate()
-                ?.also { drawable ->
-                    drawable.setTint(pinColor)
-                    setIcon(drawable)
-                }
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            val first = stopNumbers[group.tasks.first().id]
+            val label = if (group.tasks.size == 1) first.toString() else "$first+"
+            setIcon(stopMarker(map.context, label, pinColor))
             // No Android-View bubble: the peek card is a Compose overlay.
             infoWindow = null
             relatedObject = group.key
@@ -838,6 +933,21 @@ private fun syncPins(
     }
     fitCamera(map, groups)
     map.invalidate()
+}
+
+private fun stopMarker(context: Context, label: String, color: Int): BitmapDrawable {
+    val density = context.resources.displayMetrics.density
+    val size = (maxOf(28, 10 + label.length * 8) * density).toInt()
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val center = size / 2f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+    canvas.drawCircle(center, center, center, paint)
+    paint.color = android.graphics.Color.WHITE
+    paint.textAlign = Paint.Align.CENTER
+    paint.textSize = 13 * density
+    canvas.drawText(label, center, center - (paint.ascent() + paint.descent()) / 2, paint)
+    return BitmapDrawable(context.resources, bitmap)
 }
 
 /**

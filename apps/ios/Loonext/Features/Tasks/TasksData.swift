@@ -93,7 +93,8 @@ func taskCreateBody(
     /// #689 C: the whole crew. Wins over `assignedUserId`; an empty array means
     /// nobody (omitting both makes the creator the assignee).
     assigneeIds: [String]? = nil,
-    description: String? = nil
+    description: String? = nil,
+    dueOn: String? = nil
 ) -> JSONValue {
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
@@ -103,6 +104,7 @@ func taskCreateBody(
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
     if let crew = taskAssigneesJSON(assigneeIds) { object["assignee_ids"] = crew }
     if let dueAt { object["due_at"] = .string(dueAt) }
+    if let dueOn { object["due_on"] = .string(dueOn) }
     if let address { object["address"] = address }
     if let contactId { object["contact_id"] = .string(contactId) }
     if let conversationId { object["conversation_id"] = .string(conversationId) }
@@ -187,6 +189,9 @@ func taskBulkBody(
         if let source = filters.source { filter["source"] = .string(source) }
         if filters.hasAttachments { filter["has_attachments"] = .bool(true) }
         if filters.hasReferences { filter["has_references"] = .bool(true) }
+        if let confirmed = filters.confirmed { filter["confirmed"] = .bool(confirmed) }
+        if let day = filters.dueOnBefore { filter["due_on_before"] = .string(day) }
+        if let day = filters.dueOnAfter { filter["due_on_after"] = .string(day) }
         body["filter"] = .object(filter)
     }
     // Explicit null is meaningful (unassign), so it is only written when the
@@ -238,12 +243,25 @@ func taskAddressPatchBody(_ fields: AddressFieldValues, provenance: String) -> J
 /// Unlike list/detail reads it carries NO derived done/status — decoding it
 /// into `TaskItem` would fail, so mutations decode this projection and the
 /// caller merges the metadata fields into its fetched detail.
+struct BookingCorrectionNotice: Codable, Sendable, Identifiable {
+    let id: String
+    let body: String
+    let recipient: String?
+}
+
+private struct BookingCorrectionResponse: Codable, Sendable {
+    let correction: BookingCorrectionNotice?
+}
+
 struct TaskRowPatch: Codable, Sendable {
     let id: String
     let title: String
     @Default<DefaultEmptyString> var description: String
     let assigned_user_id: String?
     let due_at: String?
+    var due_on: String? = nil
+    var due_time_set: Bool? = nil
+    var correction: BookingCorrectionNotice? = nil
     let updated_at: String
     /// #214: the raw row (`to_jsonb(v_task)`) carries the address columns for
     /// every mutation, so `merged()` re-reads the current address after ANY
@@ -441,6 +459,14 @@ struct TaskMutations: Sendable {
         )
     }
 
+    func setDueDay(companyId: String, taskId: String, day: String, scope: String?) async throws -> TaskRowPatch {
+        try await api.patch(
+            "/v1/tasks/\(taskId)",
+            body: taskScoped(.object(["due_on": .string(day)]), scope: scope),
+            companyId: companyId
+        )
+    }
+
     /// #237 — stop (or restart) this job's reminders.
     ///
     /// Its own route rather than a field on the metadata patch: the patch
@@ -531,7 +557,8 @@ struct TaskMutations: Sendable {
         priority: String? = nil,
         labelIds: [String] = [],
         repeatRule: JSONValue? = nil,
-        assigneeIds: [String]? = nil
+        assigneeIds: [String]? = nil,
+        dueOn: String? = nil
     ) async throws -> TaskRowPatch {
         try await api.post(
             "/v1/tasks",
@@ -546,7 +573,8 @@ struct TaskMutations: Sendable {
                 priority: priority,
                 labelIds: labelIds,
                 repeatRule: repeatRule,
-                assigneeIds: assigneeIds
+                assigneeIds: assigneeIds,
+                dueOn: dueOn
             ),
             companyId: companyId
         )
@@ -571,13 +599,16 @@ struct TaskMutations: Sendable {
     /// Soft-delete; creator or owner/admin only (403 otherwise).
     /// #693: on a repeating task `scope` is "this" (skip this one) or "future"
     /// (end the repeat and remove the later unfinished ones).
-    func delete(companyId: String, taskId: String, scope: String? = nil) async throws {
-        _ = try await api.raw(
+    @discardableResult
+    func delete(companyId: String, taskId: String, scope: String? = nil) async throws -> BookingCorrectionNotice? {
+        let response = try await api.raw(
             "DELETE",
             "/v1/tasks/\(taskId)",
             query: ["scope": scope],
             companyId: companyId
         )
+        guard !response.isEmpty else { return nil }
+        return try JSONDecoder().decode(BookingCorrectionResponse.self, from: response).correction
     }
 
     /// One page of a task's history and comments, newest page first (#689).

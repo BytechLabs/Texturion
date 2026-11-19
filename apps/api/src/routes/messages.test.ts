@@ -2126,11 +2126,14 @@ describe("POST /v1/messages/send — #274 the tokens that do real work", () => {
       conversation_id: CONVERSATION_ID,
       body: "Confirming {job_day} at {job_time}",
     });
-    expect(stubs.taskLookup.calls).toHaveLength(1);
-    const filters = stubs.taskLookup.calls[0].url.searchParams;
-    expect(filters.get("deleted_at")).toBe("is.null");
-    expect(filters.get("task_done_at")).toBe("is.null");
-    expect(filters.get("due_at")).toMatch(/^gte\./);
+    expect(stubs.taskLookup.calls).toHaveLength(2);
+    const filters = stubs.taskLookup.calls.map((call) => call.url.searchParams);
+    for (const query of filters) {
+      expect(query.get("deleted_at")).toBe("is.null");
+      expect(query.get("task_done_at")).toBe("is.null");
+    }
+    expect(filters.some((query) => query.get("due_at")?.startsWith("gte."))).toBe(true);
+    expect(filters.some((query) => query.get("due_on")?.startsWith("gte."))).toBe(true);
     const sent = (stubs.telnyx.calls[0].body as { text: string }).text;
     expect(sent).not.toContain("{");
     expect(sent.startsWith("Confirming ")).toBe(true);

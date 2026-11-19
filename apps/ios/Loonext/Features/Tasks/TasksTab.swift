@@ -32,7 +32,7 @@ struct TasksTab: View {
     @State private var members: [Member] = []
     @State private var newTaskOpen = false
     /// #739: set by a long-press on a calendar day; New task opens due then.
-    @State private var newTaskDue: Date?
+    @State private var newTaskDue: String?
     // #693: priority and label filters, and the sort.
     @State private var priorityFilter: [String] = []
     @State private var tagFilter: String?
@@ -45,6 +45,7 @@ struct TasksTab: View {
     @State private var sourceFilter: String?
     @State private var hasAttachmentsFilter = false
     @State private var hasReferencesFilter = false
+    @State private var notConfirmedFilter = false
     @State private var dueAfterFilter: String?
     @State private var dueBeforeFilter: String?
     @State private var statusOnlyFilter: String?
@@ -95,6 +96,7 @@ struct TasksTab: View {
             source: sourceFilter,
             hasAttachments: hasAttachmentsFilter,
             hasReferences: hasReferencesFilter,
+            notConfirmed: notConfirmedFilter,
             dueAfter: dueAfterFilter,
             dueBefore: dueBeforeFilter,
             statusOnly: statusOnlyFilter
@@ -128,6 +130,7 @@ struct TasksTab: View {
         sourceFilter = state.meta.source
         hasAttachmentsFilter = state.meta.hasAttachments
         hasReferencesFilter = state.meta.hasReferences
+        notConfirmedFilter = state.meta.notConfirmed
         dueAfterFilter = state.meta.dueAfter
         dueBeforeFilter = state.meta.dueBefore
         statusOnlyFilter = state.meta.statusOnly
@@ -323,7 +326,7 @@ struct TasksTab: View {
             graph: graph,
             companyId: companyId,
             onCreated: { refreshKey += 1 },
-            initialDue: newTaskDue
+            initialDueOn: newTaskDue
         )
         .onChange(of: newTaskOpen) { _, open in
             if !open { newTaskDue = nil }
@@ -535,6 +538,12 @@ struct TasksTab: View {
                 id: "files",
                 label: AppStrings.translate(appLocale, "taskRefs.filterHasAttachments")
             ) { hasAttachmentsFilter = false })
+        }
+        if notConfirmedFilter {
+            chips.append(ActiveFilterChip(
+                id: "unconfirmed",
+                label: AppStrings.translate(appLocale, "contactsTasks.notConfirmed")
+            ) { notConfirmedFilter = false })
         }
         if hasReferencesFilter {
             chips.append(ActiveFilterChip(
@@ -977,7 +986,11 @@ private struct TaskListRow: View {
                     .foregroundStyle(BrandColor.muted500)
                     .lineLimit(1)
                 }
-                if task.due_at != nil {
+                if let day = task.due_on {
+                    Text(day + " · " + AppStrings.translate(appLocale, "contactsTasks.anyTime"))
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted400)
+                } else if task.due_at != nil {
                     let overdue = isOverdue(task)
                     let dueText = timedDue(locale: appLocale) { due in
                         AppStrings.translate(

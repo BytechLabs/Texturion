@@ -71,6 +71,7 @@ struct TaskRepeatRule: Codable, Sendable, Equatable {
     var nth_weekday: Int? = nil
     var ends: TaskRepeatEnds? = nil
     var paused: Bool? = nil
+    var remind_customer: Bool? = nil
     var stopped: Bool? = nil
     var id: String? = nil
 

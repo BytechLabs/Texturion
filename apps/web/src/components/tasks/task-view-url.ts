@@ -112,6 +112,7 @@ export interface TaskPageState {
   assignee?: string;
   /** The unassigned chip. */
   unassigned?: boolean;
+  notConfirmed?: boolean;
   /** The due chip (overdue / today / this week). */
   due?: DueFilter;
   /** Title search. */
@@ -180,6 +181,7 @@ export function parseTaskSearchParams(
     state.unassigned = true;
   }
   const due = parseDue(params.get("due"));
+  if (params.get("confirmed") === "false") state.notConfirmed = true;
   if (due) state.due = due;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") state.q = q;
@@ -221,6 +223,7 @@ export function serializeTaskState(state: TaskPageState): string {
   if (state.tab !== "open") params.set("tab", state.tab);
   if (state.assignee) params.set("assignee", state.assignee);
   if (state.unassigned) params.set("unassigned", "1");
+  if (state.notConfirmed) params.set("confirmed", "false");
   if (state.due) params.set("due", state.due);
   if (state.q !== undefined && state.q.trim() !== "") params.set("q", state.q);
   if (state.priority && state.priority.length > 0) {
@@ -292,6 +295,7 @@ export function toTaskFilters(
   now: Date = new Date(),
 ): TaskListFilters {
   const filters: TaskListFilters = {};
+  if (state.notConfirmed) filters.confirmed = false;
 
   // Tab → status + assignee baseline.
   if (state.tab === "open") {
@@ -342,6 +346,7 @@ export function hasActiveChips(state: TaskPageState): boolean {
   return Boolean(
     state.assignee ||
       state.unassigned ||
+      state.notConfirmed ||
       state.due ||
       state.q ||
       (state.priority && state.priority.length > 0) ||

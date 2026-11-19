@@ -24,6 +24,7 @@ import {
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
   resolveLocale,
+  zonedToInstant,
 } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -123,6 +124,7 @@ export async function syncTaskReminders(
 
   const task = unwrapOptional<{
     due_at: string | null;
+    due_on?: string | null;
     // Null for a standalone task with no conversation (#689): no thread to text.
     conversation_id: string | null;
     reminders_off: boolean;
@@ -137,7 +139,7 @@ export async function syncTaskReminders(
     await db
       .from("tasks")
       .select(
-        "due_at,conversation_id,reminders_off," +
+        "due_at,due_on,conversation_id,reminders_off," +
           // #291: the number the THREAD is with, not the contact's
           // primary. The timezone still comes from the contact — a
           // second number does not put somebody in a second country.
@@ -163,7 +165,8 @@ export async function syncTaskReminders(
   const settings = await loadAutomaticTextSettings(db, input.companyId);
 
   const destination = task.conversations?.contact_phone_e164;
-  const dueAt = task.due_at === null ? null : new Date(task.due_at);
+  const appointment = task.due_at ? new Date(task.due_at) : null;
+  const day = task.due_on ?? null;
 
   // The clock is resolved against the APPOINTMENT, not against now: a job three
   // weeks out may sit the other side of a DST change, and the provenance we
@@ -172,17 +175,22 @@ export async function syncTaskReminders(
     ? await resolveDestinationClock(db, {
         companyId: input.companyId,
         phoneE164: destination,
-        atUtc: dueAt ?? now,
+        atUtc: appointment ?? (day ? new Date(`${day}T12:00:00Z`) : now),
         contactTimezone: task.conversations?.contacts?.timezone ?? null,
       })
     : null;
 
+  let dueAt = appointment;
+  if (day && clock) {
+    const [y, m, d] = day.split("-").map(Number);
+    dueAt = new Date(zonedToInstant({ y, m, d }, { h: 0, mi: 0 }, clock.timezone));
+  }
   let planned: PlannedReminder[] = [];
   if (dueAt !== null && !task.reminders_off && clock && task.conversation_id) {
     const workspaceLocale = resolveLocale(null, task.companies?.locale);
     const contactLocale = resolveLocale(task.conversations?.contacts?.locale, workspaceLocale);
     const stockReminders = copyFor(contactLocale).appointmentReminders;
-    const localizedRules = rules.filter((rule) => rule.enabled).map((rule) => {
+    const localizedRules = rules.filter((rule) => rule.enabled && (!day || rule.offset_minutes >= 1440)).map((rule) => {
       const stockOffset = STOCK_REMINDER_OFFSETS.get(rule.body);
       const stock = stockReminders.find((defaultRule) => defaultRule.offset_minutes === stockOffset);
       return stock ? { ...rule, body: stock.body } : rule;

@@ -79,6 +79,9 @@ data class TaskListFilters(
     val source: String? = null,
     val hasAttachments: Boolean = false,
     val hasReferences: Boolean = false,
+    val confirmed: Boolean? = null,
+    val dueOnBefore: String? = null,
+    val dueOnAfter: String? = null,
 )
 
 /**
@@ -124,6 +127,9 @@ fun taskQueryParams(
         "source" to filters.source,
         "has_attachments" to if (filters.hasAttachments) "true" else null,
         "has_references" to if (filters.hasReferences) "true" else null,
+        "confirmed" to filters.confirmed?.toString(),
+        "due_on_before" to filters.dueOnBefore,
+        "due_on_after" to filters.dueOnAfter,
         "cursor" to cursor,
         "limit" to limit.toString(),
     )
@@ -201,6 +207,7 @@ fun taskListArms(
         createdBy = extra.createdBy,
         source = extra.source,
         hasAttachments = extra.hasAttachments,
+        confirmed = if (extra.notConfirmed) false else null,
         hasReferences = extra.hasReferences,
     )
 

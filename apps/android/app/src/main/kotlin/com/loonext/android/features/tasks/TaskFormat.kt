@@ -42,7 +42,8 @@ fun parseInstant(iso: String?): Instant? {
 
 /** A not-done task whose due date is in the past. */
 fun isOverdue(task: Task, clock: Clock = Clock.systemDefaultZone()): Boolean {
-    if (task.done || task.due_at == null) return false
+    if (task.done) return false
+    task.due_on?.let { return LocalDate.parse(it).isBefore(LocalDate.now(clock)) }
     val due = parseInstant(task.due_at) ?: return false
     return due.isBefore(clock.instant())
 }
@@ -168,6 +169,7 @@ fun taskHistorySentence(
 
         "due" -> text(item.to)
             ?.let { due ->
+                if (due.length == 10) return say("contactsTasks.histDueDay", "date" to due)
                 val label = TimestampFormat.label(
                     due,
                     TimestampFormat.Style.LONG,
@@ -178,6 +180,8 @@ fun taskHistorySentence(
                 say("contactsTasks.histDue", "due" to label)
             }
             ?: say("contactsTasks.histDueCleared")
+
+        "customer" -> say("contactsTasks.histCustomer")
 
         "reminders" -> say(
             if (flag(item.to) == true) {

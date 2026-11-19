@@ -340,7 +340,7 @@ describe("/contacts/[id] Message action (#73)", () => {
 
   it("opens the existing conversation instead of composing (#82)", () => {
     state.conversations = {
-      pages: [{ data: [{ id: "conv-9", status: "open" }], next_cursor: null }],
+      pages: [{ data: [{ id: "conv-9", contact_id: "c-1", status: "open" }], next_cursor: null }],
       pageParams: [],
     };
     const html = render("c-1");

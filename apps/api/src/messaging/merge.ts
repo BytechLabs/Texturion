@@ -28,6 +28,14 @@ import { unwrap } from "../routes/core/http";
 const SIX_DAYS_MS = 6 * 86_400_000;
 const NONBREAKING_SPACES = /[\u00A0\u202F]/g;
 
+function localJobDay(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone,
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 /** The already-loaded contact + company slice a merge needs. */
 export interface MergeContext {
   contactName?: string | null;
@@ -48,7 +56,8 @@ export interface MergeContext {
  * no I/O. Returns `body` unchanged when it carries no tokens.
  */
 export function applySendMergeFields(body: string, ctx: MergeContext): string {
-  return applyMergeFields(body, {
+  const template = ctx.jobTime ? body : body.replaceAll(/(?<![\p{L}])(?:at|a|à)\s+\{job_time\}/giu, "{job_time}");
+  return applyMergeFields(template, {
     contactName: ctx.contactName ?? null,
     businessName: ctx.businessName ?? null,
     contactAddress: ctx.contactAddress ?? null,
@@ -107,31 +116,46 @@ export async function resolveSendMergeFields(
   if ((needed.has("job_day") || needed.has("job_time")) && input.conversationId) {
     try {
       const now = input.now ?? new Date();
-      const tasks = db.from("tasks")
-        .select("due_at")
+      const { conversationId } = input;
+      const zone = input.timeZone ?? "UTC";
+      const tasks = () => db.from("tasks")
+        .select("due_at,due_on")
         .eq("company_id", input.companyId)
-        .eq("conversation_id", input.conversationId)
+        .eq("conversation_id", conversationId)
         .is("deleted_at", null);
-      const visit = input.jobTaskId === undefined
-        ? tasks.is("task_done_at", null)
-          .gte("due_at", now.toISOString())
-          .order("due_at", { ascending: true })
-        : tasks.eq("id", input.jobTaskId);
-      const rows = unwrap<{ due_at: string | null }[]>(
-        await visit.limit(1),
-        "merge job time",
-      );
-      const dueAt = rows[0]?.due_at ?? null;
-      if (dueAt !== null) {
-        const timeZone = input.timeZone ?? "UTC";
+      let dueAt: string | null = null;
+      let dueOn: string | null = null;
+      if (input.jobTaskId) {
+        const [row] = unwrap<{ due_at: string | null; due_on?: string | null }[]>(
+          await tasks().eq("id", input.jobTaskId).limit(1), "merge job time",
+        );
+        dueAt = row?.due_at ?? null;
+        dueOn = row?.due_on ?? null;
+      } else {
+        const [timed, untimed] = await Promise.all([
+          tasks().is("task_done_at", null).gte("due_at", now.toISOString())
+            .order("due_at", { ascending: true }).limit(1),
+          tasks().is("task_done_at", null).gte("due_on", localJobDay(now, zone))
+            .order("due_on", { ascending: true }).limit(1),
+        ]);
+        dueAt = unwrap<{ due_at: string | null }[]>(timed, "merge job time")[0]?.due_at ?? null;
+        dueOn = unwrap<{ due_on?: string | null }[]>(untimed, "merge job date")[0]?.due_on ?? null;
+        if (dueAt && dueOn) {
+          if (dueOn < localJobDay(new Date(dueAt), zone)) dueAt = null;
+          else dueOn = null;
+        }
+      }
+      if (dueAt !== null || dueOn !== null) {
+        const timeZone = dueOn ? "UTC" : zone;
         const locale = input.locale === "fr-CA" ? "fr-CA" : "en-CA";
-        const when = new Date(dueAt);
+        const when = new Date(dueAt ?? `${dueOn}T12:00:00Z`);
         const includeDate = when.getTime() - now.getTime() > SIX_DAYS_MS;
         ctx.jobDay = new Intl.DateTimeFormat(locale, {
           weekday: "long",
           timeZone,
           ...(includeDate ? { month: "numeric", day: "numeric" } : {}),
         }).format(when).replaceAll(NONBREAKING_SPACES, " ");
+        if (dueOn) return ctx;
         const time = new Intl.DateTimeFormat(locale, {
           hour: "numeric",
           minute: "2-digit",

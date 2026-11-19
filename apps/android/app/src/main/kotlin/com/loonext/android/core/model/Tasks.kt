@@ -28,6 +28,9 @@ data class Task(
     val description: String = "",
     val assigned_user_id: String? = null,
     val due_at: String? = null,
+    val due_on: String? = null,
+    val due_time_set: Boolean? = null,
+    val correction: BookingCorrection? = null,
     val calendar_hold: Boolean = false,
     val created_by_user_id: String,
     val created_at: String,
@@ -105,6 +108,9 @@ data class Task(
     val allowed_actions: List<String>? = null,
 )
 
+@Serializable
+data class BookingCorrection(val id: String, val body: String, val recipient: String? = null)
+
 /** #693: a workspace tag as it appears on a task. */
 @Serializable
 data class TaskLabel(
@@ -140,6 +146,7 @@ data class TaskRepeat(
     val ends: TaskRepeatEnds = TaskRepeatEnds(),
     val paused: Boolean = false,
     val stopped: Boolean = false,
+    val remind_customer: Boolean? = null,
 )
 
 /** D64: `source` on every task row: a message or an answered call. */
@@ -335,6 +342,8 @@ data class TaskDetail(
     val description: String = "",
     val assigned_user_id: String? = null,
     val due_at: String? = null,
+    val due_on: String? = null,
+    val due_time_set: Boolean? = null,
     val calendar_hold: Boolean = false,
     val created_by_user_id: String,
     val created_at: String,

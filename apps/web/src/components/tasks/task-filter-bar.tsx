@@ -110,6 +110,7 @@ export function taskFilterCount(state: TaskPageState): number {
   return [
     state.assignee,
     state.unassigned,
+    state.notConfirmed,
     state.due,
     state.priority && state.priority.length > 0,
     state.tag,
@@ -137,7 +138,7 @@ function withoutTaskFields(state: TaskPageState, keys: readonly OptionalTaskFiel
 function clearTaskFilters(state: TaskPageState): TaskPageState {
   return withoutTaskFields(state, [
     "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
-    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort",
+    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort", "notConfirmed",
   ]);
 }
 
@@ -216,6 +217,9 @@ function ChipRow({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {state.notConfirmed && (
+        <Chip label={t("tasks.notConfirmed")} onRemove={() => onChange(withoutTaskFields(state, ["notConfirmed"]))} />
+      )}
       {assigneeName && (
         <Chip
           label={assigneeName}
@@ -600,6 +604,10 @@ function FilterPopover({
               })}
             </CommandGroup>
             <CommandGroup heading={t("tasks.due")}>
+              <CommandItem value="not-confirmed" onSelect={() => patch({ notConfirmed: !state.notConfirmed })}>
+                {t("tasks.notConfirmed")}
+                {state.notConfirmed && <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />}
+              </CommandItem>
               {(["overdue", "today", "week"] as const).map((due) => {
                 const active = state.due === due;
                 return (

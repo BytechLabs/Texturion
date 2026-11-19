@@ -79,6 +79,7 @@ export interface QuickAddResult {
   assignee: QuickAddMember | null;
   /** UTC instant, ISO 8601, or null. */
   dueAt: string | null;
+  dueOn: string | null;
   /** True when the line named a time of day. */
   dueHasTime: boolean;
   priority: QuickAddPriority | null;
@@ -427,6 +428,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   }
 
   let dueAt: string | null = null;
+  let dueOn: string | null = null;
   let dueHasTime = false;
   if (dateHit !== null || clock !== null) {
     let instant: number;
@@ -451,6 +453,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
         instant = zonedToInstant(civil, { h: TONIGHT_HOUR, mi: 0 }, ctx.timeZone);
         dueHasTime = true;
       } else {
+        dueOn = String(civilKey(civil)).replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
         instant = zonedToInstant(civil, { h: DEFAULT_HOUR, mi: 0 }, ctx.timeZone);
         if (civilKey(civil) === civilKey(today) && instant <= now) {
           instant = zonedToInstant(civil, { h: AFTERNOON_HOUR, mi: 0 }, ctx.timeZone);
@@ -465,7 +468,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   }
 
   const title = kept.filter((w): w is string => w !== null).join(" ");
-  return { title, assignee, dueAt, dueHasTime, priority, labels, understood, ignored };
+  return { title, assignee, dueAt, dueOn, dueHasTime, priority, labels, understood, ignored };
 }
 
 function isReferenceTag(tag: string): boolean {

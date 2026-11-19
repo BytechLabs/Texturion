@@ -204,6 +204,7 @@ describe("GET /v1/tasks: priority, labels, repeat", () => {
       kind: "after_done",
       unit: "month",
       every: 6,
+      remind_customer: false,
       weekdays: null,
       month_day: null,
       nth: null,

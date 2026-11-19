@@ -593,8 +593,10 @@ struct ContactDetailView: View {
             isPresented: $newTaskOpen,
             graph: graph,
             companyId: companyId,
+            conversationId: conversationId,
             contactId: contact.id,
-            contactName: name
+            contactName: name,
+            initialAddress: contact.address
         )
     }
 

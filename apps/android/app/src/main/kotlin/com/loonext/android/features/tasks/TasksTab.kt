@@ -206,6 +206,7 @@ private fun TaskListScreen(
     var sourceFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var hasFilesFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var hasLinksFilter by rememberSaveable(companyId) { mutableStateOf(false) }
+    var notConfirmedFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var dueAfterFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var dueBeforeFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var groupName by rememberSaveable(companyId) { mutableStateOf(TaskGroup.Status.name) }
@@ -222,6 +223,7 @@ private fun TaskListScreen(
         source = sourceFilter,
         hasAttachments = hasFilesFilter,
         hasReferences = hasLinksFilter,
+        notConfirmed = notConfirmedFilter,
         dueAfter = dueAfterFilter,
         dueBefore = dueBeforeFilter,
         group = TaskGroup.entries.firstOrNull { it.name == groupName } ?: TaskGroup.Status,
@@ -232,7 +234,7 @@ private fun TaskListScreen(
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var newTaskOpen by remember { mutableStateOf(false) }
     // #739: set by a tap on a calendar day; the New task form opens due that day.
-    var calendarDueIso by remember { mutableStateOf<String?>(null) }
+    var calendarDueOn by remember { mutableStateOf<String?>(null) }
     val workspaceZone = remember(me.company?.timezone) { workspaceZone(me.company?.timezone) }
     var pullRefreshing by remember(companyId) { mutableStateOf(false) }
     // #228: the done-toggle below writes from a coroutine, and the failure it
@@ -345,6 +347,7 @@ private fun TaskListScreen(
         sourceFilter = next.extra.source
         hasFilesFilter = next.extra.hasAttachments
         hasLinksFilter = next.extra.hasReferences
+        notConfirmedFilter = next.extra.notConfirmed
         dueAfterFilter = next.extra.dueAfter
         dueBeforeFilter = next.extra.dueBefore
         groupName = next.extra.group.name
@@ -420,16 +423,16 @@ private fun TaskListScreen(
         AppStrings.translate(locale, key)
     }
 
-    calendarDueIso?.let { dueIso ->
+    calendarDueOn?.let { day ->
         NewTaskSheetHost(
             graph = graph,
             companyId = companyId,
             conversationId = null,
             contactId = null,
             contactName = "",
-            onDismiss = { calendarDueIso = null },
+            onDismiss = { calendarDueOn = null },
             onCreated = { refreshKey++ },
-            initialDueIso = dueIso,
+            initialDueOn = day,
             zone = workspaceZone,
         )
     }
@@ -644,6 +647,7 @@ private fun TaskListScreen(
                 }
                 if (hasFilesFilter) add(ActiveFilterChip(filesLabel) { hasFilesFilter = false })
                 if (hasLinksFilter) add(ActiveFilterChip(linksLabel) { hasLinksFilter = false })
+                if (notConfirmedFilter) add(ActiveFilterChip(t("contactsTasks.notConfirmed")) { notConfirmedFilter = false })
                 if (dueAfterFilter != null || dueBeforeFilter != null) {
                     add(ActiveFilterChip(dueRangeLabel) {
                         dueAfterFilter = null
@@ -765,8 +769,9 @@ private fun TaskListScreen(
                             onToggleDone = onToggleDone,
                             zone = workspaceZone,
                             onCreateTask = { day ->
-                                calendarDueIso = calendarDayDueIso(day, workspaceZone)
+                                calendarDueOn = day.toString()
                             },
+                            notConfirmed = notConfirmedFilter,
                         )
 
                         else -> TaskList(
@@ -1433,7 +1438,9 @@ internal fun TaskListRow(
             )
             val overdue = isOverdue(task)
             val locale = LocalAppLocale.current
-            val dueText = task.due_at?.let { dueAt ->
+            val dueText = task.due_on?.let { day ->
+                timedDue(locale) { day + " · " + t("contactsTasks.anyTime") }
+            } ?: task.due_at?.let { dueAt ->
                 timedDue(locale) { due ->
                     if (overdue) {
                         t("contactsTasks.overdueDueWhen", "when" to due(dueAt))

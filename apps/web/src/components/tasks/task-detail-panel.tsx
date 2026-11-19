@@ -27,6 +27,7 @@ import {
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RecordHeader } from "@/components/ui/record-header";
 import { useIsXl } from "@/lib/use-is-xl";
 import { CountryPicker } from "@/components/ui/country-picker";
@@ -52,11 +53,12 @@ import { useMe } from "@/lib/api/me";
 import { useRecordActivity } from "@/lib/api/record-activity";
 import { useTaskActivity } from "@/lib/api/task-activity";
 import { useTaskLinks } from "@/lib/api/task-links";
-import { findCachedTaskRow, useAddTaskLabel, useCreateTaskNote, useDeleteTask, useRemoveTaskLabel, useTask, useUpdateTask } from '@/lib/api/tasks';
+import { findCachedTaskRow, useAddTaskLabel, useCreateTaskNote, useDeleteTask, useRemoveTaskLabel, useTask, useTaskConfirmation, useUpdateTask } from '@/lib/api/tasks';
 import type { TaskAddressInput } from '@/lib/api/tasks';
 import { useMembers } from "@/lib/api/team";
 import type {
   AddressProvenance,
+  Contact,
   Task,
   TaskDetail,
   TaskPriority,
@@ -71,7 +73,9 @@ import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
-import { TaskCalendarHold, TaskDoneCheckbox, TaskNumber } from "./task-atoms";
+import { TaskCalendarHold, TaskConfirmation, TaskDoneCheckbox, TaskNumber } from "./task-atoms";
+import { TaskCustomerField, useCustomerConversation } from "./task-customer-field";
+import { showBookingCorrection } from "./task-correction-toast";
 import { ReferenceChips } from "./reference-text";
 import { ReferencePicker } from "./reference-picker";
 import { TaskLinksSection } from "./task-links-section";
@@ -252,6 +256,10 @@ function TaskDetailLoaded({
   const noAccess = task.viewer_level === "none";
 
   const update = useUpdateTask(conversationId);
+  const confirmation = useTaskConfirmation(conversationId);
+  const [selectedCustomer, setSelectedCustomer] = useState<Contact | null | undefined>(undefined);
+  const customerThread = useCustomerConversation(selectedCustomer ?? null);
+  const [dateOnly, setDateOnly] = useState(Boolean(task.due_on));
   const del = useDeleteTask(conversationId);
   const done = useTaskDone();
   const follow = useTaskFollow(task.id);
@@ -377,7 +385,7 @@ function TaskDetailLoaded({
     update.mutate(
       {
         taskId: task.id,
-        repeat: draft ? draftToRequest(draft, task.due_at) : null,
+        repeat: draft ? draftToRequest(draft, task.due_at ?? task.due_on) : null,
       },
       { onError: () => toast.error(t("tasks.repeatSaveFailed")) },
     );
@@ -397,10 +405,10 @@ function TaskDetailLoaded({
             taskId: task.id,
             // <input type="datetime-local"> yields a local wall-clock string; store
             // an ISO instant.
-            due_at: new Date(value).toISOString(),
+            ...(dateOnly ? { due_on: value } : { due_at: new Date(value).toISOString() }),
             ...(scope ? { scope } : {}),
           },
-          { onError: () => toast.error(t("tasks.dueChangeFailed")) },
+          { onError: () => toast.error(t("tasks.dueChangeFailed")), onSuccess: (row) => showBookingCorrection(row.correction) },
         ),
       () => setDueKey((k) => k + 1),
     );
@@ -410,7 +418,7 @@ function TaskDetailLoaded({
     scoped((scope) =>
       update.mutate(
         { taskId: task.id, due_at: null, ...(scope ? { scope } : {}) },
-        { onError: () => toast.error(t("tasks.dueClearFailed")) },
+        { onError: () => toast.error(t("tasks.dueClearFailed")), onSuccess: (row) => showBookingCorrection(row.correction) },
       ),
     );
   };
@@ -429,8 +437,9 @@ function TaskDetailLoaded({
 
   const runDelete = (scope?: TaskScope) => {
     del.mutate({ taskId: task.id, scope }, {
-      onSuccess: () => {
-        toast.success(t("tasks.deleted"));
+      onSuccess: (result) => {
+        if (result?.correction) showBookingCorrection(result.correction);
+        else toast.success(t("tasks.deleted"));
         onClose?.();
       },
       onError: () => {
@@ -697,6 +706,26 @@ function TaskDetailLoaded({
         )}
 
         {/* Editable metadata. */}
+        {!noAccess && !task.message_id && !task.source_call_id && (
+          <div className="flex items-end gap-2">
+            <TaskCustomerField id="task-customer"
+              name={selectedCustomer === undefined ? task.contact?.name : (selectedCustomer?.name ?? selectedCustomer?.phone_e164)}
+              onSelect={setSelectedCustomer} />
+            {selectedCustomer !== undefined && (
+              <Button type="button" size="sm" disabled={customerThread.pending || update.isPending}
+                onClick={() => update.mutate({
+                  taskId: task.id,
+                  contact_id: selectedCustomer?.id ?? null,
+                  conversation_id: customerThread.id ?? null,
+                }, {
+                  onSuccess: () => setSelectedCustomer(undefined),
+                  onError: () => toast.error(t("tasks.updateFailed")),
+                })}>
+                {t("common.save")}
+              </Button>
+            )}
+          </div>
+        )}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="task-assignee">{t("tasks.assignee")}</Label>
@@ -711,7 +740,8 @@ function TaskDetailLoaded({
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="task-due">{t("tasks.due")}</Label>
               <TaskCalendarHold task={task} />
-              {task.due_at && (
+              <TaskConfirmation task={task} />
+              {(task.due_at || task.due_on) && (
                 <button
                   type="button"
                   onClick={clearDue}
@@ -723,8 +753,8 @@ function TaskDetailLoaded({
             </div>
             <Input
               id="task-due"
-              type="datetime-local"
-              defaultValue={toLocalInput(task.due_at)}
+              type={dateOnly ? "date" : "datetime-local"}
+              defaultValue={dateOnly ? (task.due_on ?? toLocalInput(task.due_at).slice(0, 10)) : toLocalInput(task.due_at)}
               // Keyed on the task, not on the value. Keying on due_at remounted
               // the field the moment an edit was accepted, which took focus and
               // the caret away mid-entry.
@@ -738,16 +768,34 @@ function TaskDetailLoaded({
                 if (
                   repeats &&
                   e.target.value !== "" &&
-                  e.target.value !== toLocalInput(task.due_at)
+                  e.target.value !== (dateOnly ? task.due_on : toLocalInput(task.due_at))
                 ) {
                   saveDue(e.target.value);
                 }
               }}
             />
+            <div className="flex min-h-11 items-center gap-2 md:min-h-0">
+              <Checkbox
+                id="task-any-time"
+                checked={dateOnly}
+                onCheckedChange={(checked) => {
+                  setDateOnly(checked === true);
+                  setDueKey((key) => key + 1);
+                }}
+              />
+              <Label htmlFor="task-any-time">{t("tasks.anyTime")}</Label>
+            </div>
           </div>
         </section>
+        {!noAccess && (!task.done && (task.due_at || task.due_on) || task.confirmed_at) && (
+          <Button type="button" variant="outline" size="sm" disabled={confirmation.isPending}
+            onClick={() => confirmation.mutate({ taskId: task.id, confirmed: !task.confirmed_at },
+              { onError: () => toast.error(t("tasks.updateFailed")) })}>
+            {t(task.confirmed_at ? "tasks.clearConfirmation" : "tasks.markConfirmed")}
+          </Button>
+        )}
 
-        {task.viewer_level !== "none" && !task.calendar_hold && (task.reminders !== undefined || task.due_at !== null) && (
+        {task.viewer_level !== "none" && !task.calendar_hold && (task.reminders !== undefined || task.due_at !== null || task.due_on) && (
           <section className="flex flex-wrap items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-app-ink">
@@ -787,8 +835,9 @@ function TaskDetailLoaded({
             <RepeatField
               id="task-repeat"
               draft={task.repeat ? draftFromRepeat(task.repeat) : null}
-              due={task.due_at}
+              due={task.due_at ?? task.due_on}
               linked={task.conversation_id !== null || task.contact_id != null}
+              textingCustomer={task.conversation_id ? { name: task.contact?.name } : undefined}
               existing={task.repeat != null && !task.repeat.stopped}
               onChange={saveRepeat}
             />

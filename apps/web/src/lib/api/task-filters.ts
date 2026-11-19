@@ -35,8 +35,11 @@ export interface TaskListFilters {
   /** ISO instants for the due-range views (calendar). */
   due_before?: string;
   due_after?: string;
+  due_on_before?: string;
+  due_on_after?: string;
   /** Past-due AND not-done (overdue is never applied to done tasks). */
   overdue?: boolean;
+  confirmed?: boolean;
   /** Only tasks whose conversation→contact has a lat/lng (the Map view). */
   has_location?: boolean;
   /** Title trigram search. */

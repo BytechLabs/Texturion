@@ -330,7 +330,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   // reuses the same thread on send, so the compose fallback is safe while this
   // loads or when there's no thread yet.)
   const conversations = useConversations({ q: contact.phone_e164 });
-  const existingConversation = flattenPages(conversations.data)[0] ?? null;
+  const existingConversation = flattenPages(conversations.data)
+    .find((row) => row.contact_id === contact.id && !row.is_spam) ?? null;
 
   const name = useAutosave(contact.id, "name", contact.name ?? "");
   const businessName = useAutosave(
@@ -478,6 +479,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               <NewTaskButton
                 context={{
                   contactId: contact.id,
+                  conversationId: existingConversation?.id,
+                  address: contact.address,
                   contactName:
                     contact.name?.trim() || formatPhone(contact.phone_e164),
                 }}

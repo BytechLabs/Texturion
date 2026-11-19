@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { parseQuickAdd } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { createdToast } from "@/components/ui/created-toast";
 import {
   Dialog,
@@ -27,12 +28,13 @@ import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import { useAddTaskLabel, useCreateTaskFromMessage } from '@/lib/api/tasks';
 import type { TaskAddressInput } from '@/lib/api/tasks';
-import type { Tag, TaskPriority } from "@/lib/api/types";
+import type { Contact, Tag, TaskPriority } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
 import { QuickAddPreview } from "./quick-add-preview";
+import { TaskCustomerField, useCustomerConversation } from "./task-customer-field";
 import { NO_CONVERSATION } from "./task-format";
 import { draftProblem, draftToRequest } from './task-planning';
 import type { RepeatDraft } from './task-planning';
@@ -53,6 +55,7 @@ export interface NewTaskContext {
   conversationId?: string;
   /** Shown as "For {name}". */
   contactName?: string;
+  address?: string | null;
   /** A due value (`yyyy-MM-ddTHH:mm`) to start with, e.g. from a calendar click. */
   due?: string;
   /** The IANA zone `due` is read in; the workspace's, not the device's. */
@@ -149,9 +152,11 @@ function NewTaskForm({
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const create = useCreateTaskFromMessage(
-    context.conversationId ?? NO_CONVERSATION,
-  );
+  const [customer, setCustomer] = useState<Contact | null | undefined>(undefined);
+  const thread = useCustomerConversation(customer ?? null);
+  const conversationId = customer === undefined ? context.conversationId : thread.id;
+  const contactId = customer === undefined ? context.contactId : customer?.id;
+  const create = useCreateTaskFromMessage(conversationId ?? NO_CONVERSATION);
 
   const [title, setTitle] = useState("");
   // #689 A: the title line doubles as the quick-add line. What it understood is
@@ -176,27 +181,21 @@ function NewTaskForm({
   const [crewOverride, setCrewOverride] = useState<string[] | null>(null);
   const crew = crewOverride ?? (me.data ? [me.data.user_id] : []);
   const [due, setDue] = useState(context.due ?? "");
+  const [dateOnly, setDateOnly] = useState(context.due?.length === 10);
   const dueZone = context.timeZone;
   const [notes, setNotes] = useState("");
-  const [addr, setAddr] = useState(EMPTY_ADDRESS);
+  const [addr, setAddr] = useState({ ...EMPTY_ADDRESS, street: context.address ?? "" });
   const [priority, setPriority] = useState<TaskPriority>("normal");
   const [pickedTags, setPickedTags] = useState<Tag[]>([]);
   // A name typed for a tag that does not exist yet. The tag is made when it is
   // attached, so these are attached right after the task is created.
   const [newNames, setNewNames] = useState<string[]>([]);
   const [repeat, setRepeat] = useState<RepeatDraft | null>(null);
-  const addLabel = useAddTaskLabel(context.conversationId ?? NO_CONVERSATION);
-  const linked =
-    context.conversationId !== undefined || context.contactId !== undefined;
-
-  const link =
-    context.conversationId === undefined
-      ? (context.contactName
-        ? t("tasks.newTaskFor", { name: context.contactName })
-        : null)
-      : t("tasks.newTaskInThisConversation");
+  const addLabel = useAddTaskLabel(conversationId ?? NO_CONVERSATION);
+  const linked = conversationId !== undefined || contactId !== undefined;
 
   const submit = async () => {
+    if (thread.pending) return;
     const trimmed = parsed.title.trim();
     if (trimmed === "") {
       toast.error(t("tasks.newTaskTitleRequired"));
@@ -204,8 +203,9 @@ function NewTaskForm({
     }
     // What the line set wins over the form's defaults and over More.
     const finalCrew = parsed.assignee ? [parsed.assignee.userId] : crew;
-    let finalDue: string | null = parsed.dueAt ?? null;
-    if (finalDue === null && due !== "") {
+    const finalDay = parsed.dueOn ?? (!parsed.dueAt && dateOnly && due ? due : null);
+    let finalDue = finalDay ? null : parsed.dueAt;
+    if (!finalDay && finalDue === null && due !== "") {
       if (dueZone) {
         const zoned = instantFromZonedWallClock(due, dueZone);
         if (!zoned.ok) {
@@ -222,7 +222,7 @@ function NewTaskForm({
       ...new Set([...pickedTags.map((tag) => tag.id), ...parsed.labels.map((l) => l.id)]),
     ];
     if (repeat) {
-      const problem = draftProblem(repeat, finalDue);
+      const problem = draftProblem(repeat, finalDue ?? finalDay);
       if (problem) {
         toast.error(t(problem));
         return;
@@ -246,17 +246,18 @@ function NewTaskForm({
         // Until `me` loads, leave it out so the API assigns the creator.
         ...(crewOverride === null && !me.data && !parsed.assignee ? {} : { assignee_ids: finalCrew }),
         ...(finalDue === null ? {} : { due_at: finalDue }),
+        ...(finalDay === null ? {} : { due_on: finalDay }),
         ...(notes.trim() === "" ? {} : { description: notes.trim() }),
         ...(address ? { address } : {}),
         // The conversation fixes the contact, so send one link, not both.
-        ...(context.conversationId === undefined
-          ? (context.contactId === undefined
+        ...(conversationId === undefined
+          ? (contactId === undefined
             ? {}
-            : { contact_id: context.contactId })
-          : { conversation_id: context.conversationId }),
+            : { contact_id: contactId })
+          : { conversation_id: conversationId }),
         ...(finalPriority === "normal" ? {} : { priority: finalPriority }),
         ...(finalLabelIds.length > 0 ? { label_ids: finalLabelIds } : {}),
-        ...(repeat ? { repeat: draftToRequest(repeat, finalDue) } : {}),
+        ...(repeat ? { repeat: draftToRequest(repeat, finalDue ?? finalDay) } : {}),
       });
       // The task exists now; a label that fails to attach must not undo it.
       let labelFailed = false;
@@ -268,9 +269,9 @@ function NewTaskForm({
         }
       }
       if (labelFailed) toast.error(t("tasks.labelAddFailed"));
-      if (context.contactId !== undefined) {
+      if (contactId !== undefined) {
         void queryClient.invalidateQueries({
-          queryKey: [companyId, "record-activity", "contact", context.contactId],
+          queryKey: [companyId, "record-activity", "contact", contactId],
         });
       }
       createdToast({
@@ -302,12 +303,23 @@ function NewTaskForm({
           maxLength={500}
           placeholder={t("tasks.newTaskTitlePlaceholder")}
         />
-        {link && <p className="text-[12px] text-muted-foreground">{link}</p>}
         <QuickAddPreview parsed={parsed} />
         {title.trim() === "" && (
           <p className="text-[12px] text-muted-foreground">{t("tasks.quickAddHint")}</p>
         )}
       </div>
+
+      <TaskCustomerField id="new-task-customer"
+        name={customer === undefined ? (context.contactName ?? (context.conversationId ? t("tasks.newTaskInThisConversation") : null)) : (customer?.name ?? customer?.phone_e164)}
+        onSelect={(next) => {
+          setCustomer(next);
+          setAddr((current) => ({
+            ...current,
+            street: current.street === "" || current.street === (customer?.address ?? context.address)
+              ? (next?.address ?? "")
+              : current.street,
+          }));
+        }} />
 
       <div className="flex flex-col gap-3">
         <button
@@ -341,10 +353,22 @@ function NewTaskForm({
               <Label htmlFor="new-task-due">{t("tasks.due")}</Label>
               <Input
                 id="new-task-due"
-                type="datetime-local"
+                type={dateOnly ? "date" : "datetime-local"}
                 value={due}
                 onChange={(event) => setDue(event.target.value)}
               />
+              <div className="flex min-h-11 items-center gap-2 md:min-h-0">
+                <Checkbox
+                  id="new-task-any-time"
+                  checked={dateOnly}
+                  onCheckedChange={(checked) => {
+                    const nextDateOnly = checked === true;
+                    setDateOnly(nextDateOnly);
+                    setDue(nextDateOnly ? due.slice(0, 10) : "");
+                  }}
+                />
+                <Label htmlFor="new-task-any-time">{t("tasks.anyTime")}</Label>
+              </div>
               {dueZone && dueZone !== browserTimezone() && (
                 <p className="text-[12px] text-muted-foreground">
                   {t("tasks.newTaskDueZone", { zone: dueZone.replaceAll('_', " ") })}
@@ -388,8 +412,9 @@ function NewTaskForm({
               <RepeatField
                 id="new-task-repeat"
                 draft={repeat}
-                due={due === "" ? null : due}
+                due={parsed.dueOn ?? parsed.dueAt ?? (due || null)}
                 linked={linked}
+                textingCustomer={conversationId ? { name: customer?.name ?? context.contactName } : undefined}
                 existing={false}
                 onChange={setRepeat}
               />
@@ -454,7 +479,7 @@ function NewTaskForm({
         >
           {t("common.cancel")}
         </Button>
-        <Button type="submit" size="sm" disabled={create.isPending}>
+        <Button type="submit" size="sm" disabled={create.isPending || thread.pending}>
           {create.isPending ? t("thread.creating") : t("tasks.newTaskCreate")}
         </Button>
       </div>

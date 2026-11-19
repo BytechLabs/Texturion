@@ -44,18 +44,6 @@ import type { LocatedTask } from './map-types';
  * recenters.
  */
 
-/** A petrol teardrop pin (divIcon — no external marker-image asset to 404 on). */
-const taskIcon = L.divIcon({
-  className: "",
-  html:
-    '<span style="display:block;width:18px;height:18px;border-radius:50% 50% 50% 0;' +
-    "background:var(--app-olive-accent);transform:rotate(-45deg);border:2px solid #fff;" +
-    'box-shadow:0 1px 3px rgba(41,37,36,.35)"></span>',
-  iconSize: [18, 18],
-  iconAnchor: [9, 18],
-  popupAnchor: [0, -16],
-});
-
 /** A "you are here" marker for the near-me point (amber, visually distinct). */
 const meIcon = L.divIcon({
   className: "",
@@ -66,16 +54,15 @@ const meIcon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-/** A round cluster badge scaled by count. */
-function clusterIcon(count: number): L.DivIcon {
-  const size = count < 10 ? 30 : (count < 50 ? 38 : 46);
+function stopIcon(label: string): L.DivIcon {
+  const size = Math.max(28, label.length * 8 + 10);
   return L.divIcon({
     className: "",
     html:
       `<span style="display:flex;align-items:center;justify-content:center;` +
       `width:${size}px;height:${size}px;border-radius:50%;background:color-mix(in srgb, var(--app-olive-accent) 90%, transparent);` +
       `color:#fff;font:600 12px/1 Inter,system-ui,sans-serif;border:2px solid #fff;` +
-      `box-shadow:0 1px 4px rgba(41,37,36,.35)">${count}</span>`,
+      `box-shadow:0 1px 4px rgba(41,37,36,.35)">${label}</span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -260,7 +247,7 @@ function Clusters({ tasks }: { tasks: LocatedTask[] }) {
           <Marker
             key={cluster.key}
             position={[cluster.lat, cluster.lng]}
-            icon={taskIcon}
+            icon={stopIcon(String(cluster.tasks[0].stop ?? ""))}
           >
             <Popup>
               <TaskPeek task={cluster.tasks[0]} />
@@ -270,7 +257,7 @@ function Clusters({ tasks }: { tasks: LocatedTask[] }) {
           <Marker
             key={cluster.key}
             position={[cluster.lat, cluster.lng]}
-            icon={clusterIcon(cluster.tasks.length)}
+            icon={stopIcon(`${cluster.tasks[0].stop ?? ""}+`)}
           >
             {/* Clicking a stack opens its list. It used to ALSO zoom in, and
                 the zoom re-clustered, remounted the markers and closed the

@@ -3,6 +3,70 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+private struct BookingCorrectionSheet: View {
+    let repository: MessagingRepository
+    let companyId: String
+    let notice: BookingCorrectionNotice
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var saving = false
+    @State private var error: String?
+
+    private func t(_ key: String, _ values: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, values)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(notice.recipient.map { t("contactsTasks.correctionQueued", ["name": $0]) }
+                 ?? t("contactsTasks.correctionQueuedAnonymous"))
+                .font(.headline)
+            if editing {
+                TextEditor(text: $draft)
+                    .frame(minHeight: 90)
+                    .accessibilityLabel(t("contactsTasks.correctionEdit"))
+            }
+            if let error { Text(error).foregroundStyle(BrandColor.destructive) }
+            HStack {
+                Button(t(editing ? "common.save" : "contactsTasks.correctionEdit")) {
+                    if editing {
+                        Task { await submit(cancel: false) }
+                    } else {
+                        draft = notice.body
+                        editing = true
+                    }
+                }
+                .disabled(saving || (editing && (draft.isBlank || draft.count > 1600)))
+                Button(t("contactsTasks.correctionCancel"), role: .destructive) {
+                    Task { await submit(cancel: true) }
+                }
+                .disabled(saving)
+                Spacer()
+                Button(t("common.close")) { dismiss() }
+            }
+        }
+        .padding(20)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func submit(cancel: Bool) async {
+        saving = true
+        defer { saving = false }
+        do {
+            if cancel {
+                try await repository.cancelScheduledMessage(companyId: companyId, id: notice.id)
+            } else {
+                _ = try await repository.rescheduleMessage(companyId: companyId, id: notice.id, body: draft)
+            }
+            dismiss()
+        } catch {
+            self.error = error.userMessage
+        }
+    }
+}
+
 /// Task detail: inline-editable title/description (blur save), assignee and
 /// offset-ISO due pickers, derived done circle (message PATCH), quoted source
 /// message, the D28 derived read-only attachments union (per-item signed
@@ -37,6 +101,9 @@ struct TaskDetailView: View {
 
     @State private var pickerOpen = false
     @State private var duePickerOpen = false
+    @State private var pickingBookingCustomer = false
+    @State private var correction: BookingCorrectionNotice?
+    @State private var deletedWithCorrection = false
     @State private var confirmDelete = false
     @State private var deleting = false
     // #693: the workspace tags, the repeat sheet, and the "this one or this and
@@ -142,6 +209,19 @@ struct TaskDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $pickingBookingCustomer) {
+            BookingCustomerPicker(load: { search in
+                try await ContactsApi(api: graph.api).contacts(companyId: companyId, q: search, limit: 12).data
+            }) { customer in
+                Task { await changeBookingCustomer(customer) }
+            }
+        }
+        .sheet(item: $correction, onDismiss: {
+            if deletedWithCorrection { dismiss() }
+        }) { notice in
+            BookingCorrectionSheet(repository: MessagingRepository(api: graph.api),
+                                   companyId: companyId, notice: notice)
+        }
         // #215: a socket re-JOIN (missed frames while offline) refetches the
         // task; Part A does the same on foreground return.
         .task(id: taskId) {
@@ -174,13 +254,17 @@ struct TaskDetailView: View {
         .sheet(isPresented: $duePickerOpen) {
             if let detail {
                 DuePickerSheet(
-                    initial: parseWireTimestamp(detail.due_at),
+                    initial: detail.due_on.flatMap { taskDay($0) } ?? parseWireTimestamp(detail.due_at),
+                    dateOnly: detail.due_on != nil,
                     onSet: { date in
-                        // The API requires ISO 8601 WITH the local UTC offset.
-                        let iso = encodeDueAt(date)
                         runScopedPatch { scope in
-                            try await mutations.setDue(
-                                companyId: companyId, taskId: detail.id, dueAt: iso, scope: scope
+                            if detail.due_on != nil {
+                                return try await mutations.setDueDay(
+                                    companyId: companyId, taskId: detail.id, day: taskDateKey(date), scope: scope
+                                )
+                            }
+                            return try await mutations.setDue(
+                                companyId: companyId, taskId: detail.id, dueAt: encodeDueAt(date), scope: scope
                             )
                         }
                     }
@@ -250,6 +334,38 @@ struct TaskDetailView: View {
             } else {
                 state = .failed(message: error.userMessage, notFound: false)
             }
+        }
+    }
+
+    private func changeBookingCustomer(_ customer: Contact?) async {
+        let thread = if let customer {
+            await findBookingConversation(graph: graph, companyId: companyId, contact: customer)
+        } else { nil as String? }
+        do {
+            let _: TaskRowPatch = try await graph.api.patch(
+                "/v1/tasks/\(taskId)",
+                body: JSONValue.object([
+                    "contact_id": customer.map { .string($0.id) } ?? .null,
+                    "conversation_id": thread.map(JSONValue.string) ?? .null,
+                ]),
+                companyId: companyId
+            )
+            await load()
+        } catch {
+            actionError = error.userMessage
+        }
+    }
+
+    private func changeConfirmation(_ confirmed: Bool) async {
+        do {
+            let _: JSONValue = try await graph.api.put(
+                "/v1/tasks/\(taskId)/confirmation",
+                body: JSONValue.object(["confirmed": .bool(confirmed)]),
+                companyId: companyId
+            )
+            await load()
+        } catch {
+            actionError = error.userMessage
         }
     }
 
@@ -329,6 +445,7 @@ struct TaskDetailView: View {
             actionError = nil
             do {
                 let row = try await patch()
+                correction = row.correction
                 if let detail {
                     state = .ready(merged(detail, with: row))
                 }
@@ -349,6 +466,8 @@ struct TaskDetailView: View {
             description: row.description,
             assigned_user_id: row.assigned_user_id,
             due_at: row.due_at,
+            due_on: row.due_on,
+            due_time_set: row.due_time_set,
             calendar_hold: detail.calendar_hold,
             created_by_user_id: detail.created_by_user_id,
             created_at: detail.created_at,
@@ -500,8 +619,12 @@ struct TaskDetailView: View {
         Task {
             actionError = nil
             do {
-                try await mutations.delete(companyId: companyId, taskId: detail.id, scope: scope)
-                dismiss()
+                if let queued = try await mutations.delete(companyId: companyId, taskId: detail.id, scope: scope) {
+                    deletedWithCorrection = true
+                    correction = queued
+                } else {
+                    dismiss()
+                }
             } catch let error as ApiError where error.code == ApiErrorCode.forbidden {
                 actionError = AppStrings.translate(
                     appLocale, "contactsTasks.deleteForbidden"
@@ -781,6 +904,9 @@ struct TaskDetailView: View {
             if detail.calendar_hold == true {
                 return AppStrings.translate(appLocale, "contactsTasks.calendarHold")
             }
+            if let day = detail.due_on {
+                return day + " · " + AppStrings.translate(appLocale, "contactsTasks.anyTime")
+            }
             if detail.due_at == nil {
                 return AppStrings.translate(appLocale, "contactsTasks.noDueDate")
             }
@@ -831,7 +957,7 @@ struct TaskDetailView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                if detail.due_at != nil && !noAccess {
+                if (detail.due_at != nil || detail.due_on != nil) && !noAccess {
                     Button {
                         runScopedPatch { scope in
                             try await mutations.setDue(
@@ -852,7 +978,26 @@ struct TaskDetailView: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
 
-            if !noAccess && detail.calendar_hold != true && (detail.reminders != nil || detail.due_at != nil) {
+            if !noAccess && detail.message_id == nil && detail.source_call == nil && detail.source?.kind != "call" {
+                RowDivider()
+                Button {
+                    pickingBookingCustomer = true
+                } label: {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.bookingCustomer", [
+                        "name": detail.contact?.name ?? AppStrings.translate(appLocale, "contactsTasks.pickCustomer")
+                    ]))
+                }
+                .padding(12)
+            }
+            if !noAccess && ((!detail.done && (detail.due_at != nil || detail.due_on != nil)) || detail.confirmed_at != nil) {
+                RowDivider()
+                Button(AppStrings.translate(appLocale, detail.confirmed_at == nil
+                           ? "contactsTasks.markConfirmed" : "contactsTasks.clearConfirmation")) {
+                    Task { await changeConfirmation(detail.confirmed_at == nil) }
+                }
+                .padding(12)
+            }
+            if !noAccess && detail.calendar_hold != true && (detail.reminders != nil || detail.due_at != nil || detail.due_on != nil) {
                 RowDivider()
                 HStack(spacing: 11) {
                     metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.remind"))
@@ -1016,13 +1161,14 @@ struct TaskDetailView: View {
         let live: TaskRepeatRule? = detail.repeatRule?.isStopped == false ? detail.repeatRule : nil
         let initial: TaskRepeatDraft = live.map { TaskRepeatDraft(rule: $0) }
             ?? TaskRepeatDraft.starting(
-                due: parseWireTimestamp(detail.due_at),
+                due: detail.due_on.flatMap { taskDay($0) } ?? parseWireTimestamp(detail.due_at),
                 afterDone: detail.conversation_id != nil || detail.contact != nil
             )
         return TaskRepeatSheet(
             initial: initial,
-            hasDue: detail.due_at != nil,
+            hasDue: detail.due_at != nil || detail.due_on != nil,
             isEditing: live != nil,
+            textingCustomer: detail.conversation_id == nil ? nil : (detail.contact?.name ?? ""),
             onSave: { draft in
                 runPatch {
                     try await mutations.setRepeat(
@@ -1728,14 +1874,16 @@ private struct TaskAddressSection: View {
 @MainActor
 private struct DuePickerSheet: View {
     let initial: Date?
+    let dateOnly: Bool
     let onSet: @MainActor (Date) -> Void
 
     @State private var draft: Date
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
 
-    init(initial: Date?, onSet: @escaping @MainActor (Date) -> Void) {
+    init(initial: Date?, dateOnly: Bool, onSet: @escaping @MainActor (Date) -> Void) {
         self.initial = initial
+        self.dateOnly = dateOnly
         self.onSet = onSet
         // Default to today 9:00 like the Android picker's initial time.
         let fallback = Calendar.current.date(
@@ -1749,7 +1897,7 @@ private struct DuePickerSheet: View {
             DatePicker(
                 AppStrings.translate(appLocale, "contactsTasks.due"),
                 selection: $draft,
-                displayedComponents: [.date, .hourAndMinute]
+                displayedComponents: dateOnly ? .date : [.date, .hourAndMinute]
             )
             .datePickerStyle(.graphical)
             HStack {

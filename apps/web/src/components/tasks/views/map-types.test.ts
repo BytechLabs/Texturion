@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Task } from "@/lib/api/types";
 
-import { mapsDirectionsHref, taskCoords } from "./map-types";
+import { mapsDirectionsHref, mapsRouteHref, taskCoords } from "./map-types";
 
 /** Minimal Task with just the fields taskCoords reads. */
 function task(over: Partial<Task>): Task {
@@ -65,6 +65,20 @@ describe(mapsDirectionsHref, () => {
   it("carries a negative longitude verbatim (western hemisphere — the whole market)", () => {
     expect(mapsDirectionsHref(CALGARY.lat, CALGARY.lng)).toContain(
       "destination=51.0447,-114.0719",
+    );
+  });
+});
+
+describe(mapsRouteHref, () => {
+  it("preserves the stop order and caps an exported route at nine visits", () => {
+    const stops = Array.from({ length: 11 }, (_, i) => ({
+      ...task({ id: String(i) }), lat: i, lng: -79, contactName: null,
+    }));
+    const route = new URL(mapsRouteHref(stops));
+    expect(route.searchParams.get("api")).toBe("1");
+    expect(route.searchParams.get("destination")).toBe("8,-79");
+    expect(route.searchParams.get("waypoints")?.split("|")).toEqual(
+      ["0,-79", "1,-79", "2,-79", "3,-79", "4,-79", "5,-79", "6,-79", "7,-79"],
     );
   });
 });

@@ -100,6 +100,9 @@ struct TaskListFilters: Equatable, Sendable {
     var source: String? = nil
     var hasAttachments: Bool = false
     var hasReferences: Bool = false
+    var confirmed: Bool? = nil
+    var dueOnBefore: String? = nil
+    var dueOnAfter: String? = nil
 }
 
 /// #693: the filters this feature added, kept as one value so the board, the
@@ -115,6 +118,7 @@ struct TaskMetaFilters: Equatable, Sendable {
     var source: String? = nil
     var hasAttachments: Bool = false
     var hasReferences: Bool = false
+    var notConfirmed: Bool = false
     /// A due range picked by date, as ISO strings with an offset. It wins over
     /// the Overdue / Due today / Due this week chips.
     var dueAfter: String? = nil
@@ -126,7 +130,7 @@ struct TaskMetaFilters: Equatable, Sendable {
     /// A filter, not the sort: the sort re-orders and hides nothing.
     var hasFilter: Bool {
         !priority.isEmpty || tagId != nil || contactId != nil || createdBy != nil
-            || source != nil || hasAttachments || hasReferences || dueAfter != nil
+            || source != nil || hasAttachments || hasReferences || notConfirmed || dueAfter != nil
             || dueBefore != nil
     }
 
@@ -135,7 +139,7 @@ struct TaskMetaFilters: Equatable, Sendable {
         [
             priority.sorted().joined(separator: ","), tagId ?? "", sort ?? "",
             contactId ?? "", createdBy ?? "", source ?? "",
-            hasAttachments ? "a" : "", hasReferences ? "r" : "",
+            hasAttachments ? "a" : "", hasReferences ? "r" : "", notConfirmed ? "unconfirmed" : "",
             dueAfter ?? "", dueBefore ?? "", statusOnly ?? "",
         ].joined(separator: ":")
     }
@@ -218,6 +222,9 @@ func taskQueryParams(
         "source": filters.source,
         "has_attachments": filters.hasAttachments ? "true" : nil,
         "has_references": filters.hasReferences ? "true" : nil,
+        "confirmed": filters.confirmed.map { $0 ? "true" : "false" },
+        "due_on_before": filters.dueOnBefore,
+        "due_on_after": filters.dueOnAfter,
         // "created" is the default ordering, so it is never sent.
         "sort": (filters.sort == nil || filters.sort == TaskSortChoice.created) ? nil : filters.sort,
         "cursor": cursor,
@@ -334,7 +341,8 @@ func taskListArms(
             createdBy: meta.createdBy,
             source: meta.source,
             hasAttachments: meta.hasAttachments,
-            hasReferences: meta.hasReferences
+            hasReferences: meta.hasReferences,
+            confirmed: meta.notConfirmed ? false : nil
         )
     }
 

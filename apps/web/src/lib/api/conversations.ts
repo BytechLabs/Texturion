@@ -322,13 +322,14 @@ export function placeholderFromAllList(
 /** Inbox list — infinite cursor pagination with URL-driven filters (G3/G4). */
 export function useConversations(
   filters: ConversationFilters = {},
-  options: { placeholderFromAll?: boolean } = {},
+  options: { placeholderFromAll?: boolean; enabled?: boolean } = {},
 ) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const normalized = normalizeFilters(filters);
   return useInfiniteQuery({
     queryKey: keys.conversations.list(companyId, normalized),
+    enabled: options.enabled,
     queryFn: ({ pageParam, signal }) =>
       fetchConversationPage(companyId, normalized, pageParam, signal),
     initialPageParam: undefined as string | undefined,

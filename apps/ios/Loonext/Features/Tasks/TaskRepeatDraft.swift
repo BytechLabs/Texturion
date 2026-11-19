@@ -44,6 +44,7 @@ struct TaskRepeatDraft: Equatable, Sendable {
     var endsOn: Date = Date()
     var endsAfter: Int = 5
     var paused: Bool = false
+    var remindCustomer: Bool? = nil
 
     /// The units each kind offers. After-done never uses a year.
     static func units(for kind: String) -> [String] {
@@ -100,6 +101,7 @@ struct TaskRepeatDraft: Equatable, Sendable {
             "paused": .bool(paused),
         ]
         if kind == TaskRepeatKind.schedule {
+            if let remindCustomer { object["remind_customer"] = .bool(remindCustomer) }
             if sendUnit == TaskRepeatUnit.week {
                 object["weekdays"] = .array(
                     Array(Set(weekdays)).sorted().map { .number(Double($0)) }
@@ -213,6 +215,7 @@ extension TaskRepeatDraft {
             if let after = ends.after { endsAfter = after }
         }
         paused = rule.isPaused
+        remindCustomer = rule.remind_customer
     }
 }
 
@@ -235,6 +238,7 @@ struct TaskDraftMeta: Equatable, Sendable {
     /// #689 C: the crew chosen on a standalone task, nil when the sheet did not
     /// choose one (a message or a call keeps the single-assignee shorthand).
     var assigneeIds: [String]? = nil
+    var dueOn: String? = nil
 
     /// Prefix on the id of a not-yet-created label in the editor's list.
     static let pendingPrefix = "new:"

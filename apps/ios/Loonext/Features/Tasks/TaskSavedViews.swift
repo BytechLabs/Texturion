@@ -91,6 +91,7 @@ func sanitizeTaskFilters(_ raw: [String: JSONValue]) -> [String: JSONValue] {
             keep = text.map(isSavedViewUUID) ?? false
         case "unassigned", "overdue", "has_location", "has_attachments", "has_references":
             keep = flag != nil
+        case "confirmed": keep = flag == false
         case "due_before", "due_after": keep = text.map(isSavedViewIso) ?? false
         case "priority":
             if let text, !text.isEmpty {
@@ -140,6 +141,7 @@ func taskViewFilters(_ state: TaskViewState, meUserId: String) -> [String: JSONV
     if let source = meta.source { raw["source"] = .string(source) }
     if meta.hasAttachments { raw["has_attachments"] = .bool(true) }
     if meta.hasReferences { raw["has_references"] = .bool(true) }
+    if meta.notConfirmed { raw["confirmed"] = .bool(false) }
     if state.group != TaskGroup.status { raw["group"] = .string(state.group) }
     return sanitizeTaskFilters(raw)
 }
@@ -200,6 +202,7 @@ func taskViewState(_ filters: [String: JSONValue], meUserId: String) -> TaskView
     meta.source = filterText(clean, "source")
     meta.hasAttachments = filterFlag(clean, "has_attachments")
     meta.hasReferences = filterFlag(clean, "has_references")
+    if case .bool(false) = clean["confirmed"] { meta.notConfirmed = true }
     state.meta = meta
     state.group = filterText(clean, "group") ?? TaskGroup.status
     return state

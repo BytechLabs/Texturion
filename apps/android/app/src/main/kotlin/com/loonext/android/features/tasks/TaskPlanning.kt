@@ -69,6 +69,7 @@ data class TaskExtraFilters(
     val source: String? = null,
     val hasAttachments: Boolean = false,
     val hasReferences: Boolean = false,
+    val notConfirmed: Boolean = false,
     /** A due window that came from a saved view; the Overdue / Today / Week chips are separate. */
     val dueAfter: String? = null,
     val dueBefore: String? = null,
@@ -76,14 +77,14 @@ data class TaskExtraFilters(
 ) {
     val isFiltering: Boolean
         get() = priorities.isNotEmpty() || tagId != null || contactId != null ||
-            createdBy != null || source != null || hasAttachments || hasReferences ||
+            createdBy != null || source != null || hasAttachments || hasReferences || notConfirmed ||
             dueAfter != null || dueBefore != null
 
     /** How many of the Filters sheet's own filters are on (the number on the pill). */
     val activeCount: Int
         get() = listOf(
             priorities.isNotEmpty(), tagId != null, contactId != null, createdBy != null,
-            source != null, hasAttachments, hasReferences, dueAfter != null || dueBefore != null,
+            source != null, hasAttachments, hasReferences, notConfirmed, dueAfter != null || dueBefore != null,
         ).count { it }
 
     /** True when anything differs from the plain list. */
@@ -104,6 +105,7 @@ data class TaskExtraFilters(
             source ?: "-",
             if (hasAttachments) "files" else "-",
             if (hasReferences) "refs" else "-",
+            if (notConfirmed) "unconfirmed" else "-",
             dueAfter ?: "-",
             dueBefore ?: "-",
             group.wire,
@@ -167,6 +169,7 @@ data class RepeatDraft(
     val endOn: LocalDate? = null,
     val endAfter: Int = 5,
     val paused: Boolean = false,
+    val remindCustomer: Boolean? = null,
 ) {
     /** Null when the draft can be saved, otherwise a catalogue key saying why not. */
     fun problem(due: LocalDate?): String? = when {
@@ -202,6 +205,7 @@ data class RepeatDraft(
                 after = if (endKind == RepeatEnd.AFTER) endAfter else null,
             ),
             paused = paused,
+            remind_customer = remindCustomer.takeIf { schedule },
         )
     }
 
@@ -222,6 +226,7 @@ data class RepeatDraft(
             endOn = repeat.ends.on?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             endAfter = repeat.ends.after ?: 5,
             paused = repeat.paused,
+            remindCustomer = repeat.remind_customer,
         )
     }
 }
@@ -238,6 +243,7 @@ fun repeatJson(repeat: TaskRepeat): JsonObject = buildJsonObject {
     put("kind", repeat.kind)
     put("unit", repeat.unit)
     put("every", repeat.every)
+    repeat.remind_customer?.let { put("remind_customer", it) }
     repeat.weekdays?.takeIf { it.isNotEmpty() }?.let { days ->
         put("weekdays", buildJsonArray { days.forEach { add(it) } })
     }

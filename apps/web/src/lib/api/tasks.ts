@@ -15,6 +15,7 @@ import type { TaskListRequest } from './task-params';
 import type { RepeatRequest, TaskScope } from "@/components/tasks/task-planning";
 import type {
   AddressProvenance,
+  BookingCorrection,
   ChecklistTask,
   ConversationDetail,
   Me,
@@ -388,6 +389,7 @@ export interface CreateTaskInput {
   /** #689 C: the whole crew (up to ten). Wins over `assigned_user_id`. */
   assignee_ids?: string[];
   due_at?: string | null;
+  due_on?: string;
   /** #214 confirmed enriched / hand-entered job address (null = none). */
   address?: TaskAddressInput | null;
   /** A standalone task (#689) may link to a contact and/or a conversation. */
@@ -436,6 +438,7 @@ export function useCreateTaskFromMessage(conversationId: string) {
             ? {}
             : { assignee_ids: input.assignee_ids }),
           ...(input.due_at === undefined ? {} : { due_at: input.due_at }),
+          ...(input.due_on === undefined ? {} : { due_on: input.due_on }),
           ...(input.address === undefined ? {} : { address: input.address }),
           ...(input.contact_id === undefined
             ? {}
@@ -478,6 +481,9 @@ export interface UpdateTaskInput {
   /** #689 C: replace the whole crew. An empty list unassigns everyone. */
   assignee_ids?: string[];
   due_at?: string | null;
+  due_on?: string | null;
+  contact_id?: string | null;
+  conversation_id?: string | null;
   /** #214 replace the whole address block (null clears it). */
   address?: TaskAddressInput | null;
   /** #693. */
@@ -549,6 +555,23 @@ export function useUpdateTask(conversationId: string) {
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.detail(companyId, input.taskId),
       });
+    },
+  });
+}
+
+export function useTaskConfirmation(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, confirmed }: { taskId: string; confirmed: boolean }) =>
+      apiFetch<Pick<Task, "confirmed_at" | "confirmed_by">>(`/v1/tasks/${taskId}/confirmation`, {
+        method: "PUT", companyId, body: { confirmed },
+      }),
+    onSuccess: (result, { taskId }) => {
+      const key = keys.tasks.detail(companyId, taskId);
+      queryClient.setQueryData<TaskDetail>(key, (detail) => detail ? { ...detail, ...result } : detail);
+      void queryClient.invalidateQueries({ queryKey: key });
+      invalidateTasks(queryClient, companyId, conversationId);
     },
   });
 }
@@ -697,7 +720,7 @@ export function useDeleteTask(conversationId: string) {
     mutationFn: (input: string | { taskId: string; scope?: TaskScope }) => {
       const { taskId, scope } =
         typeof input === "string" ? { taskId: input, scope: undefined } : input;
-      return apiFetch<undefined>(`/v1/tasks/${taskId}`, {
+      return apiFetch<{ correction: BookingCorrection } | undefined>(`/v1/tasks/${taskId}`, {
         method: "DELETE",
         companyId,
         searchParams: { scope },

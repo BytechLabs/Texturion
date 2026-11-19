@@ -80,7 +80,7 @@ struct TaskRowBadges: View {
         let priority = task.priorityValue
         let repeats = taskShowsRepeatIcon(task.repeatRule)
         let calendarHold = task.calendar_hold == true
-        if priority.isFlagged || repeats || !task.labelList.isEmpty || calendarHold {
+        if priority.isFlagged || repeats || !task.labelList.isEmpty || calendarHold || task.confirmed_at != nil {
             HStack(spacing: 8) {
                 TaskPriorityMark(priority: priority)
                 if repeats { TaskRepeatMark() }
@@ -89,6 +89,11 @@ struct TaskRowBadges: View {
                     Text(AppStrings.translate(appLocale, "contactsTasks.calendarHold"))
                         .font(.caption)
                         .foregroundStyle(BrandColor.muted700)
+                }
+                if task.confirmed_at != nil {
+                    Image(systemName: "calendar.badge.checkmark")
+                        .foregroundStyle(BrandColor.olive)
+                        .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.mapConfirmed"))
                 }
                 Spacer(minLength: 0)
             }

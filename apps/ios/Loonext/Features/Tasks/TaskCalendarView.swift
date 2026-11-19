@@ -69,16 +69,6 @@ func calendarGridDays(_ date: Date, calendar: Calendar) -> [Date] {
     return days
 }
 
-/// The hour a task made from a tapped day is due, when nobody picked one.
-let calendarCreateHour = 9
-
-/// #739: the due a long-press (or Return) on `day` starts New task with: the
-/// morning default on that calendar day, read on `calendar`'s clock, which is
-/// the WORKSPACE's zone rather than the phone's.
-func calendarDayDue(_ day: Date, calendar: Calendar) -> Date? {
-    calendar.date(bySettingHour: calendarCreateHour, minute: 0, second: 0, of: day)
-}
-
 /// The calendar the grid reads days on: the workspace's zone when it is a
 /// known identifier, otherwise the phone's.
 func workspaceCalendar(timeZoneId: String?, base: Calendar = .current) -> Calendar {
@@ -125,7 +115,8 @@ func matchesCalendarDueChip(
 ) -> Bool {
     guard let chip else { return true }
     if chip == .overdue { return isOverdue(task, now: now) }
-    guard let due = parseWireTimestamp(task.due_at) else { return false }
+    let due = task.due_on.flatMap { taskDay($0, calendar: calendar) } ?? parseWireTimestamp(task.due_at)
+    guard let due else { return false }
     let start = calendar.startOfDay(for: now)
     let days = chip == .today ? 1 : 7
     guard let end = calendar.date(byAdding: .day, value: days, to: start) else { return false }
@@ -153,7 +144,7 @@ struct TaskCalendarView: View {
     let onToggleDone: @MainActor (TaskItem, Bool) -> Void
     /// #739: asked to open New task due at this instant. Defaulted so a preview
     /// or another caller keeps compiling.
-    var onCreateTask: @MainActor (Date) -> Void = { _ in }
+    var onCreateTask: @MainActor (String) -> Void = { _ in }
 
     @State private var monthAnchor = Date()
     // Any instant in today: days compare with isDate(inSameDayAs:) on the
@@ -402,8 +393,7 @@ struct TaskCalendarView: View {
     }
 
     private func createTask(on day: Date) {
-        guard let due = calendarDayDue(day, calendar: calendar) else { return }
-        onCreateTask(due)
+        onCreateTask(taskDateKey(day, calendar: calendar))
     }
 
     private func createTaskLabel(_ day: Date) -> String {
@@ -521,7 +511,8 @@ struct TaskCalendarView: View {
     private func tasksByDay(_ tasks: [TaskItem]) -> [Date: [TaskItem]] {
         var map: [Date: [TaskItem]] = [:]
         for task in tasks {
-            guard let due = parseWireTimestamp(task.due_at) else { continue }
+            let due = task.due_on.flatMap { taskDay($0, calendar: calendar) } ?? parseWireTimestamp(task.due_at)
+            guard let due else { continue }
             map[calendar.startOfDay(for: due), default: []].append(task)
         }
         return map
@@ -663,7 +654,10 @@ struct TaskCalendarView: View {
             createdBy: fetchMeta.createdBy,
             source: fetchMeta.source,
             hasAttachments: fetchMeta.hasAttachments,
-            hasReferences: fetchMeta.hasReferences
+            hasReferences: fetchMeta.hasReferences,
+            confirmed: fetchMeta.notConfirmed ? false : nil,
+            dueOnBefore: taskDateKey(gridEnd, calendar: cal),
+            dueOnAfter: taskDateKey(gridStart, calendar: cal)
         )
         let undatedArms = taskListArms(
             tab: tab == .all ? .all : .mine,
@@ -691,7 +685,8 @@ struct TaskCalendarView: View {
             var done = 0
             pages = 0
             repeat {
-                for task in try await undatedLoader.nextPage() where task.due_at == nil && task.calendar_hold != true {
+                for task in try await undatedLoader.nextPage()
+                    where task.due_at == nil && task.due_on == nil && task.calendar_hold != true {
                     if task.done { done += 1 } else { open += 1 }
                 }
                 pages += 1
@@ -756,7 +751,11 @@ private struct CalendarTaskRow: View {
                             ? AnyShapeStyle(BrandColor.muted400)
                             : AnyShapeStyle(BrandColor.ink)
                     )
-                if task.due_at != nil {
+                if task.due_on != nil {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.anyTime"))
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted400)
+                } else if task.due_at != nil {
                     let overdue = isOverdue(task)
                     let dueText = timedDue(locale: appLocale) { due in
                         AppStrings.translate(

@@ -191,6 +191,7 @@ describe("#280 surfaces", () => {
     expect(savedViewFilterKeys("tasks").toSorted()).toEqual(
       [
         "assigned_user_id",
+        "confirmed",
         "contact_id",
         "conversation_id",
         "created_by",

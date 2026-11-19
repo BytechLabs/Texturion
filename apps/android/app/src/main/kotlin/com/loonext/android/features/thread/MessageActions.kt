@@ -356,8 +356,10 @@ fun MakeTaskSheet(
     onCreateWithExtras: ((String, String?, String?, TaskAddressInput?, TaskCreateExtras) -> Unit)? = null,
     tagsLoader: (suspend () -> List<Tag>)? = null,
     linked: Boolean = false,
-    /** #739: a due (an instant) the form opens with, e.g. a tapped calendar day. */
-    initialDueIso: String? = null,
+    initialDueOn: String? = null,
+    customerField: (@Composable () -> Unit)? = null,
+    customerAddress: String? = null,
+    customerReady: Boolean = true,
     /** The zone due chips and labels are read in; the workspace's where it differs. */
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -391,12 +393,9 @@ fun MakeTaskSheet(
         }
     }
     // A prefilled due opens More so the day it chose is on screen.
-    var moreOpen by remember { mutableStateOf(!standalone || initialDueIso != null) }
-    var due by remember {
-        mutableStateOf<DueChoice?>(
-            initialDueIso?.let { DueChoice(suggestedDueLabel(it, zone), it) },
-        )
-    }
+    var moreOpen by remember { mutableStateOf(!standalone || initialDueOn != null) }
+    var dueOn by remember { mutableStateOf(initialDueOn) }
+    var due by remember { mutableStateOf<DueChoice?>(null) }
     var priority by remember { mutableStateOf(TaskPriority.NORMAL) }
     var labels by remember { mutableStateOf<List<TaskLabel>>(emptyList()) }
     var labelsOpen by remember { mutableStateOf(false) }
@@ -412,6 +411,13 @@ fun MakeTaskSheet(
     // #214 enrichment: the structured address + its provenance, the collapsible
     // state, and the in-flight spinner. Editing any field marks it "manual".
     var addr by remember { mutableStateOf(AddressFields()) }
+    var previousCustomerAddress by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(customerAddress) {
+        if (addr.street.isBlank() || addr.street == previousCustomerAddress) {
+            addr = addr.copy(street = customerAddress.orEmpty())
+        }
+        previousCustomerAddress = customerAddress
+    }
     var addrProvenance by remember { mutableStateOf<String?>(null) }
     var addrOpen by remember { mutableStateOf(false) }
     var enriching by remember { mutableStateOf(false) }
@@ -578,6 +584,8 @@ fun MakeTaskSheet(
                 )
             }
 
+            customerField?.invoke()
+
             if (voicemailDraft != null) {
                 OutlinedTextField(
                     value = description,
@@ -693,6 +701,7 @@ fun MakeTaskSheet(
                         onClick = {
                             haptics.tap()
                             dueSuggested = false
+                            dueOn = null
                             due = if (due?.label == todayLabel) null else today
                         },
                     )
@@ -702,15 +711,17 @@ fun MakeTaskSheet(
                         onClick = {
                             haptics.tap()
                             dueSuggested = false
+                            dueOn = null
                             due = if (due?.label == tomorrowLabel) null else tomorrow
                         },
                     )
                     val picked = due != null && due?.label != todayLabel &&
                         due?.label != tomorrowLabel
                     DueChip(
-                        label = if (picked) due?.label.orEmpty()
-                        else t("thread.pickATime"),
-                        selected = picked,
+                        label = if (picked) due?.label.orEmpty() else dueOn?.let {
+                            "$it · " + t("contactsTasks.anyTime")
+                        } ?: t("thread.pickATime"),
+                        selected = picked || dueOn != null,
                         onClick = {
                             haptics.tap()
                             pickerOpen = true
@@ -822,8 +833,8 @@ fun MakeTaskSheet(
             }
 
             // Create pill — gives under the finger like every other pill.
-            val repeatDue = due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() }
-            val canCreate = title.isNotBlank() &&
+            val repeatDue = dueOn?.let(LocalDate::parse) ?: due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() }
+            val canCreate = customerReady && title.isNotBlank() &&
                 (repeatDraft?.problem(repeatDue) == null)
             val createInteraction = remember { MutableInteractionSource() }
             Row(
@@ -889,6 +900,7 @@ fun MakeTaskSheet(
                                     labels = labels,
                                     repeat = repeatDraft?.toRepeat(repeatDue),
                                     assigneeIds = assigneeIds,
+                                    dueOn = dueOn,
                                 ),
                             )
                         } else {
@@ -943,8 +955,9 @@ fun MakeTaskSheet(
     if (repeatOpen) {
         RepeatSheet(
             initial = repeatDraft ?: RepeatDraft.forLinked(linked),
-            due = due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() },
+            due = dueOn?.let(LocalDate::parse) ?: due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() },
             existing = false,
+            textingCustomer = contactName.takeIf { conversationId.isNotEmpty() },
             onSave = {
                 repeatDraft = it
                 repeatOpen = false
@@ -969,12 +982,16 @@ fun MakeTaskSheet(
                     if (millis != null) {
                         val date = Instant.ofEpochMilli(millis)
                             .atZone(ZoneOffset.UTC).toLocalDate()
-                        val instant = date.atTime(LocalTime.of(9, 0))
-                            .atZone(zone).toInstant()
-                        due = DueChoice(
-                            label = TimestampFormat.label(instant.toString(), TimestampFormat.Style.LONG, zone = zone),
-                            iso = instant.toString(),
-                        )
+                        if (standalone) {
+                            dueOn = date.toString()
+                            due = null
+                        } else {
+                            val instant = date.atTime(LocalTime.of(9, 0)).atZone(zone).toInstant()
+                            due = DueChoice(
+                                label = TimestampFormat.label(instant.toString(), TimestampFormat.Style.LONG, zone = zone),
+                                iso = instant.toString(),
+                            )
+                        }
                         dueSuggested = false
                     }
                     pickerOpen = false
@@ -996,6 +1013,7 @@ data class TaskCreateExtras(
     val repeat: TaskRepeat? = null,
     /** #689 C: the whole crew, first first. Empty means nobody. */
     val assigneeIds: List<String>? = null,
+    val dueOn: String? = null,
 )
 
 /** The lime-barred quote of the source message ("from this message"). */

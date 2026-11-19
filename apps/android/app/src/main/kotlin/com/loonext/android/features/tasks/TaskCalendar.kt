@@ -69,7 +69,6 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Clock
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -116,16 +115,6 @@ internal data class TaskCalendarSnapshot(
     /** True when the undated count hit its page cap (render "N+"). */
     val undatedTruncated: Boolean,
 )
-
-/** The hour a task made from a tapped day is due, when nobody picked one. */
-internal const val CALENDAR_CREATE_HOUR = 9
-
-/**
- * #739: the due a long-press on [day] starts New task with, as an instant: the
- * morning default on that calendar day in the WORKSPACE's [zone], not the phone's.
- */
-internal fun calendarDayDueIso(day: LocalDate, zone: ZoneId): String =
-    day.atTime(LocalTime.of(CALENDAR_CREATE_HOUR, 0)).atZone(zone).toInstant().toString()
 
 /** The workspace's zone, or the phone's when the id is missing or unknown. */
 internal fun workspaceZone(id: String?): ZoneId =
@@ -201,7 +190,8 @@ internal fun matchesDueChip(
 ): Boolean {
     if (chip == null) return true
     if (chip == DueChip.Overdue) return isOverdue(task, clock)
-    val due = parseInstant(task.due_at) ?: return false
+    val due = task.due_on?.let { LocalDate.parse(it).atStartOfDay(clock.zone).toInstant() }
+        ?: parseInstant(task.due_at) ?: return false
     val start = LocalDate.now(clock).atStartOfDay(clock.zone)
     val end = if (chip == DueChip.Today) start.plusDays(1) else start.plusDays(7)
     return !due.isBefore(start.toInstant()) && due.isBefore(end.toInstant())
@@ -234,7 +224,7 @@ internal suspend fun fetchTaskCalendarSnapshot(
     pages = 0
     do {
         undatedLoader.nextPage().forEach { task ->
-            if (task.due_at == null && !task.calendar_hold) {
+            if (task.due_at == null && task.due_on == null && !task.calendar_hold) {
                 if (task.done) undatedDone++ else undatedOpen++
             }
         }
@@ -268,6 +258,7 @@ internal fun TaskCalendarView(
     zone: ZoneId = ZoneId.systemDefault(),
     /** #739: asked to open New task due on this day. */
     onCreateTask: (LocalDate) -> Unit = {},
+    notConfirmed: Boolean = false,
 ) {
     val haptics = rememberHaptics()
 
@@ -314,7 +305,8 @@ internal fun TaskCalendarView(
     val unassigned = unassignedChip && assigneeChip == null
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskCalendarFilterKey(month, baseAssignee, unassigned, query),
+        taskCalendarFilterKey(month, baseAssignee, unassigned, query) +
+            if (notConfirmed) "|unconfirmed" else "",
     )
     val state = rememberCacheFirst(
         cache = cache,
@@ -331,6 +323,9 @@ internal fun TaskCalendarView(
                 // Exclusive end, one past the last grid day (the web's
                 // addDays(gridEnd, 1)).
                 dueBefore = isoAtStartOfDay(gridEnd.plusDays(1), zone),
+                dueOnBefore = gridEnd.toString(),
+                dueOnAfter = gridStart.toString(),
+                confirmed = if (notConfirmed) false else null,
                 q = query,
             ),
             undatedArms = taskListArms(
@@ -339,6 +334,7 @@ internal fun TaskCalendarView(
                 unassigned = unassignedChip,
                 due = null,
                 q = query,
+                extra = TaskExtraFilters(notConfirmed = notConfirmed),
             ),
         )
     }
@@ -362,7 +358,7 @@ internal fun TaskCalendarView(
             }
             val byDay = remember(visibleRows) {
                 visibleRows.groupBy { task ->
-                    parseInstant(task.due_at)?.atZone(zone)?.toLocalDate()
+                    task.due_on?.let(LocalDate::parse) ?: parseInstant(task.due_at)?.atZone(zone)?.toLocalDate()
                 }
             }
             val undatedCount = when (tab) {
@@ -796,7 +792,7 @@ private fun dayHeadingLabel(
 }
 
 /** Local midnight as the offset-bearing ISO the route expects. */
-private fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
+internal fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
     date.atStartOfDay(zone).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
 private val MONTH_TITLE = DateTimeFormatter.ofPattern("MMMM yyyy")

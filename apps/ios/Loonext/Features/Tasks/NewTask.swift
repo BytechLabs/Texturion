@@ -67,6 +67,14 @@ final class NewTaskHost: TaskDraftHost {
         return page?.data ?? []
     }
 
+    func customers(matching search: String) async throws -> [Contact] {
+        try await ContactsApi(api: graph.api).contacts(companyId: companyId, q: search, limit: 12).data
+    }
+
+    func thread(for customer: Contact) async -> String? {
+        await findBookingConversation(graph: graph, companyId: companyId, contact: customer)
+    }
+
     func createTask(
         from source: TaskDraftSource,
         title: String,
@@ -76,12 +84,17 @@ final class NewTaskHost: TaskDraftHost {
         provenance: String,
         meta: TaskDraftMeta
     ) {
-        guard case .standalone(let conversationId, let contactId) = source else { return }
+        guard case .standalone(let existingThread, let contactId) = source else { return }
         let addressBody = taskAddressBody(address, provenance: provenance)
         let repeatBody = meta.repeatBody()
         let mutations = TaskMutations(api: graph.api)
         Task { [companyId, locale, onNotice, onCreated] in
             do {
+                var conversationId = existingThread
+                if conversationId == nil, let contactId,
+                   let customer: Contact = try? await graph.api.get("/v1/contacts/\(contactId)", companyId: companyId) {
+                    conversationId = await findBookingConversation(graph: graph, companyId: companyId, contact: customer)
+                }
                 let row = try await mutations.createStandalone(
                     companyId: companyId,
                     title: title,
@@ -93,7 +106,8 @@ final class NewTaskHost: TaskDraftHost {
                     priority: meta.priorityWire,
                     labelIds: meta.labelIds,
                     repeatRule: repeatBody,
-                    assigneeIds: meta.assigneeIds
+                    assigneeIds: meta.assigneeIds,
+                    dueOn: meta.dueOn
                 )
                 // A label typed by name is made once the task exists. The task
                 // is already saved, so a failure here is said, not undone.
@@ -124,6 +138,51 @@ final class NewTaskHost: TaskDraftHost {
     }
 }
 
+func findBookingConversation(graph: AppGraph, companyId: String, contact: Contact) async -> String? {
+    let threads = try? await InboxApi(api: graph.api).conversations(
+        companyId: companyId, snoozed: "all", q: contact.phone_e164
+    )
+    return threads?.data.first { $0.contact_id == contact.id && !$0.is_spam }?.id
+}
+
+struct BookingCustomerPicker: View {
+    let load: (String) async throws -> [Contact]
+    let onPick: (Contact?) -> Void
+    @State private var search = ""
+    @State private var matches: [Contact] = []
+    @Environment(\.appLocale) private var appLocale
+    @Environment(\.dismiss) private var dismiss
+
+    private var options: [PickerOption<String?>] {
+        let remove = PickerOption<String?>(nil, title: AppStrings.translate(appLocale, "contactsTasks.removeCustomer"))
+        let customers = matches.map { PickerOption<String?>($0.id, title: $0.name ?? $0.phone_e164) }
+        return [remove] + customers
+    }
+
+    var body: some View {
+        SearchablePickerSheet(
+            options: options,
+            selected: nil,
+            title: AppStrings.translate(appLocale, "contactsTasks.pickCustomer"),
+            searchPrompt: AppStrings.translate(appLocale, "contactsTasks.searchCustomers"),
+            onPick: choose,
+            onDismiss: { dismiss() },
+            search: $search
+        )
+        .task(id: search) {
+            let found = try? await load(search)
+            if !Task.isCancelled { matches = found ?? [] }
+        }
+    }
+
+    private func choose(_ customerId: String?) {
+        let customer = matches.first { $0.id == customerId }
+        guard customerId == nil || customer != nil else { return }
+        onPick(customer)
+        dismiss()
+    }
+}
+
 /// Loads who can be assigned, then shows the sheet.
 private struct NewTaskSheetContent: View {
     let graph: AppGraph
@@ -134,7 +193,8 @@ private struct NewTaskSheetContent: View {
     let onNotice: @MainActor (String, String?) -> Void
     let onCreated: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
-    var initialDue: Date?
+    var initialDueOn: String?
+    var initialAddress: String?
 
     @State private var host: NewTaskHost?
     @Environment(\.appLocale) private var appLocale
@@ -148,7 +208,8 @@ private struct NewTaskSheetContent: View {
                     contactName: contactName,
                     locale: appLocale,
                     onDismiss: onDismiss,
-                    initialDue: initialDue
+                    initialDueOn: initialDueOn,
+                    initialAddress: initialAddress
                 )
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -181,7 +242,8 @@ private struct NewTaskSheetModifier: ViewModifier {
     let contactId: String?
     let contactName: String
     let onCreated: @MainActor () -> Void
-    var initialDue: Date?
+    var initialDueOn: String?
+    var initialAddress: String?
 
     @State private var notice: String?
     /// #724: set when the confirmation can open the task it names.
@@ -203,7 +265,8 @@ private struct NewTaskSheetModifier: ViewModifier {
                     },
                     onCreated: onCreated,
                     onDismiss: { isPresented = false },
-                    initialDue: initialDue
+                    initialDueOn: initialDueOn,
+                    initialAddress: initialAddress
                 )
             }
             .createdAlert(notice: $notice, openTaskId: $noticeTaskId)
@@ -220,7 +283,8 @@ extension View {
         contactId: String? = nil,
         contactName: String = "",
         onCreated: @escaping @MainActor () -> Void = {},
-        initialDue: Date? = nil
+        initialDueOn: String? = nil,
+        initialAddress: String? = nil
     ) -> some View {
         modifier(
             NewTaskSheetModifier(
@@ -231,7 +295,8 @@ extension View {
                 contactId: contactId,
                 contactName: contactName,
                 onCreated: onCreated,
-                initialDue: initialDue
+                initialDueOn: initialDueOn,
+                initialAddress: initialAddress
             )
         )
     }
