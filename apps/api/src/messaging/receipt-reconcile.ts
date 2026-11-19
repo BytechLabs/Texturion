@@ -1,6 +1,6 @@
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { deployEnv } from "../environments/mode";
+import { allowsCarrierReceiptLookup } from "../environments/policy";
 import { captureException } from "../observability/capture";
 import { telnyxRequest } from "../telnyx/client";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
@@ -18,7 +18,7 @@ interface ReceiptCandidate {
 type RetrievedMessage = TelnyxMessagePayload & { completed_at?: string | null };
 
 export async function reconcileOutboundReceipts(env: Env, now = new Date()): Promise<void> {
-  if (deployEnv(env) !== "production") return;
+  if (!allowsCarrierReceiptLookup(env)) return;
 
   const db = getDb(env);
   const checkedAt = now.toISOString();

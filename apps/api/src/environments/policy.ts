@@ -154,6 +154,11 @@ export function servesRigRoutes(env: Env): boolean {
   return deployEnv(env) === "rig";
 }
 
+/** Receipt lookups run only against the production account's message IDs. */
+export function allowsCarrierReceiptLookup(env: Env): boolean {
+  return deployEnv(env) === "production";
+}
+
 /**
  * How an FCM send authenticates.
  *

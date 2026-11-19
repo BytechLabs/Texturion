@@ -78,6 +78,23 @@ it("skips vendor calls when a webhook or another job has already claimed the row
   expect(carrier.calls).toHaveLength(0);
 });
 
+it("leaves a message with no completed receipt eligible for another lookup", async () => {
+  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [
+    { id: MESSAGE_ID, telnyx_message_id: CARRIER_ID },
+  ]);
+  const claim = stubRoute(restMatch(env, "PATCH", "messages"), () => [{ id: MESSAGE_ID }]);
+  const carrier = stubRoute((url) => url.pathname === `/v2/messages/${CARRIER_ID}`, () => ({
+    data: { id: CARRIER_ID, direction: "outbound", completed_at: null },
+  }));
+  const ledger = stubRoute(restMatch(env, "POST", "webhook_events"), () => []);
+  stubFetch(candidates.route, claim.route, carrier.route, ledger.route);
+
+  await reconcileOutboundReceipts(env, NOW);
+
+  expect(claim.calls[0].body).toEqual({ receipt_checked_at: NOW.toISOString() });
+  expect(ledger.calls).toHaveLength(0);
+});
+
 it("does not look up messages on the rig", async () => {
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);

@@ -477,7 +477,7 @@ type TelnyxSendResult =
  * gets a stable DERIVED key, never a random per-request one.
  */
 function sendIdempotencyKey(messageId: string): string {
-  return `message:${messageId}`;
+  return `message-${messageId}`;
 }
 
 /**
