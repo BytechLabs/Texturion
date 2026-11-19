@@ -717,6 +717,7 @@ internal fun ForYouList(
                         )
                         PersonRow(
                             name = row.contact.name ?: formatPhone(row.contact.phone_e164),
+                            phoneNumber = row.contact.takeIf { it.name == null }?.phone_e164,
                             why = TimedText(reason, reason),
                             unread = false,
                             onClick = { onOpenConversation(row.conversation_id) },

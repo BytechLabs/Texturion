@@ -1027,6 +1027,7 @@ struct ForYouList: View {
                         )
                         PersonRow(
                             name: row.contact.name ?? formatPhone(row.contact.phone_e164),
+                            phoneNumber: row.contact.name == nil ? row.contact.phone_e164 : nil,
                             meta: TimedText(visible: reason, spoken: reason),
                             unread: false
                         ) { onOpenConversation(row.conversation_id) }

@@ -148,7 +148,10 @@ function TextAlertRow({ item }: { item: ForYouTextAlert }) {
     ? t("inbox.forYouOptOutHint")
     : t("inbox.forYouTextFailed");
   return (
-    <Card href={`/inbox/${item.conversation_id}`}>
+    <Card
+      href={`/inbox/${item.conversation_id}`}
+      copyNumber={item.contact.name === null ? item.contact.phone_e164 : null}
+    >
       <Avatar name={name} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13.5px] font-semibold text-app-ink">
