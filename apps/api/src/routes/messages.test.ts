@@ -1355,6 +1355,25 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     expect(body).not.toHaveProperty("body_tsv");
   });
 
+  it("emits task completion for a promoted note without starting a rating ask", async () => {
+    const stubs = doneStubs({ direction: "note", done_at: null });
+    const task = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      { id: "5e3f1a2b-7c4d-4e6f-8a9b-0c1d2e3f4a5b", title: "Order the part" },
+    ]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
+      { id: "aed2c911-06bc-4a44-a94d-3283c7c2441a" },
+    ]);
+    const deliveries = stubRoute(restMatch(env, "POST", "webhook_deliveries"));
+    const ratingSettings = stubRoute(restMatch(env, "GET", "companies"), () => []);
+    stubFetch(task.route, endpoints.route, deliveries.route, ratingSettings.route, ...stubs.all);
+
+    const response = await patchDone({ done: true });
+
+    expect(response.status).toBe(200);
+    expect(deliveries.calls[0].body).toMatchObject([{ event_type: "task.completed" }]);
+    expect(ratingSettings.calls).toHaveLength(0);
+  });
+
   it("tells the followers of the job a done text belongs to, on a tick and an untick (#689 D)", async () => {
     const alerts = vi.mocked(notifyPromotedMessageDone);
     alerts.mockClear();
