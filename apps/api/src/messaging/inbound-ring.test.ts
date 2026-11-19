@@ -146,6 +146,7 @@ describe("storeVoicemailRecording: fetching the recording", () => {
         caller: CALLER,
         seconds: 42,
         transcript: null,
+        intake: null,
       });
       expect(expired.calls).toHaveLength(1);
       expect(fresh.calls).toHaveLength(1);

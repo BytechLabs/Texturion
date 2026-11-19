@@ -28,6 +28,7 @@ import { reportVoiceSeconds } from "../billing/meter";
 import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
 import { GREETING_CAPTURE_STATE } from "../calls/greeting-capture";
 import { handleGreetingCaptureEvent } from "../calls/greeting-capture-leg";
+import type { VoicemailIntake } from "../calls/voicemail-intake";
 import { dialCeilings, voiceSpendingCapSeconds } from '../billing/plans';
 import type { PlanId } from '../billing/plans';
 import { getDb } from "../db";
@@ -522,7 +523,7 @@ export async function handleVoicemailSaved(
     .from("calls")
     .select(
       "company_id,phone_number_id,caller_e164,voicemail_path,voicemail_seconds," +
-        "voicemail_transcript",
+        "voicemail_transcript,voicemail_intake,voicemail_deleted_at,deleted_at",
     )
     .eq("call_session_id", sessionId)
     .limit(1);
@@ -537,9 +538,12 @@ export async function handleVoicemailSaved(
         voicemail_path: string | null;
         voicemail_seconds: number | null;
         voicemail_transcript: string | null;
+        voicemail_intake: VoicemailIntake | null;
+        voicemail_deleted_at: string | null;
+        deleted_at: string | null;
       }
     | undefined;
-  if (!row?.phone_number_id) return; // unknown/released number → drop
+  if (!row?.phone_number_id || row.deleted_at || row.voicemail_deleted_at) return;
   const resolved = {
     companyId: row.company_id,
     phoneNumberId: row.phone_number_id,
@@ -568,6 +572,7 @@ export async function handleVoicemailSaved(
         row.caller_e164,
         row.voicemail_seconds,
         row.voicemail_transcript,
+        row.voicemail_intake,
       )
     : await storeVoicemailRecording(env, db, payload, resolved, row.caller_e164);
   if (!stored) {
@@ -630,7 +635,14 @@ export async function handleVoicemailSaved(
             transcript: stored.transcript ?? null,
           },
         }),
-        notifyVoicemail(env, db, { companyId: resolved.companyId, conversationId })
+        notifyVoicemail(env, db, {
+          companyId: resolved.companyId,
+          conversationId,
+          callSessionId: sessionId,
+          seconds: stored.seconds,
+          transcript: stored.transcript,
+          intake: stored.intake,
+        })
           .catch((error: unknown) => {
             console.error(`voicemail-alert (${sessionId}):`, errorLogText(error));
             void captureException(env, error, {

@@ -45,6 +45,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -88,6 +89,7 @@ import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskLabel
 import com.loonext.android.core.model.TaskRepeat
+import com.loonext.android.core.model.VoicemailTaskDraft
 import com.loonext.android.features.tasks.LabelPickerSheet
 import com.loonext.android.features.tasks.MAX_TASK_ASSIGNEES
 import com.loonext.android.features.tasks.PlanChip
@@ -337,10 +339,12 @@ fun MakeTaskSheet(
         assignedUserId: String?,
         dueAtIso: String?,
         address: TaskAddressInput?,
+        description: String?,
     ) -> Unit,
     onDismiss: () -> Unit,
     /** D64: set for an answered call; seeds the title and has no text to enrich. */
     callTitle: String? = null,
+    voicemailDraft: VoicemailTaskDraft? = null,
     /** #689: a task with no source: a blank title, and the rest under More. */
     standalone: Boolean = false,
     /**
@@ -364,10 +368,11 @@ fun MakeTaskSheet(
     val tomorrowLabel = t("thread.dueTomorrow9")
     var title by remember {
         mutableStateOf(
-            callTitle
+            voicemailDraft?.title ?: callTitle
                 ?: if (standalone) "" else message?.body?.trim().orEmpty().take(120).ifBlank { fallbackTitle },
         )
     }
+    var description by remember { mutableStateOf(voicemailDraft?.description.orEmpty()) }
     // Assigned to whoever is making it, matching the web. The default task
     // view is "open, assigned to me", so a task made on a phone and left
     // unassigned landed in a list nobody was looking at. Nobody stays
@@ -436,17 +441,22 @@ fun MakeTaskSheet(
     // if a toggle is on and the message text is non-empty, pre-fill the due (if
     // still empty) and/or the address. The enrich call is session-cached per
     // (company, message), so reopening this sheet never re-spends an AI call.
-    LaunchedEffect(message?.id) {
-        // A call has no text to read, so there is nothing to enrich (D64).
-        if (message == null) return@LaunchedEffect
+    LaunchedEffect(message?.id, voicemailDraft?.call_id) {
+        if (message == null && voicemailDraft == null) return@LaunchedEffect
         val settings = runCatching { aiRepo.getAiSettings(companyId) }.getOrNull()
             ?: return@LaunchedEffect
-        if (!settings.enrich_task_address && !settings.enrich_task_due) return@LaunchedEffect
-        val text = message.body.trim()
-        if (text.isEmpty()) return@LaunchedEffect
+        val text = message?.body?.trim().orEmpty()
+        val enrichMessage = message != null && text.isNotEmpty() &&
+            (settings.enrich_task_address || settings.enrich_task_due)
+        val enrichVoicemail = voicemailDraft != null && settings.enrich_task_address
+        if (!enrichMessage && !enrichVoicemail) return@LaunchedEffect
 
         enriching = true
-        val result = aiRepo.enrichTask(companyId, text, message.id, conversationId)
+        val result = if (voicemailDraft != null) {
+            aiRepo.enrichVoicemailTask(companyId, voicemailDraft.call_id)
+        } else {
+            aiRepo.enrichTask(companyId, text, message?.id, conversationId)
+        }
         enriching = false
         if (result.enrichment_disabled) return@LaunchedEffect
 
@@ -565,6 +575,16 @@ fun MakeTaskSheet(
                         ) { inner() }
                     },
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = titleLabel },
+                )
+            }
+
+            if (voicemailDraft != null) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it.take(5000) },
+                    label = { Text(t("contactsTasks.description")) },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
@@ -872,7 +892,7 @@ fun MakeTaskSheet(
                                 ),
                             )
                         } else {
-                            onCreate(title.trim(), assigneeId, due?.iso, address)
+                            onCreate(title.trim(), assigneeId, due?.iso, address, description.takeIf { voicemailDraft != null })
                         }
                     }
                     .padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),

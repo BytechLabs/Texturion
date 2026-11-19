@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { CallActions } from "@/components/calls/call-actions";
+import { MakeCallTask } from "@/components/calls/make-call-task";
+import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/ui/load-error";
@@ -144,6 +146,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           *Applying: Prioritize Intent.* */}
       <section className="rounded-lg border bg-card p-4">
         <h2 className="mb-2 text-[13px] font-bold">{t("shell.voicemail")}</h2>
+        <VoicemailIntakeSummary intake={row.voicemail_intake} className="mb-2" />
         {/* #566: only REAL words get a copy control. `muted` means this is one
             of the four honest not-transcribed sentences (call-detail-copy.ts) —
             the page talking, not the caller — and offering to copy one would be
@@ -162,6 +165,9 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
               seconds={row.voicemail_seconds}
             />
           </div>
+        )}
+        {row.voicemail_task && row.conversation_id && (
+          <MakeCallTask voicemailDraft={row.voicemail_task} conversationId={row.conversation_id} callerName={who} />
         )}
       </section>
 

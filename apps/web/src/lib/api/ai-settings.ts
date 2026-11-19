@@ -9,12 +9,13 @@ import { keys } from "./keys";
 import type { CompanyAiSettings } from "./types";
 
 /** GET /v1/company/ai-settings — per-company enrichment opt-in (#214). */
-export function useAiSettings() {
+export function useAiSettings(enabled = true) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.aiSettings(companyId),
     queryFn: () =>
       apiFetch<CompanyAiSettings>("/v1/company/ai-settings", { companyId }),
+    enabled,
   });
 }
 

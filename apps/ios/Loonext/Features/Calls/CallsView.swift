@@ -54,6 +54,7 @@ struct CallsView: View {
     @State private var nextCursor: String?
     @State private var loadingMore = false
     @State private var refreshKey = 0
+    @State private var offerVoicemailIntake = false
     /// #210: the rows the Ongoing card pins, and the roster that names who is
     /// holding each line. Both are derived reads — the log below stays the
     /// single source of the call history.
@@ -96,6 +97,14 @@ struct CallsView: View {
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: companyId) {
             manager.start(companyId: companyId, callerIdName: me.display_name)
+        }
+        .task(id: "\(companyId)|\(refreshKey)") {
+            guard me.memberships.contains(where: { $0.company_id == companyId && $0.role == "owner" }) else {
+                offerVoicemailIntake = false
+                return
+            }
+            let settings: CompanyAiSettings? = try? await graph.api.get("/v1/company/ai-settings", companyId: companyId)
+            offerVoicemailIntake = settings?.voicemail_intake == false
         }
         .task(id: "\(companyId)|\(filter.rawValue)|\(reason ?? "")|\(refreshKey)") { await reload() }
         .onReceive(AppRouter.shared.$callsReason) { requested in
@@ -526,7 +535,8 @@ struct CallsView: View {
                                 actions: recordActions(for: call),
                                 onAction: { actionId in performAction(actionId, for: call) },
                                 onRowAction: rowActionHandler(for: call),
-                                onOpen: rowOpenHandler(for: call)
+                                onOpen: rowOpenHandler(for: call),
+                                offerVoicemailIntake: offerVoicemailIntake
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -903,6 +913,7 @@ private struct CallRow: View {
     var onRowAction: (@MainActor (CallRowAction) -> Void)?
     /// #734: a tap on the row opens the call's details.
     var onOpen: (@MainActor () -> Void)?
+    var offerVoicemailIntake = false
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
@@ -1017,6 +1028,13 @@ private struct CallRow: View {
                         .padding(.leading, 64)
                         .padding(.trailing, 15)
                         .padding(.bottom, transcript == nil ? 12 : 4)
+                } else if offerVoicemailIntake {
+                    Button(AppStrings.translate(appLocale, "settings.aiVoicemailIntake")) {
+                        AppRouter.shared.openSettingsSection = .ai
+                    }
+                    .font(.golos(12, weight: .semibold))
+                    .padding(.leading, 64)
+                    .padding(.trailing, 15)
                 }
                 // What it says, for the times playing it is not an option: on
                 // a roof, in a truck, next to a running compressor. The player

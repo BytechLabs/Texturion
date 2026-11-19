@@ -31,14 +31,7 @@ export interface CompanyAiSettings {
   business_description: string | null;
   /** Whether new voicemails are transcribed. Off leaves the audio untouched. */
   transcribe_voicemail: boolean;
-  /**
-   * #367 depth (1): whether the voicemail greeting asks callers for the problem
-   * and the address, and the transcript is then broken out into those fields.
-   *
-   * The one toggle here that is OFF by default. The others produce a suggestion
-   * a member reads; this one changes what a stranger hears when they ring, in
-   * the business's own name — not a default anybody else gets to pick (D89).
-   */
+  /** Extract the job details from a voicemail transcript after the owner opts in. */
   voicemail_intake: boolean;
   /**
    * #507: whether a crew member can DICTATE a post-call wrap-up instead of

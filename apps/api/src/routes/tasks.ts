@@ -77,6 +77,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { readTaskEntries, taskCsvRows } from "../workspace/tasks-export";
 import { csvResponse } from "./core/csv";
 import {
+  assertNumberLevel,
   requireConversationAccess,
   resolveConversationLevel,
   resolveNumberAccess,
@@ -897,15 +898,15 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   if (result.outcome === "no_call") {
     throw new ApiError(
       "validation_failed",
-      "source_call_id: no such call in this company.",
+      "This call is unavailable.",
+      { key: "thread.callTaskSourceUnavailable" },
     );
   }
   if (result.outcome === "call_not_answered") {
-    // D64: only a call somebody picked up is a job to record. A voicemail is a
-    // message in the thread and promotes as one.
     throw new ApiError(
       "validation_failed",
-      "source_call_id: only an answered call can become a task.",
+      "Only an answered call or a saved voicemail can become a task.",
+      { key: "thread.callTaskSourceUnavailable" },
     );
   }
   if (result.outcome === "call_no_conversation") {
@@ -1219,14 +1220,14 @@ function syncRemindersAfterWrite(
 // output. The model output is DATA (parsed + schema-validated), never an
 // instruction; no tool use, no side effect. See src/tasks/enrichment.ts.
 // --------------------------------------------------------------------------
-const enrichSchema = z.object({
-  // Generous ceiling (reject only the absurd); truncated to the model input cap
-  // before the AI call.
-  text: z.string().trim().min(1).max(20000),
-  // Either locates the linked contact whose address is the fallback source.
-  message_id: z.uuid().optional(),
-  conversation_id: z.uuid().optional(),
-});
+const enrichSchema = z.union([
+  z.strictObject({ source_call_id: z.uuid() }),
+  z.object({
+    text: z.string().trim().min(1).max(20000),
+    message_id: z.uuid().optional(),
+    conversation_id: z.uuid().optional(),
+  }),
+]);
 
 const EMPTY_ENRICHMENT = {
   address: null,
@@ -1309,17 +1310,53 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
   const env = getEnv(c.env);
   const db = getDb(env);
 
-  // Settings gate — never call the AI unless the company opted a type in.
+  const fromVoicemail = "source_call_id" in body;
   const settings = await loadAiSettings(db, companyId);
-  if (!settings.enrich_task_address && !settings.enrich_task_due) {
+  const enableDue = !fromVoicemail && settings.enrich_task_due;
+  if (!settings.enrich_task_address && !enableDue) {
     return c.json({ ...EMPTY_ENRICHMENT, enrichment_disabled: true });
   }
 
-  const text = body.text.slice(0, ENRICHMENT_MAX_INPUT_CHARS);
-  const ctx = await loadEnrichmentContext(db, companyId, {
-    conversationId: body.conversation_id,
-    messageId: body.message_id,
-  });
+  let source: { text: string; conversationId?: string; messageId?: string };
+  if (fromVoicemail) {
+    const calls = unwrap<{
+      conversation_id: string;
+      phone_number_id: string | null;
+      voicemail_intake: { address?: string | null } | null;
+      voicemail_transcript: string | null;
+    }[]>(await db.from("calls")
+      .select("conversation_id,phone_number_id,voicemail_intake,voicemail_transcript")
+      .eq("company_id", companyId)
+      .eq("id", body.source_call_id)
+      .eq("outcome", "voicemail")
+      .is("deleted_at", null)
+      .is("purged_at", null)
+      .is("voicemail_deleted_at", null)
+      .not("voicemail_path", "is", null)
+      .not("conversation_id", "is", null)
+      .limit(1), "voicemail task source");
+    const call = calls[0];
+    if (!call) return c.json(EMPTY_ENRICHMENT);
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: call.phone_number_id,
+      need: "note",
+    });
+    source = {
+      conversationId: call.conversation_id,
+      text: [call.voicemail_intake?.address, call.voicemail_transcript].filter(Boolean).join("\n"),
+    };
+  } else {
+    source = {
+      text: body.text,
+      conversationId: body.conversation_id,
+      messageId: body.message_id,
+    };
+  }
+  const text = source.text.slice(0, ENRICHMENT_MAX_INPUT_CHARS);
+  const ctx = await loadEnrichmentContext(db, companyId, source);
   const contactAddress = ctx.contactAddress?.trim() || null;
 
   // "Only when needed" (cost): call the model ONLY when the text plausibly holds
@@ -1327,7 +1364,7 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
   // the quote") never spends an AI call or a cap unit.
   const signals = detectEnrichmentSignals(text);
   const wantAddress = settings.enrich_task_address && signals.address;
-  const wantDue = settings.enrich_task_due && signals.due;
+  const wantDue = enableDue && signals.due;
 
   // The contact's address on file — offered as a FREE (no-model) fallback for a
   // task whose text names no address of its own.

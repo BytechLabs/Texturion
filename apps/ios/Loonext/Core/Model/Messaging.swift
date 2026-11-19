@@ -544,6 +544,8 @@ struct ConversationEvent: Codable, Sendable {
     let type: String
     let payload: JSONValue
     let created_at: String
+    var voicemail_intake: VoicemailIntake? = nil
+    var voicemail_task: VoicemailTaskDraft? = nil
 }
 
 struct ReadReceipt: Codable, Sendable {

@@ -9,7 +9,7 @@ import SwiftUI
 /// standalone task that may link to a conversation or a contact).
 enum TaskDraftSource {
     case message(Message)
-    case call(id: String, callerName: String)
+    case call(id: String, callerName: String, voicemail: VoicemailTaskDraft? = nil)
     case standalone(conversationId: String?, contactId: String?)
 
     var isStandalone: Bool {
@@ -31,6 +31,11 @@ enum TaskDraftSource {
         if case .message(let message) = self { return message }
         return nil
     }
+
+    var voicemail: VoicemailTaskDraft? {
+        if case .call(_, _, let draft) = self { return draft }
+        return nil
+    }
 }
 
 /// What the make-task sheet needs from whoever opens it: a thread, or the call
@@ -41,6 +46,7 @@ protocol TaskDraftHost: AnyObject {
     var meUserId: String { get }
     func aiSettingsForTaskDraft() async -> CompanyAiSettings
     func enrichTaskDraft(for message: Message) async -> TaskEnrichment
+    func enrichVoicemailTaskDraft(callId: String) async -> TaskEnrichment
     func reportAiOutcome(feature: String, outcome: String)
     func createTask(
         from source: TaskDraftSource,
@@ -67,6 +73,8 @@ protocol TaskDraftHost: AnyObject {
 }
 
 extension TaskDraftHost {
+    func enrichVoicemailTaskDraft(callId: String) async -> TaskEnrichment { .empty }
+
     func createTask(
         from source: TaskDraftSource,
         title: String,
@@ -170,6 +178,7 @@ final class CallTaskHost: TaskDraftHost {
     /// The sentence, and (#724) the created task's id when Open should go to it.
     private let onNotice: @MainActor (String, String?) -> Void
     private let locale: String
+    private let isVoicemail: Bool
 
     init(
         graph: AppGraph,
@@ -177,6 +186,7 @@ final class CallTaskHost: TaskDraftHost {
         members: [Member],
         meUserId: String,
         locale: String,
+        isVoicemail: Bool,
         onNotice: @escaping @MainActor (String, String?) -> Void
     ) {
         self.graph = graph
@@ -184,17 +194,31 @@ final class CallTaskHost: TaskDraftHost {
         self.members = members
         self.meUserId = meUserId
         self.locale = locale
+        self.isVoicemail = isVoicemail
         self.onNotice = onNotice
     }
 
-    // A call has no text to read, so nothing is enriched and nothing reported.
     func aiSettingsForTaskDraft() async -> CompanyAiSettings {
-        CompanyAiSettings(enrich_task_address: false, enrich_task_due: false)
+        let disabled = CompanyAiSettings(enrich_task_address: false, enrich_task_due: false)
+        guard isVoicemail else { return disabled }
+        return (try? await graph.api.get("/v1/company/ai-settings", companyId: companyId)) ?? disabled
     }
 
     func enrichTaskDraft(for message: Message) async -> TaskEnrichment { TaskEnrichment.empty }
 
-    func reportAiOutcome(feature: String, outcome: String) {}
+    func enrichVoicemailTaskDraft(callId: String) async -> TaskEnrichment {
+        await MessagingRepository(api: graph.api).enrichTask(
+            companyId: companyId, messageId: nil, conversationId: nil, text: "", sourceCallId: callId
+        )
+    }
+
+    func reportAiOutcome(feature: String, outcome: String) {
+        Task {
+            await MessagingRepository(api: graph.api).reportAiOutcome(
+                companyId: companyId, feature: feature, outcome: outcome
+            )
+        }
+    }
 
     func createTask(
         from source: TaskDraftSource,
@@ -204,7 +228,7 @@ final class CallTaskHost: TaskDraftHost {
         address: AddressFieldValues,
         provenance: String
     ) {
-        guard case .call(let callId, _) = source else { return }
+        guard case .call(let callId, _, let voicemail) = source else { return }
         let addressBody = taskAddressBody(address, provenance: provenance)
         let mutations = TaskMutations(api: graph.api)
         Task { [companyId, locale, onNotice] in
@@ -215,7 +239,8 @@ final class CallTaskHost: TaskDraftHost {
                     title: title,
                     assignedUserId: assignedUserId,
                     dueAt: dueAt,
-                    address: addressBody
+                    address: addressBody,
+                    description: voicemail?.description
                 )
                 onNotice(AppStrings.translate(locale, "thread.taskCreatedFromCall"), row.id)
             } catch {
@@ -243,6 +268,7 @@ struct CallTaskButton: View {
     let callerName: String
     var callId: String?
     var sessionId: String?
+    var voicemailDraft: VoicemailTaskDraft?
     /// #734: a menu item sets this true to start the same flow without the button
     /// being drawn; it is set back to false once the flow has started.
     var requested: Binding<Bool>?
@@ -277,7 +303,7 @@ struct CallTaskButton: View {
             if let host, let resolvedCallId {
                 MakeTaskSheet(
                     controller: host,
-                    source: .call(id: resolvedCallId, callerName: callerName),
+                    source: .call(id: resolvedCallId, callerName: callerName, voicemail: voicemailDraft),
                     contactName: callerName,
                     locale: appLocale,
                     onDismiss: { sheetOpen = false }
@@ -299,7 +325,7 @@ struct CallTaskButton: View {
             defer { loading = false }
             do {
                 let id: String
-                if let callId {
+                if let callId = voicemailDraft?.call_id ?? callId {
                     id = callId
                 } else if let sessionId {
                     let escaped = sessionId.addingPercentEncoding(
@@ -320,6 +346,7 @@ struct CallTaskButton: View {
                     members: page?.data ?? [],
                     meUserId: me.user_id,
                     locale: appLocale,
+                    isVoicemail: voicemailDraft != nil,
                     onNotice: { text, taskId in
                         notice = text
                         noticeTaskId = taskId

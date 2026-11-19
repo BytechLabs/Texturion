@@ -23,6 +23,24 @@ export interface VoicemailIntake {
   name: string | null;
 }
 
+export interface VoicemailTaskDraft {
+  call_id: string;
+  title: string | null;
+  description: string | null;
+}
+
+export function voicemailTaskDraft(
+  callId: string,
+  intake: VoicemailIntake | null | undefined,
+  transcript: string | null | undefined,
+): VoicemailTaskDraft {
+  return {
+    call_id: callId,
+    title: intake?.problem?.trim().slice(0, 500) || null,
+    description: transcript?.trim().slice(0, 5000) || null,
+  };
+}
+
 /** One rendered row. */
 export interface VoicemailIntakeLine {
   /** Stable key, so a client can style a row without matching on copy. */

@@ -307,6 +307,7 @@ export interface StoredVoicemail {
    * hide the audio.
    */
   transcript: string | null;
+  intake: VoicemailIntake | null;
 }
 
 /**
@@ -420,6 +421,7 @@ export async function storeVoicemailRecording(
     caller,
     seconds,
     transcript,
+    intake: intake.intake,
   };
 }
 
@@ -556,6 +558,7 @@ export function recoverStoredVoicemail(
   caller: string | null,
   voicemailSeconds: number | null,
   voicemailTranscript: string | null = null,
+  voicemailIntake: VoicemailIntake | null = null,
 ): StoredVoicemail {
   return {
     companyId: resolved.companyId,
@@ -566,6 +569,7 @@ export function recoverStoredVoicemail(
     // A replay reuses the transcript the first pass already paid for rather
     // than transcribing the same audio twice.
     transcript: voicemailTranscript,
+    intake: voicemailIntake,
   };
 }
 

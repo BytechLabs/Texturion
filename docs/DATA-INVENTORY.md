@@ -203,7 +203,7 @@ feature cannot ship undisclosed.
 |---|---|---|
 | **Telnyx** | Phone numbers, message content, call audio | They are the carrier. There is no texting without them |
 | **Supabase / AWS us-east-1** | Everything stored | Database, auth, file storage |
-| **Cloudflare** | Everything in transit and the Worker runtime. Workers AI also receives message threads (suggested replies and conversation catch-ups), message text (task details), voicemail audio (transcripts), voicemail transcripts (suggested replies and voicemail intake), and a crew member's own dictation after a call (call wrap-ups). Voicemail intake defaults to off. | Hosting and AI. Workers AI runs in the same account and network boundary. |
+| **Cloudflare** | Everything in transit and the Worker runtime. Workers AI also receives message threads (suggested replies and conversation catch-ups), message text (task details), voicemail audio (transcripts), voicemail transcripts (suggested replies, voicemail intake and job addresses), and a crew member's own dictation after a call (call wrap-ups). Voicemail intake defaults to off. | Hosting and AI. Workers AI runs in the same account and network boundary. |
 | **Stripe** | Billing identifiers, no card data held by us | Payments |
 | **Resend** | Email addresses and notification copy | Transactional email |
 | **Firebase Cloud Messaging** | Push tokens and notification payloads (sender name, message snippet) | Push to Android and iOS |
@@ -252,7 +252,7 @@ features, each opt-in per company and off by default:
 
 | Feature | Model | What is sent |
 |---|---|---|
-| Task address and due date (#214) | `@cf/meta/llama-3.2-1b-instruct` | The one message being promoted to a job |
+| Task address and due date (#214, #794) | `@cf/meta/llama-3.2-1b-instruct` | The message being promoted to a job. For a voicemail, the saved transcript and intake address are used to suggest the job address. |
 | Reply drafts | `@cf/meta/llama-3.1-8b-instruct-fast` | Up to 12 recent texts and live voicemail transcripts in that thread, plus the business description. Internal notes are excluded. |
 | Voicemail transcripts | `@cf/openai/whisper-large-v3-turbo` | The voicemail audio |
 

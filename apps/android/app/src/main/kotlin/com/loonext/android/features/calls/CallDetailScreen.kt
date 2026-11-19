@@ -42,6 +42,7 @@ import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.features.activity.ActivityRecordType
 import com.loonext.android.features.activity.ActivityTimeline
+import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.common.formatPhone
@@ -157,6 +158,7 @@ private fun CallDetailBody(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                     )
+                    VoicemailIntakeSummary(call.voicemail_intake)
                     if (transcript.muted) {
                         Text(
                             t(checkNotNull(transcript.key)),
@@ -173,6 +175,15 @@ private fun CallDetailBody(
                             sessionId = call.call_session_id,
                             seconds = call.voicemail_seconds ?: 0,
                             transcriptShown = true,
+                        )
+                    }
+                    if (call.voicemail_task != null && call.conversation_id != null) {
+                        CallTaskButton(
+                            graph = graph,
+                            companyId = companyId,
+                            conversationId = call.conversation_id,
+                            callerName = who,
+                            voicemailDraft = call.voicemail_task,
                         )
                     }
                 }

@@ -3139,6 +3139,8 @@ That is a re-read rather than a proof of exhaustiveness.
 
 ## D64 — a task promotes a source, and the source is a message OR a call (#356, amends D17)
 
+> Amended by D167. A voicemail with a live recording can anchor a task.
+
 **Decision.** Work can exist without a message. A task promotes a **source
 event**: a message (as today) or an **answered call**. `tasks.message_id` stops
 being `NOT NULL` and becomes one of exactly two anchors, enforced by a CHECK.
@@ -5055,6 +5057,8 @@ number the company has) and `read.notifications` (one watermark per person acros
 all numbers).
 
 ## D89 — the receptionist asks; it does not converse (#367/#397, extends D46, 2026-07-30)
+
+> D167 keeps voicemail intake opt-in and gives owners a setup link on the call log.
 
 > **SUPERSEDED IN PART, 2026-08-02, by #518.** The GREETING HALF below is
 > removed. Everything about the extraction half — depth (1) only, extraction
@@ -10629,3 +10633,20 @@ The input estimate is 19,500 characters. The 128-token output limit covers
 seven references, section keys and JSON whitespace. At the recorded Workers
 AI rates, the estimated upper bound is 0.0269 cents per request, rounded up to
 0.03 cents in the price model.
+
+## D167 - saved voicemails can become tasks and intake stays opt-in (#794)
+
+A threaded voicemail can be the source of one task while its recording is live.
+The task owns its completion state as in D64. The editor starts with the intake
+problem and transcript, and suggests the address through the workspace's
+existing opt-in address enrichment. The source is checked again when the task
+is saved, so an open draft cannot promote a recording that moved to Trash.
+
+Voicemail intake remains off by default for every workspace. It sends a caller's
+transcript for additional model processing and uses the workspace's AI allowance.
+Owners can find the opt-in from a voicemail row with no intake. Enabling it
+does not change the greeting.
+
+A saved voicemail updates the push for its conversation. If the same call
+already has an open on-call escalation, the update goes to that member subject
+to access and mute. The voicemail does not create an escalation.

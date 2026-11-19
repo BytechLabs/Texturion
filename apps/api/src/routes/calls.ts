@@ -18,7 +18,7 @@
  * and the #106 deny list still applies inside the SQL: a restricted member
  * cannot see a hidden number's calls by asking for the contact directly.
  */
-import { CALL_END_REASONS, CALL_ROUTINGS, emergencyOrServiceCode, stateMachines } from '@loonext/shared';
+import { CALL_END_REASONS, CALL_ROUTINGS, emergencyOrServiceCode, stateMachines, voicemailTaskDraft } from '@loonext/shared';
 import type { CallEndReason, CallRouting, MemberRole } from '@loonext/shared';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -249,7 +249,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
       .select(
         "id,call_session_id,caller_e164,contact_id,caller_name,phone_number_id," +
           "conversation_id,outcome,forward_seconds,screening_result,routing,ended_reason," +
-          "stir_attestation,voicemail_seconds,voicemail_transcript," +
+          "stir_attestation,voicemail_seconds,voicemail_transcript,voicemail_intake," +
           "voicemail_transcript_attempted_at,voicemail_path,voicemail_deleted_at," +
           "answered_by_user_id,state,answered_at,started_at,ended_at,direction," +
           "contacts(id,name,phone_e164)",
@@ -277,6 +277,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
   const { voicemail_path, voicemail_deleted_at, contacts, ...rest } = call;
   // #691: a voicemail in the Trash is a voicemail that is not there.
   const voicemailGone = voicemail_deleted_at != null;
+  const hasVoicemail = voicemail_path !== null && !voicemailGone;
   return c.json({
     ...rest,
     ...(voicemailGone
@@ -284,6 +285,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
           voicemail_seconds: null,
           voicemail_transcript: null,
           voicemail_transcript_attempted_at: null,
+          voicemail_intake: null,
         }
       : {}),
     contact_name: contacts?.name ?? null,
@@ -294,7 +296,10 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
     // The path itself never leaves the server — it is a storage key, and the
     // signed URL is minted by the voicemail endpoint on demand. What a client
     // needs to know is only whether there is anything to play.
-    has_voicemail: voicemail_path !== null && !voicemailGone,
+    has_voicemail: hasVoicemail,
+    voicemail_task: hasVoicemail && call.outcome === "voicemail" && call.conversation_id
+      ? voicemailTaskDraft(call.id, call.voicemail_intake, call.voicemail_transcript)
+      : null,
   });
 });
 

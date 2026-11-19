@@ -42,6 +42,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.TaskAddressInput
+import com.loonext.android.core.model.VoicemailTaskDraft
 import com.loonext.android.core.model.TaskSourceCall
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiErrorCode
@@ -113,6 +114,7 @@ fun CallTaskButton(
     modifier: Modifier = Modifier,
     callId: String? = null,
     sessionId: String? = null,
+    voicemailDraft: VoicemailTaskDraft? = null,
 ) {
     var open by remember(callId, sessionId) { mutableStateOf(false) }
     IconButton(onClick = { open = true }, modifier = modifier.size(48.dp)) {
@@ -131,6 +133,7 @@ fun CallTaskButton(
             callerName = callerName,
             callId = callId,
             sessionId = sessionId,
+            voicemailDraft = voicemailDraft,
             onDismiss = { open = false },
         )
     }
@@ -145,6 +148,7 @@ internal fun CallTaskSheetHost(
     callId: String?,
     sessionId: String?,
     onDismiss: () -> Unit,
+    voicemailDraft: VoicemailTaskDraft? = null,
 ) {
     val context = LocalContext.current
     val locale = LocalAppLocale.current
@@ -167,12 +171,12 @@ internal fun CallTaskSheetHost(
         companyId = companyId,
         conversationId = conversationId,
         callTitle = AppStrings.translate(locale, "thread.callTaskTitle", mapOf("name" to callerName)),
-        onCreate = { title, assignedUserId, dueAtIso, address: TaskAddressInput? ->
-            onDismiss()
+        voicemailDraft = voicemailDraft,
+        onCreate = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, description ->
             scope.launch {
                 var createdId: String? = null
                 val notice = try {
-                    val id = callId
+                    val id = voicemailDraft?.call_id ?: callId
                         ?: graph.api.get<CallIdRef>(
                             "/v1/calls/${java.net.URLEncoder.encode(sessionId.orEmpty(), "UTF-8")}",
                             companyId = companyId,
@@ -184,6 +188,7 @@ internal fun CallTaskSheetHost(
                         dueAt = dueAtIso,
                         address = address,
                         sourceCallId = id,
+                        description = description,
                     )
                     createdId = created.id
                     say("thread.taskCreatedFromCall")
@@ -206,6 +211,7 @@ internal fun CallTaskSheetHost(
                 } else {
                     Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
                 }
+                onDismiss()
             }
         },
         onDismiss = onDismiss,

@@ -12,6 +12,7 @@ import type { Locale } from "@loonext/shared";
 import type { ConversationEvent,ConversationStatus } from "@/lib/api/types";
 
 import { MakeCallTask } from "@/components/calls/make-call-task";
+import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { statusInSentence } from "@/components/inbox/status-pill";
@@ -402,7 +403,17 @@ export function SystemLine({
         : null;
     return (
       <div className="space-y-1.5 py-1 text-center">
-        <p className="text-xs text-muted-foreground">{sentence}</p>
+        <p className="text-xs text-muted-foreground">
+          {sentence}
+          {event.voicemail_task && (
+            <MakeCallTask
+              voicemailDraft={event.voicemail_task}
+              conversationId={event.conversation_id}
+              callerName={typeof event.payload.caller === "string" ? event.payload.caller : t("shell.unknownCaller")}
+              className="ml-1 inline-grid size-6 align-middle"
+            />
+          )}
+        </p>
         <div className="flex justify-center">
           <VoicemailPlayer
             callSessionId={voicemailSession}
@@ -412,6 +423,7 @@ export function SystemLine({
             showTranscript={!transcript}
           />
         </div>
+        <VoicemailIntakeSummary intake={event.voicemail_intake} className="mx-auto w-fit text-left" />
         {/* The words, right where the message is. Without them the line only
             says a voicemail exists, which still leaves the reader having to
             stop and play it. */}

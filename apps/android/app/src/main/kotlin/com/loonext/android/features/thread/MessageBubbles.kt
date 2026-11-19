@@ -87,6 +87,8 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
 import com.loonext.android.core.model.sendFailureMessage
+import com.loonext.android.core.model.VoicemailIntake
+import com.loonext.android.features.calls.VoicemailIntakeSummary
 import com.loonext.android.features.compose.MmsKind
 import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
@@ -642,6 +644,7 @@ fun EventLine(
     eventType: String? = null,
     /** A transcribed voicemail's words, shown under the line. Null otherwise. */
     transcript: String? = null,
+    voicemailIntake: VoicemailIntake? = null,
     /** Where this line goes, if anywhere. Null leaves the row inert. */
     onClick: (() -> Unit)? = null,
     /** Read out in place of the bare sentence, so the target is spoken too. */
@@ -704,6 +707,7 @@ fun EventLine(
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            VoicemailIntakeSummary(voicemailIntake)
             // The voicemail's words, right where the message is. Without them
             // this line only says a voicemail exists, which still leaves the
             // reader having to go and play it.

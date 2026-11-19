@@ -38,6 +38,8 @@ function buildWorld(
     members?: { user_id: string; role: string }[];
     notificationPrefs?: Record<string, unknown>[];
     assignedUserId?: string | null;
+    includeContent?: boolean;
+    openAlertUserId?: string;
     /** #694: per-conversation mute and follow rows. */
     memberPrefs?: {
       user_id: string;
@@ -79,6 +81,12 @@ function buildWorld(
   );
   sb.on("GET", "/rest/v1/notification_prefs", () => options.notificationPrefs ?? []);
   sb.on("GET", "/rest/v1/conversation_member_prefs", () => options.memberPrefs ?? []);
+  sb.on("GET", "/rest/v1/alert_escalations", () => options.openAlertUserId
+    ? [{ id: "alert-1", on_call_user_id: options.openAlertUserId }]
+    : []);
+  sb.on("GET", "/rest/v1/companies", (call) => call.url.searchParams.get("select")?.includes("push_include_content")
+    ? [{ push_include_content: options.includeContent ?? true }]
+    : undefined);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, (call) => {
     const userId = call.path.split("/").pop();
@@ -103,6 +111,15 @@ const INPUT = {
   textStatus: "sent",
 } as const;
 
+const VOICEMAIL = {
+  companyId: COMPANY_ID,
+  conversationId: CONVERSATION_ID,
+  callSessionId: INPUT.callSessionId,
+  seconds: 35,
+  transcript: null,
+  intake: null,
+};
+
 it("uses the saved voicemail preference without sending a missed-call page", async () => {
   const { sb, routes } = buildWorld({
     notificationPrefs: [{
@@ -114,12 +131,92 @@ it("uses the saved voicemail preference without sending a missed-call page", asy
   sb.on("POST", "/rest/v1/pending_notifications", () => []);
   stubFetch(...routes);
 
-  await notifyVoicemail(env, getDb(env), { companyId: COMPANY_ID, conversationId: CONVERSATION_ID });
+  await notifyVoicemail(env, getDb(env), VOICEMAIL);
 
   expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
   expect(sb.find("POST", "/rest/v1/pending_notifications")[0]?.body).toEqual([
     expect.objectContaining({ category: "voicemails", delivery_kind: "summary", conversation_id: CONVERSATION_ID }),
   ]);
+});
+
+describe("notifyVoicemail", () => {
+  const onCall = "20000000-aaaa-4000-8000-000000000002";
+  const members = [{ user_id: OWNER, role: "owner" }, { user_id: onCall, role: "member" }];
+  const intake = { problem: "No heat", address: "42 Elm St", callback: null, name: null };
+
+  it.each([
+    { includeContent: true, locale: "en", title: "Voicemail from Dana Smith", body: "No heat · 42 Elm St" },
+    { includeContent: false, locale: "fr-CA", title: "Message vocal de Dana Smith", body: "Ouvrez la conversation pour l’écouter." },
+  ])("uses the $locale preview for the member already on call", async ({ includeContent, locale, title, body }) => {
+    const { sb, routes } = buildWorld({ members, openAlertUserId: onCall, includeContent });
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: "vm-device", user_id: onCall, platform: "ios", token: "vm-token", locale },
+    ]);
+    const service = fcmService();
+    const pushEnv = fcmEnv(await makeServiceAccount());
+    stubFetch(...routes, ...service.routes);
+
+    await notifyVoicemail(pushEnv, getDb(pushEnv), { ...VOICEMAIL, intake, transcript: "Call my home about the furnace." });
+
+    expect(service.sends).toHaveLength(1);
+    const message = service.sends[0].message;
+    expect(message).toMatchObject({
+      data: { kind: "missed_call", alert_id: "alert-1", title, body },
+      apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
+    });
+    if (!includeContent) expect(JSON.stringify(message)).not.toContain("42 Elm St");
+    const lookup = sb.find("GET", "/rest/v1/alert_escalations")[0];
+    expect(lookup.url.searchParams.get("call_session_id")).toBe(`eq.${INPUT.callSessionId}`);
+    expect(lookup.url.searchParams.get("acknowledged_at")).toBe("is.null");
+    expect(sb.find("GET", "/rest/v1/device_push_tokens")[0].url.searchParams.get("user_id")).toBe(`in.(${onCall})`);
+    expect(sb.find("POST", "/rest/v1/alert_escalations")).toHaveLength(0);
+  });
+
+  it("honors a mute on the existing on-call alert without paging the rest of the crew", async () => {
+    const { sb, routes } = buildWorld({
+      members,
+      openAlertUserId: onCall,
+      memberPrefs: [{ user_id: onCall, muted: true, muted_until: null, followed: false }],
+    });
+    stubFetch(...routes);
+    await notifyVoicemail(env, getDb(env), VOICEMAIL);
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/alert_escalations")).toHaveLength(0);
+  });
+
+  it("falls back to the authorized audience if the on-call member loses number access", async () => {
+    const { sb, routes } = buildWorld({
+      members,
+      openAlertUserId: onCall,
+      phoneNumberId: "30000000-aaaa-4000-8000-000000000003",
+      accessRules: [
+        { user_id: OWNER, role: "owner", level: "text" },
+        { user_id: onCall, role: "member", level: "none" },
+      ],
+    });
+    stubFetch(...routes);
+
+    await notifyVoicemail(env, getDb(env), VOICEMAIL);
+
+    const [recipientLookup] = sb.find("GET", "/rest/v1/push_subscriptions");
+    expect(recipientLookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+    expect(sb.find("POST", "/rest/v1/alert_escalations")).toHaveLength(0);
+  });
+
+  it.each([
+    [null, "Voicemail · 35 s"],
+    ["🧰".repeat(141), "🧰".repeat(140)],
+  ])("falls back to the transcript or duration", async (transcript, body) => {
+    const { sb, routes } = buildWorld();
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: "vm-device", user_id: OWNER, platform: "android", token: "vm-token" },
+    ]);
+    const service = fcmService();
+    const pushEnv = fcmEnv(await makeServiceAccount());
+    stubFetch(...routes, ...service.routes);
+    await notifyVoicemail(pushEnv, getDb(pushEnv), { ...VOICEMAIL, transcript });
+    expect(service.sends[0].message).toMatchObject({ data: { body } });
+  });
 });
 
 describe("notifyMissedCall — push-only (D45)", () => {

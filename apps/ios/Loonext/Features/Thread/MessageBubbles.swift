@@ -583,12 +583,14 @@ struct EventLine: View {
     let timeIso: String
     /// A transcribed voicemail's words, shown under the line. Nil otherwise.
     var transcript: String?
+    var voicemailIntake: VoicemailIntake? = nil
     /// Where this line goes, if anywhere. Nil leaves the line inert.
     var onTap: (@MainActor () -> Void)?
     /// Read out in place of the bare sentence, so the target is spoken too.
     var tapLabel: String?
     /// An action beside the line, e.g. "Make a task" on an answered call (D64).
     var trailing: AnyView?
+    @Environment(\.appLocale) private var appLocale
 
     // `.underline` is a Text modifier and must be applied while this is still
     // a Text — after `.foregroundStyle` it no longer is.
@@ -616,6 +618,8 @@ struct EventLine: View {
                 }
                 if let trailing { trailing }
             }
+            let intake = voicemailIntake?.localisedLines(appLocale) ?? []
+            if !intake.isEmpty { VoicemailIntakeSummary(lines: intake) }
             // The voicemail's words, right where the message is. Without them
             // this line only says a voicemail exists, which still leaves the
             // reader having to go and play it.

@@ -47,6 +47,7 @@ data class Call(
      * judgement about urgency, and null whenever there is nothing to show.
      */
     val voicemail_intake: VoicemailIntake? = null,
+    val voicemail_task: VoicemailTaskDraft? = null,
     val answered_by_user_id: String? = null,
     /** #191: the acting member's resolved display name — the PLACER of an
      *  outbound call, the ANSWERER of an inbound one (both land in
@@ -89,6 +90,13 @@ data class VoicemailIntake(
     val address: String? = null,
     val callback: String? = null,
     val name: String? = null,
+)
+
+@Serializable
+data class VoicemailTaskDraft(
+    val call_id: String,
+    val title: String? = null,
+    val description: String? = null,
 )
 
 /** One rendered row: a stable key, the label, and the caller's words. */

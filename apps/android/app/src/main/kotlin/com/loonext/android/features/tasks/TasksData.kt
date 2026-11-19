@@ -470,12 +470,14 @@ class TaskMutations(private val api: ApiClient) {
         priority: String? = null,
         labelIds: List<String> = emptyList(),
         repeat: TaskRepeat? = null,
+        description: String? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
             if (messageId != null) put("message_id", messageId)
             if (sourceCallId != null) put("source_call_id", sourceCallId)
             if (title != null) put("title", title)
+            if (description != null) put("description", description)
             if (assigneeIds != null) {
                 putJsonArray("assignee_ids") { assigneeIds.forEach { add(it) } }
             } else if (assignedUserId != null) put("assigned_user_id", assignedUserId)

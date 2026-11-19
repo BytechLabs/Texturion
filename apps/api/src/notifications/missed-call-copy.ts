@@ -19,6 +19,7 @@ import type { Locale } from "@loonext/shared";
 interface MissedCallCopy {
   voicemailTitle(contactName: string): string;
   voicemailBody: string;
+  voicemailDuration(seconds: number): string;
   /**
    * Lock-screen title. `contactName` is the contact's own name, falling back to
    * their E.164 number — somebody else's word, passed straight through.
@@ -38,6 +39,7 @@ interface MissedCallCopy {
 const EN: MissedCallCopy = {
   voicemailTitle: (contactName) => `Voicemail from ${contactName}`,
   voicemailBody: "Open the conversation to listen.",
+  voicemailDuration: (seconds) => `Voicemail · ${seconds} s`,
   title: (contactName) => `Missed call from ${contactName}`,
   bodyTexted: "We texted them so they can book by reply.",
   bodyTextFailed: "Their text-back failed. Call them back.",
@@ -62,6 +64,7 @@ const EN: MissedCallCopy = {
 const FR_CA: MissedCallCopy = {
   voicemailTitle: (contactName) => `Message vocal de ${contactName}`,
   voicemailBody: "Ouvrez la conversation pour l’écouter.",
+  voicemailDuration: (seconds) => `Message vocal · ${seconds} s`,
   title: (contactName) => `Appel manqué de ${contactName}`,
   bodyTexted:
     "Nous leur avons envoyé un texto pour qu'ils puissent réserver en répondant.",

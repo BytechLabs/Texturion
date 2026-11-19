@@ -92,12 +92,14 @@ func taskCreateBody(
     repeatRule: JSONValue? = nil,
     /// #689 C: the whole crew. Wins over `assignedUserId`; an empty array means
     /// nobody (omitting both makes the creator the assignee).
-    assigneeIds: [String]? = nil
+    assigneeIds: [String]? = nil,
+    description: String? = nil
 ) -> JSONValue {
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
     if let sourceCallId { object["source_call_id"] = .string(sourceCallId) }
     if let title { object["title"] = .string(title) }
+    if let description { object["description"] = .string(description) }
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
     if let crew = taskAssigneesJSON(assigneeIds) { object["assignee_ids"] = crew }
     if let dueAt { object["due_at"] = .string(dueAt) }
@@ -498,7 +500,8 @@ struct TaskMutations: Sendable {
         title: String,
         assignedUserId: String?,
         dueAt: String?,
-        address: JSONValue? = nil
+        address: JSONValue? = nil,
+        description: String? = nil
     ) async throws -> TaskRowPatch {
         try await api.post(
             "/v1/tasks",
@@ -508,7 +511,8 @@ struct TaskMutations: Sendable {
                 assignedUserId: assignedUserId,
                 dueAt: dueAt,
                 address: address,
-                sourceCallId: callId
+                sourceCallId: callId,
+                description: description
             ),
             companyId: companyId
         )

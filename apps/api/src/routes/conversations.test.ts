@@ -1713,12 +1713,23 @@ describe("GET /v1/conversations/:id/events", () => {
       line("12121212-1111-4222-8333-444444444444", "gone"),
       line("13131313-1111-4222-8333-444444444444", "vm-gone", "voicemail"),
       line("14141414-1111-4222-8333-444444444444", "kept"),
+      line("15151515-1111-4222-8333-444444444444", "vm-kept", "voicemail"),
     ]);
     sb.on("GET", "/rest/v1/calls", (call) =>
       call.url.searchParams.get("select")?.includes("deleted_at")
         ? [
             { call_session_id: "gone", deleted_at: "2026-11-01T00:00:00Z", voicemail_deleted_at: null },
             { call_session_id: "vm-gone", deleted_at: null, voicemail_deleted_at: "2026-11-01T00:00:00Z" },
+            {
+              id: "07894d46-191b-4a1d-a09d-278894830000",
+              call_session_id: "vm-kept",
+              deleted_at: null,
+              voicemail_deleted_at: null,
+              outcome: "voicemail",
+              voicemail_path: "private.mp3",
+              voicemail_transcript: "  There is no heat.  ",
+              voicemail_intake: { problem: " No heat ", address: "42 Elm St", name: null, callback: null },
+            },
           ]
         : [],
     );
@@ -1733,7 +1744,17 @@ describe("GET /v1/conversations/:id/events", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { payload: { call_session_id: string } }[] };
-    expect(body.data.map((row) => row.payload.call_session_id)).toEqual(["kept"]);
+    expect(body.data.map((row) => row.payload.call_session_id)).toEqual(["kept", "vm-kept"]);
+    expect(body.data[0]).not.toHaveProperty("voicemail_task");
+    expect(body.data[1]).toMatchObject({
+      voicemail_intake: { address: "42 Elm St" },
+      voicemail_task: {
+        call_id: "07894d46-191b-4a1d-a09d-278894830000",
+        title: "No heat",
+        description: "There is no heat.",
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("private.mp3");
   });
 
   it("still serves the thread when the answerer lookup fails", async () => {

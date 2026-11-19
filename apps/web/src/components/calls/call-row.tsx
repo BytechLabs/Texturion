@@ -39,6 +39,9 @@ import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import type { Call } from "@/lib/api/types";
+import { hasVoicemailIntake } from "@loonext/shared";
+import { useAiSettings } from "@/lib/api/ai-settings";
+import { useActiveCompany } from "@/lib/company/provider";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { RecordContextMenu } from "@/components/ui/record-menu";
@@ -195,6 +198,7 @@ export function CallRow({ call }: { call: Call }) {
               intake={call.voicemail_intake}
               className="mt-1.5"
             />
+            {!hasVoicemailIntake(call.voicemail_intake) && <VoicemailIntakeSetup />}
             {/* What it says, for the times playing it is not an option: on a
                 roof, in a truck, next to a running compressor. The player
                 stays: the recording is the record, this is the shortcut. */}
@@ -240,6 +244,18 @@ export function CallRow({ call }: { call: Call }) {
         {body}
       </div>
     </RecordContextMenu>
+  );
+}
+
+function VoicemailIntakeSetup() {
+  const t = useT();
+  const { role } = useActiveCompany();
+  const settings = useAiSettings(role === "owner");
+  if (role !== "owner" || settings.data?.voicemail_intake !== false) return null;
+  return (
+    <Link href="/settings/ai#ai-intake" className="inline-flex min-h-8 items-center text-xs font-medium text-primary underline">
+      {t("appShell.aiIntakeLabel")}
+    </Link>
   );
 }
 

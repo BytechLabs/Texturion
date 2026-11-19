@@ -1,6 +1,7 @@
 "use client";
 
 import { ListPlus } from "lucide-react";
+import type { VoicemailTaskDraft } from "@loonext/shared";
 import { useState } from "react";
 
 import { MakeTaskDialogContent, MakeTaskForm } from "@/components/thread/make-task-form";
@@ -9,24 +10,13 @@ import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
 import { cn } from "@/lib/utils";
 
-/**
- * D64: "Make a task" on an answered call. A job agreed on the phone is the most
- * common way work is booked, and until now only a text could become a task.
- *
- * One quiet icon button that opens the same prefilled form a message uses
- * (title seeded with who rang), so the call log, the contact's history and the
- * thread's call line all offer the identical act. The caller renders this only
- * for an answered call that has a conversation: the server refuses any other.
- *
- * The call log knows the call's id. The thread's call line carries only the
- * carrier session id (its event payload predates tasks), so it passes that and
- * the id is read when the form is opened, not once per line in a long thread.
- */
+/** Answered call lines resolve their call ID when the editor opens. */
 export function MakeCallTask({
   callId,
   sessionId,
   conversationId,
   callerName,
+  voicemailDraft,
   className,
   trigger,
   open: controlledOpen,
@@ -36,6 +26,7 @@ export function MakeCallTask({
   sessionId?: string;
   conversationId: string;
   callerName: string;
+  voicemailDraft?: VoicemailTaskDraft;
   className?: string;
   /** #734: a trigger of the caller's own, so it matches the row it sits in. */
   trigger?: React.ReactNode;
@@ -71,7 +62,17 @@ export function MakeCallTask({
         </DialogTrigger>
       )}
       <MakeTaskDialogContent>
-        {callId === undefined ? (sessionId === undefined ? null : (
+        {voicemailDraft ? (
+          <MakeTaskForm
+            call={{
+              id: voicemailDraft.call_id,
+              title: voicemailDraft.title ?? t("thread.callTaskTitle", { name: callerName }),
+              voicemailDescription: voicemailDraft.description,
+            }}
+            conversationId={conversationId}
+            onDone={() => setOpen(false)}
+          />
+        ) : callId === undefined ? (sessionId === undefined ? null : (
           <FormForSession
             sessionId={sessionId}
             conversationId={conversationId}

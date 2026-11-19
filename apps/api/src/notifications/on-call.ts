@@ -71,6 +71,7 @@ export async function routeAfterHoursAlert(
     phoneNumberId: string | null;
     /** What woke somebody: 'missed_call', 'emergency', 'poor_rating'… */
     kind: string;
+    callSessionId?: string;
     audience: string[];
     now?: Date;
   },
@@ -154,6 +155,7 @@ export async function routeAfterHoursAlert(
       company_id: input.companyId,
       conversation_id: input.conversationId,
       kind: input.kind,
+      ...(input.callSessionId ? { call_session_id: input.callSessionId } : {}),
       on_call_user_id: onCall,
       escalate_at: new Date(
         now.getTime() + company.on_call_escalate_after_minutes * 60_000,
@@ -174,4 +176,25 @@ export async function routeAfterHoursAlert(
   }
 
   return { userIds: [onCall], alertId, reason: "narrowed" };
+}
+
+export async function findOpenMissedCallAlert(
+  db: SupabaseClient,
+  input: { companyId: string; conversationId: string; callSessionId: string },
+): Promise<{ id: string; on_call_user_id: string } | null> {
+  const { data, error } = await db
+    .from("alert_escalations")
+    .select("id,on_call_user_id")
+    .eq("company_id", input.companyId)
+    .eq("conversation_id", input.conversationId)
+    .eq("kind", "missed_call")
+    .eq("call_session_id", input.callSessionId)
+    .is("acknowledged_at", null)
+    .is("escalated_at", null)
+    .not("escalate_at", "is", null)
+    .not("on_call_user_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) console.error(`open missed-call alert lookup failed: ${error.message}`);
+  return data?.[0] ?? null;
 }
