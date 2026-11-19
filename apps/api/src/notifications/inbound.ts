@@ -14,7 +14,7 @@
  * per notification_prefs: a missing row reads as the §6 defaults (true/true).
  * Spam threads never reach here (the RPC reports notify=false for them).
  *
- * CHANNELS: one Resend email to every email-enabled recipient, and one Web
+ * CHANNELS: Resend emails grouped by recipient language, and one Web
  * Push per stored subscription of every push-enabled recipient (payload:
  * contact display name + 80-char snippet + deep link, §8). 404/410 from a
  * push service deletes the dead subscription row.
@@ -23,6 +23,7 @@
  * webhook ledger records last_error, and the sweeper's replay is safe — the
  * debounce stamp is already committed, so a replay re-sends nothing.
  */
+import { isLocale, NOTIFICATION_SETTING_DEFAULTS, resolveLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -41,9 +42,28 @@ import {
 import { deliverPush } from "./deliver";
 import type { PushDelivery } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
-import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 const SNIPPET_LENGTH = 80;
+
+const EMAIL_COPY: Record<Locale, {
+  subject: (name: string) => string;
+  introduction: string;
+  reply: string;
+  optOut: string;
+}> = {
+  en: {
+    subject: (name) => `New text from ${name}`,
+    introduction: "sent a new text:",
+    reply: "Reply in Loonext",
+    optOut: "Turn these alerts off",
+  },
+  "fr-CA": {
+    subject: (name) => `Nouveau texto de ${name}`,
+    introduction: "vous a envoyé un texto :",
+    reply: "Répondre dans Loonext",
+    optOut: "Désactiver ces alertes",
+  },
+};
 
 export interface InboundNotificationInput {
   companyId: string;
@@ -96,6 +116,7 @@ interface ConversationView {
   is_spam: boolean;
   phone_number_id: string | null;
   contacts: { name: string | null; phone_e164: string };
+  companies?: { locale: string | null } | null;
 }
 
 interface PrefsRow {
@@ -114,12 +135,6 @@ function unwrapRows<T>(
 
 /**
  * §8 snippet: first 80 chars of the text, or a media/message fallback.
- *
- * #228: the locale is REQUIRED rather than defaulted, because the two callers
- * want different answers — the push composes one per reader, and the email
- * below has no reader language to compose in and asks for English by name.
- * A default would have made the email's English look like an oversight and
- * let a future caller inherit it by accident.
  *
  * The customer's own words are never touched; only the two fallbacks are ours.
  */
@@ -148,7 +163,7 @@ export async function notifyInboundMessage(
     await db
       .from("conversations")
       .select(
-        "id,assigned_user_id,is_spam,phone_number_id,contacts(name,phone_e164)",
+        "id,assigned_user_id,is_spam,phone_number_id,contacts(name,phone_e164),companies(locale)",
       )
       .eq("company_id", input.companyId)
       .eq("id", input.conversationId)
@@ -223,11 +238,7 @@ export async function notifyInboundMessage(
   const emailUsers = (input.allowEmail ?? true)
     ? audience
         .filter((userId) => prefs.get(userId)?.email_enabled ?? NOTIFICATION_SETTING_DEFAULTS.email_enabled.value)
-        // The claim is ONE Resend call carrying every recipient, so this bound
-        // is what keeps the per-claim cost from scaling with crew size — see
-        // the derivation on PLAN_NOTIFY_LIMITS. Push below is unbounded and
-        // still reaches everyone; an inbound text does not need fifteen
-        // inboxes to hear about it.
+        // Apply the recipient cap across all languages for this claim.
         .slice(0, MAX_EMAIL_RECIPIENTS_PER_CLAIM)
     : [];
   const pushUsers = (input.allowPush ?? true)
@@ -243,24 +254,10 @@ export async function notifyInboundMessage(
   // alert usable and a private copy of it is a copy that can lose it.
   const contactName = contactDisplayName(conversation.contacts);
   const writers = new Set(viewers.filter(canTextConversation).map(({ user_id }) => user_id));
-  // #228: the email is composed once, in English, because this channel has no
-  // reader language to compose in — an address in auth.users is not a person
-  // whose `profiles.locale` we have resolved, and #228 types only the push
-  // payload as a function of Locale. Asking for "en" by name keeps that a
-  // stated decision rather than a default nobody chose.
-  const emailSnippet = notificationSnippet(input.body, input.mediaCount, "en");
-  // #414: the first line has to say WHAT this is before it says who it is
-  // from — a phone on a bedside table shows one line. The push title and the
-  // email subject were never the same string and must not become the same
-  // string: the push has always led with the contact name, and only the
-  // emergency prefix is new.
   const pushTitle = (locale: Locale): string =>
     input.emergency
       ? THREAD_PUSH_COPY[locale].emergencyTitle(contactName)
       : contactName;
-  const emailSubject = input.emergency
-    ? `EMERGENCY — ${contactName}`
-    : `New text from ${contactName}`;
   // The web thread route is /inbox/[conversationId]; a /conversations/:id
   // email link would 404 (only the service worker's push normalizer knows the
   // legacy shape).
@@ -268,21 +265,20 @@ export async function notifyInboundMessage(
 
   const failures: unknown[] = [];
 
-  // EMAIL — addresses live in auth.users (GoTrue admin API, same credential
-  // path as everywhere else); one email to all enabled recipients.
   const notifyEmail = async () => {
     if (emailUsers.length === 0) return;
     try {
-      // Resolve every recipient's email in ONE parallel fan-out — a serial loop
-      // added a GoTrue round-trip per member to the inbound webhook's latency.
-      // Promise.all preserves order, so `to` stays deterministic.
-      const lookups = await Promise.all(
-        emailUsers.map(async (userId) => ({
+      const [lookups, profiles] = await Promise.all([
+        Promise.all(emailUsers.map(async (userId) => ({
           userId,
           result: await db.auth.admin.getUserById(userId),
-        })),
-      );
-      const to: string[] = [];
+        }))),
+        db.from("profiles").select("user_id,locale").in("user_id", emailUsers),
+      ]);
+      if (profiles.error) failures.push(new Error(`notification email locales: ${profiles.error.message}`));
+      const preferences = new Map((profiles.data ?? []).map((profile) => [profile.user_id, profile.locale]));
+      const groups = new Map<Locale, string[]>();
+      const workspaceLocale = conversation.companies?.locale;
       for (const { userId, result } of lookups) {
         if (result.error) {
           // One member's lookup failing must NOT drop the email for the whole
@@ -295,32 +291,46 @@ export async function notifyInboundMessage(
           );
           continue;
         }
-        if (result.data.user?.email) to.push(result.data.user.email);
+        const { user } = result.data;
+        if (!user?.email) continue;
+        const savedLocale: unknown = user.user_metadata?.locale;
+        const locale = resolveLocale(preferences.get(userId), isLocale(savedLocale) ? savedLocale : workspaceLocale);
+        const recipients = groups.get(locale) ?? [];
+        recipients.push(user.email);
+        groups.set(locale, recipients);
       }
-      if (to.length > 0) {
-        if (startDelivery && !(await startDelivery())) return;
-        // Recurring notification email: carry an opt-out path (settings
-        // footer + List-Unsubscribe header) so recipients can stop the
-        // stream without marking it spam. Billing/operational alerts do NOT
-        // get this — they are not optional.
-        const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
+      if (groups.size === 0) return;
+      if (startDelivery && !(await startDelivery())) return;
+      // The settings link lets recipients stop recurring alerts without reporting spam.
+      const settingsUrl = `${env.APP_ORIGIN}/settings/notifications`;
+      const sends = await Promise.allSettled(Array.from(groups, async ([locale, to]) => {
+        const copy = EMAIL_COPY[locale];
+        const emailSnippet = notificationSnippet(input.body, input.mediaCount, locale);
+        const subject = input.emergency
+          ? THREAD_PUSH_COPY[locale].emergencyTitle(contactName)
+          : copy.subject(contactName);
         const text =
-          `${contactName} sent a new text:\n\n` +
+          `${contactName} ${copy.introduction}\n\n` +
           `"${emailSnippet}"\n\n` +
-          `Reply in Loonext: ${link}\n\n` +
-          `Turn these alerts off: ${settingsUrl}\n`;
+          `${copy.reply}: ${link}\n\n` +
+          `${copy.optOut}: ${settingsUrl}\n`;
         await sendEmail(env, {
           to,
-          subject: emailSubject,
+          subject,
           text,
+          locale,
           html: emailLayout(
-            `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
+            `<p><strong>${escapeHtml(contactName)}</strong> ${escapeHtml(copy.introduction)}</p>` +
               `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${escapeHtml(emailSnippet)}</blockquote>` +
-              `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Reply in Loonext</a></p>` +
-              `<p style="font-size:14px;color:#6E7163;"><a href="${settingsUrl}" style="color:#6E7163;">Turn these alerts off</a></p>`,
+              `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">${escapeHtml(copy.reply)}</a></p>` +
+              `<p style="font-size:14px;color:#6E7163;"><a href="${settingsUrl}" style="color:#6E7163;">${escapeHtml(copy.optOut)}</a></p>`,
+            locale,
           ),
           headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
+      }));
+      for (const result of sends) {
+        if (result.status === "rejected") failures.push(result.reason);
       }
     } catch (error) {
       failures.push(error);

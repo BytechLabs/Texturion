@@ -56,6 +56,8 @@ function buildWorld(options: {
    */
   numberLevels?: { user_id: string; role: string; level: string }[];
   prefs?: { user_id: string; email_enabled: boolean; push_enabled: boolean }[];
+  companyLocale?: "en" | "fr-CA";
+  userLocales?: Record<string, "en" | "fr-CA">;
   /** #694: the mute lookup itself fails. */
   memberPrefsFail?: boolean;
   /** #694: per-conversation mute and follow rows. */
@@ -82,6 +84,7 @@ function buildWorld(options: {
       is_spam: options.isSpam ?? false,
       phone_number_id: NUMBER_ID,
       contacts: { name: "Dana Smith", phone_e164: "+16135551000" },
+      companies: { locale: options.companyLocale ?? null },
     },
   ]);
   sb.on("GET", "/rest/v1/company_members", () =>
@@ -100,6 +103,9 @@ function buildWorld(options: {
     }));
   });
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
+  sb.on("GET", "/rest/v1/profiles", () =>
+    Object.entries(options.userLocales ?? {}).map(([user_id, locale]) => ({ user_id, locale })),
+  );
   sb.on("GET", "/rest/v1/conversation_member_prefs", () =>
     options.memberPrefsFail
       ? Response.json({ message: "boom" }, { status: 500 })
@@ -234,6 +240,31 @@ describe("notifyInboundMessage (§8)", () => {
     expect(email.text).toContain(
       `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
     );
+  });
+
+  it("groups new-text emails by the member's language with a workspace fallback", async () => {
+    const world = buildWorld({ companyLocale: "fr-CA", userLocales: { [MEMBER]: "en" } });
+    stubFetch(...world.routes);
+    const beforeSend = vi.fn().mockResolvedValue(true);
+
+    await notifyInboundMessage(env, { ...INPUT, body: "", mediaCount: 1, beforeSend });
+
+    expect(beforeSend).toHaveBeenCalledOnce();
+    expect(world.resend.calls).toHaveLength(2);
+    expect(world.resend.calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        to: [`${OWNER}@team.example`],
+        subject: "Nouveau texto de Dana Smith",
+        text: expect.stringContaining("A envoyé une pièce jointe"),
+        html: expect.stringContaining('<html lang="fr-CA">'),
+      }),
+      expect.objectContaining({
+        to: [`${MEMBER}@team.example`],
+        subject: "New text from Dana Smith",
+        text: expect.stringContaining("Sent an attachment"),
+        html: expect.stringContaining('<html lang="en">'),
+      }),
+    ]));
   });
 
   it("carries the opt-out footer and List-Unsubscribe header (recurring alert)", async () => {
