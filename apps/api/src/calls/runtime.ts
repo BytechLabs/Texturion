@@ -248,6 +248,7 @@ export interface SessionRuntime {
     machine: SessionMachine,
     outcome: "answered" | "voicemail" | "missed",
     briAnsweredAtIso: string | null,
+    endedAtMs: number,
   ): Promise<void>;
   voicemailPipeline(payload: Record<string, unknown>): Promise<void>;
   deferVoicemailRecording(payload: Record<string, unknown>): Promise<void>;
@@ -1296,18 +1297,18 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       await handleTerminalCallEvent(env, db, "call.hangup", payload, opts);
     },
 
-    async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso) {
+    async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso, endedAtMs) {
       // Outcome + window merge via the convergent RPC (same one the event
       // path uses), then thread + MCTB for the missed path — the delegates
       // are all claim-guarded/idempotent, so a replay never double-texts.
-      const endedAtIso = new Date().toISOString();
+      const endedAtIso = new Date(endedAtMs).toISOString();
       let forwardSeconds = 0;
       if (outcome === "answered" && briAnsweredAtIso) {
         const anchorMs = Date.parse(briAnsweredAtIso);
         if (Number.isFinite(anchorMs)) {
           forwardSeconds = Math.max(
             0,
-            Math.round((Date.now() - anchorMs) / 1000),
+            Math.round((endedAtMs - anchorMs) / 1000),
           );
         }
       }

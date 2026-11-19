@@ -76,6 +76,7 @@ interface JournalHead {
   event: SessionEvent;
   effects: Effect[] | null;
   cursor: number;
+  failedAttempts?: number;
 }
 
 /** §4.1 journal: covers the WHOLE cascade from one admitted external event —
@@ -101,9 +102,21 @@ interface VoicemailJob {
   attempts: number;
 }
 
+type TerminalMergeEffect = Extract<Effect, { kind: "terminal-merge" }>;
+
+interface TerminalMergeJob {
+  effect: TerminalMergeEffect;
+  machine: SessionMachine;
+  endedAtMs: number;
+  attempts: number;
+}
+
 const SEEN_CAP = 256;
+const MAX_EFFECT_ATTEMPTS = 3;
 const MAX_MIRROR_ATTEMPTS = 12;
 const MIRROR_RETRY_MS = 3000;
+const MAX_TERMINAL_MERGE_ATTEMPTS = 10;
+const TERMINAL_MERGE_RETRY_MS = 30_000;
 /** Ten tries 30s apart end inside Telnyx's 10-minute recording link. */
 const MAX_VOICEMAIL_ATTEMPTS = 10;
 const VOICEMAIL_RETRY_MS = 30_000;
@@ -131,11 +144,12 @@ function callPayload(event: TelnyxEvent): CallPayload | undefined {
 }
 
 /** Alarm bucket keys — the reducer's AlarmKind plus the shell-owned ones. */
-type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry" | "voicemail";
+type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry" | "terminal-merge" | "voicemail";
 
 export class CallSessionDO extends DurableObject<Env> {
   private queue: Promise<unknown> = Promise.resolve();
   private _runtime: SessionRuntime | undefined;
+  private terminalMergeRun: Promise<void> | null = null;
   /** The voicemail run in this isolate, if one is going. */
   private voicemailRun: Promise<void> | null = null;
 
@@ -184,7 +198,7 @@ export class CallSessionDO extends DurableObject<Env> {
   }
 
   /**
-   * Resolves when the FIFO has nothing left to do.
+   * Waits for the FIFO and any current terminal merge or voicemail run.
    *
    * #617 made the webhook ACK and the effect cascade two different promises,
    * so "the event was accepted" and "the work it caused has finished" stopped
@@ -202,11 +216,8 @@ export class CallSessionDO extends DurableObject<Env> {
     // moves the tail, and one await would settle against the old one.
     await this.queue;
     await this.queue;
-    // A voicemail runs beside the FIFO and settles back through it.
-    if (this.voicemailRun) {
-      await this.voicemailRun;
-      await this.queue;
-    }
+    await Promise.all([this.voicemailRun, this.terminalMergeRun]);
+    await this.queue;
   }
   // ---- RPC surface (§7.1) -------------------------------------------------
 
@@ -380,10 +391,8 @@ export class CallSessionDO extends DurableObject<Env> {
     });
   }
 
-  async snapshot(sessionId?: string): Promise<SessionSnapshot | null> {
+  async snapshot(_sessionId?: string): Promise<SessionSnapshot | null> {
     return this.enqueue(async () => {
-      if (sessionId) await this.rememberSessionId(sessionId);
-      await this.resumeJournalIfAny();
       const machine = await this.load();
       if (!machine) return null;
       return {
@@ -678,6 +687,7 @@ export class CallSessionDO extends DurableObject<Env> {
       const order: AlarmSlot[] = [
         "journal-resume",
         "mirror-retry",
+        "terminal-merge",
         "voicemail",
         "fanout-settle",
         "intent-expiry",
@@ -709,6 +719,12 @@ export class CallSessionDO extends DurableObject<Env> {
     }
     if (slot === "mirror-retry") {
       await this.retryPendingMirror();
+      return;
+    }
+    if (slot === "terminal-merge") {
+      if ((await this.getTerminalMergeJobs()).length === 0) return;
+      await this.setAlarmSlot("terminal-merge", Date.now() + TERMINAL_MERGE_RETRY_MS);
+      this.runTerminalMerges();
       return;
     }
     if (slot === "voicemail") {
@@ -881,9 +897,22 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       while (head.cursor < head.effects.length) {
         const effect = head.effects[head.cursor];
-        const followUps = await this.execute(effect);
+        if (effect.kind === "terminal-merge") {
+          await this.deferTerminalMerge(effect, journal, head);
+          continue;
+        }
+        try {
+          journal.rest.push(...await this.execute(effect));
+        } catch (error) {
+          head.failedAttempts = (head.failedAttempts ?? 0) + 1;
+          if (head.failedAttempts < MAX_EFFECT_ATTEMPTS) {
+            await this.putJournal(journal);
+            throw error;
+          }
+          this.rt.reportError(new Error(`calls-v3 ${effect.kind} effect exhausted`, { cause: error }));
+        }
         head.cursor += 1;
-        for (const followUp of followUps) journal.rest.push(followUp);
+        delete head.failedAttempts;
         await this.putJournal(journal);
       }
       const nextEvent = journal.rest.shift();
@@ -943,7 +972,7 @@ export class CallSessionDO extends DurableObject<Env> {
   //
   // Returns any internal follow-up SessionEvents whose OUTCOMES must re-enter
   // the reducer (answer/vm-answer/dial outcomes, probe, settle).
-  private async execute(effect: Effect): Promise<SessionEvent[]> {
+  private async execute(effect: Exclude<Effect, TerminalMergeEffect>): Promise<SessionEvent[]> {
     const machine = await this.load();
     switch (effect.kind) {
       case "mirror": {
@@ -1249,29 +1278,6 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       case "thread-at-answer": {
         if (machine) await this.rt.threadAtAnswer(machine);
-        return [];
-      }
-      case "terminal-merge": {
-        if (!machine) return [];
-        if (effect.mode === "event" && effect.payload) {
-          // #211 M1: for outbound, the raw hangup keys on Telnyx's T, but the
-          // calls row is under S — so carry S as an explicit session-id override
-          // (propagates to the existence check, upsert, thread, recordCallDuration)
-          // AND machine.answeredAtIso as the talk-time anchor (bills mirror-
-          // independently even if the answered_at mirror never landed). Inbound
-          // passes no opts → byte-identical to today.
-          await this.rt.terminalMergeEvent(
-            effect.payload,
-            machine.direction === "outbound"
-              ? {
-                  outboundSessionId: machine.callSessionId,
-                  outboundAnsweredAtIso: effect.briAnsweredAtIso,
-                }
-              : undefined,
-          );
-          return [];
-        }
-        await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
         return [];
       }
       case "voicemail-pipeline": {
@@ -1826,6 +1832,77 @@ export class CallSessionDO extends DurableObject<Env> {
     await this.ctx.storage.put("sessionId", sessionId);
   }
 
+  private async deferTerminalMerge(
+    effect: TerminalMergeEffect,
+    journal: Journal,
+    head: JournalHead,
+  ): Promise<void> {
+    const machine = await this.load();
+    head.cursor += 1;
+    delete head.failedAttempts;
+    if (!machine) {
+      await this.putJournal(journal);
+      return;
+    }
+    const jobs = await this.getTerminalMergeJobs();
+    if (jobs.length === 0) {
+      await this.setAlarmSlot("terminal-merge", Date.now() + TERMINAL_MERGE_RETRY_MS);
+    }
+    jobs.push({ effect, machine, endedAtMs: Date.now(), attempts: 0 });
+    // The cursor and job commit together so replay cannot enqueue a duplicate.
+    await this.ctx.storage.put({ journal, terminalMerges: jobs });
+    if (jobs.length === 1) this.runTerminalMerges();
+  }
+
+  private runTerminalMerges(): void {
+    if (this.terminalMergeRun) return;
+    this.terminalMergeRun = this.attemptTerminalMerges()
+      .catch((error: unknown) => this.rt.reportError(error))
+      .finally(() => {
+        this.terminalMergeRun = null;
+      });
+    this.keepAlive(this.terminalMergeRun);
+  }
+
+  private async attemptTerminalMerges(): Promise<void> {
+    let job = (await this.getTerminalMergeJobs()).at(0);
+    while (job) {
+      const { effect, machine } = job;
+      try {
+        const opts = machine.direction === "outbound"
+          ? { outboundSessionId: machine.callSessionId, outboundAnsweredAtIso: effect.briAnsweredAtIso }
+          : undefined;
+        await (effect.mode === "event" && effect.payload
+          ? this.rt.terminalMergeEvent(effect.payload, opts)
+          : this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso, job.endedAtMs));
+      } catch (error) {
+        if (job.attempts + 1 < MAX_TERMINAL_MERGE_ATTEMPTS) {
+          await this.enqueue(async () => {
+            const jobs = await this.getTerminalMergeJobs();
+            const [first] = jobs;
+            if (!first) return;
+            first.attempts += 1;
+            await this.ctx.storage.put("terminalMerges", jobs);
+            await this.setAlarmSlot("terminal-merge", Date.now() + TERMINAL_MERGE_RETRY_MS);
+          });
+          return;
+        }
+        this.rt.reportError(new Error(`calls-v3 terminal merge exhausted for ${machine.callSessionId}`, { cause: error }));
+      }
+      job = await this.enqueue(async () => {
+        const [finished, ...rest] = await this.getTerminalMergeJobs();
+        if (!finished) return undefined;
+        if (rest.length > 0) {
+          await this.ctx.storage.put("terminalMerges", rest);
+        } else {
+          await this.ctx.storage.delete("terminalMerges");
+          await this.clearAlarmSlot("terminal-merge");
+        }
+        return rest[0];
+      });
+    }
+  }
+
   // ---- Voicemail, beside the FIFO -----------------------------------------
   //
   // Storing a voicemail takes seconds: the audio is fetched and uploaded, then
@@ -1975,6 +2052,10 @@ export class CallSessionDO extends DurableObject<Env> {
 
   private async getVoicemailJob(): Promise<VoicemailJob | null> {
     return (await this.ctx.storage.get<VoicemailJob>("voicemail")) ?? null;
+  }
+
+  private async getTerminalMergeJobs(): Promise<TerminalMergeJob[]> {
+    return (await this.ctx.storage.get<TerminalMergeJob[]>("terminalMerges")) ?? [];
   }
 
   // ---- Alarm multiplexing (one platform alarm, many logical deadlines) ----

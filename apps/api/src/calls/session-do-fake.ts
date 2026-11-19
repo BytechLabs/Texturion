@@ -104,6 +104,7 @@ export interface FakeConfig {
   pushAudience?: string[];
   mirrorThrows?: () => boolean;
   pushFanoutThrows?: () => boolean;
+  terminalMergeEvent?: () => void | Promise<void>;
   /** May return a promise to hold the voicemail open, or throw to fail it. */
   voicemailPipeline?: () => void | Promise<void>;
   deferVoicemailRecording?: () => void | Promise<void>;
@@ -225,6 +226,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     async terminalMergeEvent(_payload, opts?) {
       calls.terminalMerges.push("event");
       calls.terminalMergeEventOpts.push(opts);
+      await config.terminalMergeEvent?.();
     },
     async terminalMergeSynthetic(_m, outcome) {
       calls.terminalMerges.push(`synthetic:${outcome}`);

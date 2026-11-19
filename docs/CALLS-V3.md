@@ -345,10 +345,12 @@ outcome-null (review B1's full sequence). The protocol:
    with the journal) so a crash with no follow-on event still resumes
    promptly — DO alarms survive eviction.
 2. **Resume-on-admission.** The first admission after a restart (any event,
-   RPC, or the resume alarm) checks for an unfinished journal and completes
-   it BEFORE processing the new work. A seen-marked event with an
+   mutating RPC, or the resume alarm) checks for an unfinished journal and
+   completes it before processing the new work. A seen-marked event with an
    unfinished journal for that id resumes; a seen-marked event with no
-   journal no-ops (true duplicate).
+   journal no-ops (true duplicate). `snapshot()` reads the saved machine
+   without resuming the journal. On the third failure at the same effect,
+   report the failure to PostHog, advance the cursor and continue the cascade.
 3. **Effect idempotency + 4xx cause discrimination.** Re-executed effects
    must be safe: hangup/cancel/speak/record 4xxs are swallowed as today
    (dead leg = done); mirror writes are idempotent updates; push re-sends
@@ -376,6 +378,11 @@ outcome-null (review B1's full sequence). The protocol:
    branches) — so a session whose caller is gone survives at most until its
    own next answer attempt (the 45s alarm at the latest), never to the 4h
    janitor.
+5. **Terminal merge jobs.** Advancing past a terminal merge and queuing its
+   job are one storage write. The job runs outside the FIFO, in order with
+   other terminal merges. Its own alarm resumes a job after eviction and
+   retries failures every 30 seconds up to ten attempts. A persistent failure
+   is reported to PostHog while recording events and purge can still proceed.
 
 The pure reducer (§15.1) stays I/O-free: effect OUTCOMES that change state
 (answer success/failure, fan-out settled) re-enter it as internal events
