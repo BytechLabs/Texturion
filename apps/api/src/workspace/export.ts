@@ -260,7 +260,7 @@ async function buildOne(
 
   const done = new Set(row.completed_tables);
   const counts: Record<string, number> = { ...row.row_counts };
-  const cursors = { ...row.table_cursors };
+  const cursors = new Map(Object.entries(row.table_cursors));
   let parts = 0;
 
   for (const spec of EXPORT_TABLES) {
@@ -270,7 +270,7 @@ async function buildOne(
       return { parts, completed: false };
     }
 
-    const cursor = cursors[spec.table];
+    const cursor = cursors.get(spec.table);
     let written = cursor?.rows ?? 0;
     let page = cursor?.parts ?? 0;
     let afterId = cursor?.afterId;
@@ -307,9 +307,9 @@ async function buildOne(
       if (rows.length < PAGE) break;
       afterId = rows[rows.length - 1].id;
       if (parts >= MAX_PARTS_PER_RUN) {
-        cursors[spec.table] = { afterId, parts: page, rows: written };
+        cursors.set(spec.table, { afterId, parts: page, rows: written });
         await updateClaimedExport(db, row, {
-          table_cursors: cursors,
+          table_cursors: Object.fromEntries(cursors),
           stored_files: files,
           lease_token: null,
           lease_expires_at: null,
@@ -320,9 +320,9 @@ async function buildOne(
 
     counts[spec.table] = written;
     done.add(spec.table);
-    delete cursors[spec.table];
+    cursors.delete(spec.table);
     await updateClaimedExport(db, row, {
-      completed_tables: [...done], row_counts: counts, table_cursors: cursors, stored_files: files,
+      completed_tables: [...done], row_counts: counts, table_cursors: Object.fromEntries(cursors), stored_files: files,
     });
   }
 
