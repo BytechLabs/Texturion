@@ -32,16 +32,21 @@ enum ApiErrorStrings {
                 "requested_area_code is not an assigned US/CA geographic area code.",
             "apiRefusals.billingAlreadySubscribed":
                 "This company already has a subscription.",
+            "apiRefusals.carrierOptOutNeedsStart":
+                "This customer texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number.",
+            "apiRefusals.contactNotFound": "No such contact.",
             "apiRefusals.contactNumberNotFound":
                 "No such contact number.",
             "apiRefusals.contactUnmergeMainNumberInUse":
                 "Choose a different main number before undoing this merge.",
+            "apiRefusals.conversationNotFound": "No such conversation.",
             "apiRefusals.inviteAlreadyPending":
                 "A pending invite for this email already exists.",
             "apiRefusals.numberCountryMismatch":
                 "chosen_number_e164 must be a {country} number (the company's country).",
             "apiRefusals.numberNotAssigned":
                 "chosen_number_e164 is not an assigned US/CA geographic number.",
+            "apiRefusals.optOutNotActive": "This number is not opted out.",
             "apiRefusals.outboundSendPaused":
                 "Texting is paused while we deal with an issue. Nothing you sent was lost.",
             "apiRefusals.paymentsNotSetUp":
@@ -113,16 +118,21 @@ enum ApiErrorStrings {
                 "Choisissez un indicatif régional géographique attribué au Canada ou aux États-Unis.",
             "apiRefusals.billingAlreadySubscribed":
                 "Cet espace de travail a déjà un abonnement.",
+            "apiRefusals.carrierOptOutNeedsStart":
+                "Ce client a texté STOP. Son fournisseur bloque vos textos. Seul le client peut lever ce blocage en textant START à votre numéro.",
+            "apiRefusals.contactNotFound": "Ce contact est introuvable.",
             "apiRefusals.contactNumberNotFound":
                 "Ce numéro ne figure pas dans cette fiche de contact.",
             "apiRefusals.contactUnmergeMainNumberInUse":
                 "Choisissez un autre numéro principal avant d’annuler la fusion.",
+            "apiRefusals.conversationNotFound": "Cette conversation est introuvable.",
             "apiRefusals.inviteAlreadyPending":
                 "Une invitation à cette adresse courriel est déjà en attente.",
             "apiRefusals.numberCountryMismatch":
                 "Choisissez un numéro du pays où votre espace de travail est enregistré ({country}).",
             "apiRefusals.numberNotAssigned":
                 "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
+            "apiRefusals.optOutNotActive": "Ce numéro ne figure pas dans la liste de désabonnement.",
             "apiRefusals.outboundSendPaused":
                 "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
             "apiRefusals.paymentsNotSetUp":

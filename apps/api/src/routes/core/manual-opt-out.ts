@@ -26,15 +26,19 @@ export async function changeManualOptOut(
     p_enabled: enabled,
   }), "change manual opt-out");
   if (result.outcome === "not_found") {
-    throw new ApiError("not_found", target.type === "contact" ? "No such contact." : "No such conversation.");
+    if (target.type === "contact") {
+      throw new ApiError("not_found", "No such contact.", { key: "apiRefusals.contactNotFound" });
+    }
+    throw new ApiError("not_found", "No such conversation.", { key: "apiRefusals.conversationNotFound" });
   }
   if (result.outcome === "not_opted_out") {
-    throw new ApiError("not_found", "Contact is not opted out.");
+    throw new ApiError("not_found", "This number is not opted out.", { key: "apiRefusals.optOutNotActive" });
   }
   if (result.outcome === "carrier") {
     throw new ApiError(
       "conflict",
       "This customer texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number.",
+      { key: "apiRefusals.carrierOptOutNeedsStart" },
     );
   }
   if (!result.opt_out) throw new Error("Manual opt-out returned no row.");

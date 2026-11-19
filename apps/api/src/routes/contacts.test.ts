@@ -4024,6 +4024,9 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toMatchObject({
+      error: { message_key: "apiRefusals.optOutNotActive" },
+    });
   });
 
   it("tells the member only the customer can lift a carrier opt-out", async () => {
@@ -4035,7 +4038,12 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toMatchObject({ error: { message: expect.stringContaining("texting START") } });
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        message: expect.stringContaining("texting START"),
+        message_key: "apiRefusals.carrierOptOutNeedsStart",
+      },
+    });
     expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
   });
 
