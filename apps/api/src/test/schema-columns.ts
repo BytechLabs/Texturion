@@ -258,7 +258,7 @@ export function checkLogicalExpression(
   for (const condition of splitTopLevel(inner)) {
     const group = /^(?:not\.)?(?:and|or)\((.*)\)$/.exec(condition);
     if (group) {
-      problems.push(...checkLogicalExpression(group[1], table, schema, embeds));
+      problems.push(...checkLogicalExpression(`(${group[1]})`, table, schema, embeds));
       continue;
     }
     const embedFilter = /^([a-z_][a-z0-9_]*)\.(?:not\.)?is\.null$/i.exec(condition);

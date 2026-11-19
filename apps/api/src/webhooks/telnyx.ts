@@ -35,6 +35,7 @@ import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import type { TelnyxEvent } from "../messaging/types";
 import { reportHandledFailure } from "../observability/capture";
 import { verifyTelnyxWebhook } from "../telnyx/verify";
+import { recordWebhookFailure } from "./retry";
 
 export const telnyxWebhookRoute = new Hono<AppEnv>();
 
@@ -72,6 +73,7 @@ telnyxWebhookRoute.post("/", async (c) => {
         event_id: eventId,
         event_type: eventType,
         payload: event as Record<string, unknown>,
+        claimed_at: new Date().toISOString(),
       },
       { onConflict: "provider,event_id", ignoreDuplicates: true },
     )
@@ -147,7 +149,7 @@ telnyxWebhookRoute.post("/", async (c) => {
 
   // 3. ACK fast; 4. PROCESS in the background (non-call events + the
   // consult/transfer (brc/brt) legs, which are not full DO sessions).
-  c.executionCtx.waitUntil(processAndStamp(env, event, eventId));
+  c.executionCtx.waitUntil(processAndStamp(env, event, eventId, eventType));
   return c.json({ received: true });
 });
 
@@ -158,7 +160,7 @@ async function stampProcessed(
 ): Promise<void> {
   const { error } = await db
     .from("webhook_events")
-    .update({ processed_at: new Date().toISOString() })
+    .update({ processed_at: new Date().toISOString(), claimed_at: null, next_attempt_at: null })
     .eq("provider", "telnyx")
     .eq("event_id", eventId);
   if (error) {
@@ -171,15 +173,17 @@ async function processAndStamp(
   env: Env,
   event: TelnyxEvent,
   eventId: string,
+  eventType: string,
 ): Promise<void> {
   const db = getDb(env);
   try {
     await dispatchTelnyxEvent(env, event);
     const { error } = await db
       .from("webhook_events")
-      .update({ processed_at: new Date().toISOString() })
+      .update({ processed_at: new Date().toISOString(), claimed_at: null, next_attempt_at: null })
       .eq("provider", "telnyx")
-      .eq("event_id", eventId);
+      .eq("event_id", eventId)
+      .eq("attempts", 0);
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
@@ -188,18 +192,6 @@ async function processAndStamp(
     void reportHandledFailure(env, "telnyx-webhook-processing", error, {
       ids: { eventId, eventType: event.data?.event_type ?? "unknown" },
     });
-    const { data } = await db
-      .from("webhook_events")
-      .select("attempts")
-      .eq("provider", "telnyx")
-      .eq("event_id", eventId)
-      .limit(1);
-    const attempts =
-      (data?.[0] as { attempts?: number } | undefined)?.attempts ?? 0;
-    await db
-      .from("webhook_events")
-      .update({ attempts: attempts + 1, last_error: message.slice(0, 2000) })
-      .eq("provider", "telnyx")
-      .eq("event_id", eventId);
+    await recordWebhookFailure(env, db, { provider: "telnyx", eventId, eventType }, 0, 1, message);
   }
 }

@@ -523,6 +523,30 @@ them (403). A change is made in the dashboard, signed in as the owner. The
 dashboard's own API refuses scripted writes, so it has to be done through the
 forms.
 
+### Re-arming an abandoned inbound webhook
+
+The ledger emits PostHog exceptions at the fifth failure and at abandonment.
+These events carry the provider, event ID, event type and attempt count. Once
+the underlying failure is fixed, substitute the two identifiers below to queue
+that event for the next five-minute sweep. Recover the row within 30 days of
+its receipt. Daily retention removes abandoned and processed rows after that.
+
+```sql
+update public.webhook_events
+   set attempts = 0,
+       claimed_at = null,
+       next_attempt_at = null,
+       abandoned_at = null,
+       last_error = null
+ where provider = 'telnyx'
+   and event_id = '<event ID>'
+   and processed_at is null
+   and abandoned_at is not null;
+```
+
+Inbound texts still thread and notify the crew after a replay. The worker
+suppresses automated customer replies when the event is older than 15 minutes.
+
 ## Vendor notices
 
 Each vendor below notifies the account owner by its own email, configured in

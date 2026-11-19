@@ -736,11 +736,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // somebody notices. Recorded here, and a notice sent, because a run of them
   // is a webhook-delivery failure rather than a change in behaviour.
   "45 15 * * *": [job("job:opt-out-reconcile", reconcileOptOuts)],
-  // Ledger retention: drop PROCESSED webhook_events past the 30-day dedupe
-  // window. The */5 sweeper only replays the unprocessed tail, so without this
-  // the ledger grows without bound for the life of the install.
-  // Ledger retention, both daily: the webhook ledger's dedupe window and the
-  // #231 audit log's 12 months. Neither can grow without bound.
   // #482/#239: the monthly response-time recap. Monthly because the arc it
   // reports moves on that scale — a weekly one would mostly report noise, and
   // an email that mostly says nothing is one people stop opening.

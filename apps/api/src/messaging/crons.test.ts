@@ -12,6 +12,7 @@ import type { Env } from "../env";
 import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
+import { nextWebhookAttempt } from "../webhooks/retry";
 import {
   failStuckOutboundSends,
   isDuplicateMeterIdentifierError,
@@ -87,13 +88,15 @@ describe(sweepWebhookEvents, () => {
 
     await sweepWebhookEvents(env);
 
-    // The sweep query selects by state: unprocessed, aged 2 min, < 5
-    // attempts, and not shielded by another run's live claim lease (#22).
     const query = sweepQuery.calls[0].url.searchParams;
     expect(query.get("processed_at")).toBe("is.null");
-    expect(query.get("attempts")).toBe("lt.5");
+    expect(query.get("abandoned_at")).toBe("is.null");
+    expect(query.get("attempts")).toBe("lte.9");
     expect(query.get("received_at")).toMatch(/^lt\./);
     expect(query.get("or")).toMatch(/claimed_at\.is\.null,claimed_at\.lt\./);
+    expect(query.get("or")).toContain("next_attempt_at.is.null,next_attempt_at.lte.");
+    expect(query.get("or")).toContain("attempts.lte.5,provider.in.(stripe,resend),event_type.like.message.*");
+    expect(query.get("order")).toBe("next_attempt_at.asc.nullsfirst,received_at.asc");
 
     // The row went through the REAL message.sent pipeline...
     expect(messagePatch.calls).toHaveLength(1);
@@ -234,7 +237,7 @@ describe(sweepWebhookEvents, () => {
     });
   });
 
-  it("on failure the claim already counted the attempt — only last_error is recorded", async () => {
+  it("releases a failed claim and schedules the next attempt", async () => {
     const sweepQuery = stubRoute(
       restMatch(env, "GET", "webhook_events"),
       () => [
@@ -267,10 +270,62 @@ describe(sweepWebhookEvents, () => {
       attempts: 2,
       claimed_at: expect.any(String),
     });
-    // ...so the failure record carries the error ONLY (no double count).
-    expect(ledgerPatch.calls[1].body).toEqual({
+    expect(ledgerPatch.calls[1].body).toMatchObject({
+      attempts: 2,
+      claimed_at: null,
+      next_attempt_at: expect.any(String),
+      abandoned_at: null,
       last_error: expect.stringContaining("message.sent update failed"),
     });
+    expect(ledgerPatch.calls[1].url.searchParams.get("attempts")).toBe("eq.2");
+  });
+
+  it("abandons a call whose fifth claim expired without dispatching again", async () => {
+    const query = stubRoute(restMatch(env, "GET", "webhook_events"), () => [{
+      provider: "telnyx",
+      event_id: "expired-call",
+      event_type: "call.hangup",
+      payload: {},
+      attempts: 5,
+    }]);
+    const patch = ledgerPatchStub();
+    stubFetch(query.route, patch.route);
+
+    await sweepWebhookEvents(env);
+
+    expect(patch.calls).toHaveLength(1);
+    expect(patch.calls[0].body).toMatchObject({
+      attempts: 5,
+      claimed_at: null,
+      next_attempt_at: null,
+      abandoned_at: expect.any(String),
+    });
+    expect(patch.calls[0].url.searchParams.get("attempts")).toBe("eq.5");
+    expect(patch.calls[0].url.searchParams.get("abandoned_at")).toBe("is.null");
+  });
+});
+
+describe(nextWebhookAttempt, () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  const minutes = [2, 5, 15, 60, 180, 360, 720, 1440];
+
+  it.each([
+    { provider: "telnyx", eventType: "message.received" },
+    { provider: "telnyx", eventType: "10dlc.brand.updated" },
+    { provider: "telnyx", eventType: "porting_order.status_changed" },
+    { provider: "telnyx", eventType: "portout.status_changed" },
+    { provider: "stripe", eventType: "invoice.paid" },
+    { provider: "resend", eventType: "email.bounced" },
+  ] as const)("backs off $provider $eventType through 24 hours", (event) => {
+    expect(minutes.map((_, index) => nextWebhookAttempt(event, index + 1, now)))
+      .toEqual(minutes.map((delay) => new Date(now + delay * 60_000).toISOString()));
+    expect(nextWebhookAttempt(event, 9, now)).toBeNull();
+  });
+
+  it("keeps call delivery on five attempts", () => {
+    const event = { provider: "telnyx", eventType: "call.hangup" } as const;
+    expect(nextWebhookAttempt(event, 4, now)).toBe(new Date(now + 10 * 60_000).toISOString());
+    expect(nextWebhookAttempt(event, 5, now)).toBeNull();
   });
 });
 

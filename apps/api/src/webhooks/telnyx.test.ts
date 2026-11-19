@@ -229,6 +229,8 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       p_push_limit: PLAN_NOTIFY_LIMITS.starter.push,
       p_notify_emergency: false,
       p_notify_media_count: 0,
+      p_notify_opt_out_hint: false,
+      p_occurred_at: "2026-07-01T12:00:00.000Z",
     });
 
     // processed_at stamped.

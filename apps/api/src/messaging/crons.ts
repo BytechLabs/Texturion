@@ -4,7 +4,7 @@
  *
  *   sweepWebhookEvents  (*\/5)  — replay `webhook_events` rows still
  *     unprocessed after 2 minutes (waitUntil died, transient failure), up to
- *     5 attempts; the 5th failure is reported as an exception. Telnyx rows replay
+ *     5 or 9 attempts by event family. Telnyx rows replay
  *     through the same dispatch as the live route; Stripe rows through the
  *     billing track's processStripeEvent — durability without Queues (D11).
  *     #22: each row is CLAIMED (atomic CAS on attempts + a claimed_at lease)
@@ -15,7 +15,7 @@
  *     is retried while attempts remain.
  *
  *   pruneWebhookEvents  (daily)  — retention for that same ledger: drop
- *     PROCESSED rows past the 30-day dedupe window, oldest-first and batched.
+ *     processed and abandoned rows past the 30-day window, oldest first and batched.
  *     The sweeper only ever replays; without this the ledger (full payload per
  *     webhook) grows without bound, linearly with messages + calls.
  *
@@ -39,12 +39,17 @@ import type { Env } from "../env";
 import { captureException, errorLogText, reportHandledFailure, scrubbedError } from "../observability/capture";
 import { isEndedCall, telnyxRequest } from "../telnyx/client";
 import { processResendEvent } from "../webhooks/resend";
+import {
+  nextWebhookAttempt,
+  recordWebhookFailure,
+  WEBHOOK_REPLAY_FAMILIES,
+  WEBHOOK_REPLAY_LIMIT,
+} from "../webhooks/retry";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
 import { STUCK_SEND_SECONDS } from "./send";
 
 const SWEEP_MIN_AGE_MS = 2 * 60 * 1000;
-const SWEEP_MAX_ATTEMPTS = 5;
 const SWEEP_BATCH = 100;
 const REPORT_BATCH = 200;
 const REPORT_BUDGET_MS = 60_000;
@@ -95,20 +100,28 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
   const now = Date.now();
   const cutoff = new Date(now - SWEEP_MIN_AGE_MS).toISOString();
   const leaseCutoff = new Date(now - SWEEP_CLAIM_LEASE_MS).toISOString();
-  const unclaimedFilter = `claimed_at.is.null,claimed_at.lt.${leaseCutoff}`;
+  const unclaimedFilter = `claimed_at.is.null,claimed_at.lt.${leaseCutoff},and(attempts.eq.0,claimed_at.lt.${cutoff})`;
+  const dueFilter = `next_attempt_at.is.null,next_attempt_at.lte.${new Date(now).toISOString()}`;
 
   const { data, error } = await db
     .from("webhook_events")
     .select("provider,event_id,event_type,payload,attempts")
     .is("processed_at", null)
+    .is("abandoned_at", null)
     .lt("received_at", cutoff)
-    .lt("attempts", SWEEP_MAX_ATTEMPTS)
-    .or(unclaimedFilter)
+    .lte("attempts", WEBHOOK_REPLAY_LIMIT)
+    .or(`and(or(${unclaimedFilter}),or(${dueFilter}),or(${WEBHOOK_REPLAY_FAMILIES}))`)
+    .order("next_attempt_at", { ascending: true, nullsFirst: true })
     .order("received_at", { ascending: true })
     .limit(SWEEP_BATCH);
   if (error) throw new Error(`webhook_events sweep query failed: ${error.message}`);
 
   for (const row of (data ?? []) as WebhookEventRow[]) {
+    const event = { provider: row.provider, eventId: row.event_id, eventType: row.event_type };
+    if (row.attempts > 0 && nextWebhookAttempt(event, row.attempts, now) === null) {
+      await recordWebhookFailure(env, db, event, row.attempts, row.attempts, "final webhook claim expired");
+      continue;
+    }
     // #22: claim the row before dispatching — an atomic CAS UPDATE (attempts
     // is the token: any concurrent claimer bumped it, so the .eq() matches
     // for exactly ONE caller) that also stamps the claimed_at lease. Losing
@@ -122,7 +135,8 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
       .eq("event_id", row.event_id)
       .eq("attempts", row.attempts)
       .is("processed_at", null)
-      .or(unclaimedFilter)
+      .is("abandoned_at", null)
+      .or(`and(or(${unclaimedFilter}),or(${dueFilter}))`)
       .select("event_id");
     if (claimError) {
       console.error(
@@ -166,51 +180,24 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
       }
       const { error: stampError } = await db
         .from("webhook_events")
-        .update({ processed_at: new Date().toISOString() })
+        .update({ processed_at: new Date().toISOString(), claimed_at: null, next_attempt_at: null })
         .eq("provider", row.provider)
-        .eq("event_id", row.event_id);
+        .eq("event_id", row.event_id)
+        .eq("attempts", attempts)
+        .is("abandoned_at", null);
       if (stampError) {
         throw new Error(`sweep stamp failed: ${stampError.message}`);
       }
     } catch (error_) {
       const message = error_ instanceof Error ? error_.message : String(error_);
-      // The claim already counted this attempt — record the error only.
       console.error(
         `sweep of ${row.provider} ${row.event_id} (${row.event_type}) failed (attempt ${attempts}):`,
         errorLogText(error_),
       );
-      await db
-        .from("webhook_events")
-        .update({ last_error: message.slice(0, 2000) })
-        .eq("provider", row.provider)
-        .eq("event_id", row.event_id);
-      if (attempts >= SWEEP_MAX_ATTEMPTS) {
-        // §11: reported at attempt 5, ids only, never payload bodies (§10).
-        void captureException(env, `webhook replay failed ${SWEEP_MAX_ATTEMPTS} times`, {
-          source: "cron",
-          job: "job:sweep-webhooks",
-          extra: {
-            provider: row.provider,
-            event_id: row.event_id,
-            event_type: row.event_type,
-            attempts,
-          },
-        });
-      }
+      await recordWebhookFailure(env, db, event, attempts, attempts, message);
     }
   }
 }
-
-/**
- * Ledger retention: drop PROCESSED `webhook_events` past the dedupe window.
- *
- * The sweeper above only ever replays the unprocessed tail — nothing removed a
- * row, so the ledger (which stores each webhook's full payload) grew without
- * bound for the life of the install, linearly with messages + calls. This caps
- * it. Only processed rows are eligible: an unprocessed row is still owed a
- * replay, and one that exhausted its attempts is the forensic record behind a
- * §11 exception.
- */
 
 /**
  * #581 — the widget's proof-of-number records, past their window.

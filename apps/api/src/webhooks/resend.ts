@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { captureEvent, reportHandledFailure, SYSTEM_DISTINCT_ID } from "../observability/capture";
+import { recordWebhookFailure } from "./retry";
 
 /**
  * #386 — the Resend webhook: the half of email that was never wired up.
@@ -156,6 +157,7 @@ resendWebhookRoute.post("/", async (c) => {
         event_id: eventId,
         event_type: event.type,
         payload: event as unknown as Record<string, unknown>,
+        claimed_at: new Date().toISOString(),
       },
       { onConflict: "provider,event_id", ignoreDuplicates: true },
     )
@@ -230,20 +232,17 @@ async function processAndStamp(
     await processResendEvent(env, event);
     const { error } = await db
       .from("webhook_events")
-      .update({ processed_at: new Date().toISOString() })
+      .update({ processed_at: new Date().toISOString(), claimed_at: null, next_attempt_at: null })
       .eq("provider", "resend")
-      .eq("event_id", eventId);
+      .eq("event_id", eventId)
+      .eq("attempts", 0);
     if (error) throw new Error(`webhook_events stamp failed: ${error.message}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     void reportHandledFailure(env, "resend-webhook-processing", error, {
       ids: { eventId, eventType: event.type },
     });
-    await db
-      .from("webhook_events")
-      .update({ last_error: message })
-      .eq("provider", "resend")
-      .eq("event_id", eventId);
+    await recordWebhookFailure(env, db, { provider: "resend", eventId, eventType: event.type }, 0, 1, message);
     throw error;
   }
 }
