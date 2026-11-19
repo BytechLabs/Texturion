@@ -12,6 +12,7 @@ const CHECK_BATCH = 10;
 
 interface ReceiptCandidate {
   id: string;
+  company_id: string;
   telnyx_message_id: string;
 }
 
@@ -25,7 +26,7 @@ export async function reconcileOutboundReceipts(env: Env, now = new Date()): Pro
   const cutoff = new Date(now.getTime() - HOUR_MS).toISOString();
   const unchecked = `receipt_checked_at.is.null,receipt_checked_at.lte.${cutoff}`;
   const { data, error } = await db.from("messages")
-    .select("id,telnyx_message_id")
+    .select("id,company_id,telnyx_message_id")
     .eq("direction", "outbound")
     .in("status", ["queued", "sent"])
     .not("telnyx_message_id", "is", null)
@@ -46,6 +47,7 @@ export async function reconcileOutboundReceipts(env: Env, now = new Date()): Pro
     const results = await Promise.allSettled(batch.map(async (row) => {
       const { data: claimed, error: claimError } = await db.from("messages")
         .update({ receipt_checked_at: checkedAt })
+        .eq("company_id", row.company_id)
         .eq("id", row.id)
         .eq("telnyx_message_id", row.telnyx_message_id)
         .in("status", ["queued", "sent"])

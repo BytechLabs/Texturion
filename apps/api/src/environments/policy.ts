@@ -254,6 +254,9 @@ const ACCOUNT_WIDE_TELNYX_PATH =
 /** Whether this Telnyx request may leave at all. Null means it may. */
 export function telnyxRequestRefusal(env: Env, request: { path: string }): string | null {
   if (deployEnv(env) !== "rig") return null;
+  if (/^\/v2\/messages\/[^/?]+(?:\?|$)/.test(request.path)) {
+    return "rig mode refuses a Telnyx message receipt lookup";
+  }
   return ACCOUNT_WIDE_TELNYX_PATH.test(request.path)
     ? "rig mode refuses a Telnyx endpoint that acts on the whole account"
     : null;

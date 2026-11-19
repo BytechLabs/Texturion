@@ -7,16 +7,16 @@ import { reconcileOutboundReceipts } from "./receipt-reconcile";
 
 const NOW = new Date("2026-11-18T10:00:00Z");
 const CARRIER_ID = "40385f64-5717-4562-b3fc-2c963f66afb6";
+const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const MESSAGE_ID = "99999999-0000-4000-8000-000000000099";
+const CANDIDATE = { id: MESSAGE_ID, company_id: COMPANY_ID, telnyx_message_id: CARRIER_ID };
 const COMPLETED_AT = "2026-11-18T08:10:00Z";
 const env: Env = { ...completeEnv(), DEPLOY_ENV: "production" };
 
 afterEach(() => vi.unstubAllGlobals());
 
 it("records a completed lookup for the existing webhook sweeper without storing text", async () => {
-  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [
-    { id: MESSAGE_ID, telnyx_message_id: CARRIER_ID },
-  ]);
+  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [CANDIDATE]);
   const claim = stubRoute(restMatch(env, "PATCH", "messages"), () => [{ id: MESSAGE_ID }]);
   const ledger = stubRoute(restMatch(env, "POST", "webhook_events"), () => []);
   const carrier = stubRoute((url) => url.pathname === `/v2/messages/${CARRIER_ID}`, () => ({
@@ -41,6 +41,7 @@ it("records a completed lookup for the existing webhook sweeper without storing 
     "lte.2026-11-18T09:00:00.000Z",
   ]);
   expect(query.get("receipt_finalized_at")).toBe("is.null");
+  expect(claim.calls[0].url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   expect(claim.calls[0].body).toEqual({ receipt_checked_at: NOW.toISOString() });
   expect(carrier.calls[0].method).toBe("GET");
   expect(ledger.calls[0].body).toEqual({
@@ -65,9 +66,7 @@ it("records a completed lookup for the existing webhook sweeper without storing 
 });
 
 it("skips vendor calls when a webhook or another job has already claimed the row", async () => {
-  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [
-    { id: MESSAGE_ID, telnyx_message_id: CARRIER_ID },
-  ]);
+  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [CANDIDATE]);
   const lostClaim = stubRoute(restMatch(env, "PATCH", "messages"), () => []);
   const carrier = stubRoute((url) => url.pathname === `/v2/messages/${CARRIER_ID}`, () => ({}));
   stubFetch(candidates.route, lostClaim.route, carrier.route);
@@ -79,9 +78,7 @@ it("skips vendor calls when a webhook or another job has already claimed the row
 });
 
 it("leaves a message with no completed receipt eligible for another lookup", async () => {
-  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [
-    { id: MESSAGE_ID, telnyx_message_id: CARRIER_ID },
-  ]);
+  const candidates = stubRoute(restMatch(env, "GET", "messages"), () => [CANDIDATE]);
   const claim = stubRoute(restMatch(env, "PATCH", "messages"), () => [{ id: MESSAGE_ID }]);
   const carrier = stubRoute((url) => url.pathname === `/v2/messages/${CARRIER_ID}`, () => ({
     data: { id: CARRIER_ID, direction: "outbound", completed_at: null },
