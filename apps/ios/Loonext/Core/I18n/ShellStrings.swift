@@ -130,6 +130,8 @@ enum ShellStrings {
             "shell.mfaChallengeBody":
                 "Open your authenticator app and type the six digits it shows.",
             "shell.mfaEnrolTitle": "This workspace needs two-factor",
+            "shell.mfaSetupDeadline": "Set up two-factor authentication by {when} to keep access to this workspace.",
+            "shell.mfaSetupAction": "Set up two-factor",
             "shell.mfaEnrolBody":
                 "The owner turned it on, and the grace period has ended. Open your "
                 + "authenticator app, add the key below, then type the six digits it shows.",
@@ -559,6 +561,8 @@ enum ShellStrings {
             "shell.mfaChallengeTitle": "Entrez votre code",
             "shell.mfaChallengeBody":
                 "Ouvrez votre application d'authentification et tapez les six chiffres affichés.",
+            "shell.mfaSetupDeadline": "Configurez l’authentification à deux facteurs avant le {when} pour garder accès à cet espace.",
+            "shell.mfaSetupAction": "Configurer l’authentification",
             "shell.mfaEnrolTitle":
                 "Cet espace de travail exige l'authentification à deux facteurs",
             "shell.mfaEnrolBody":

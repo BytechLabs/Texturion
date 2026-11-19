@@ -11,9 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 const drawn = vi.hoisted((): boolean[] => []);
+const useCompany = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/for-you" }));
 vi.mock("@/i18n/provider", () => ({ useT: () => (key: string) => key }));
+vi.mock("@/lib/api/companies", () => ({ useCompany }));
 vi.mock("@/lib/softphone/provider", () => ({
   SoftphoneProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -53,6 +55,7 @@ const KEY = "loonext:sidebar-collapsed";
 beforeEach(() => {
   drawn.length = 0;
   window.localStorage.clear();
+  useCompany.mockReturnValue({ data: undefined });
 });
 afterEach(cleanup);
 
@@ -74,4 +77,21 @@ describe("AppShell sidebar preference", () => {
     expect(drawn.at(-1)).toBe(true);
     expect(window.localStorage.getItem(KEY)).toBe("true");
   });
+});
+
+it.each([
+  { enrolled: false, href: "/settings/account#two-factor" },
+  { enrolled: true, href: null },
+])("only offers two-factor setup when enrollment is pending ($enrolled)", ({ enrolled, href }) => {
+  useCompany.mockReturnValue({
+    data: {
+      timezone: "America/Toronto",
+      mfa_setup: { grace_until: "2099-01-17T14:00:00Z", enrolled },
+    },
+  });
+
+  render(<AppShell>page</AppShell>);
+
+  const link = screen.queryByRole("link", { name: "shell.mfaSetupAction" });
+  expect(link?.getAttribute("href") ?? null).toBe(href);
 });

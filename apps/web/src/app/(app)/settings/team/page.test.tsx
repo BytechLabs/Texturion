@@ -16,9 +16,10 @@ import TeamSettingsPage from "./page";
 // `vi.mock` is hoisted above every `const` in this file, so the spies have to
 // be created inside `vi.hoisted` — a plain `const` above the mock is still a
 // temporal-dead-zone reference by the time the factory runs.
-const { createInvite, updateRole, invites, members, session } = vi.hoisted(
+const { createInvite, resendInvite, updateRole, invites, members, session } = vi.hoisted(
   () => ({
     createInvite: vi.fn(),
+    resendInvite: vi.fn(),
     updateRole: vi.fn(),
     // Mutable so a test can put a pending invite in the list; the default is
     // the empty workspace every other assertion here wants.
@@ -51,6 +52,7 @@ vi.mock("@/lib/api/team", () => ({
     refetch: vi.fn(),
   }),
   useCreateInvite: () => ({ isPending: false, mutate: createInvite }),
+  useResendInvite: () => ({ isPending: false, mutate: resendInvite }),
   useRevokeInvite: () => ({ isPending: false, mutate: vi.fn() }),
   useUpdateMemberRole: () => ({ isPending: false, mutate: updateRole }),
   useDeactivateMember: () => ({ isPending: false, mutate: vi.fn() }),
@@ -96,6 +98,7 @@ afterEach(cleanup);
 
 beforeEach(() => {
   createInvite.mockReset();
+  resendInvite.mockReset();
   updateRole.mockReset();
   invites.rows = [];
   members.rows = [OWNER];
@@ -232,12 +235,15 @@ describe("the invite note (#521)", () => {
     expect(document.querySelector("blockquote")).toBeNull();
   });
 
-  it("shows an expired invite with the old link disabled", () => {
-    invites.rows = [{ ...pendingInvite(null), expires_at: "2000-01-01T00:00:00Z" }];
+  it("resends an expired invite with the old link disabled", () => {
+    const invite = { ...pendingInvite(null), expires_at: "2000-01-01T00:00:00Z", allowed_actions: ["revoke", "resend"] };
+    invites.rows = [invite];
     render(<TeamSettingsPage />);
 
     expect(screen.getByText(/Expired/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /Copy.*tech@example.com/i }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Resend invite for tech@example.com/i }));
+    expect(resendInvite.mock.calls[0][0]).toBe(invite.id);
   });
 });
 

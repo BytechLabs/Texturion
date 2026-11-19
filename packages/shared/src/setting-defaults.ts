@@ -113,6 +113,7 @@ export const COMPANY_COLUMNS_NOT_SETTINGS = {
   disputed_at: "billing state",
   registration_fee_paid_at: "billing state",
   checkout_reminder_sent_at: "timestamp of a checkout recovery reminder",
+  invite_attempts_at: "recent workspace invite attempts for the daily limit",
   registration_fee_charge_started_at: "billing state",
   number_provision_count: "number state",
   paid_extra_numbers: "number state",

@@ -112,7 +112,8 @@
         "job:usage-alerts",
         "job:overage-warning",
         "job:sweep-stale-calls",
-        "job:expire-payment-requests"
+        "job:expire-payment-requests",
+        "job:workspace-mfa-notices"
       ],
       "note": "Usage goes to Stripe's shared test mode, which S01's meter check reads. sweep-stale-calls hangs up a runaway leg through the guard's leg-command class."
     },

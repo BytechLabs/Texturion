@@ -43,6 +43,7 @@ export type AuditAction =
   // Membership — who is in the crew, and what they can do
   | "member.invited"
   | "member.invite_revoked"
+  | "member.invite_resent"
   | "member.joined"
   | "member.role_changed"
   // #538: the member took powers off THEMSELVES. Distinct from

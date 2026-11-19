@@ -56,7 +56,13 @@ export function useIssueRecoveryCodes() {
         method: "POST",
         body: {},
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.mfa }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.mfa });
+      void queryClient.invalidateQueries({
+        predicate: ({ queryKey }) => queryKey.length === 2 && queryKey[1] === "company",
+      });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
+    },
   });
 }
 

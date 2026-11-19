@@ -21,6 +21,7 @@ const OWNER_USER_ID = "aaaaaaaa-1111-4222-8333-444444444401";
 /** #276: where a leaver's open work is handed. */
 const REASSIGN_TO = "cccccccc-1111-4222-8333-444444444444";
 const INVITE_ID = "ffffffff-1111-4222-8333-444444444444";
+const CREATE_INVITE_RPC = "/rest/v1/rpc/api_create_invite";
 const FUTURE = new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 let auth: TestAuth;
@@ -78,6 +79,19 @@ function pendingInvite(overrides: Record<string, unknown> = {}) {
     created_at: "2026-07-01T00:00:00+00:00",
     ...overrides,
   };
+}
+
+function stubInviteCreation(sb: SupabaseStub, previousExpiration: string | null = null) {
+  sb.on("POST", CREATE_INVITE_RPC, ({ body }) => {
+    const args = body as Record<string, unknown>;
+    return {
+      outcome: "created",
+      invite: pendingInvite({ email: args.p_email, role: args.p_role, note: args.p_note }),
+      previous_invite: previousExpiration
+        ? { expires_at: previousExpiration, invited_by: auth.subject, role: "member", note: null, last_resent_at: null }
+        : null,
+    };
+  });
 }
 
 function authUser(overrides: Record<string, unknown> = {}) {
@@ -166,7 +180,23 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       `workspace:${COMPANY_ID}`,
       `inviter:${auth.subject}`,
     ]);
-    expect(sb.find("POST", "/rest/v1/invites")).toEqual([]);
+    expect(sb.find("POST", CREATE_INVITE_RPC)).toEqual([]);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
+  });
+
+  it.each(["daily_limit", "revoke_cooldown"])("returns 429 for the %s without sending mail", async (outcome) => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "starter", 2, 0);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "new@crew.example", role: "member" },
+    });
+
+    expect(res.status).toBe(429);
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
   });
 
@@ -174,6 +204,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     // Starter = 3 seats; 2 active + 1 pending = full (a 4th would exceed).
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 2, 1);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome: "seat_limit", active: 2, pending: 1 }));
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -185,13 +216,14 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(await res.json()).toEqual({
       error: { code: "conflict", message: expect.stringContaining("Seat limit") },
     });
-    expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
 
   it("409s at the Pro seat cap (15); unlimited is the Enterprise tier, not Pro", async () => {
     // Pro = 15 seats; 14 active + 1 pending = full (a 16th would exceed).
     const sb = stubWithRole("owner");
     seatStub(sb, "pro", 14, 1);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome: "seat_limit", active: 14, pending: 1 }));
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -203,7 +235,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(await res.json()).toEqual({
       error: { code: "conflict", message: expect.stringContaining("15 seats") },
     });
-    expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
 
   it("sends one branded invite with the Supabase token hash and workspace language", async () => {
@@ -213,9 +245,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     ]);
     sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Ana" }]);
     seatStub(sb, "starter", 2, 0);
-    sb.on("POST", "/rest/v1/invites", (call) => [
-      pendingInvite(call.body as Record<string, unknown>),
-    ]);
+    stubInviteCreation(sb);
     stubNewAuthInvite(sb);
     const resend = resendCapture();
     stubFetch(jwksRoute(auth), sb.route, resend.route);
@@ -229,13 +259,15 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     // The email went out — the UI shows the plain "Invite sent" confirmation.
     expect(await res.json()).toMatchObject({ email_sent: true });
 
-    const insert = sb.find("POST", "/rest/v1/invites")[0];
+    const insert = sb.find("POST", CREATE_INVITE_RPC)[0];
     expect(insert.body).toEqual({
-      company_id: COMPANY_ID,
-      email: "new@crew.example",
-      role: "member",
-      note: "Bienvenue <Ana>!",
-      invited_by: auth.subject,
+      p_company_id: COMPANY_ID,
+      p_email: "new@crew.example",
+      p_role: "member",
+      p_note: "Bienvenue <Ana>!",
+      p_invited_by: auth.subject,
+      p_plan: "starter",
+      p_seats: 3,
     });
     const generated = sb.find("POST", "/auth/v1/admin/generate_link");
     expect(generated.map((call) => call.body)).toEqual([
@@ -259,20 +291,12 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       type: "invite",
       next: `/invite/${INVITE_ID}`,
     });
-
-    // The pending-invite count only counted unexpired pending rows.
-    const inviteCount = sb.find("HEAD", "/rest/v1/invites")[0];
-    expect(inviteCount.url.searchParams.get("accepted_at")).toBe("is.null");
-    expect(inviteCount.url.searchParams.get("revoked_at")).toBe("is.null");
-    expect(inviteCount.url.searchParams.get("expires_at")).toMatch(/^gt\./);
   });
 
   it("#521 carries the inviter's note onto the invite row", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "pro", 2, 0);
-    sb.on("POST", "/rest/v1/invites", (call) => [
-      pendingInvite(call.body as Record<string, unknown>),
-    ]);
+    stubInviteCreation(sb);
     sb.on("GET", "/rest/v1/profiles", () => []);
     stubNewAuthInvite(sb);
     stubFetch(jwksRoute(auth), sb.route, resendCapture().route);
@@ -288,7 +312,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
     expect(res.status).toBe(201);
     expect(
-      (sb.find("POST", "/rest/v1/invites")[0].body as Record<string, unknown>).note,
+      (sb.find("POST", CREATE_INVITE_RPC)[0].body as Record<string, unknown>).p_note,
     ).toBe("Dave covers the north side while Priya is on leave.");
   });
 
@@ -299,9 +323,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     for (const note of ["", "   ", null]) {
       const sb = stubWithRole("owner");
       seatStub(sb, "pro", 2, 0);
-      sb.on("POST", "/rest/v1/invites", (call) => [
-        pendingInvite(call.body as Record<string, unknown>),
-      ]);
+      stubInviteCreation(sb);
       sb.on("GET", "/rest/v1/profiles", () => []);
       stubNewAuthInvite(sb);
       stubFetch(jwksRoute(auth), sb.route, resendCapture().route);
@@ -312,7 +334,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       });
       expect(res.status, JSON.stringify(note)).toBe(201);
       expect(
-        (sb.find("POST", "/rest/v1/invites")[0].body as Record<string, unknown>).note,
+        (sb.find("POST", CREATE_INVITE_RPC)[0].body as Record<string, unknown>).p_note,
         JSON.stringify(note),
       ).toBeNull();
     }
@@ -330,7 +352,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "long@crew.example", role: "member", note: "x".repeat(501) },
     });
     expect(res.status).toBe(422);
-    expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
+    expect(sb.find("POST", CREATE_INVITE_RPC)).toHaveLength(0);
   });
 
   /** Capture route for the direct Resend send (#109 existing-account branch). */
@@ -355,7 +377,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       { plan: "pro", name: "Acme Plumbing" },
     ]);
     seatStub(sb, "pro", 4, 0);
-    sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
+    stubInviteCreation(sb);
     sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("POST", "/auth/v1/admin/generate_link", () =>
       Response.json(
@@ -400,7 +422,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   it("#109: the direct send failing degrades to email_sent:false — invite kept (Copy link covers it)", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "pro", 4, 0);
-    sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
+    stubInviteCreation(sb);
     sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("POST", "/auth/v1/admin/generate_link", () =>
       Response.json(
@@ -426,7 +448,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   it("rolls the invite row back when the email send fails outright", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 1, 0);
-    sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
+    stubInviteCreation(sb);
     sb.on("GET", "/rest/v1/profiles", () => []);
     stubNewAuthInvite(sb);
     sb.on("DELETE", "/rest/v1/invites", () => new Response(null, { status: 204 }));
@@ -445,8 +467,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   it("409s a duplicate pending invite; 422s owner role and bad email", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 1, 0);
-    sb.on("POST", "/rest/v1/invites", () => pgError("23505", "invites_pending_uq"));
-    sb.on("PATCH", "/rest/v1/invites", () => []);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome: "duplicate" }));
     stubFetch(jwksRoute(auth), sb.route);
 
     const dup = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -473,15 +494,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
   it("refreshes an expired invite in place and delivers a new confirmation link", async () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 1, 0);
-    sb.on("POST", "/rest/v1/invites", () => pgError("23505", "invites_pending_uq"));
-    sb.on("PATCH", "/rest/v1/invites", (call) => {
-      expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
-      expect(call.url.searchParams.get("email")).toBe("eq.new@crew.example");
-      expect(call.url.searchParams.get("accepted_at")).toBe("is.null");
-      expect(call.url.searchParams.get("revoked_at")).toBe("is.null");
-      expect(call.url.searchParams.get("expires_at")).toMatch(/^lte\./);
-      return [pendingInvite(call.body as Record<string, unknown>)];
-    });
+    stubInviteCreation(sb, "2020-01-01T00:00:00Z");
     sb.on("GET", "/rest/v1/profiles", () => []);
     stubNewAuthInvite(sb);
     const resend = resendCapture();
@@ -495,9 +508,64 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
 
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ id: INVITE_ID, role: "bookkeeper", email_sent: true });
-    expect(sb.find("PATCH", "/rest/v1/invites")).toHaveLength(1);
     expect(resend.calls).toHaveLength(1);
     expect(resend.calls[0].text).toContain(`%2Finvite%2F${INVITE_ID}`);
+  });
+
+  it.each([200, 500])("resends an invite and handles provider status %s", async (status) => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "starter", 1, 2);
+    const original = {
+      expires_at: "2020-01-01T00:00:00Z",
+      invited_by: auth.subject,
+      role: "bookkeeper",
+      note: "Welcome to the crew.",
+      last_resent_at: null,
+    };
+    sb.on("POST", CREATE_INVITE_RPC, ({ body }) => {
+      expect(body).toMatchObject({ p_resend_invite_id: INVITE_ID, p_email: null, p_role: null });
+      return {
+        outcome: "created",
+        invite: pendingInvite({ role: original.role, note: original.note }),
+        previous_invite: original,
+      };
+    });
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    stubNewAuthInvite(sb);
+    const resend = resendCapture(status);
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/invites/${INVITE_ID}/resend`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
+    expect(resend.calls[0].text).toContain(original.note);
+    expect(response.status).toBe(status);
+    const rollback = sb.find("PATCH", "/rest/v1/invites");
+    if (status === 200) {
+      expect(await response.json()).toMatchObject({ id: INVITE_ID, email_sent: true });
+      expect(auditRow(sb)).toMatchObject({ action: "member.invite_resent", target_id: INVITE_ID });
+      expect(rollback).toHaveLength(0);
+    } else {
+      expect(rollback[0].body).toEqual(original);
+      expect(rollback[0].url.searchParams.get("expires_at")).toBe(`eq.${FUTURE}`);
+      expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
+    }
+  });
+
+  it.each([["member", 403], ["owner", 429]])("blocks a resend from %s before emailing", async (role, status) => {
+    const sb = stubWithRole(role);
+    seatStub(sb, "starter", 1, 1);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome: "resend_limit" }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/invites/${INVITE_ID}/resend`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(status);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
 });
 
@@ -1525,8 +1593,8 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     });
     const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
     expect(body.data.map((r) => r.allowed_actions)).toEqual([
-      ["revoke"],
-      ["revoke"],
+      ["revoke", "resend"],
+      ["revoke", "resend"],
       [],
       [],
     ]);

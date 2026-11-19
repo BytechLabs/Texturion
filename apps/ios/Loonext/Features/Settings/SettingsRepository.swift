@@ -621,6 +621,10 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    func resendInvite(_ companyId: String, inviteId: String) async throws {
+        let _: Invite = try await api.post("/v1/invites/\(inviteId)/resend", companyId: companyId)
+    }
+
     func revokeInvite(_ companyId: String, inviteId: String) async throws {
         try await api.delete("/v1/invites/\(inviteId)", companyId: companyId)
     }

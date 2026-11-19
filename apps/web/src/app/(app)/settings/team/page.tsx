@@ -63,6 +63,7 @@ import {
   useMemberHoldings,
   useInvites,
   useMembers,
+  useResendInvite,
   useRevokeInvite,
   useUpdateMemberRole,
 } from "@/lib/api/team";
@@ -446,11 +447,13 @@ function plural(count: number, one: string, many: string): string {
 
 function InviteRow({ invite }: { invite: Invite }) {
   const t = useT();
+  const resend = useResendInvite();
   const revoke = useRevokeInvite();
+  const busy = resend.isPending || revoke.isPending;
   const expired = new Date(invite.expires_at).getTime() <= Date.now();
 
   return (
-    <div className="flex items-center gap-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-2 py-2.5">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{invite.email}</p>
         <p className="text-xs text-muted-foreground">
@@ -476,8 +479,6 @@ function InviteRow({ invite }: { invite: Invite }) {
           </blockquote>
         )}
       </div>
-      {/* #99: a shareable accept link — the only way an invitee who already has
-          an account (Supabase emails them nothing) can find their invite. */}
       <Button
         variant="ghost"
         size="sm"
@@ -493,12 +494,33 @@ function InviteRow({ invite }: { invite: Invite }) {
       >
         {t("appShell.teamCopyLink")}
       </Button>
+      {invite.allowed_actions?.includes("resend") && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          aria-label={t("appShell.teamResendInviteAria", { email: invite.email })}
+          onClick={() =>
+            resend.mutate(invite.id, {
+              onSuccess: () => toast.success(t("appShell.teamInviteResent")),
+              onError: (cause) =>
+                toast.error(
+                  cause instanceof ApiError
+                    ? cause.message
+                    : t("appShell.teamInviteResendFailed"),
+                ),
+            })
+          }
+        >
+          {t("appShell.teamResendInvite")}
+        </Button>
+      )}
       {invite.allowed_actions?.includes("revoke") ?? true ? (
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground hover:text-destructive"
-          disabled={revoke.isPending}
+          disabled={busy}
           aria-label={t("appShell.teamRevokeInviteAria", { email: invite.email })}
           onClick={() =>
             revoke.mutate(invite.id, {
@@ -540,11 +562,7 @@ const NOTE_COUNTDOWN_FROM = 50;
  * clients to one sentence — it reads the catalogue alongside this file, because
  * the words moved and the parity requirement did not.
  *
- * It says "when they join" and nothing about mail on purpose. A brand new
- * address is invited by Supabase Auth from a template this repo does not own,
- * and that template carries no note; only the fallback for an address that
- * already has an account renders one. What is true of every invite is that the
- * note is read once, on the way in, and cannot be edited afterwards.
+ * The invitee sees the note in the email and when joining the workspace.
  */
 
 /*
@@ -898,6 +916,7 @@ export default function TeamSettingsPage() {
               <RequireTwoFactorCard
                 required={company.data?.mfa_required_at != null}
                 graceUntil={company.data?.mfa_grace_until ?? null}
+                progress={company.data?.mfa_setup?.team}
               />
             )}
             {canManage ? (

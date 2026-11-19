@@ -15,6 +15,11 @@ will rightly blame us.*
 So there are three ways back, in order of how much they cost. Take the first
 one that applies.
 
+If your workspace turns on required two-factor authentication, check your email
+for the deadline. Members who still need to set it up get one reminder in the
+48 hours before the deadline. You can enrol under Settings → Account → Two-factor
+authentication and save your recovery codes there.
+
 ---
 
 ## 1. You still have a recovery code — self-serve, instant

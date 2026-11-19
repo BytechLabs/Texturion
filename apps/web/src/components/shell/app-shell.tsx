@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -9,6 +10,8 @@ import { ConnectionBanner } from "@/components/shell/connection-banner";
 import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
 import { SoftphoneProvider } from "@/lib/softphone/provider";
 import { useT } from "@/i18n/provider";
+import { useCompany } from "@/lib/api/companies";
+import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
@@ -99,6 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ordering costs nothing on an ordinary day. */}
           <ConnectionBanner />
           <WorkspaceStatusBanner />
+          <TwoFactorDeadlineBanner />
           <main
             id="main-content"
             tabIndex={-1}
@@ -127,5 +131,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <WindowDropGuard />
       </div>
     </SoftphoneProvider>
+  );
+}
+
+function TwoFactorDeadlineBanner() {
+  const t = useT();
+  const { data } = useCompany();
+  const setup = data?.mfa_setup;
+  if (!data || !setup?.grace_until || setup.enrolled) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-muted px-4 py-2 text-sm text-foreground">
+      <span>
+        {t("shell.mfaSetupDeadline", {
+          when: formatAbsoluteDateTime(setup.grace_until, data.timezone, t.locale),
+        })}
+      </span>
+      <Link href="/settings/account#two-factor" className="font-medium underline underline-offset-4">
+        {t("shell.mfaSetupAction")}
+      </Link>
+    </div>
   );
 }

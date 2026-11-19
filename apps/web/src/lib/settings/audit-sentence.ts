@@ -47,6 +47,7 @@ export function auditActionLabels(t: Translate = EN): Record<string, string> {
   return {
     "member.invited": t("appShell.auditActionInvited"),
     "member.invite_revoked": t("appShell.auditActionInviteRevoked"),
+    "member.invite_resent": t("appShell.auditActionInviteResent"),
     "member.joined": t("appShell.auditActionJoined"),
     "member.role_changed": t("appShell.auditActionRoleChanged"),
     "member.deactivated": t("appShell.auditActionDeactivated"),
@@ -202,6 +203,12 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
     }
     case "member.invite_revoked": {
       return t("appShell.auditInviteRevoked", { who });
+    }
+    case "member.invite_resent": {
+      return t("appShell.auditInviteResent", {
+        who,
+        email: String(after.email ?? t("appShell.auditEmailFallback")),
+      });
     }
     case "member.joined": {
       return t("appShell.auditJoined", { who, role: roleWord(after.role, t) });

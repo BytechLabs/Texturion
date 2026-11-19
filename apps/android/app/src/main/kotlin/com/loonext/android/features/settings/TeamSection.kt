@@ -599,6 +599,7 @@ private fun InvitesCard(
             pending.forEach { invite ->
                 val expired = isExpired(invite)
                 var revoking by remember(invite.id) { mutableStateOf(false) }
+                var resending by remember(invite.id) { mutableStateOf(false) }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -647,6 +648,26 @@ private fun InvitesCard(
                                 modifier = Modifier.padding(top = 2.dp),
                             )
                         }
+                        if (invite.allowed_actions?.contains("resend") == true) {
+                            LinkButton(
+                                onClick = {
+                                    haptics.tap()
+                                    resending = true
+                                    coroutines.launch {
+                                        try {
+                                            scope.repo.resendInvite(scope.companyId, invite.id)
+                                            scope.showMessage(AppStrings.translate(locale, "settingsMore.inviteResent"))
+                                            onChanged()
+                                        } catch (cause: Exception) {
+                                            scope.showMessage(cause.userMessage(locale))
+                                        } finally {
+                                            resending = false
+                                        }
+                                    }
+                                },
+                                enabled = !resending && !revoking,
+                            ) { Text(t("settingsMore.resendInvite")) }
+                        }
                     }
                     if (!expired) {
                         LinkButton(onClick = {
@@ -686,7 +707,7 @@ private fun InvitesCard(
                                 }
                             }
                         },
-                        enabled = !revoking,
+                        enabled = !revoking && !resending,
                     ) {
                         Text(
                             if (revoking) {

@@ -473,6 +473,9 @@ object MessageLocale {
             ?: DEFAULT
 }
 
+@Serializable
+data class CompanyMfaSetup(val enrolled: Boolean, val grace_until: String? = null)
+
 /** GET /v1/company and the GET /v1/me `company` hydration. */
 @Serializable
 data class CompanyView(
@@ -495,6 +498,7 @@ data class CompanyView(
     val subscription_status: String,
     val current_period_start: String? = null,
     val current_period_end: String? = null,
+    val mfa_setup: CompanyMfaSetup? = null,
     /** Wire union number|string|null — parse via [overageCapMultiplier]. */
     val overage_cap_multiplier: kotlinx.serialization.json.JsonPrimitive? =
         kotlinx.serialization.json.JsonPrimitive(3),

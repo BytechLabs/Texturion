@@ -80,6 +80,7 @@ import com.loonext.android.core.i18n.AppAccessibilityLanguage
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
@@ -641,7 +642,6 @@ private fun ReadyShell(
         androidx.compose.runtime.mutableStateListOf<Overlay>()
     }
     fun push(route: Overlay) = routeStack.add(route)
-    fun pop() { routeStack.removeLastOrNull() }
     fun openTrash() { if (routeStack.lastOrNull() !is Overlay.Trash) push(Overlay.Trash) }
     fun openDialer(number: String) {
         routeStack.clear()
@@ -650,6 +650,9 @@ private fun ReadyShell(
     }
     var counts by remember(companyId) { mutableStateOf(ShellCounts()) }
     var countsKey by remember(companyId) { mutableIntStateOf(0) }
+    fun pop() {
+        if (routeStack.removeLastOrNull() is Overlay.Settings) countsKey++
+    }
     // #508: the filter another surface has asked the inbox to land on, held
     // HERE rather than inside the inbox because the request outlives the tab
     // switch that carries it — For You sets it, the Inbox tab consumes it on
@@ -895,6 +898,11 @@ private fun ReadyShell(
                 onTabChange = { tab = it },
                 onCompose = { push(Overlay.Compose(null)) },
                 onOpenAccountSheet = { sheetOpen = true },
+                topNotice = {
+                    TwoFactorDeadlineBanner(hydratedMe.company) {
+                        push(Overlay.Settings(SettingsSection.Profile))
+                    }
+                },
                 floatingAction = if (tab == ShellTab.Inbox) {
                     {
                         // #732: New text is the tab's one main action, the shared
@@ -1203,23 +1211,30 @@ private fun ReadyShell(
                                 }
                             },
                         ) { contentModifier ->
-                            SettingsHome(
-                                graph = graph,
-                                companyId = companyId,
-                                me = hydratedMe,
-                                modifier = contentModifier,
-                                section = section,
-                                onOpenSection = {
-                                    section = it
-                                    settingAnchor = null
-                                },
-                                anchor = settingAnchor,
-                                onOpenSetting = { target, anchor ->
-                                    section = target
-                                    settingAnchor = anchor
-                                },
-                                onSignOut = root::signOut,
-                            )
+                            Column(contentModifier) {
+                                if (!hasInbox && section == SettingsSection.Billing) {
+                                    TwoFactorDeadlineBanner(hydratedMe.company) {
+                                        section = SettingsSection.Profile
+                                    }
+                                }
+                                SettingsHome(
+                                    graph = graph,
+                                    companyId = companyId,
+                                    me = hydratedMe,
+                                    modifier = Modifier.weight(1f),
+                                    section = section,
+                                    onOpenSection = {
+                                        section = it
+                                        settingAnchor = null
+                                    },
+                                    anchor = settingAnchor,
+                                    onOpenSetting = { target, anchor ->
+                                        section = target
+                                        settingAnchor = anchor
+                                    },
+                                    onSignOut = root::signOut,
+                                )
+                            }
                         }
                     }
                 }
@@ -1275,6 +1290,25 @@ private fun ReadyShellFrame(offline: Boolean, content: @Composable BoxScope.() -
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth(), content = content)
+    }
+}
+
+@Composable
+private fun TwoFactorDeadlineBanner(company: CompanyView?, onOpen: () -> Unit) {
+    val setup = company?.mfa_setup ?: return
+    if (setup.enrolled) return
+    val zone = runCatching { java.time.ZoneId.of(company.timezone) }.getOrDefault(java.time.ZoneId.systemDefault())
+    val deadline = TimestampFormat.exact(setup.grace_until, LocalAppLocale.current, zone)
+    if (deadline.isEmpty()) return
+
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(
+                t("shell.mfaSetupDeadline", "when" to deadline),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onOpen) { Text(t("shell.mfaSetupAction")) }
+        }
     }
 }
 

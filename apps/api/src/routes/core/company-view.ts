@@ -485,6 +485,9 @@ export async function loadCompanyView(
   ]);
   const company = unwrap<Record<string, unknown>[]>(companiesRes, "company lookup")[0];
   if (!company) return null;
+  const mfaProgress = company.mfa_required_at
+    ? await db.rpc("workspace_mfa_progress", { p_company_id: companyId, p_user_id: caller.userId })
+    : null;
   const allNumbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
   // #106: drop numbers hidden from this member (mirrors GET /v1/numbers). Null
   // hiddenNumberIds = unrestricted (owner/admin, or no access rules) → no-op.
@@ -523,6 +526,7 @@ export async function loadCompanyView(
       numbers,
       enabled_modules: modules.map((row) => row.module),
       billing_writes_enabled: billingWritesEnabled(env),
+      ...(mfaProgress?.data ? { mfa_setup: mfaProgress.data } : {}),
       registration: {
         brand: registrations.find((row) => row.kind === "brand") ?? null,
         campaign: registrations.find((row) => row.kind === "campaign") ?? null,

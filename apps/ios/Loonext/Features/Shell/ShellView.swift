@@ -154,6 +154,7 @@ struct ShellView: View {
             if hasInbox {
                 NavigationStack(path: $path) {
                     tabShell
+                        .safeAreaInset(edge: .top, spacing: 0) { twoFactorDeadlineBanner }
                         .navigationBarBackButtonHidden(true)
                         .toolbar(.hidden, for: .navigationBar)
                         .navigationDestination(for: ShellRoute.self) { route in
@@ -162,6 +163,7 @@ struct ShellView: View {
                 }
             } else {
                 billingOnlyRoot
+                    .safeAreaInset(edge: .top, spacing: 0) { twoFactorDeadlineBanner }
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -192,7 +194,7 @@ struct ShellView: View {
                     }
             }
         }
-        .sheet(item: $activeSheet) { sheet in
+        .sheet(item: $activeSheet, onDismiss: refreshTwoFactorDeadline) { sheet in
             sheetContent(sheet)
         }
         // AppRouter commands: an open pushes the matching route ABOVE the tab
@@ -449,6 +451,38 @@ struct ShellView: View {
             onSignOut: { root.signOut() },
             initialSection: .billing
         )
+    }
+
+    @ViewBuilder
+    private var twoFactorDeadlineBanner: some View {
+        if let company = hydratedMe.company, let setup = company.mfa_setup,
+           let graceUntil = setup.grace_until, !setup.enrolled {
+            let deadline = TimestampFormat.exact(
+                graceUntil, locale: appLocale, timeZone: TimeZone(identifier: company.timezone) ?? .current
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AppStrings.translate(appLocale, "shell.mfaSetupDeadline", ["when": deadline]))
+                    .font(.footnote)
+                Button(AppStrings.translate(appLocale, "shell.mfaSetupAction")) {
+                    pendingSettingsSection = .profile
+                    activeSheet = .settings
+                }
+                .font(.subheadline)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(BrandColor.canvas)
+        }
+    }
+
+    private func refreshTwoFactorDeadline() {
+        guard hydratedMe.company?.mfa_setup?.enrolled == false else { return }
+        Task {
+            if let me = try? await graph.meApi.me(companyId: companyId) {
+                hydratedMe = me
+            }
+        }
     }
 
     // MARK: - The tab shell (root of the navigation stack)

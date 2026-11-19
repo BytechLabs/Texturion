@@ -165,6 +165,19 @@ export function useCreateInvite() {
   });
 }
 
+export function useResendInvite() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      apiFetch<CreatedInvite>(`/v1/invites/${inviteId}/resend`, {
+        method: "POST",
+        companyId,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.invites(companyId) }),
+  });
+}
+
 /** DELETE /v1/invites/:id — revoke a pending invite. */
 export function useRevokeInvite() {
   const companyId = useCompanyId();
