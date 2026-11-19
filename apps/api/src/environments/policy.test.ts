@@ -207,6 +207,8 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
     );
   },
   servesRigRoutes: (env) => expect(servesRigRoutes(env)).toBe(false),
+  allowsCarrierReceiptLookup: (env) =>
+    expect(policy.allowsCarrierReceiptLookup(env)).toBe(deployEnv(env) === "production"),
   fcmCredential: (env) => expect(fcmCredential(env)).toEqual({ kind: "google" }),
   outboundDestinationRefusal: (env) => {
     expect(outboundDestinationRefusal(env, STRANGER)).toBeNull();
