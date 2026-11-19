@@ -1542,47 +1542,62 @@ async function handleInvoicePaymentFailed(
   }
 }
 
-/**
- * §9 `invoice.payment_action_required` row: no state change — email the
- * hosted invoice link so the customer can complete SCA confirmation.
- */
 async function handlePaymentActionRequired(
   env: Env,
   invoice: Stripe.Invoice,
 ): Promise<void> {
   const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!subscriptionId) return;
+  if (!subscriptionId || !invoice.id) return;
 
-  // Re-fetch the invoice for the TRUTH: a stored-payload replay or out-of-order
-  // delivery carries a stale 'open' status, so only email when it STILL needs
-  // action (skip once it's paid/void/uncollectible).
-  if (typeof invoice.id === "string") {
-    const fresh = await getStripe(env).invoices.retrieve(invoice.id);
-    if (fresh.status !== "open") return;
-  }
+  // A replay can arrive after the customer has already paid the invoice.
+  const fresh = await getStripe(env).invoices.retrieve(invoice.id);
+  if (fresh.status !== "open") return;
 
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")
-    .select("id,name")
+    .select("id,name,locale")
     .eq("stripe_subscription_id", subscriptionId)
+    .is("deleted_at", null)
     .limit(1);
   if (error) throw new Error(`companies lookup failed: ${error.message}`);
-  const company = (data ?? [])[0] as { id: string; name: string } | undefined;
+  const company = data?.[0];
   if (!company) return;
 
-  const to = await billingRecipients(env, company.id, db);
-  if (to.length === 0) return;
-  const link = invoice.hosted_invoice_url;
-  const text =
-    `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ${company.name}.\n\n${link
-      ? `Confirm it here: ${link}\n\n`
-      : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`}Texting continues normally once the payment is confirmed.\n\nLoonext`;
-  await sendEmail(env, {
-    to,
-    subject: "Action needed: confirm your Loonext payment",
-    text,
-    // renderEmailHtml escapes — company.name is customer-controlled input.
-    html: renderEmailHtml(text),
-  });
+  const recipients = await billingRecipientsByLocale(db, company.id, company.locale);
+  if (recipients.size === 0) {
+    void captureException(env, "No billing contacts for payment confirmation", {
+      source: "api",
+      company_id: company.id,
+    });
+    return;
+  }
+
+  const link = fresh.hosted_invoice_url ?? `${env.APP_ORIGIN}/settings/billing`;
+  const deliveries = await Promise.allSettled([...recipients].map(([locale, to]) => {
+    const key = `invoice_payment_action_required:${invoice.id}:${invoice.attempt_count ?? 0}:${locale}`;
+    return sendLedgered({
+      ...emailLedger(db, company.id, key),
+      send: async () => {
+        const french = locale === "fr-CA";
+        const subject = french
+          ? "Action requise : confirmez votre paiement Loonext"
+          : "Action needed: confirm your Loonext payment";
+        const text = french
+          ? `Bonjour,\n\nVotre banque vous demande de confirmer le dernier paiement Loonext pour ${company.name}.\n\nConfirmez le paiement ici : ${link}\n\nLoonext`
+          : `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ${company.name}.\n\nConfirm the payment here: ${link}\n\nLoonext`;
+        const email = await sendEmail(env, {
+          to,
+          subject,
+          text,
+          html: renderEmailHtml(text, locale),
+          locale,
+          idempotencyKey: `${company.id}:${key}`,
+        });
+        return email.id !== null;
+      },
+    });
+  }));
+  const failed = deliveries.find((delivery) => delivery.status === "rejected");
+  if (failed) throw new Error("Payment confirmation email failed", { cause: failed.reason });
 }

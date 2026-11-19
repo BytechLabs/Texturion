@@ -1104,7 +1104,7 @@ The scheduled strip lets members with text access expand the message, edit its w
 - **Audience:** the assignee; if unassigned, all active members; plus anyone who follows the conversation (#694). Filtered per `notification_prefs` (per-user email/push toggles). A member who muted the conversation (1 hour, 8 hours, 1 week, or until unmuted) is dropped from it for new messages, missed calls and voicemails; mute wins over follow, and an emergency reply still reaches everyone. Mute never applies to a ringing call, an @mention or an assignment.
 - Spam-thread appends (threading step 3) never notify.
 - A failed carrier receipt alerts the member who sent the text. A failed scheduled text alerts the member who scheduled it. Both respect thread mutes and number access. Automated texts do not alert a sender.
-- **Operational emails** — billing (dunning, SCA action-required, grace warnings), usage (80%/100% alerts, cap reached), and registration (approval, rejection, OTP nudge) — go to **the owner plus all active admins**, and **bypass `notification_prefs`**: prefs govern conversation notifications only.
+- **Operational emails** bypass `notification_prefs`. Billing and usage notices go to active members with `billing.manage`. Porting, provisioning and registration notices go to active members with `numbers.manage` (D202).
 - **Responsive mobile-first UI is an explicit MVP requirement** (this ICP lives on phones); native apps are out of scope (D11).
 
 ---
@@ -1141,7 +1141,7 @@ Every handler **re-fetches the subscription from the Stripe API** and mirrors it
 | `customer.subscription.deleted` | — | `→ canceled` | `canceled_at` takes Stripe’s `ended_at` when available; numbers → `suspended` (inbound still received & stored); grace clock starts; send the day-1 warning **through the `grace_notices` ledger** (insert `(company_id, canceled_at, 1)`, skip on conflict — the §11 cron shares the ledger, so overlap can never double-send) |
 | `invoice.paid` | — | `→ active` | Clear dunning banners. Branch: if `invoice.metadata.purpose == 'us_registration'` (the §4.2 enable-us invoice), stamp `registration_fee_paid_at` and start the §4.4 submission (R1) |
 | `invoice.payment_failed` | — | `→ past_due` | Outbound blocked (402 `subscription_inactive`); inbound + dashboard stay live; Resend email + banner |
-| `invoice.payment_action_required` | — | — | Resend email with hosted invoice link (SCA) |
+| `invoice.payment_action_required` | Invoice still open | — | Send billing managers a localized confirmation email once per invoice attempt. Use the current hosted invoice URL or billing settings. Retry provider failures through the webhook ledger. |
 | `charge.dispute.created` | `companies.disputed_at` | `billing_disputes` | Record, flag the tenant, email ops with the total cost. **Never suspends** — a dispute is an accusation, not a verdict (#422) |
 | `charge.dispute.updated` | — | `billing_disputes` | Advance status; never lose attribution an earlier event made |
 | `charge.dispute.closed` | — | `billing_disputes` | Stamp `closed_at`. The tenant flag stays: won or lost, they disputed |

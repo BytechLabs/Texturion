@@ -1639,30 +1639,85 @@ describe("§9 event → state table", () => {
     });
   });
 
-  it("invoice.payment_action_required: SCA email only, NO state change", async () => {
+  it("retries localized payment confirmation emails without changing subscription status", async () => {
+    const event = eventOf("invoice.payment_action_required", invoiceFixture({ attempt_count: 2 }));
+    const key = "invoice_payment_action_required:in_1:2";
+    let frenchDeliveryAvailable = false;
+    const claimed = new Set<string>();
     const harness = makeHarness([
+      endpoint("GET", /\/rest\/v1\/webhook_events\?select=provider/, () => [{
+        provider: "stripe",
+        event_id: event.id,
+        event_type: event.type,
+        payload: event,
+        attempts: 1,
+      }]),
+      endpoint("PATCH", /\/rest\/v1\/webhook_events.*select=event_id/, () => [
+        { event_id: event.id },
+      ]),
+      endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => {
+        const row = call.json() as { company_id: string; email_key: string };
+        if (claimed.has(row.email_key)) return [];
+        claimed.add(row.email_key);
+        return [row];
+      }),
+      endpoint("DELETE", /\/rest\/v1\/email_ledger/, (call) => {
+        expect(call.url.searchParams.get("email_key")).toBe(`eq.${key}:fr-CA`);
+        claimed.delete(`${key}:fr-CA`);
+        return new Response(null, { status: 204 });
+      }),
+      endpoint("POST", /api\.resend\.com\/emails/, (call) => {
+        const french = call.headers.get("idempotency-key")?.endsWith(":fr-CA");
+        return french && !frenchDeliveryAvailable
+          ? new Response("service unavailable", { status: 503 })
+          : { id: "email_1" };
+      }),
       ...ledgerEndpoints(),
-      // Re-fetch confirms it still needs action (status 'open').
       endpoint("GET", /api\.stripe\.com\/v1\/invoices\/in_1/, () => ({
         id: "in_1",
         status: "open",
-        hosted_invoice_url: "https://invoice.stripe.test/i/in_1",
+        hosted_invoice_url: "https://invoice.stripe.test/i/current",
       })),
       endpoint("GET", /\/rest\/v1\/companies/, () => [
-        { id: COMPANY_ID, name: "Acme Plumbing" },
+        { id: COMPANY_ID, name: "Acme Plumbing", locale: "en" },
       ]),
-      ...recipientEndpoints(),
+      ...recipientEndpoints([
+        { user_id: "22222222-2222-4222-8222-222222222222", locale: "fr-CA" },
+      ]),
     ]);
+
+    expect((await deliver(event, harness)).status).toBe(200);
+    expect(harness.callsTo("PATCH", /webhook_events/)[0].json()).toMatchObject({ attempts: 1 });
+    expect(harness.callsTo("DELETE", /email_ledger/)).toHaveLength(1);
+
+    frenchDeliveryAvailable = true;
+    await sweepWebhookEvents(env);
+    expect(harness.callsTo("PATCH", /webhook_events/).at(-1)?.json()).toEqual({
+      processed_at: expect.any(String),
+    });
+
     await deliver(
-      eventOf("invoice.payment_action_required", invoiceFixture()),
+      eventOf("invoice.payment_action_required", invoiceFixture({ attempt_count: 2 }), { id: "evt_duplicate" }),
       harness,
     );
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
-    const emails = harness.callsTo("POST", /api\.resend\.com/);
-    expect(emails).toHaveLength(1);
-    expect((emails[0].json() as { text: string }).text).toContain(
-      "https://invoice.stripe.test/i/in_1",
-    );
+    const emails = harness.callsTo("POST", /api\.resend\.com\/emails/);
+    expect(emails).toHaveLength(3);
+    for (const [locale, address, subject, count] of [
+      ["en", "owner@example.com", "confirm your Loonext payment", 1],
+      ["fr-CA", "admin@example.com", "confirmez votre paiement Loonext", 2],
+    ] as const) {
+      const attempts = emails.filter((call) =>
+        call.headers.get("idempotency-key") === `${COMPANY_ID}:${key}:${locale}`);
+      expect(attempts).toHaveLength(count);
+      for (const attempt of attempts) {
+        expect(attempt.json()).toMatchObject({
+          to: [address],
+          subject: expect.stringContaining(subject),
+          text: expect.stringContaining("https://invoice.stripe.test/i/current"),
+        });
+      }
+    }
   });
 
   it("invoice.payment_action_required: no SCA email when the re-fetched invoice is already paid", async () => {
