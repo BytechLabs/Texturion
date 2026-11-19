@@ -180,6 +180,7 @@ sealed interface DeepLink {
      */
     data class Calls(val sessionId: String? = null, val transferId: String? = null) : DeepLink
 
+    data object Inbox : DeepLink
     data object ForYou : DeepLink
 
     /**
@@ -226,6 +227,7 @@ fun deepLinkFor(
             messageParam?.takeIf { it.isNotBlank() },
         )
 
+    segments.firstOrNull() == "inbox" -> DeepLink.Inbox
     segments.size >= 2 && segments[0] == "tasks" -> DeepLink.Task(segments[1])
 
     // #336: a call now has an address, so `/calls/<session>` is a real link
@@ -757,6 +759,11 @@ private fun ReadyShell(
                             runCatching { softphone.onIncomingCallPush(session, transferId = link.transferId) }
                         }
                     }
+                }
+
+                DeepLink.Inbox -> {
+                    routeStack.clear()
+                    tab = ShellTab.Inbox
                 }
 
                 DeepLink.ForYou -> {

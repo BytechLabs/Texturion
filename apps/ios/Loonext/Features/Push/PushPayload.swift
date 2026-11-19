@@ -97,8 +97,8 @@ struct PushContent: Sendable, Equatable {
     let kind: String?
     let title: String
     let body: String
-    /// Normalized absolute deep link (always on `PushLink.appOrigin`).
-    let url: String
+    /// A normalized deep link on `PushLink.appOrigin`, if present.
+    let url: String?
     /// Coalescing tag: repeats for one thread/call replace, not stack (#149).
     /// On iOS remote pushes coalescing is server-side (apns-collapse-id);
     /// the tag still keys client-side handling.
@@ -110,13 +110,13 @@ struct PushContent: Sendable, Equatable {
     var isCallEnd: Bool { kind == PushKind.callEnd }
 
     /// `call` query param from the wake link (`/calls?call=<call_session_id>`).
-    var callSessionId: String? { queryParam(url: url, name: "call") }
-    var transferId: String? { isCall ? queryParam(url: url, name: "transfer") : nil }
+    var callSessionId: String? { url.flatMap { queryParam(url: $0, name: "call") } }
+    var transferId: String? { isCall ? url.flatMap { queryParam(url: $0, name: "transfer") } : nil }
 }
 
 /// Parse a push data map into displayable content. Every field is optional on
 /// the wire; missing/garbage input degrades to a generic notice in the
-/// Messages category with the inbox fallback link.
+/// Messages category without a navigation request.
 ///
 /// #228: `locale` is last and defaulted, so `NotificationsPushPayloadTests` —
 /// which pins the English fallbacks against the Android twin — keeps calling
@@ -127,7 +127,8 @@ func parsePush(_ data: [String: String], _ locale: String? = nil) -> PushContent
     let url = normalizeDeepLink(data["url"])
     let title = trimmedNonEmpty(data["title"])
     let body = data["body"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let tag = trimmedNonEmpty(data["tag"]) ?? coalescingTag(kind: kind, normalizedUrl: url)
+    let tag = trimmedNonEmpty(data["tag"])
+        ?? coalescingTag(kind: kind, normalizedUrl: url ?? PushLink.fallbackDeepLink)
 
     if kind == PushKind.call {
         return PushContent(
@@ -183,18 +184,18 @@ private func pushCategory(for kind: String?, alertId: String?) -> String {
 /// - relative paths resolve against `PushLink.appOrigin`
 /// - legacy `/conversations/{id}` becomes `/inbox/{id}`
 /// - query strings are preserved (the `/calls?call=…` wake link needs its param)
-/// - foreign-origin or unparseable urls fall back to the inbox
-func normalizeDeepLink(_ raw: String?) -> String {
+/// - missing, foreign-origin or unparseable URLs cannot route
+func normalizeDeepLink(_ raw: String?) -> String? {
     let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if trimmed.isEmpty { return PushLink.fallbackDeepLink }
+    guard !trimmed.isEmpty, !trimmed.hasPrefix("//") else { return nil }
     let absolute = trimmed.hasPrefix("/") ? PushLink.appOrigin + trimmed : trimmed
     guard let components = URLComponents(string: absolute),
           components.scheme == "https",
-          components.host == "app.loonext.com"
-    else { return PushLink.fallbackDeepLink }
+          components.host == "app.loonext.com",
+          !components.percentEncodedPath.isEmpty
+    else { return nil }
 
     var path = components.percentEncodedPath
-    if path.isEmpty { path = "/inbox" }
     // Legacy exactly-one-segment thread path → the current inbox shape.
     let legacyPrefix = "/conversations/"
     if path.hasPrefix(legacyPrefix) {
@@ -275,6 +276,7 @@ enum PushRoute: Equatable, Sendable {
     case calls(sessionId: String?, transferId: String? = nil)
     case callback(number: String, companyId: String, userId: String)
     case settings(section: SettingsSection?)
+    case inbox
     case forYou
 }
 
@@ -300,12 +302,11 @@ func pushSettingsSection(_ slug: String?) -> SettingsSection? {
     }
 }
 
-/// Parse a (raw or normalized) push/universal-link URL into a route. Foreign
-/// origins normalize to the inbox fallback, which routes nowhere — nil means
-/// "open the app, no navigation".
-func parsePushRoute(url: String) -> PushRoute? {
-    let normalized = normalizeDeepLink(url)
-    guard let components = URLComponents(string: normalized) else { return nil }
+/// Parse a push or universal link into a route. A missing or invalid URL
+/// leaves the current screen in place.
+func parsePushRoute(url: String?) -> PushRoute? {
+    guard let normalized = normalizeDeepLink(url),
+          let components = URLComponents(string: normalized) else { return nil }
     let segments = components.percentEncodedPath.split(separator: "/").map(String.init)
     if segments.count >= 2, segments[0] == "inbox" || segments[0] == "conversations" {
         // A task reminder links to the JOB over its customer's thread, so the
@@ -317,6 +318,9 @@ func parsePushRoute(url: String) -> PushRoute? {
             taskId: queryParam(url: normalized, name: "task"),
             messageId: queryParam(url: normalized, name: "message")
         )
+    }
+    if segments.first == "inbox" {
+        return .inbox
     }
     if segments.count >= 2, segments[0] == "tasks" {
         return .task(taskId: segments[1])

@@ -1,6 +1,10 @@
 package com.loonext.android
 
 import com.loonext.android.features.settings.SettingsSection
+import com.loonext.android.push.parsePush
+import com.loonext.android.push.queryParam
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -8,12 +12,60 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
+import java.net.URI
 
 /**
  * Where a notification tap lands. Every push the server sends resolves through
  * here, and a link that resolves to nothing is a tap that appears to do nothing.
  */
 class DeepLinkTest {
+    @Serializable
+    private data class PushRouteVector(
+        val url: String,
+        val route: String,
+        val conversationId: String? = null,
+        val taskId: String? = null,
+        val messageId: String? = null,
+        val sessionId: String? = null,
+        val transferId: String? = null,
+        val section: String? = null,
+    )
+
+    @Test
+    fun `push routes land on the destinations in the shared fixture`() {
+        val fixture = repoDir("packages/shared/vectors/push-routes.json")
+        val cases = Json.decodeFromString<List<PushRouteVector>>(fixture.readText())
+        assertTrue(cases.isNotEmpty())
+        val sections = mapOf(
+            "billing" to SettingsSection.Billing,
+            "notifications" to SettingsSection.Notifications,
+            "numbers" to SettingsSection.Numbers,
+            "profile" to SettingsSection.Profile,
+            "usage" to SettingsSection.Usage,
+        )
+        for (vector in cases) {
+            val url = requireNotNull(parsePush(mapOf("url" to vector.url)).url) { vector.url }
+            val expected = when (vector.route) {
+                "inbox" -> DeepLink.Inbox
+                "thread" -> DeepLink.Thread(
+                    requireNotNull(vector.conversationId), vector.taskId, vector.messageId,
+                )
+                "task" -> DeepLink.Task(requireNotNull(vector.taskId))
+                "calls" -> DeepLink.Calls(vector.sessionId, vector.transferId)
+                "forYou" -> DeepLink.ForYou
+                "settings" -> DeepLink.Settings(sections.getValue(requireNotNull(vector.section)))
+                else -> error("Unknown fixture route: ${vector.route}")
+            }
+            val actual = deepLinkFor(
+                URI(url).path.split('/').filter(String::isNotEmpty),
+                taskParam = queryParam(url, "task"),
+                callParam = queryParam(url, "call"),
+                messageParam = queryParam(url, "message"),
+                transferParam = queryParam(url, "transfer"),
+            )
+            assertEquals(vector.url, expected, actual)
+        }
+    }
 
     @Test
     fun `a thread link can name the message to open at`() {
@@ -108,7 +160,6 @@ class DeepLinkTest {
         // never heard of still resolves to nothing, because there is no screen
         // it could honestly stand for.
         assertNull(deepLinkFor(emptyList()))
-        assertNull(deepLinkFor(listOf("inbox")))
         assertNull(deepLinkFor(listOf("billing")))
     }
 
