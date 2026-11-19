@@ -33,7 +33,8 @@ struct SettingsAuthClient: Sendable {
             method: "PUT",
             path: "user",
             body: body,
-            bearer: accessToken
+            bearer: accessToken,
+            locale: locale
         )
     }
 
