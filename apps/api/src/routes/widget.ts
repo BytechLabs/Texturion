@@ -45,8 +45,10 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
-import { maybeSendAwayReply } from "../messaging/away-reply";
+import { finishThreadedInbound, inboundNotificationLimits, INBOUND_COMPANY_COLUMNS } from "../messaging/inbound";
+import type { InboundCompany, InboundThreadResult } from "../messaging/inbound";
 import { runPreSendGates, sendSystemText } from "../messaging/send";
+import { reportHandledFailure } from "../observability/capture";
 import { resolveWidgetNumber } from "./widget-number";
 
 /**
@@ -372,6 +374,7 @@ const verifySchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/),
   /** What they actually want to say. The reason the whole flow exists. */
   message: z.string().trim().min(1).max(1000),
+  name: z.string().trim().max(120).optional(),
 });
 
 /**
@@ -445,18 +448,27 @@ widgetRoutes.post("/widget/verify", async (c) => {
   // One resolver, called from both halves — see widget-number.ts for why two
   // copies of "oldest active" agreed by accident and would not have survived
   // the setting.
-  const line = await resolveWidgetNumber(db, result.company_id);
+  const companyId = result.company_id;
+  const [line, companyResponse] = await Promise.all([
+    resolveWidgetNumber(db, companyId),
+    db.from("companies").select(INBOUND_COMPANY_COLUMNS).eq("id", companyId).single(),
+  ]);
   if (line === null) return widgetUnavailable(c);
-  const numberId = line.id;
+  if (companyResponse.error) throw new Error(`widget company lookup failed: ${companyResponse.error.message}`);
+  const company = companyResponse.data as InboundCompany;
+  const limits = inboundNotificationLimits(company);
 
   const { data: threaded, error: threadError } = await db.rpc(
     "thread_inbound_message",
     {
-      p_company_id: result.company_id,
-      p_phone_number_id: numberId,
+      p_company_id: companyId,
+      p_phone_number_id: line.id,
       p_from_e164: result.phone_e164,
       p_body: body.message,
       p_telnyx_message_id: null,
+      p_timezone: company.timezone ?? null,
+      p_email_limit: limits.email,
+      p_push_limit: limits.push,
       p_source: "widget",
       // The VERIFICATION is the key. A visitor who double-taps submit answers
       // the same verification twice, and both attempts must be one thread.
@@ -466,44 +478,40 @@ widgetRoutes.post("/widget/verify", async (c) => {
   if (threadError) {
     throw new Error(`widget threading failed: ${threadError.message}`);
   }
-  const landed = threaded as
-    | { conversation_id?: string; created?: boolean }
-    | null;
-  if (!landed?.conversation_id) {
-    throw new Error("widget threading returned no conversation");
+  const landed = threaded as InboundThreadResult | null;
+  if (!landed?.conversation_id || !landed.message_id) {
+    throw new Error("widget threading returned no message");
   }
+  if (!landed.created) return c.json({ ok: true }, 201);
 
-  // #232 phase 3 — the after-hours reply, so an 11pm visitor is answered
-  // instead of met with silence.
-  //
-  // This is the whole reason the gap existed: `maybeSendAwayReply` hangs off
-  // the CARRIER webhook, and a widget message never goes near it. A visitor
-  // typing at 11pm on a Sunday got a thread nobody would look at until Monday
-  // and no acknowledgement at all — from the highest-intent moment the product
-  // has. The one that arrives is the owner's own away message on the receiving
-  // line's schedule, not a "we're closed" we invented; the same message their
-  // texting customers get, which is the point.
-  //
-  // Best-effort and self-swallowing, exactly as in the inbound pipeline: the
-  // conversation is already durable, and a send failure must not turn a
-  // successful submission into an error the visitor sees. Only on `created`,
-  // so a double-tap that re-threads answers once.
-  if (landed.created) {
-    try {
-      await maybeSendAwayReply(env, db, {
-        companyId: result.company_id,
-        conversationId: landed.conversation_id,
-        fromE164: result.phone_e164,
-        triggerBody: body.message,
-        atUtc: new Date(),
-      });
-    } catch (cause) {
-      console.error(
-        `widget away-reply for conversation ${landed.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
-      );
+  let contactName: string | null = null;
+  if (landed.contact_id && body.name) {
+    const saved = await db.from("contacts").update({ name: body.name })
+      .eq("company_id", companyId)
+      .eq("id", landed.contact_id)
+      .is("deleted_at", null)
+      .or("name.is.null,name.eq.")
+      .select("name")
+      .maybeSingle();
+    if (saved.error) {
+      await reportHandledFailure(env, "widget-contact-name", new Error(saved.error.message));
+    } else {
+      contactName = saved.data?.name ?? null;
     }
   }
+
+  await finishThreadedInbound(env, db, {
+    threaded: landed,
+    companyId,
+    company,
+    fromE164: result.phone_e164,
+    toE164: line.number_e164,
+    body: body.message,
+    segments: null,
+    mediaCount: 0,
+    contactName,
+    source: "widget",
+  }).catch((error: unknown) => reportHandledFailure(env, "widget-inbound-delivery", error));
 
   return c.json({ ok: true }, 201);
 });

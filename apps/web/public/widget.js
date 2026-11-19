@@ -1,37 +1,4 @@
-/**
- * #232 — the "Text us" widget, as one script tag.
- *
- *   <script src="https://app.loonext.com/widget.js" data-key="…" defer></script>
- *
- * The person pasting this is a plumber who owns a WordPress site, not a
- * developer, so: no build step, no npm package, no framework, no config file.
- * One tag, one attribute.
- *
- * ## Why a shadow root
- *
- * This runs inside somebody else's theme. Two things must be true and neither
- * is achievable with ordinary CSS: their stylesheet must not reach our button
- * (a theme that sets `button { width: 100% }` would smear it across the page),
- * and ours must not reach anything of theirs. A shadow root is the only
- * mechanism that gives both, and it is why the styles below can be plain and
- * short rather than defensive and long.
- *
- * ## Accessibility is not a pass at the end
- *
- * The panel is a real dialog: focus moves into it on open, is trapped while it
- * is open, ESC closes it, and focus returns to the launcher — which is where a
- * keyboard user was, and losing that is how a widget becomes a trap. Every
- * control is a real `<button>` or a labelled `<input>`. Step changes are
- * announced through a polite live region, because a sighted visitor sees the
- * form become a code field and a blind one is told nothing otherwise.
- *
- * ## What it never does
- *
- * No cookies, no localStorage, no analytics, no third-party requests, and it
- * does not read anything from the host page. It is on a customer's site in
- * front of their customers; the only data that leaves is what the visitor typed
- * into this form.
- */
+/* Loonext Text us widget. Install with one script tag carrying data-key. */
 (function mountWidget() {
   "use strict";
 
@@ -47,23 +14,6 @@
     return;
   }
 
-  /*
-   * #228 — the words this widget says, in the language the business sells in.
-   *
-   * Shipped English-only onto the BUSINESS's own site, in front of THEIR
-   * customers: a Quebec plumber's French page carried our English. The settings
-   * preview proved it, localising its own chrome and then loading this script.
-   *
-   * A table here rather than the shared catalogue, and the cost is real: this
-   * file is served raw to third-party sites with no bundler and no imports, so
-   * it cannot reach `packages/shared`. `widget-copy.test.ts` checks the two
-   * languages against each other, which is the only thing that can drift
-   * silently. Prose is kept short on purpose — this file has a 15KB budget and
-   * ships uncompiled, so every comment is bytes on a stranger's homepage.
-   *
-   * Anything but a known locale falls back to English: a visitor cannot fix a
-   * bad attribute.
-   */
   const COPY = {
     en: {
       launch: "Text us",
@@ -76,6 +26,7 @@
       codeTitle: "Check your phone",
       codeSub: "Enter the code we texted so we know it is you.",
       startSub: "Send a text and we will reply here.",
+      challenge: "Spam protection",
       sendCode: "Text me a code",
       sendMessage: "Send my message",
       sentCode: "We texted you a code.",
@@ -94,6 +45,7 @@
       codeTitle: "Vérifiez votre téléphone",
       codeSub: "Entrez le code que nous vous avons envoyé, pour confirmer que c'est bien vous.",
       startSub: "Envoyez un message et nous vous répondrons ici.",
+      challenge: "Protection antipourriel",
       sendCode: "Envoyez-moi un code",
       sendMessage: "Envoyer mon message",
       sentCode: "Nous vous avons envoyé un code.",
@@ -178,7 +130,7 @@
     `<form novalidate>` +
     `<div class="step-one">` +
     `<label for="lx-name">${  t.name  }</label>` +
-    `<input id="lx-name" name="name" autocomplete="name" required>` +
+    `<input id="lx-name" name="name" maxlength="120" autocomplete="name" required>` +
     `<label for="lx-phone">${  t.phone  }</label>` +
     `<input id="lx-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required>` +
     `<label for="lx-msg">${  t.message  }</label>` +
@@ -270,7 +222,7 @@
     // The trap. Without it, Tab walks out of the dialog and into the host
     // page's own links behind it, which for a screen-reader user is silent.
     const focusable = panel.querySelectorAll(
-      "button, input:not([tabindex='-1']), textarea",
+      "button, input:not([tabindex='-1']), textarea, iframe",
     );
     if (focusable.length === 0) return;
     const { 0: first } = focusable;
@@ -298,6 +250,36 @@
     );
   }
 
+  function turnstileToken() {
+    return new Promise((resolve) => {
+      const frame = document.createElement("iframe");
+      frame.title = t.challenge;
+      frame.style.cssText = "width:100%;height:66px;border:0";
+      const url = new URL("/widget-challenge", origin);
+      url.searchParams.set("parent", location.origin);
+      url.searchParams.set("lang", lang === "fr-CA" ? lang : "en");
+
+      function finish(token) {
+        clearTimeout(timer);
+        window.removeEventListener("message", receive);
+        frame.remove();
+        resolve(token ?? undefined);
+      }
+
+      function receive(event) {
+        if (event.origin === origin && event.source === frame.contentWindow &&
+            event.data?.type === "loonext-widget-captcha") {
+          finish(typeof event.data.token === "string" ? event.data.token : undefined);
+        }
+      }
+
+      const timer = setTimeout(finish, 20_000);
+      window.addEventListener("message", receive);
+      frame.src = url.href;
+      form.before(frame);
+    });
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     err.textContent = "";
@@ -306,18 +288,17 @@
 
     const request =
       verificationId === null
-        ? post("/widget/start", {
+        ? turnstileToken().then((token) => post("/widget/start", {
             widgetKey: key,
             phone: String(data.get("phone") || ""),
             website: String(data.get("website") || ""),
-          })
+            turnstileToken: token,
+          }))
         : post("/widget/verify", {
             verificationId,
             code: String(data.get("code") || ""),
-            message:
-              `${String(data.get("name") || "") 
-              }: ${ 
-              String(data.get("message") || "")}`,
+            name: String(data.get("name") || ""),
+            message: String(data.get("message") || ""),
           });
 
     request
@@ -325,7 +306,7 @@
         send.disabled = false;
         if (!result.ok) {
           err.textContent =
-            (result.payload?.message) || t.failed;
+            result.payload?.error?.message || t.failed;
           return;
         }
         if (verificationId === null) {

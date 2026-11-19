@@ -99,7 +99,7 @@ export function GET(request: Request) {
       // policy stops being report-only.
       "content-security-policy":
         "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; " +
-        "img-src 'self' data:; connect-src 'self'; base-uri 'none'; " +
+        "img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'none'; " +
         // Only our own settings page frames this. A preview of somebody's
         // "Text us" button is not sensitive, but a document that anyone may
         // frame is a document somebody will frame over something that is.

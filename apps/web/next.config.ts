@@ -142,20 +142,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // #232: everything EXCEPT the widget preview, which the settings page
-        // frames on purpose. The global list carries `frame-ancestors 'none'`
-        // and `X-Frame-Options: DENY`, and both are right for every other
-        // route — a browser enforces every CSP it is given, so a route handler
-        // cannot loosen them by setting its own header. The exclusion is a
-        // negative lookahead here rather than a second rule below, because a
-        // second rule would ADD a header next to the deny rather than replace
-        // it.
-        //
-        // Safe for this one path on its own terms: the preview is a static
-        // document with no session, no authenticated data and nothing a
-        // clickjacker could aim a cursor at. Its only form posts a literal
-        // `preview` key that resolves to no workspace.
-        source: "/((?!widget-preview$).*)",
+        // Browsers enforce both policies if the global frame denial also matches a widget document.
+        source: "/((?!(?:widget-preview|widget-challenge)$).*)",
         headers: [...SECURITY_HEADERS],
       },
       {
@@ -170,6 +158,7 @@ const nextConfig: NextConfig = {
               "style-src 'unsafe-inline'",
               "img-src 'self' data:",
               "connect-src 'self'",
+              "frame-src 'self'",
               "base-uri 'none'",
               "form-action 'self'",
               "frame-ancestors 'self'",

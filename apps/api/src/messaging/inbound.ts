@@ -65,15 +65,45 @@ import {
 import type { TelnyxEvent, ThreadResult } from "./types";
 
 const INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
+export const INBOUND_COMPANY_COLUMNS =
+  "timezone,plan,notify_email_limit,notify_push_limit," +
+  "emergency_keyword_enabled,emergency_keywords,emergency_message," +
+  "first_inbound_reply_at,country,us_texting_enabled,locale,name,subscription_status";
+
+export interface InboundCompany {
+  timezone?: string | null;
+  plan?: PlanId | null;
+  notify_email_limit?: number | null;
+  notify_push_limit?: number | null;
+  emergency_keyword_enabled?: boolean | null;
+  emergency_keywords?: string[] | null;
+  emergency_message?: string | null;
+  first_inbound_reply_at?: string | null;
+  country?: string | null;
+  us_texting_enabled?: boolean | null;
+  locale?: string | null;
+  name?: string | null;
+  subscription_status?: string | null;
+}
+
+export function inboundNotificationLimits(company: InboundCompany | null): { email: number; push: number } {
+  const defaults = PLAN_NOTIFY_LIMITS[company?.plan ?? "starter"] ?? PLAN_NOTIFY_LIMITS.starter;
+  return {
+    email: company?.notify_email_limit ?? defaults.email,
+    push: company?.notify_push_limit ?? defaults.push,
+  };
+}
 
 /**
  * The threading RPC's return with the #39 additive key: `notification_alert`
  * is 80/100 exactly once per (company, UTC day) when this claim crossed that
  * percentage of the daily inbound-notification allowance, else null/absent.
  */
-type InboundThreadResult = ThreadResult & {
+export type InboundThreadResult = ThreadResult & {
   crew_notify_state?: "none" | "pending" | "attempted";
   crew_notify_verdict?: CrewNotifyVerdict | null;
+  contact_id?: string;
+  contact_created?: boolean;
   notification_alert?: number | null;
   /**
    * #343: the per-channel verdicts and the crossings, both additive. An older
@@ -95,6 +125,26 @@ type InboundThreadResult = ThreadResult & {
    */
   notify_reason?: "new" | "reopened" | "append" | "reaction";
 };
+
+interface ThreadedInboundInput {
+  threaded: InboundThreadResult;
+  companyId: string;
+  company: InboundCompany | null;
+  fromE164: string;
+  toE164: string;
+  body: string;
+  segments: number | null;
+  mediaCount: number;
+  receivedMediaCount?: number;
+  contactName?: string | null;
+  emergency?: boolean;
+  source: "carrier" | "widget";
+}
+
+function isInboundEmergency(company: InboundCompany | null, body: string): boolean {
+  return (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
+    isEmergencyKeyword(body, effectiveEmergencyKeywords(company?.emergency_keywords));
+}
 
 /**
  * #281 — the REPLY half of D12 activation: "sends its first outbound SMS AND
@@ -221,23 +271,7 @@ export async function handleInboundMessage(
     // so the notification budget costs ZERO extra round trips on the hot
     // inbound path — the timezone that decides when the day ends, and the plan
     // whose ceilings apply, plus any ops override.
-    .select(
-      "id,company_id," +
-        "companies(timezone,plan,notify_email_limit,notify_push_limit," +
-        // #281: first_inbound_reply_at is the activation ledger, and
-        // country/us_texting_enabled segment the funnel (#369 asks for
-        // Canada-only and US-enabled reported apart, because they have
-        // structurally different time-to-value). All three ride the lookup this
-        // path already makes, so activation costs no extra round trip either.
-        "emergency_keyword_enabled,emergency_keywords,emergency_message," +
-        "first_inbound_reply_at,country,us_texting_enabled,locale,name," +
-        // #481: the off-ramp only ever applies to a workspace on its way
-        // out, and this is the hottest path in the product. Riding the
-        // lookup that already runs means a PAYING workspace costs nothing
-        // for a feature it can never use — the alternative was a second
-        // round trip on every inbound message forever.
-        "subscription_status)",
-    )
+    .select(`id,company_id,companies(${INBOUND_COMPANY_COLUMNS})`)
     .eq("number_e164", toE164)
     .neq("status", "released")
     .limit(1);
@@ -245,57 +279,18 @@ export async function handleInboundMessage(
     throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
   }
   const number = (numbers ?? [])[0] as unknown as
-    | {
-        id: string;
-        company_id: string;
-        companies?: {
-          timezone?: string | null;
-          plan?: PlanId | null;
-          notify_email_limit?: number | null;
-          notify_push_limit?: number | null;
-          emergency_keyword_enabled?: boolean | null;
-          emergency_keywords?: string[] | null;
-          emergency_message?: string | null;
-          first_inbound_reply_at?: string | null;
-          country?: string | null;
-          us_texting_enabled?: boolean | null;
-          /** #228: the language the business works in. */
-          locale?: string | null;
-          /** #228: named in the French help reply, so it is not from a stranger. */
-          name?: string | null;
-          subscription_status?: string | null;
-        } | null;
-      }
+    | { id: string; company_id: string; companies?: InboundCompany | null }
     | undefined;
   if (!number) {
     console.warn(`message.received for unknown number — ignored`);
     return;
   }
 
-  // #343: the ceilings, per plan, with an ops-only per-company override on
-  // top. They live in TypeScript beside every other plan number rather than in
-  // a second SQL CASE — that is how 500/2500 ended up in three places — and
-  // are passed in, so raising one for a customer who needs it is a column
-  // write rather than a migration and a deploy.
   const company = number.companies ?? null;
-  const planLimits =
-    PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter")] ??
-    PLAN_NOTIFY_LIMITS.starter;
+  const limits = inboundNotificationLimits(company);
 
-  // #414: the reply we asked for. The default away message — on by default,
-  // kept by most owners — invites an emergency reply, and until now that reply
-  // threaded as an ordinary message.
-  //
-  // #460: matched against THIS workspace's words. A null column means the
-  // product list, so nothing changes for a workspace that never opened the
-  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
-  // the settings screen warns against the same list this line acts on.
-  const emergency =
-    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
-    isEmergencyKeyword(
-      payload.text ?? "",
-      effectiveEmergencyKeywords(company?.emergency_keywords),
-    );
+  const body = payload.text ?? "";
+  const emergency = isInboundEmergency(company, body);
 
   const media = (payload.media ?? []).filter(
     (item): item is { url: string; content_type?: string; size?: number } =>
@@ -303,16 +298,16 @@ export async function handleInboundMessage(
   );
 
   // The §6 threading transaction, atomically in the database.
-  const reaction = payload.media?.length ? null : parseTapback(payload.text ?? "");
+  const reaction = payload.media?.length ? null : parseTapback(body);
   const { data, error } = await db.rpc("thread_inbound_message", {
     p_company_id: number.company_id,
     p_phone_number_id: number.id,
     p_from_e164: fromE164,
-    p_body: payload.text ?? "",
+    p_body: body,
     p_telnyx_message_id: telnyxMessageId,
     p_timezone: company?.timezone ?? null,
-    p_email_limit: company?.notify_email_limit ?? planLimits.email,
-    p_push_limit: company?.notify_push_limit ?? planLimits.push,
+    p_email_limit: limits.email,
+    p_push_limit: limits.push,
     p_notify_emergency: emergency,
     p_notify_media_count: media.length,
     ...(reaction ? { p_reaction: reaction } : {}),
@@ -324,12 +319,47 @@ export async function handleInboundMessage(
   }
   if (threaded.notify_reason === "reaction") return;
 
+  await finishThreadedInbound(env, db, {
+    threaded,
+    companyId: number.company_id,
+    company,
+    fromE164,
+    toE164,
+    body,
+    segments: typeof payload.parts === "number" ? payload.parts : null,
+    mediaCount: media.length,
+    receivedMediaCount: payload.media?.length ?? 0,
+    emergency,
+    source: "carrier",
+  });
+
+  // Notify first so a retryable download failure cannot suppress the alert.
+  if (media.length > 0) {
+    await downloadInboundMedia(db, {
+      companyId: number.company_id,
+      conversationId: threaded.conversation_id,
+      messageId: threaded.message_id,
+      media,
+    });
+  }
+}
+
+export async function finishThreadedInbound(
+  env: Env,
+  db: SupabaseClient,
+  input: ThreadedInboundInput,
+): Promise<void> {
+  const { threaded, companyId, company, fromE164, toE164, body, segments, mediaCount, source } = input;
+  const carrier = source === "carrier";
+  const limits = inboundNotificationLimits(company);
+  const emergency = input.emergency ?? isInboundEmergency(company, body);
+
   // #281 activation: the reply half of D12, once per workspace. Gated on the
   // first delivery so a §11 sweeper replay cannot re-emit it, and awaited
   // because it never rejects.
   if (threaded.created) {
     await captureFirstInboundReply(env, db, {
-      companyId: number.company_id,
+      companyId,
       conversationId: threaded.conversation_id,
       messageId: threaded.message_id,
       alreadyStampedAt: company?.first_inbound_reply_at,
@@ -337,11 +367,11 @@ export async function handleInboundMessage(
       usTextingEnabled: company?.us_texting_enabled,
     });
     // D146: the inbound side of `message_sent`, with the sender's country.
-    void captureEvent(env, "message_received", number.company_id, {
+    void captureEvent(env, "message_received", companyId, {
       direction: "inbound",
       country: phoneCountry(fromE164),
-      segments: typeof payload.parts === "number" ? payload.parts : null,
-      media_count: payload.media?.length ?? 0,
+      segments,
+      media_count: input.receivedMediaCount ?? mediaCount,
     });
   }
 
@@ -357,15 +387,23 @@ export async function handleInboundMessage(
   // cannot slow anything down when nobody is subscribed: it is one indexed
   // lookup that returns no rows.
   if (threaded.created) {
+    if (threaded.contact_created && threaded.contact_id) {
+      await enqueueWebhookEvent(db, {
+        companyId,
+        type: "contact.created",
+        data: { contact_id: threaded.contact_id, phone_e164: fromE164, name: input.contactName ?? null },
+      });
+    }
     await enqueueWebhookEvent(db, {
-      companyId: number.company_id,
+      companyId,
       type: "message.received",
       data: {
         message_id: threaded.message_id,
         conversation_id: threaded.conversation_id,
         from: fromE164,
         to: toE164,
-        body: payload.text ?? "",
+        body,
+        ...(source === "widget" ? { source } : {}),
       },
     });
   }
@@ -382,11 +420,11 @@ export async function handleInboundMessage(
   let keywordFailure: { error: unknown } | undefined;
   let carrierOwnedIt = false;
   try {
-    carrierOwnedIt = await handleOptOutKeywords(db, {
-      companyId: number.company_id,
+    carrierOwnedIt = carrier && await handleOptOutKeywords(db, {
+      companyId,
       conversationId: threaded.conversation_id,
       fromE164,
-      body: payload.text ?? "",
+      body,
       recordEvent: threaded.created,
     });
   } catch (error) {
@@ -405,12 +443,12 @@ export async function handleInboundMessage(
   //
   // Best-effort: the inbound message is already durable, and a job that could
   // not be marked confirmed must never wedge a delivery in a retry loop.
-  if (!keywordFailure && !carrierOwnedIt && threaded.created) {
+  if (carrier && !keywordFailure && !carrierOwnedIt && threaded.created) {
     try {
       await confirmAppointmentFromReply(db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
-        body: payload.text ?? "",
+        body,
       });
     } catch (error_) {
       console.error("appointment confirmation failed:", error_);
@@ -425,16 +463,16 @@ export async function handleInboundMessage(
     // delivery in a retry loop.
     try {
       const rated = await recordRatingFromReply(db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
-        body: payload.text ?? "",
+        body,
       });
       // A bad answer is not a statistic to read next month. Inside the same
       // try: the rating is already written and on the thread, so a push that
       // fails degrades the alert rather than losing the score.
       if (rated) {
         await escalatePoorRating(env, db, {
-          companyId: number.company_id,
+          companyId,
           conversationId: threaded.conversation_id,
           taskId: rated.taskId,
           score: rated.score,
@@ -451,10 +489,10 @@ export async function handleInboundMessage(
   const pendingAlert = threaded.crew_notify_state === "pending";
   const spam = threaded.created || pendingAlert
     ? await classifyInbound(db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
         fromE164,
-        body: payload.text,
+        body,
       })
     : { blocked: false, suspected: false };
 
@@ -471,18 +509,18 @@ export async function handleInboundMessage(
   //
   // Best-effort: the inbound message is already durable, and a failure to raise
   // a WARNING must never wedge it in a retry loop.
-  const optOutHint = looksLikeOptOut(payload.text);
+  const optOutHint = looksLikeOptOut(body);
   if (optOutHint && threaded.created) {
     try {
       await db
         .from("conversations")
         .update({ opt_out_hint_at: new Date().toISOString() })
         .eq("id", threaded.conversation_id)
-        .eq("company_id", number.company_id);
+        .eq("company_id", companyId);
       // #345/D22: "we were told, and we knew" is the fact that matters if this
       // is ever disputed. The actor is the CONTACT, not a member.
       await recordAudit(db, {
-        companyId: number.company_id,
+        companyId,
         actorUserId: null,
         action: "opt_out.language_detected",
         targetType: "conversation",
@@ -514,13 +552,13 @@ export async function handleInboundMessage(
   try {
     if (pendingAlert && threaded.crew_notify_verdict) {
       if (spamSilences) {
-        await clearSavedInboundAlert(db, number.company_id, threaded.message_id);
+        await clearSavedInboundAlert(db, companyId, threaded.message_id);
       } else {
         await deliverSavedInboundAlert(env, db, {
           messageId: threaded.message_id,
-          companyId: number.company_id,
+          companyId,
           conversationId: threaded.conversation_id,
-          body: payload.text ?? "",
+          body,
           verdict: threaded.crew_notify_verdict,
           requireUnread: !threaded.created,
         });
@@ -532,10 +570,12 @@ export async function handleInboundMessage(
       await notifyInboundMessage(
         env,
         {
-          companyId: number.company_id,
+          companyId,
           conversationId: threaded.conversation_id,
-          body: payload.text ?? "",
-          mediaCount: media.length,
+          messageId: threaded.message_id,
+          optedOut: threaded.opted_out,
+          body,
+          mediaCount,
           allowEmail: emergency || allowEmail,
           allowPush: emergency || allowPush,
           emergency,
@@ -559,10 +599,10 @@ export async function handleInboundMessage(
   if (canReply && !optOutHint) {
     try {
       await maybeSendAwayReply(env, db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
         fromE164,
-        triggerBody: payload.text ?? "",
+        triggerBody: body,
         atUtc: new Date(),
       });
     } catch (error_) {
@@ -586,13 +626,13 @@ export async function handleInboundMessage(
   // rather than fetching it means a paying workspace pays no round trip for a
   // feature that can never fire for it, and an absent status reads as "not a
   // departure" rather than as permission.
-  if (canReply && company?.subscription_status === "canceled") {
+  if (carrier && canReply && company?.subscription_status === "canceled") {
     await maybeSendOffRamp(env, db, {
-      companyId: number.company_id,
+      companyId,
       conversationId: threaded.conversation_id,
       from: toE164,
       to: fromE164,
-      triggerBody: payload.text ?? "",
+      triggerBody: body,
     });
   }
 
@@ -609,10 +649,10 @@ export async function handleInboundMessage(
   if (canReply && emergency) {
     try {
       await sendEmergencyAcknowledgment(env, db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
         fromE164,
-        triggerBody: payload.text ?? "",
+        triggerBody: body,
         // #460: the owner's own words, already on the company row this handler
         // read. The product's safety line is appended inside, not here.
         ownerMessage: company?.emergency_message ?? null,
@@ -635,14 +675,14 @@ export async function handleInboundMessage(
   // the emergency acknowledgment because it is the same shape - a keyword the
   // product must answer itself - and gated on `threaded.created` for the same
   // reason: a webhook redelivery must not answer twice.
-  if (canReply && isFrenchHelpKeyword(payload.text ?? "")) {
+  if (carrier && canReply && isFrenchHelpKeyword(body)) {
     try {
       await sendHelpReply(env, db, {
-        companyId: number.company_id,
+        companyId,
         conversationId: threaded.conversation_id,
         fromE164,
-        triggerBody: payload.text ?? "",
-        businessName: number.companies?.name ?? null,
+        triggerBody: body,
+        businessName: company?.name ?? null,
       });
     } catch (error_) {
       console.error(
@@ -665,13 +705,10 @@ export async function handleInboundMessage(
   // makes the year.
   for (const crossing of budgetCrossings(threaded)) {
     try {
-      await sendNotificationBudgetAlert(env, db, number.company_id, crossing, {
-        email: company?.notify_email_limit ?? planLimits.email,
-        push: company?.notify_push_limit ?? planLimits.push,
-      });
+      await sendNotificationBudgetAlert(env, db, companyId, crossing, limits);
     } catch (error_) {
       console.error(
-        `notification-budget alert for company ${number.company_id} failed:`,
+        `notification-budget alert for company ${companyId} failed:`,
         error_ instanceof Error ? error_.message : String(error_),
       );
     }
@@ -679,19 +716,6 @@ export async function handleInboundMessage(
 
   if (keywordFailure) throw keywordFailure.error;
   if (notificationFailure) throw notificationFailure.error;
-
-  // MMS media download runs LAST — idempotent (existing attachment rows are
-  // skipped) and it THROWS on a transient CDN failure so the §11 sweeper
-  // replays just this step. Because it's after the one-shot notification above,
-  // a media-CDN hiccup can no longer eat the new-message alert.
-  if (media.length > 0) {
-    await downloadInboundMedia(db, {
-      companyId: number.company_id,
-      conversationId: threaded.conversation_id,
-      messageId: threaded.message_id,
-      media,
-    });
-  }
 }
 
 /**
