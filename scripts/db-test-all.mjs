@@ -226,6 +226,7 @@ const SUITES = [
   "transfer_target_push_channels",
   "thread_tapbacks",
   "calendar_feed_access",
+  "reply_suggestion_window",
 ];
 
 const args = process.argv.slice(2);
