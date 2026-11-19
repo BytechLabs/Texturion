@@ -209,8 +209,9 @@ export function PricingPageBody({
           </FrCard>
         </FrSection>
 
-        {/* The add-on fine print: the exact limits behind the builder toggles. */}
-        <PlanAddons locale={locale} />
+        <CountryOnly country="us">
+          <PlanAddons locale={locale} />
+        </CountryOnly>
 
         {/* Crew-size slider (demoted below the builder per the owner ruling):
             the cobalt flat line vs the Flare climbing line. */}

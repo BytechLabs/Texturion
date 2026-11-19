@@ -24,6 +24,7 @@ import { PanelFrame } from "@/components/marketing/fr";
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import {
+  ExtraNumberPrice,
   FirstMonthTotal,
   PlanPrice,
   RegistrationFee,
@@ -117,6 +118,10 @@ export function BusinessNumberPageBody({
         </p>
       </FeatureSection>
 
+      <FeatureSection ground="white" eyebrow={copy.landlineEyebrow} heading={copy.landlineTitle}>
+        <p>{copy.landlineBody}</p>
+      </FeatureSection>
+
       <UseCaseSteps
         eyebrow={copy.fixesEyebrow}
         heading={copy.fixesTitle}
@@ -203,6 +208,11 @@ export function BusinessNumberPageBody({
           {copy.pricingStarterAfter}{" "}
           <PlanPrice plan="pro" />
           {copy.pricingProAfter}
+        </p>
+        <p>
+          {copy.pricingExtraBefore} <ExtraNumberPrice plan="starter" />
+          {copy.pricingExtraBetween} <ExtraNumberPrice plan="pro" />
+          {copy.pricingExtraAfter}
         </p>
         <CountryText
           us={

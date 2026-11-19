@@ -96,6 +96,8 @@ export const sharedInboxEn = {
   relatedCompareBody:
     "A shared inbox at a flat price, next to a per-user platform.",
 
+  websiteLeads:
+    "Add a text widget to your website. Visitors verify their number and ask your business to text them. The request opens a conversation where your team can reply and send a quote the customer can accept online.",
   faqTitle: "Shared inbox questions, straight answers.",
   faqSeatsQ: "How many people can share one inbox?",
   faqSeatsA:
@@ -207,6 +209,8 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
   relatedCompareBody:
     "Une boîte partagée à prix fixe, à côté d'une plateforme facturée par personne.",
 
+  websiteLeads:
+    "Ajoutez un bouton de texto à votre site Web. Les visiteurs vérifient leur numéro et demandent à votre entreprise de leur écrire. La demande ouvre une conversation où votre équipe peut répondre et envoyer une soumission que le client peut accepter en ligne.",
   faqTitle: "Questions sur la boîte partagée, réponses directes.",
   faqSeatsQ: "Combien de personnes peuvent partager une boîte ?",
   faqSeatsA:

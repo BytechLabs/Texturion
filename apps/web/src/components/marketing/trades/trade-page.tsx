@@ -338,7 +338,7 @@ export function TradePage({
           {content.featuresH2}
         </h2>
         <div className="mt-12 grid gap-x-14 gap-y-10 sm:grid-cols-2">
-          {content.features.map((f) => (
+          {[...content.features, { title: copy.leadsTitle, body: copy.leadsBody }].map((f) => (
             <div key={f.title}>
               <h3 className="font-body-mkt text-[1.0625rem] font-bold leading-snug text-[color:var(--fr-ink)]">
                 {f.title}

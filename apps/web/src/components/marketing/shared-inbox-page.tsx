@@ -83,6 +83,7 @@ export function SharedInboxPageBody({
         <p>
           {copy.coreBodyTwo}
         </p>
+        <p>{copy.websiteLeads}</p>
       </FeatureSection>
 
       {/* Signal White here, not the default Frost: "The core idea" band above

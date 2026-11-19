@@ -191,6 +191,11 @@ the same flat, no-per-user philosophy at a larger scale. Canadian pricing
 surfaces label amounts in USD. A Canadian card issuer may convert the charge
 to Canadian dollars.
 
+Eligible workspaces can add numbers beyond their plan from Settings. The
+pricing page shows the separate monthly price for Starter and Pro. Businesses
+can also add texting to an eligible landline and keep calls with their current
+carrier.
+
 Everything is transparent and self-serve. You see the price, pay, and start
 working the line the same session. There is no demo to schedule, no sales call, no annual
 lock-in, and a 30-day money-back guarantee that refunds your first invoice in
@@ -207,6 +212,9 @@ that ever pauses.
 ### Features that matter to a crew
 
 - A shared inbox where every conversation has an owner and a clear status.
+- A website widget where visitors verify their number and ask the business to
+  text them. The request starts a conversation in the shared inbox.
+- Quotes sent from the inbox with a link customers can open and accept.
 - Internal notes that stay between the crew and are never sent to the customer.
 - Saved replies you insert with a "/" shortcut, for the quotes and confirmations
   you send a hundred times.
@@ -223,6 +231,8 @@ that ever pauses.
 - Search across every message and contact, and CSV contact import with a
   dry-run preview.
 - Tasks: turn any message into a tracked to-do with an assignee and a due date.
+- Outlook: connect Microsoft 365 to see scheduled jobs assigned to you in your
+  calendar.
 - It works on every phone with no app to install: add it to your home screen,
   get push notifications, and use it in dark mode.
 

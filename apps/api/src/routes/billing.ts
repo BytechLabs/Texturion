@@ -1,6 +1,8 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
 import {
   billingCurrencyOf,
+  EXTRA_NUMBER_CURRENCY,
+  EXTRA_NUMBER_MONTHLY_CENTS,
   formatMoney,
   PLAN_PRICE_CENTS,
   stateMachines,
@@ -18,8 +20,6 @@ import type { PauseEligibility } from '../billing/pause';
 import { enabledModules, isSellableModule } from "../billing/company-modules";
 import {
   allExtraNumberPrices,
-  EXTRA_NUMBER_MONTHLY_CENTS,
-  EXTRA_NUMBER_PRICE_CURRENCY,
   extraNumberPrice,
   findExtraNumberItem,
   setExtraNumberQuantity,
@@ -2080,7 +2080,7 @@ billingRoutes.get("/held-numbers", async (c) => {
     held,
     /** What buying capacity for ONE held number costs, from the price book. */
     extra_number_cents: plan === null ? null : EXTRA_NUMBER_MONTHLY_CENTS[plan],
-    extra_number_currency: EXTRA_NUMBER_PRICE_CURRENCY,
+    extra_number_currency: EXTRA_NUMBER_CURRENCY,
     /**
      * Whether POST .../reinstate would be accepted right now. Sent so the
      * button can be absent rather than fail — being told "no" after pressing it

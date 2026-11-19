@@ -82,6 +82,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         <p>
           {copy.coreBodyThree}
         </p>
+        <p>{copy.leadToJob}</p>
       </FeatureSection>
 
       <UseCaseSteps

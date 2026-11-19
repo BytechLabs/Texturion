@@ -55,6 +55,7 @@
  * - EARLY-PERIOD GUARD: `trendingOver` stays false until MIN_ELAPSED_DAYS have
  *   passed, because a one-day extrapolation (x30) is noise, not signal.
  */
+import { EXTRA_NUMBER_MONTHLY_CENTS } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readUsageWindow } from "./usage-window";
@@ -65,7 +66,6 @@ import { AI_UNIT_COST_CENTS, companyRevenueCents, FIXED_MONTHLY_COST_CENTS, PLAN
 import type { AiCostFeature } from './costs';
 import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
-import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
 import { amortisedMonthlyUsdCents, openPrepayment } from "./prepay";
 import { dialCeilings, PLAN_INCLUDED_SEGMENTS, PLAN_OVERAGE_CENTS_PER_SEGMENT, PLAN_VOICE_MINUTES, VOICE_OVERAGE_CENTS_PER_MINUTE } from './plans';
 import type { PlanId } from './plans';

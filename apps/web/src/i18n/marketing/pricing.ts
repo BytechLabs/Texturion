@@ -198,9 +198,10 @@ export const pricingEn = {
   ledgerStorageFigure: "$0, no caps",
   ledgerStorageDetail:
     "Files you attach and photos customers send are stored free, on every plan. No storage pools, no meter, no storage add-on to buy, and nothing pauses when you save a lot.",
-  ledgerAddOnsTerm: "Optional add-ons, if you turn them on",
-  ledgerAddOnsDetail:
-    "Calling is included in every plan, not an add-on: incoming calls ring your crew inside Loonext and whoever is free answers, you call customers back from the app on your business number, and callers you miss leave a voicemail and get an automatic text back, with generous calling minutes under fair use (the mechanics live in our fair use policy). One add-on exists: Canada numbers, {addOn}/mo, which adds Canadian numbers you can get and text alongside your US number. It isn't switchable on quite yet; we'll sell it when it works, at this price, and nothing here is required to text.",
+  ledgerExtraNumbersTerm: "Extra business numbers",
+  ledgerExtraNumbersFigure: "Starter {starter}/mo · Pro {pro}/mo",
+  ledgerExtraNumbersDetail:
+    "This is the monthly price for each number beyond the ones your plan includes. Add a number in Settings when your workspace meets the carrier and plan requirements.",
   ledgerTaxTerm: "Tax",
   ledgerTaxDetailUs:
     "Prices are in US dollars, plus sales tax where it applies, calculated at checkout.",
@@ -208,9 +209,9 @@ export const pricingEn = {
     "Your plan is priced and billed in US dollars. Applicable sales tax is calculated at checkout. Your card issuer may convert the charge to Canadian dollars.",
   ledgerWholeListTerm: "That's the whole list.",
   ledgerWholeListDetailUs:
-    'Two plans, one optional add-on, one registration fee, and overage you cap. No setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+    'Two plans, optional extra numbers, one registration fee, and overage you cap. No setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
   ledgerWholeListDetailCa:
-    'Two plans, one optional add-on, and overage you cap. No registration fee, no setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
+    'Two plans, optional extra numbers, and overage you cap. No registration fee, no setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
 
   planStarterTagline: "For crews of one to three.",
   planProTagline: "For crews up to fifteen, and a second number.",
@@ -446,9 +447,10 @@ export const pricingFr: Translated<typeof pricingEn> = {
   ledgerStorageFigure: "0 $, sans plafond",
   ledgerStorageDetail:
     "Les fichiers que vous joignez et les photos que les clients envoient sont stockés gratuitement, sur tous les forfaits. Aucun bassin de stockage, aucun compteur, aucun supplément de stockage à acheter, et rien ne s'arrête quand vous en gardez beaucoup.",
-  ledgerAddOnsTerm: "Suppléments optionnels, si vous les activez",
-  ledgerAddOnsDetail:
-    "Les appels sont inclus dans chaque forfait, ce n'est pas un supplément : les appels entrants font sonner votre équipe dans Loonext et celui qui est libre répond, vous rappelez les clients depuis l'application sur votre numéro d'entreprise, et ceux que vous manquez laissent un message vocal et reçoivent un texto automatique en retour, avec des minutes d'appel généreuses sous l'utilisation équitable (les mécaniques vivent dans notre politique d'utilisation équitable). Un seul supplément existe : les numéros canadiens, {addOn}/mois, qui ajoutent des numéros canadiens que vous pouvez obtenir et utiliser à côté de votre numéro américain. Il n'est pas encore activable ; on le vendra quand il fonctionnera, à ce prix, et rien ici n'est requis pour envoyer des textos.",
+  ledgerExtraNumbersTerm: "Numéros d’entreprise supplémentaires",
+  ledgerExtraNumbersFigure: "Starter {starter}/mois · Pro {pro}/mois",
+  ledgerExtraNumbersDetail:
+    "Ce tarif mensuel s’applique à chaque numéro au-delà de ceux compris dans le forfait. Ajoutez un numéro dans les paramètres lorsque votre espace de travail répond aux exigences du forfait et des fournisseurs.",
   ledgerTaxTerm: "Taxes",
   ledgerTaxDetailUs:
     "Les prix sont en dollars américains, plus les taxes de vente là où elles s'appliquent, calculées au paiement.",
@@ -456,9 +458,9 @@ export const pricingFr: Translated<typeof pricingEn> = {
     "Votre forfait est établi et facturé en dollars américains. Les taxes de vente applicables sont calculées au paiement. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   ledgerWholeListTerm: "C'est toute la liste.",
   ledgerWholeListDetailUs:
-    "Deux forfaits, un supplément optionnel, des frais d'enregistrement et un dépassement que vous plafonnez. Aucuns frais d'installation, aucuns frais par personne, aucuns frais de stockage, aucune ligne mensuelle de « conformité » ou d'« opérateur », aucuns frais d'annulation.",
+    "Deux forfaits, des numéros supplémentaires au choix, des frais d’enregistrement et un dépassement que vous plafonnez. Aucuns frais d’installation, aucuns frais par personne, aucuns frais de stockage, aucune ligne mensuelle de « conformité » ou d’« opérateur », aucuns frais d’annulation.",
   ledgerWholeListDetailCa:
-    "Deux forfaits, un supplément optionnel, et un dépassement que vous plafonnez. Aucuns frais d'enregistrement, aucuns frais d'installation, aucuns frais par personne, aucuns frais de stockage, aucune ligne mensuelle de « conformité » ou d'« opérateur », aucuns frais d'annulation.",
+    "Deux forfaits, des numéros supplémentaires au choix et un dépassement que vous plafonnez. Aucuns frais d’enregistrement, aucuns frais d’installation, aucuns frais par personne, aucuns frais de stockage, aucune ligne mensuelle de « conformité » ou d’« opérateur », aucuns frais d’annulation.",
 
   planStarterTagline: "Pour les équipes de une à trois personnes.",
   planProTagline:
