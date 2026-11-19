@@ -25,7 +25,8 @@ import { ApiError } from "../http/errors";
 import { fetchWithDeadline } from "../http/deadline";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
-import { captureEvent, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
+import { captureEvent, errorLogText, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
+import { concealOutboundLinks, recordRetriedQuoteSend, remintOutboundLinks } from "../public-links/outbound";
 import { phoneCountry } from "./delivery-by-country";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
@@ -374,14 +375,18 @@ export async function gateOutboundSend(
     segmentsEstimate: number;
   },
 ): Promise<{ message: MessageRow; existing: boolean }> {
-  const { data, error } = await db.rpc("gate_outbound_send", {
+  const { body, links } = await concealOutboundLinks(args.env.APP_ORIGIN, args.body);
+  const params = {
     p_company_id: args.companyId,
     p_conversation_id: args.conversationId,
     p_sender_user_id: args.senderUserId,
-    p_body: args.body,
+    p_body: body,
     p_idempotency_key: args.idempotencyKey,
     p_segments_estimate: args.segmentsEstimate,
-  });
+  };
+  const { data, error } = links.length > 0
+    ? await db.rpc("api_gate_public_link_send", { ...params, p_links: links })
+    : await db.rpc("gate_outbound_send", params);
   if (error) throw new Error(`gate_outbound_send failed: ${error.message}`);
 
   const result = data as GateResult | null;
@@ -857,6 +862,7 @@ export async function dispatchOutbound(
     to: string;
     text: string;
     mediaUrls: string[];
+    refreshPublicLinks?: boolean;
     /**
      * #331: proof the shared gate ran for THIS destination. Only
      * {@link runPreSendGates} can produce one, so an outbound path that skips
@@ -894,11 +900,22 @@ export async function dispatchOutbound(
     }
   }
 
+  let { text } = args;
+  if (args.refreshPublicLinks) {
+    try {
+      text = await remintOutboundLinks(db, env.APP_ORIGIN, message);
+    } catch (error) {
+      await persistSendInterruption(db, message, "A new private link is needed to resend this text.");
+      throw error;
+    }
+  }
   const result = await telnyxCreateMessage(env, {
     ...args,
+    text,
     idempotencyKey: sendIdempotencyKey(message.id),
   });
 
+  const failureDetail = result.ok ? "" : (await concealOutboundLinks(env.APP_ORIGIN, result.errorDetail)).body;
   const patch = result.ok
     ? { telnyx_message_id: result.telnyxMessageId }
     : {
@@ -908,7 +925,7 @@ export async function dispatchOutbound(
         // this file, three client apps, the reputation work — branches on the
         // reason instead of the vendor's code.
         error_reason: classifySendFailure(result.errorCode),
-        error_detail: result.errorDetail.slice(0, 2000),
+        error_detail: failureDetail.slice(0, 2000),
       };
   let row: MessageRow;
   try {
@@ -954,11 +971,16 @@ export async function dispatchOutbound(
       phoneE164: args.to,
       signal: "send_rejected",
       conversationId: message.conversation_id,
-      detail: result.errorDetail,
+      detail: failureDetail,
     });
   }
 
   if (result.ok) {
+    if (args.refreshPublicLinks && text !== message.body) {
+      await recordRetriedQuoteSend(db, row).catch((error: unknown) => {
+        console.error(`could not update quote for retried message ${row.id}:`, errorLogText(error));
+      });
+    }
     // §12 step 18: after the accepted send is durably recorded (instant
     // no-op when analytics is off).
     await captureFirstOutboundSent(env, db, row);
@@ -991,7 +1013,7 @@ export async function dispatchOutbound(
         conversation_id: row.conversation_id,
         from: args.from,
         to: args.to,
-        body: args.text,
+        body: row.body,
       },
     });
   }

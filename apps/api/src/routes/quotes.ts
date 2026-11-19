@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { billingCurrencyOf, effectiveQuoteStatus, estimateSegments, isQuoteOutstanding, QUOTE_STATUSES, quoteSms, resolveLocale, stateMachines } from '@loonext/shared';
@@ -13,7 +14,7 @@ import {
   requireConversationAccess,
   resolveNumberAccess,
 } from "../auth/number-access";
-import { errorResponse } from "../http/errors";
+import { ApiError, errorResponse } from "../http/errors";
 import { mintPublicLink } from "../public-links/tokens";
 import { dispatchOutbound, gateOutboundSend, runPreSendGates } from "../messaging/send";
 import { insertConversationEvents } from "./core/events";
@@ -45,7 +46,10 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 const QUOTE_COLUMNS =
   "id,conversation_id,contact_id,amount_cents,currency,description," +
-  "status,expires_at,sent_at,viewed_at,decided_at,created_by,created_at,updated_at";
+  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,decline_reason,created_by,created_at,updated_at," +
+  "sending_at,message_id";
+
+const SEND_LEASE_MS = 2 * 60_000;
 
 /** A quote row as the wire carries it, plus the status a reader should see. */
 interface QuoteRow extends QuoteState {
@@ -60,6 +64,9 @@ interface QuoteRow extends QuoteState {
   amount_cents: number;
   currency: string;
   description: string;
+  updated_at: string;
+  sending_at: string | null;
+  message_id: string | null;
   [key: string]: unknown;
 }
 
@@ -82,18 +89,20 @@ interface SendView {
  * expiry itself, which is three implementations of a rule that has one home.
  */
 function withEffectiveStatus(
-  row: QuoteRow,
+  { sending_at, message_id, ...row }: QuoteRow,
   now: Date,
   role: MemberRole,
 ): Record<string, unknown> {
+  const status = effectiveQuoteStatus(row, now);
+  const actions = stateMachines.allowedActions(stateMachines.quoteMachine, status, role);
+  const draftLocked = status === "draft" && (sending_at !== null || message_id !== null);
+  const offerExpired = Date.parse(row.expires_at) <= now.getTime();
   return {
     ...row,
-    effective_status: effectiveQuoteStatus(row, now),
-    // #722: what this member may do to it now, from the shared machine.
-    allowed_actions: stateMachines.allowedActions(
-      stateMachines.quoteMachine,
-      row.status,
-      role,
+    effective_status: status,
+    allowed_actions: actions.filter((action) =>
+      !(draftLocked && (action === "edit" || action === "delete")) &&
+      !(offerExpired && (action === "send" || action === "undo_acceptance"))
     ),
   };
 }
@@ -126,8 +135,8 @@ const createSchema = z.object({
   expires_at: z.iso.datetime(),
 });
 
-/** #722: how long a send's claim on a draft holds before another may take it. */
-const SEND_LEASE_MS = 2 * 60_000;
+const editDraftSchema = createSchema.omit({ conversation_id: true }).partial().strict();
+const declineSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
 /**
  * Release a send's claim after a send that did not happen. The quote stays a
@@ -148,6 +157,119 @@ async function releaseSend(db: ReturnType<typeof getDb>, companyId: string, id: 
 }
 
 export const quotesRoutes = new Hono<AppEnv>();
+
+async function requireQuoteTextAccess(c: Context<AppEnv>) {
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const db = getDb(getEnv(c.env));
+  const [quote] = unwrap<{ conversation_id: string }[]>(
+    await db.from("quotes").select("conversation_id")
+      .eq("company_id", companyId).eq("id", id).limit(1),
+    "quote lookup",
+  );
+  if (!quote) {
+    throw new ApiError("not_found", "No such quote.", { key: "apiRefusals.quoteNotFound" });
+  }
+  await requireConversationAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId: quote.conversation_id,
+    need: "text",
+  });
+  return { db, companyId, id };
+}
+
+quotesRoutes.patch("/quotes/:id", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const changes = await parseJsonBody(c, editDraftSchema);
+  const now = new Date();
+  if (changes.expires_at && Date.parse(changes.expires_at) <= now.getTime()) {
+    return errorResponse(c, "validation_failed", "Choose a future expiry for this quote.", {
+      key: "apiRefusals.quoteExpiryFuture",
+    });
+  }
+
+  const [updated] = unwrap<QuoteRow[]>(
+    await db.from("quotes").update({ ...changes, updated_at: now.toISOString() })
+      .eq("company_id", companyId).eq("id", id).eq("status", "draft")
+      .is("sending_at", null).is("message_id", null).select(QUOTE_COLUMNS),
+    "quote draft update",
+  );
+  if (!updated) {
+    return errorResponse(c, "conflict", "This quote draft can no longer be changed.", {
+      key: "apiRefusals.quoteDraftLocked",
+    });
+  }
+  return c.json(withEffectiveStatus(updated, now, c.get("role")));
+});
+
+quotesRoutes.delete("/quotes/:id", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const [deleted] = unwrap<{ id: string }[]>(
+    await db.from("quotes").delete()
+      .eq("company_id", companyId).eq("id", id).eq("status", "draft")
+      .is("sending_at", null).is("message_id", null).select("id"),
+    "quote draft delete",
+  );
+  if (!deleted) {
+    return errorResponse(c, "conflict", "This quote draft can no longer be changed.", {
+      key: "apiRefusals.quoteDraftLocked",
+    });
+  }
+  return c.json({ deleted: true });
+});
+
+quotesRoutes.post("/quotes/:id/withdraw", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const withdrawn = unwrap<boolean>(await db.rpc("api_withdraw_quote", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_actor: c.get("userId"),
+  }), "quote withdrawal");
+  if (!withdrawn) {
+    return errorResponse(c, "conflict", "This quote can no longer be withdrawn.", {
+      key: "apiRefusals.quoteWithdrawalUnavailable",
+    });
+  }
+  return c.json({ withdrawn: true });
+});
+
+quotesRoutes.post("/quotes/:id/decline", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const { reason } = await parseJsonBody(c, declineSchema);
+  const declined = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_decision: "declined",
+    p_actor: c.get("userId"),
+    p_link_id: null,
+    p_name: null,
+    p_reason: reason,
+    p_country: null,
+  }), "quote decline");
+  if (!declined) {
+    return errorResponse(c, "conflict", "This quote can no longer be declined.", {
+      key: "apiRefusals.quoteDeclineUnavailable",
+    });
+  }
+  return c.json({ declined: true });
+});
+
+quotesRoutes.post("/quotes/:id/undo-acceptance", requireCapability("settings.manage"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const reopened = unwrap<boolean>(await db.rpc("api_undo_quote_acceptance", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_actor: c.get("userId"),
+  }), "reopen accepted quote");
+  if (!reopened) {
+    return errorResponse(c, "conflict", "This quote can no longer be reopened.", {
+      key: "apiRefusals.quoteUndoUnavailable",
+    });
+  }
+  return c.json({ reopened: true });
+});
 
 /**
  * The outstanding queue, and the rest on request.
@@ -360,15 +482,9 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
 /**
  * Send it: the moment a draft becomes an offer.
  *
- * TWO TOKENS, not one. `public_links` stores purpose rather than inferring it
- * precisely so this is possible — the URL the customer opens can VIEW the
- * quote and cannot accept it, and the accept token is separate. A link
- * forwarded to a neighbour, or scraped out of an SMS log, therefore cannot
- * commit somebody to a price.
- *
- * Both expire WITH the quote. A link that outlived its offer would be an
- * accept route standing open on a price the business had already withdrawn,
- * which is the whole reason the expiry column is NOT NULL.
+ * Only carrier dispatch receives the live view URL. The customer page uses it
+ * to get separate, single-use accept and decline credentials. All share the
+ * quote's expiry.
  */
 quotesRoutes.post(
   "/quotes/:id/send",
@@ -458,42 +574,16 @@ quotesRoutes.post(
      */
     const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
-    /*
-     * A VIEW token, and only a view token, because this one is written down
-     * forever.
-     *
-     * The link below goes into the SMS body, and `messages.body` is read by
-     * every member with `conversations.read` (including `read_only`), by any
-     * API key with `messages:read`, and by any customer-supplied webhook
-     * endpoint subscribed to `message.sent`. Whatever authority this token
-     * carries is therefore held by all of them, permanently.
-     *
-     * So it carries the authority to READ. The authority to ACCEPT — to bind
-     * this business to a price in the customer's name — is minted when the
-     * customer actually opens the page and returned only in that response.
-     * See `GET /q/:token` in quotes-public.ts.
-     *
-     * An earlier revision of this comment argued the separation "protected
-     * nothing, and could not, because the only channel to the customer is the
-     * text". That was wrong in a way worth recording: the accept token never
-     * had to travel in the text. It travels in the reply to the person who
-     * opened the link, which is the one channel that reaches the customer and
-     * nobody else.
-     */
-    const expiresAt = new Date(row.expires_at);
-    const viewLink = await mintPublicLink(db, {
-      companyId,
-      purpose: "quote_view",
-      subjectType: "quote",
-      subjectId: id,
-      expiresAt,
-      actorUserId: c.get("userId"),
-    });
     // #722: claim the draft with a lease, guarded in the WHERE clause rather
     // than trusting the read above: two people pressing send is two requests,
     // and only one may send. The quote stays a draft until the text has gone,
     // so a failed send has no status to undo.
     const now = new Date();
+    if (Date.parse(row.expires_at) <= now.getTime()) {
+      return errorResponse(c, "conflict", "Choose a future expiry for this quote.", {
+        key: "apiRefusals.quoteExpiryFuture",
+      });
+    }
     const claimed = unwrap<{ id: string }[]>(
       await db
         .from("quotes")
@@ -501,6 +591,7 @@ quotesRoutes.post(
         .eq("company_id", companyId)
         .eq("id", id)
         .eq("status", "draft")
+        .eq("updated_at", row.updated_at)
         .or(
           `sending_at.is.null,sending_at.lt.${new Date(now.getTime() - SEND_LEASE_MS).toISOString()}`,
         )
@@ -511,15 +602,19 @@ quotesRoutes.post(
       return errorResponse(c, "conflict", "quote is no longer a draft");
     }
 
-    /*
-     * The text, composed HERE rather than on three clients. The tokens never
-     * leave this Worker: returning them was what made the old shape look
-     * finished while nothing was ever delivered.
-     *
-     * The VIEW link is what the customer opens. Accepting carries its own
-     * token, which the page fetches — a forwarded link, or one scraped from an
-     * SMS log, cannot commit anybody to a price.
-     */
+    const viewLink = await mintPublicLink(db, {
+      companyId,
+      purpose: "quote_view",
+      subjectType: "quote",
+      subjectId: id,
+      expiresAt: new Date(row.expires_at),
+      actorUserId: c.get("userId"),
+    }).catch(async (error: unknown) => {
+      await releaseSend(db, companyId, id);
+      throw error;
+    });
+
+    // The carrier receives the live link. The app and integrations see a placeholder.
     const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/q/${viewLink.token}`;
     const text = quoteSms({
       // #228: what the CUSTOMER reads, not what the crew does. A quote is the
@@ -580,13 +675,19 @@ quotesRoutes.post(
       .eq("id", id);
 
     try {
-      await dispatchOutbound(env, db, message, {
+      const dispatched = await dispatchOutbound(env, db, message, {
         from: fromNumber,
         to: view.contact_phone_e164,
         text,
         mediaUrls: [],
         clearance,
       });
+      if (!dispatched.telnyx_message_id) {
+        await releaseSend(db, companyId, id);
+        return errorResponse(c, "conflict", "The quote text failed. Retry it in the conversation.", {
+          key: "apiRefusals.quoteTextRetry",
+        });
+      }
     } catch (error) {
       // The message row survives — the outbox owns retrying a carrier that was
       // briefly unreachable, and deleting it would lose the text. What must not
@@ -629,9 +730,6 @@ quotesRoutes.post(
       });
     });
 
-    // No tokens. The accept token is the customer's to receive, once, in a text
-    // they already have — handing it back to the sender is a second copy of a
-    // credential with nothing to do.
     return c.json({
       ...withEffectiveStatus(sent[0], new Date(), c.get("role")),
       message_id: message.id,

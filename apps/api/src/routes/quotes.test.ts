@@ -58,6 +58,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   sent_at: null,
   viewed_at: null,
   decided_at: null,
+  sending_at: null,
+  message_id: null,
   created_by: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -67,7 +69,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 describe("GET /v1/quotes", () => {
   it("#722: says what the reader may do with each quote in its state", async () => {
     for (const [role, draftActions] of [
-      ["member", ["send"]],
+      ["member", ["send", "edit", "delete"]],
       ["read_only", []],
     ] as const) {
       const sb = stubWithRole(role);
@@ -78,7 +80,7 @@ describe("GET /v1/quotes", () => {
       });
       const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
       expect(body.data[0].allowed_actions, role).toEqual(draftActions);
-      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual([]);
+      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual(role === "member" ? ["withdraw", "decline"] : []);
       vi.unstubAllGlobals();
     }
   });
@@ -159,6 +161,126 @@ describe("GET /v1/quotes", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(422);
+  });
+});
+
+describe("POST /v1/quotes/:id/withdraw", () => {
+  it("allows a sender on the line to withdraw the quote", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("GET", "/rest/v1/conversations", () => [{ id: CONVERSATION_ID, phone_number_id: null }]);
+    sb.on("POST", "/rest/v1/rpc/api_withdraw_quote", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/withdraw`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ withdrawn: true });
+    expect(sb.find("POST", "/rest/v1/rpc/api_withdraw_quote")[0]?.body).toMatchObject({
+      p_company_id: COMPANY_ID, p_quote_id: QUOTE_ID,
+    });
+  });
+
+  it("forbids a read-only member before writing", async () => {
+    const sb = stubWithRole("read_only");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/withdraw`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_withdraw_quote")).toHaveLength(0);
+  });
+});
+
+describe("quote draft mutations", () => {
+  it("gives a read-only member no acceptance credential or quote write", async () => {
+    const sb = stubWithRole("read_only");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const token = await auth.token();
+    const path = `/v1/quotes/${QUOTE_ID}`;
+    const response = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
+    expect(response.status).toBe(200);
+    const quote = await response.json<Record<string, unknown>>();
+    expect(quote.allowed_actions).toEqual([]);
+    expect(quote).not.toHaveProperty("view_token");
+    expect(quote).not.toHaveProperty("accept_token");
+
+    const write = await apiRequest(app, env, token, path, {
+      method: "PATCH", companyId: COMPANY_ID, body: { status: "accepted" },
+    });
+    expect(write.status).toBe(403);
+    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+  });
+
+  it("edits only an unsent draft without a send in progress", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/quotes", () => [row({ status: "draft" })]);
+    sb.on("GET", "/rest/v1/conversations", () => [{ id: CONVERSATION_ID, phone_number_id: null }]);
+    sb.on("PATCH", "/rest/v1/quotes", ({ body }) => [row({ status: "draft", ...body as object })]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}`, {
+      method: "PATCH", companyId: COMPANY_ID, body: { amount_cents: 46_000 },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ amount_cents: 46_000, status: "draft" });
+    const [{ url }] = sb.find("PATCH", "/rest/v1/quotes");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      company_id: `eq.${COMPANY_ID}`, id: `eq.${QUOTE_ID}`, status: "eq.draft",
+      sending_at: "is.null", message_id: "is.null",
+    });
+  });
+
+  it("refuses deletion after a send has claimed the draft", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/quotes", () => [row({ status: "draft" })]);
+    sb.on("DELETE", "/rest/v1/quotes", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}`, {
+      method: "DELETE", companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: { message_key: "apiRefusals.quoteDraftLocked" } });
+    const [{ url }] = sb.find("DELETE", "/rest/v1/quotes");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      status: "eq.draft", sending_at: "is.null", message_id: "is.null",
+    });
+  });
+});
+
+describe("quote decisions", () => {
+  it.each(["owner", "admin", "member", "read_only"])("only lets owners and admins undo acceptance (%s)", async (role) => {
+    const sb = stubWithRole(role);
+    sb.on("GET", "/rest/v1/quotes", () => [row({ status: "accepted" })]);
+    sb.on("POST", "/rest/v1/rpc/api_undo_quote_acceptance", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/undo-acceptance`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    const allowed = role === "owner" || role === "admin";
+    expect(response.status).toBe(allowed ? 200 : 403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_undo_quote_acceptance")).toHaveLength(allowed ? 1 : 0);
+  });
+
+  it("records a crew decline with its trimmed reason", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/decline`, {
+      method: "POST", companyId: COMPANY_ID, body: { reason: "  Customer postponed the work  " },
+    });
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_company_id: COMPANY_ID, p_quote_id: QUOTE_ID, p_actor: auth.subject, p_decision: "declined",
+      p_reason: "Customer postponed the work", p_link_id: null,
+    });
   });
 });
 

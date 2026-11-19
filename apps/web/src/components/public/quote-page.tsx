@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 
 import { DEFAULT_LOCALE, isLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
+import { DocumentLanguage } from "@/components/marketing/document-language";
 import { publicEnv } from "@/env";
 import { makeTranslate } from "@/i18n/provider";
 
@@ -45,7 +48,6 @@ import { makeTranslate } from "@/i18n/provider";
  */
 
 interface QuoteView {
-  /** The workspace's language. See the note at the API route. */
   locale?: string;
   business_name: string;
   amount_cents: number;
@@ -54,32 +56,29 @@ interface QuoteView {
   status: string;
   expires_at: string;
   can_accept: boolean;
-  /**
-   * #581: the authority to accept, minted when this page was fetched and
-   * returned only here. NOT the token in the address bar — that one is written
-   * into the customer's text message, and `messages.body` is readable by every
-   * member with `conversations.read`, by any `messages:read` API key, and by any
-   * webhook endpoint the workspace has registered.
-   *
-   * Null when the quote cannot be accepted, so there is no credential to press
-   * a button with.
-   */
   accept_token: string | null;
+  decline_token?: string | null;
+}
+
+interface WithdrawnQuote {
+  locale?: string;
+  withdrawn: true;
+  status: "withdrawn";
 }
 
 /** "$450.00" — the amount as a person reads it, in the quote's own currency. */
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-CA", {
+function formatAmount(cents: number, currency: string, locale: Locale): string {
+  return new Intl.NumberFormat(locale === "en" ? "en-CA" : locale, {
     style: "currency",
     currency: currency.toUpperCase(),
   }).format(cents / 100);
 }
 
 /** "23 August" — a date, not a duration. See the note on pressure above. */
-function formatExpiry(iso: string): string {
+function formatExpiry(iso: string, locale: Locale): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-CA" : locale, {
     day: "numeric",
     month: "long",
   }).format(at);
@@ -91,28 +90,32 @@ export function QuotePage({
   quote,
   notAvailable = false,
 }: {
-  quote?: QuoteView;
+  quote?: QuoteView | WithdrawnQuote;
   notAvailable?: boolean;
 }) {
-  const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
+  const [state, setState] = useState<
+    "idle" | "sending" | "declining" | "accepted" | "declined" | "withdrawn" | "invalidName" | "failed" | "declineFailed"
+  >(
     "idle",
   );
-  const language = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
-  const t = makeTranslate(language);
+  const locale = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
+  const t = makeTranslate(locale);
+  const decisionHeading = useRef<HTMLHeadingElement>(null);
+  const [name, setName] = useState("");
+  useEffect(() => {
+    if (state === "accepted" || state === "declined") decisionHeading.current?.focus();
+  }, [state]);
 
-  /*
-   * ONE page for every failure, matching what the API does. Expired, revoked,
-   * withdrawn, never existed: a page that distinguished them would let
-   * somebody holding one token learn about others.
-   */
-  if (notAvailable || !quote) {
+  if (notAvailable || !quote || "withdrawn" in quote || state === "withdrawn") {
+    const withdrawn = state === "withdrawn" || (quote && "withdrawn" in quote);
     return (
-      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
         <h1 className="text-xl font-semibold tracking-tight">
-          {t("quotes.unavailableTitle")}
+          {t(withdrawn ? "quotes.withdrawnTitle" : "quotes.unavailableTitle")}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          {t("quotes.unavailableDetail")}
+          {t(withdrawn ? "quotes.withdrawnDetail" : "quotes.unavailableDetail")}
         </p>
       </main>
     );
@@ -122,8 +125,9 @@ export function QuotePage({
 
   if (accepted) {
     return (
-      <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
-        <h1 className="text-xl font-semibold tracking-tight">
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
+        <h1 ref={decisionHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
           {t("quotes.acceptedTitle", { business: quote.business_name })}
         </h1>
         {/*
@@ -133,7 +137,7 @@ export function QuotePage({
         */}
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           {t("quotes.acceptedDetail", {
-            amount: formatAmount(quote.amount_cents, quote.currency),
+            amount: formatAmount(quote.amount_cents, quote.currency, locale),
             description: quote.description,
           })}
         </p>
@@ -141,30 +145,68 @@ export function QuotePage({
     );
   }
 
-  async function accept() {
-    // #581: the ACCEPT credential, not the one from the URL.
-    const credential = quote?.accept_token;
-    if (!credential) return;
+  if (state === "declined" || quote.status === "declined") {
+    return (
+      <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={locale} />
+        <h1 ref={decisionHeading} tabIndex={-1} className="text-xl font-semibold tracking-tight">
+          {t("quotes.declinedTitle")}
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          {t("quotes.declinedDetail", { business: quote.business_name })}
+        </p>
+      </main>
+    );
+  }
+
+  const busy = state === "sending" || state === "declining";
+
+  async function accept(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const credential = quote && "accept_token" in quote ? quote.accept_token : null;
+    if (!credential || name.trim().length === 0 || busy) return;
     setState("sending");
     const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
     try {
       const response = await fetch(
         `${base}/q/${encodeURIComponent(credential)}/accept`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        },
       );
-      // A 409 means it lapsed or was answered while this page was open, which
-      // is a state rather than a fault. Either way the honest thing is to stop
-      // offering a button that will not work.
-      setState(response.ok ? "accepted" : "failed");
+      if (response.status === 422) {
+        setState("invalidName");
+      } else if (response.status === 409) {
+        const decision = await response.json() as { status?: string };
+        setState(decision.status === "withdrawn" ? "withdrawn" : "failed");
+      } else {
+        setState(response.ok ? "accepted" : "failed");
+      }
     } catch {
       setState("failed");
     }
   }
 
+  async function decline() {
+    const credential = quote && "decline_token" in quote ? quote.decline_token : null;
+    if (!credential || busy) return;
+    setState("declining");
+    const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+    try {
+      const result = await fetch(`${base}/q/${encodeURIComponent(credential)}/decline`, { method: "POST" });
+      setState(result.ok ? "declined" : "declineFailed");
+    } catch {
+      setState("declineFailed");
+    }
+  }
+
   return (
-    <main lang={language} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+    <main lang={locale} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      <DocumentLanguage locale={locale} />
       {/* The business, first: a stranger's first question is who this is from. */}
-      <p className="text-[15px] text-muted-foreground">{quote.business_name}</p>
+      <h1 className="text-[15px] text-muted-foreground">{quote.business_name}</h1>
 
       {/*
         The amount, largest. *Prioritize Intent* — the page is built around the
@@ -172,7 +214,7 @@ export function QuotePage({
         numerals so it reads as money rather than as text.
       */}
       <p className="mt-1 text-5xl font-semibold tracking-tight tabular-nums">
-        {formatAmount(quote.amount_cents, quote.currency)}
+        {formatAmount(quote.amount_cents, quote.currency, locale)}
       </p>
 
       <p className="mt-3 text-[15px] leading-relaxed text-foreground">
@@ -181,25 +223,61 @@ export function QuotePage({
 
       {quote.can_accept ? (
         <>
-          <button
-            type="button"
-            onClick={accept}
-            disabled={state === "sending"}
-            /* 52px: comfortably past the 44px target floor, on a page whose
-               whole job is one tap on a phone held one-handed. */
-            className="mt-8 inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
-          >
-            {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
-          </button>
+          <form className="mt-8 flex flex-col gap-3" onSubmit={accept}>
+            <label className="flex flex-col gap-1.5 text-[15px] font-medium">
+              {t("quotes.acceptNameLabel")}
+              <input
+                aria-invalid={state === "invalidName" || undefined}
+                autoComplete="name"
+                className="min-h-11 rounded-app-ctrl border border-input bg-background px-3 text-[16px]"
+                maxLength={120}
+                readOnly={busy}
+                required
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (state === "invalidName") setState("idle");
+                }}
+              />
+            </label>
+            {state === "invalidName" && (
+              <p role="alert" className="text-[15px] text-destructive">
+                {t("quotes.acceptNameRequired")}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={busy || name.trim().length === 0}
+              className="inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
+            >
+              {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
+            </button>
+          </form>
+
+          {quote.decline_token && (
+            <button
+              type="button"
+              onClick={decline}
+              disabled={busy}
+              className="mt-2 min-h-11 rounded-app-ctrl px-3 text-[15px] font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {t("quotes.declineAction")}
+            </button>
+          )}
 
           {/* A fact, once, quietly. Not a countdown — see the header. */}
           <p className="mt-4 text-[13px] text-muted-foreground">
-            {t("quotes.priceHolds", { date: formatExpiry(quote.expires_at) })}
+            {t("quotes.priceHolds", { date: formatExpiry(quote.expires_at, locale) })}
           </p>
 
           {state === "failed" && (
             <p role="alert" className="mt-4 text-[15px] text-destructive">
               {t("quotes.acceptFailed", { business: quote.business_name })}
+            </p>
+          )}
+          {state === "declineFailed" && (
+            <p role="alert" className="mt-4 text-[15px] text-destructive">
+              {t("quotes.declineCustomerFailed", { business: quote.business_name })}
             </p>
           )}
         </>

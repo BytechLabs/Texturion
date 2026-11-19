@@ -21,7 +21,7 @@ import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
-import { notifyPayment, PAYMENT_PUSH_KIND, paymentAlert } from './payment';
+import { notifyPayment, notifyQuoteAccepted, PAYMENT_PUSH_KIND, paymentAlert } from './payment';
 import type { PaymentNotification } from './payment';
 import { encodeBase64Url } from "./webpush";
 
@@ -336,6 +336,32 @@ describe("who hears about it", () => {
 });
 
 describe("what reaches the phones", () => {
+  it("sends quote acceptance through the payment channel in Canadian French", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const w = await world({
+      members: [{ user_id: OWNER, role: "owner" }],
+      companyLocale: "fr-CA",
+      pushIncludeContent: false,
+      devices: [{ id: "dev-1", user_id: OWNER, platform: "android", token: "tok-a" }],
+    });
+    stubFetch(...w.routes, ...service.routes);
+
+    await notifyQuoteAccepted(fcmEnv(account), {
+      companyId: PAID.companyId,
+      conversationId: PAID.conversationId,
+      quoteId: REQUEST_ID,
+    }, getDb(env));
+
+    expect(service.sends).toHaveLength(1);
+    expect(service.sends[0].message.data).toMatchObject({
+      kind: PAYMENT_PUSH_KIND,
+      tag: `quote:accepted:${REQUEST_ID}`,
+      title: "Maria Alvarez a accepté la soumission",
+      body: "La soumission a été acceptée.",
+    });
+  });
+
   it("sends the discriminator both phones route on", async () => {
     // Without it the alert posts to Messages — indistinguishable from a phone
     // that has never heard of payments, and silenced by the switch a crew flips

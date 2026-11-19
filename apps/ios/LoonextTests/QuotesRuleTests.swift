@@ -101,7 +101,7 @@ final class QuotesRuleTests: XCTestCase {
         XCTAssertFalse(
             Quotes.isOutstanding(status: QuoteStatus.sent, expiresAt: past, now: now)
         )
-        for settled in [QuoteStatus.draft, QuoteStatus.accepted, QuoteStatus.declined] {
+        for settled in [QuoteStatus.draft, QuoteStatus.accepted, QuoteStatus.declined, QuoteStatus.withdrawn] {
             XCTAssertFalse(
                 Quotes.isOutstanding(status: settled, expiresAt: future, now: now),
                 settled
@@ -112,7 +112,7 @@ final class QuotesRuleTests: XCTestCase {
     func testEveryStatusHasAKeyAndEveryKeyHasWords() {
         let statuses = [
             QuoteStatus.draft, QuoteStatus.sent, QuoteStatus.viewed,
-            QuoteStatus.accepted, QuoteStatus.declined, QuoteStatus.expired,
+            QuoteStatus.accepted, QuoteStatus.declined, QuoteStatus.withdrawn, QuoteStatus.expired,
         ]
         XCTAssertEqual(Set(QuoteStatus.keys.keys), Set(statuses))
 

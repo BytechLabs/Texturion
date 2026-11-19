@@ -61,6 +61,24 @@ afterEach(() => {
 });
 
 describe("message_sent", () => {
+  it("delivers the live link to the carrier and omits it from the business webhook", async () => {
+    const env = getEnv(completeEnv());
+    const body = `${env.APP_ORIGIN}/pay/[private link]`;
+    const text = `${env.APP_ORIGIN}/pay/${"t".repeat(43)}`;
+    const row = queued({ body });
+    const send = stubRoute(isTelnyxSend, () => Response.json({ data: { id: MESSAGE_ID } }));
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), () => [row]);
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [{ id: MESSAGE_ID }]);
+    const deliveries = stubRoute(restMatch(env, "POST", "webhook_deliveries"), () => []);
+    const database = stubRoute((url) => url.href.startsWith(env.SUPABASE_URL), () => []);
+    stubFetch(send.route, persist.route, endpoints.route, deliveries.route, database.route);
+
+    await dispatchOutbound(env, getDb(env), row, { ...sendArgs("+16135551000"), text });
+
+    expect(send.calls[0]?.body).toMatchObject({ text });
+    expect(deliveries.calls[0]?.body).toMatchObject([{ payload: { data: { body } } }]);
+  });
+
   it("an accepted text carries its country, segments and media count", async () => {
     const env = getEnv(completeEnv());
     const mms = queued({ segments: 3 });

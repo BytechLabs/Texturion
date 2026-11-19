@@ -43,6 +43,14 @@ app.route("/", publicQuoteRoutes);
 const call = (path: string, init: RequestInit = {}) =>
   app.request(path, init, env);
 
+function acceptRequest(name = "  Camille Martin  "): RequestInit {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -59,6 +67,7 @@ const quote = (over: Record<string, unknown> = {}) => ({
   expires_at: inDays(7),
   viewed_at: null,
   decided_at: null,
+  decision_version: 1,
   ...over,
 });
 
@@ -79,8 +88,8 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
     };
   });
   sb.on("GET", "/rest/v1/companies", () => [{ name: "Apex Plumbing" }]);
-  // #581: viewing an acceptable quote now mints the accept credential.
-  sb.on("POST", "/rest/v1/rpc/api_mint_public_link", () => "minted-accept-token");
+  sb.on("GET", "/rest/v1/conversations", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_issue_quote_decision_link", () => "ready");
   return sb;
 }
 
@@ -98,14 +107,29 @@ it.each([
   });
   stubFetch(sb.route);
 
-  const response = await call(path, { method });
+  const response = await call(path, method === "POST" ? acceptRequest() : { method });
 
   expect(response.status).toBe(404);
   expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
-  expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+  expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
 });
 
 describe("GET /q/:token", () => {
+  it("uses the contact language without returning the contact", async () => {
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote({
+      contact: { locale: "fr-CA" },
+      status: "viewed",
+    })]);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    expect(response.status).toBe(200);
+    const body = await response.json<Record<string, unknown>>();
+    expect(body.locale).toBe("fr-CA");
+    expect(body).not.toHaveProperty("contact");
+  });
+
   it("shows the business, the amount and the work, and nothing about the customer", async () => {
     // The disclosure rule the payment and photo pages already follow. This URL
     // lives in SMS logs and browser history; the customer's own name, address
@@ -150,7 +174,7 @@ describe("GET /q/:token", () => {
       can_accept: false,
       accept_token: null,
     });
-    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
   });
 
   it("stamps the first view once, and never over a decision", async () => {
@@ -199,6 +223,20 @@ describe("GET /q/:token", () => {
     expect(expired.status).toBe(missing.status);
     await expect(expired.text()).resolves.toBe(await missing.text());
   });
+
+  it("shows a withdrawn quote in the contact’s language without offer details", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_resolve_public_link", () => ({ ok: false, outcome: "revoked" }));
+    sb.on("POST", "/rest/v1/rpc/api_public_quote_withdrawal", () => ({
+      contact_locale: "fr-CA", company_locale: "en",
+    }));
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ withdrawn: true, status: "withdrawn", locale: "fr-CA" });
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
+  });
 });
 
 describe("POST /q/:token/accept", () => {
@@ -219,62 +257,59 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(404);
-    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
   });
 
-  it("accepts a live quote and revokes only acceptance credentials", async () => {
+  it("accepts using the resolved credential and trimmed name", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
-
-    const [revoke] = sb.find("PATCH", "/rest/v1/public_links");
-    expect(Object.fromEntries(revoke.url.searchParams)).toMatchObject({
-      company_id: `eq.${COMPANY_ID}`,
-      subject_type: "eq.quote",
-      subject_id: `eq.${QUOTE_ID}`,
-      purpose: "eq.quote_accept",
-      revoked_at: "is.null",
+    const [write] = sb.find("POST", "/rest/v1/rpc/api_record_quote_decision");
+    expect(write.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_quote_id: QUOTE_ID,
+      p_link_id: "11111111-2222-4333-8444-555555555555",
+      p_actor: null,
+      p_decision: "accepted",
+      p_name: "Camille Martin",
     });
   });
 
-  it("tells the crew's thread that their quote was accepted", async () => {
-    /*
-     * #287: "Acceptance is verbal ... which is fine until it isn't." The
-     * customer accepts on a page nobody in the workspace is looking at, so
-     * without this event the only trace is a status on a row — and the crew
-     * finds out by noticing rather than by being told.
-     */
+  it.each(["  ", "x".repeat(121)])("requires a valid name before recording acceptance", async (name) => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
-    expect(res.status).toBe(200);
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest(name));
 
-    const events = sb.find("POST", "/rest/v1/conversation_events");
-    expect(events, "no timeline event was written").toHaveLength(1);
-    const rows = events[0].body as {
-      type: string;
-      actor_user_id: string | null;
-      conversation_id: string;
-    }[];
-    expect(rows[0].type).toBe("quote_accepted");
-    // NO ACTOR. The customer is not a member, and attributing their decision to
-    // whichever crew member sent the quote would be a false record of who said
-    // yes — on the exact artefact that exists to settle that later.
-    expect(rows[0].actor_user_id).toBeNull();
-    expect(rows[0].conversation_id).toBe(CONVERSATION_ID);
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message_key: "quotes.acceptNameRequired" },
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
+  });
+
+  it("records the country with the public decision", async () => {
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
+    stubFetch(sb.route);
+
+    const request = new Request(`https://api.example.test/q/${TOKEN}/accept`, acceptRequest());
+    Object.defineProperty(request, "cf", { value: { country: "CA" } });
+    const res = await app.fetch(request, env);
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_country: "CA", p_actor: null,
+    });
   });
 
   it("turns the accepted quote into a job", async () => {
@@ -286,13 +321,11 @@ describe("POST /q/:token/accept", () => {
      */
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created" }));
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
 
     const created = sb.find("POST", "/rest/v1/rpc/create_task");
     expect(created, "an accepted quote produced no job").toHaveLength(1);
@@ -312,31 +345,25 @@ describe("POST /q/:token/accept", () => {
     // require one. Skipped quietly rather than failing the customer's accept.
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ message_id: null })]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
     expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
-  it("still accepts when the timeline write fails", async () => {
-    // The acceptance is the CUSTOMER'S and is already committed. Failing their
-    // request because our own bookkeeping failed would tell them the price was
-    // not accepted when it was.
+  it("skips acceptance follow-ups after the decision transaction fails", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => {
-      throw new Error("timeline down");
-    });
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () =>
+      Response.json({ message: "Timeline unavailable" }, { status: 500 }),
+    );
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
+    expect(res.status).toBe(500);
+    expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
   it("refuses to bind anybody to a price that has lapsed", async () => {
@@ -346,9 +373,9 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", () => [quote({ expires_at: inDays(-1) })]);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(409);
-    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
   });
 
   it("treats a lost double-tap race as accepted rather than as an error", async () => {
@@ -359,73 +386,54 @@ describe("POST /q/:token/accept", () => {
      * be both wrong and alarming.
      */
     const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => []);
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => false);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
 
-  it("the same acceptance applied twice tells the thread once", async () => {
+  it("rejects acceptance when a concurrent withdrawal won", async () => {
     const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    // The write is guarded in the WHERE clause: the first tap moves the row, the
-    // second matches nothing.
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "withdrawn" } : {}),
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => false);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ accepted: false, status: "withdrawn" });
+  });
+
+  it("runs acceptance follow-ups only for the successful decision", async () => {
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
+    ]);
     let moved = false;
-    sb.on("PATCH", "/rest/v1/quotes", () => {
-      if (moved) return [];
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => {
+      if (moved) return false;
       moved = true;
-      return [{ id: QUOTE_ID }];
+      return true;
     });
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
-
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
-    expect(
-      sb.find("POST", "/rest/v1/conversation_events"),
-      "the crew's thread was told twice",
-    ).toHaveLength(1);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
+    expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(1);
   });
 
-  it("guards the write on the answerable statuses", async () => {
-    const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
-    sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("PATCH", "/rest/v1/public_links", () => []);
-    stubFetch(sb.route);
-
-    await call(`/q/${TOKEN}/accept`, { method: "POST" });
-    const [write] = sb.find("PATCH", "/rest/v1/quotes");
-    expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
-    expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
-  });
 });
 
 /**
- * #581 finding 1 — the token in the customer's text message cannot accept.
- *
- * ## The defect these were written for
- *
- * `POST /q/:token/accept` resolved `quote_view`: the same token that
- * `POST /v1/quotes/:id/send` writes into the SMS body. That body is stored as
- * `messages.body` forever, and it is read by every member holding
- * `conversations.read` — which includes `read_only`, the role the capability
- * table gives no write anywhere — by any API key with `messages:read`, and by
- * any customer-supplied webhook endpoint subscribed to `message.sent`.
- *
- * So the ability to bind the business to a price, record it as the CUSTOMER's
- * own decision, create a job from it, and revoke the real customer's link in
- * the process, was held by all of them. There is no authenticated route in the
- * product that does that, and nothing that undoes it.
- *
- * The credential is now minted when the customer OPENS the page and returned
- * only in that response — the one channel that reaches them and nobody else.
+ * The quote page issues a single-use credential for the customer's decision.
+ * History and message webhooks omit the link that opens the page.
  *
  * ## Why nothing caught it
  *
@@ -444,7 +452,7 @@ describe("#581 the view token is not the accept token", () => {
     const sb = stubResolving("quote_view");
     stubFetch(sb.route);
 
-    const response = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest());
 
     // The same answer every failed public link gives. A distinct one would
     // tell the holder their token is real but wrong-purposed.
@@ -478,17 +486,25 @@ describe("#581 the view token is not the accept token", () => {
     expect(body.accept_token).not.toBe(TOKEN);
   });
 
-  it("mints it single-use, so it cannot be replayed", async () => {
+  it("reuses the same live accept credential when the customer opens the quote twice", async () => {
     const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     stubFetch(sb.route);
 
-    await call(`/q/${TOKEN}`);
+    const first = await (await call(`/q/${TOKEN}`)).json<{ accept_token: string }>();
+    const second = await (await call(`/q/${TOKEN}`)).json<{ accept_token: string }>();
+    expect(first.accept_token).toHaveLength(43);
+    expect(second.accept_token).toBe(first.accept_token);
 
-    const [mint] = sb.find("POST", "/rest/v1/rpc/api_mint_public_link");
-    const body = mint?.body as { p_purpose: string; p_max_uses: number | null };
-    expect(body.p_purpose).toBe("quote_accept");
-    expect(body.p_max_uses).toBe(1);
+    const issues = sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link");
+    const accepts = issues.filter(({ body }) => (body as { p_purpose: string }).p_purpose === "quote_accept");
+    expect(issues).toHaveLength(4);
+    expect(accepts).toHaveLength(2);
+    expect(accepts[0]?.body).toEqual(accepts[1]?.body);
+    expect(accepts[0]?.body).toMatchObject({
+      p_view_link_id: "11111111-2222-4333-8444-555555555555",
+      p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
   });
 
   it("mints nothing for a quote nobody can accept", async () => {
@@ -508,6 +524,31 @@ describe("#581 the view token is not the accept token", () => {
 
     expect(body.can_accept).toBe(false);
     expect(body.accept_token).toBeNull();
-    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_decision_link")).toHaveLength(0);
+  });
+});
+
+describe("POST /q/:token/decline", () => {
+  it("requires a distinct decline credential", async () => {
+    const sb = stubResolving("quote_accept");
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/decline`, { method: "POST" });
+
+    expect(response.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")).toHaveLength(0);
+  });
+
+  it("records a decline with no member actor", async () => {
+    const sb = stubResolving("quote_decline");
+    sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/decline`, { method: "POST" });
+
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
+      p_quote_id: QUOTE_ID, p_decision: "declined", p_actor: null,
+    });
   });
 });

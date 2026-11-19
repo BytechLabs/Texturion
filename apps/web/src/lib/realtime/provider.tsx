@@ -1105,6 +1105,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         .on("broadcast", { event: "payment.updated" }, ({ payload }) =>
           handlePaymentUpdated(payload as PaymentUpdatedEvent),
         )
+        .on("broadcast", { event: "quote.updated" }, ({ payload }) => {
+          const conversationId = (payload as { conversation_id?: unknown } | undefined)?.conversation_id;
+          if (typeof conversationId !== "string") return;
+          void queryClient.invalidateQueries({ queryKey: keys.quotes.forConversation(companyId, conversationId) });
+          void queryClient.invalidateQueries({ queryKey: keys.quotes.outstanding(companyId) });
+          void queryClient.invalidateQueries({ queryKey: keys.conversations.events(companyId, conversationId) });
+        })
         .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
         .on(
           "broadcast",

@@ -477,7 +477,8 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   const sent = await dispatchOutbound(env, db, requeued, {
     from: fromNumber,
     to: view.contact_phone_e164,
-    text: message.body,
+    text: requeued.body,
+    refreshPublicLinks: true,
     mediaUrls,
     clearance,
   });

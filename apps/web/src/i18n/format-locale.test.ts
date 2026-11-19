@@ -122,10 +122,6 @@ const FIXED_LOCALE: readonly { file: string; why: string }[] = [
     why: "Two wall clocks are compared for equality, never shown, so the locale cannot matter.",
   },
   {
-    file: "components/public/quote-page.tsx",
-    why: "The customer-facing quote page: a stranger's language is unknown, and a quote is stated in Canadian dollars and dates.",
-  },
-  {
     file: "app/(marketing)/compare/verification.ts",
     why: "Marketing pages carry their own locale in the route (D138), not the app's setting.",
   },

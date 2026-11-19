@@ -34,6 +34,7 @@ object QuoteStatus {
     const val VIEWED = "viewed"
     const val ACCEPTED = "accepted"
     const val DECLINED = "declined"
+    const val WITHDRAWN = "withdrawn"
     const val EXPIRED = "expired"
 }
 
@@ -44,6 +45,7 @@ val QUOTE_STATUS_KEYS: Map<String, String> = mapOf(
     QuoteStatus.VIEWED to "quotes.statusViewed",
     QuoteStatus.ACCEPTED to "quotes.statusAccepted",
     QuoteStatus.DECLINED to "quotes.statusDeclined",
+    QuoteStatus.WITHDRAWN to "quotes.statusWithdrawn",
     QuoteStatus.EXPIRED to "quotes.statusExpired",
 )
 
@@ -67,6 +69,7 @@ object Quotes {
     fun effectiveStatus(status: String, expiresAt: String?, nowMillis: Long): String {
         if (isDecided(status)) return status
         if (status == QuoteStatus.DRAFT) return QuoteStatus.DRAFT
+        if (status == QuoteStatus.WITHDRAWN) return QuoteStatus.WITHDRAWN
         if (status == QuoteStatus.EXPIRED) return QuoteStatus.EXPIRED
         val expiry = parseIsoMillis(expiresAt) ?: return status
         return if (expiry <= nowMillis) QuoteStatus.EXPIRED else status
@@ -129,16 +132,17 @@ data class Quote(
 @Serializable
 data class QuotePage(val data: List<Quote> = emptyList())
 
-/**
- * What `POST /v1/quotes/{id}/send` returns: the quote, plus two plaintext
- * tokens returned ONCE. Nothing can produce them again — only their SHA-256 is
- * stored — and they are separate on purpose: the link a customer opens to READ
- * a quote cannot accept it.
- */
 /** The create body, typed rather than a map: kotlinx cannot serialise Any. */
 @Serializable
 private data class CreateQuoteBody(
     val conversation_id: String,
+    val amount_cents: Int,
+    val description: String,
+    val expires_at: String,
+)
+
+@Serializable
+private data class EditQuoteBody(
     val amount_cents: Int,
     val description: String,
     val expires_at: String,
@@ -200,4 +204,29 @@ class QuotesRepository(private val api: ApiClient) {
 
     suspend fun send(companyId: String, quoteId: String): SentQuote =
         api.post("/v1/quotes/$quoteId/send", companyId = companyId)
+
+    suspend fun edit(
+        companyId: String,
+        quoteId: String,
+        amountCents: Int,
+        description: String,
+        expiresAt: String,
+    ): Quote = api.patch(
+        "/v1/quotes/$quoteId",
+        body = EditQuoteBody(amountCents, description, expiresAt),
+        companyId = companyId,
+    )
+
+    suspend fun deleteDraft(companyId: String, quoteId: String) {
+        api.delete("/v1/quotes/$quoteId", companyId = companyId)
+    }
+
+    suspend fun decide(companyId: String, quoteId: String, action: String, reason: String?) {
+        val path = "/v1/quotes/$quoteId/$action"
+        if (reason == null) {
+            api.post<Map<String, Boolean>>(path, companyId = companyId)
+        } else {
+            api.post<Map<String, Boolean>, Map<String, String>>(path, body = mapOf("reason" to reason), companyId = companyId)
+        }
+    }
 }

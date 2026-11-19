@@ -11,7 +11,7 @@ import { capabilityActions, defineMachine } from "./define-machine";
  *
  * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
  */
-export type QuoteState = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";
+export type QuoteState = "draft" | "sent" | "viewed" | "accepted" | "declined" | "withdrawn" | "expired";
 
 /** A quote (#287). */
 export const quoteMachine = defineMachine<QuoteState>({
@@ -22,14 +22,15 @@ export const quoteMachine = defineMachine<QuoteState>({
     columns: [{ table: "quotes", column: "status" }],
     note: "free text with check (length(status) > 0); the vocabulary is QUOTE_STATUSES in shared code",
   },
-  states: ["draft", "sent", "viewed", "accepted", "declined", "expired"],
+  states: ["draft", "sent", "viewed", "accepted", "declined", "withdrawn", "expired"],
   initial: ["draft"],
   transitions: {
     draft: ["sent"],
-    sent: ["viewed", "accepted", "declined", "expired"],
-    viewed: ["accepted", "declined", "expired"],
-    accepted: [],
+    sent: ["viewed", "accepted", "declined", "withdrawn", "expired"],
+    viewed: ["accepted", "declined", "withdrawn", "expired"],
+    accepted: ["viewed"],
     declined: [],
+    withdrawn: [],
     expired: [],
   },
   entryEffects: {
@@ -38,6 +39,19 @@ export const quoteMachine = defineMachine<QuoteState>({
     accepted: ["thread_event_quote_accepted", "stamp_decided_at"],
   },
   actions: capabilityActions<QuoteState>({
-    draft: [{ action: "send", capability: "conversations.send" }],
+    draft: [
+      { action: "send", capability: "conversations.send" },
+      { action: "edit", capability: "conversations.send" },
+      { action: "delete", capability: "conversations.send" },
+    ],
+    sent: [
+      { action: "withdraw", capability: "conversations.send" },
+      { action: "decline", capability: "conversations.send" },
+    ],
+    viewed: [
+      { action: "withdraw", capability: "conversations.send" },
+      { action: "decline", capability: "conversations.send" },
+    ],
+    accepted: [{ action: "undo_acceptance", capability: "settings.manage" }],
   }),
 });

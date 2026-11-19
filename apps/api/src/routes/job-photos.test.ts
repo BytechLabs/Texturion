@@ -80,6 +80,7 @@ function crew(options: { role?: string; line?: NumberAccessLevel } = {}): Supaba
 function visitor(options: {
   resolved?: Record<string, unknown>;
   taskTrashed?: boolean;
+  customerLocale?: string;
   notes?: Record<string, unknown>[];
   files?: Record<string, unknown>[];
   /** #581/9: bytes already spent this period, to drive the download cap. */
@@ -109,8 +110,12 @@ function visitor(options: {
     const query = call.url.searchParams;
     const checksTrash = query.get("deleted_at") === "is.null" &&
       query.get("conversations.deleted_at") === "is.null" &&
-      query.get("select")?.includes("conversations!inner()");
-    return options.taskTrashed && checksTrash ? [] : [{ id: TASK_ID }];
+      query.get("select")?.includes("conversations!inner(");
+    return options.taskTrashed && checksTrash ? [] : [{
+      id: TASK_ID,
+      contact: options.customerLocale ? { locale: options.customerLocale } : null,
+      conversations: null,
+    }];
   });
   sb.on("GET", "/rest/v1/messages", () =>
     options.notes ?? [
@@ -413,7 +418,7 @@ describe("what the customer's page contains (#294)", () => {
   it("serves the photos under the business's name", async () => {
     // The page appears under the BUSINESS's name, not ours. For many homeowners it
     // is the only thing they will ever see of this product.
-    const sb = visitor();
+    const sb = visitor({ customerLocale: "fr-CA" });
     stubFetch(sb.route);
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
@@ -421,9 +426,11 @@ describe("what the customer's page contains (#294)", () => {
     expect(res.status).toBe(200);
     const body = await res.json<{
       business_name: string;
+      locale: string;
       photos: { work_phase: string | null; url: string }[];
     }>();
     expect(body.business_name).toBe("Acme Plumbing");
+    expect(body.locale).toBe("fr-CA");
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].work_phase).toBe("after");
     expect(body.photos[0].url).toContain("token=");

@@ -83,26 +83,20 @@ class QuotesRuleTest {
         assertFalse(Quotes.isOutstanding(QuoteStatus.DRAFT, future, now))
         assertFalse(Quotes.isOutstanding(QuoteStatus.ACCEPTED, future, now))
         assertFalse(Quotes.isOutstanding(QuoteStatus.DECLINED, future, now))
+        assertFalse(Quotes.isOutstanding(QuoteStatus.WITHDRAWN, future, now))
     }
 
     @Test
     fun `names exactly the statuses the shared module declares, both directions`() {
         val shared = sharedSource()
-        val declared = Regex("\"(draft|sent|viewed|accepted|declined|expired)\"")
-            .findAll(shared.substringAfter("QUOTE_STATUSES").substringBefore("] as const"))
+        val declared = Regex("\"([a-z_]+)\"")
+            .findAll(shared.substringAfter("export const QUOTE_STATUSES = [").substringBefore("] as const"))
             .map { it.groupValues[1] }
             .toSet()
 
-        // A guard that reads nothing passes for the wrong reason.
-        assertEquals(
-            "expected six statuses in quotes.ts, found $declared",
-            6,
-            declared.size,
-        )
-
         val ported = setOf(
             QuoteStatus.DRAFT, QuoteStatus.SENT, QuoteStatus.VIEWED,
-            QuoteStatus.ACCEPTED, QuoteStatus.DECLINED, QuoteStatus.EXPIRED,
+            QuoteStatus.ACCEPTED, QuoteStatus.DECLINED, QuoteStatus.WITHDRAWN, QuoteStatus.EXPIRED,
         )
         // SET EQUALITY, BOTH DIRECTIONS. A status added to the shared rule and
         // not here renders nothing for a state the server can now send; one

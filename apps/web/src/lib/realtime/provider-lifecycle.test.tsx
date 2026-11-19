@@ -812,6 +812,26 @@ describe("the subscribed event set", () => {
   });
 });
 
+it("refreshes the affected quote list, outstanding quotes, and timeline", async () => {
+  visibleNumbers = [{ id: "n1" }];
+  const { emit, report, invalidatedKeys } = setup();
+  await flush();
+  report(COMPANY_TOPIC, "SUBSCRIBED");
+  report(numberTopic("n1"), "SUBSCRIBED");
+  const before = invalidatedKeys().length;
+
+  emit(numberTopic("n1"), "quote.updated", {
+    conversation_id: CONVERSATION,
+    quote_id: "44444444-4444-4444-8444-444444444444",
+  });
+
+  expect(invalidatedKeys().slice(before)).toEqual([
+    keys.quotes.forConversation(COMPANY, CONVERSATION),
+    keys.quotes.outstanding(COMPANY),
+    keys.conversations.events(COMPANY, CONVERSATION),
+  ]);
+});
+
 describe("payment.updated", () => {
   it("refetches that thread's payment requests, and only those", async () => {
     // #607. The deposit clearing is the one broadcast somebody is actively

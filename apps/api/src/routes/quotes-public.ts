@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 
-import { companySettingDefault, effectiveQuoteStatus, isQuoteDecided } from '@loonext/shared';
+import { effectiveQuoteStatus, resolveLocale } from '@loonext/shared';
 import type { QuoteState } from '@loonext/shared';
 
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { errorResponse } from "../http/errors";
+import { notifyQuoteAccepted } from "../notifications/payment";
 import { reportHandledFailure, workerEnv } from "../observability/capture";
 import {
   callerCountry,
@@ -13,10 +15,10 @@ import {
   publicLinkNotAvailable,
 } from "../public-links/guard";
 import {
-  mintPublicLink,
+  hashToken,
+  issueQuoteDecisionToken,
   resolvePublicLink,
 } from "../public-links/tokens";
-import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
 import { afterTaskCreated } from "../tasks/follow-ups";
 
@@ -37,7 +39,8 @@ import { afterTaskCreated } from "../tasks/follow-ups";
  * and none of it reaches the holder. A page that distinguished "expired" from
  * "no such token" would be an oracle for enumerating the others. One response
  * for every failure, and the outcome stays in the access log where it is
- * evidence rather than a hint.
+ * evidence rather than a hint. The original view link for a withdrawn quote
+ * is allowed to show the withdrawal notice until the link expires.
  *
  * # Viewing is recorded, and viewing is not answering
  *
@@ -48,7 +51,7 @@ import { afterTaskCreated } from "../tasks/follow-ups";
  */
 
 const PUBLIC_COLUMNS =
-  "id,amount_cents,currency,description,status,expires_at,viewed_at,decided_at";
+  "id,amount_cents,currency,description,status,expires_at,viewed_at,decided_at,decision_version";
 
 /*
  * The accept path reads one more column than the customer is ever shown:
@@ -73,6 +76,7 @@ interface PublicQuoteRow extends QuoteState {
   description: string;
   viewed_at: string | null;
   decided_at: string | null;
+  decision_version: number;
 }
 
 export const publicQuoteRoutes = new Hono<AppEnv>();
@@ -86,20 +90,34 @@ export const publicQuoteRoutes = new Hono<AppEnv>();
  */
 publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   const db = getDb(getEnv(c.env));
+  const viewToken = c.req.param("token");
   const resolved = await resolvePublicLink(
     db,
-    c.req.param("token"),
+    viewToken,
     "quote_view",
     callerCountry(c),
   );
-  if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
+  if (resolved.outcome === "revoked") {
+    const withdrawal = unwrap<{ contact_locale: string | null; company_locale: string | null } | null>(
+      await db.rpc("api_public_quote_withdrawal", { p_token_hash: await hashToken(viewToken) }),
+      "public quote withdrawal",
+    );
+    if (withdrawal) {
+      return c.json({
+        withdrawn: true,
+        status: "withdrawn",
+        locale: resolveLocale(withdrawal.contact_locale, withdrawal.company_locale),
+      });
+    }
+  }
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
   }
 
-  const [row] = unwrap<PublicQuoteRow[]>(
+  const [row] = unwrap<unknown>(
     await db
       .from("quotes")
-      .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner()`)
+      .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner(),contact:contacts!contact_id(locale)`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
       .is("conversations.deleted_at", null)
@@ -107,7 +125,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
       .is("companies.deleted_at", null)
       .limit(1),
     "public quote lookup",
-  );
+  ) as (PublicQuoteRow & { contact: { locale: string | null } | null })[];
   // A token that resolves to a row that is gone is the same answer as a token
   // that never existed. Saying otherwise confirms the id was once real.
   if (!row) return publicLinkNotAvailable(c);
@@ -125,31 +143,12 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
 
   const now = new Date();
   const status = effectiveQuoteStatus(row, now);
-  const canAccept = status === "sent" || status === "viewed";
-
-  /*
-   * Minted BEFORE the view stamp below, which moves `sent` to `viewed` —
-   * both are acceptable states, so the order does not change the answer, but
-   * reading the status once and using it twice is what keeps that true.
-   *
-   * Expiry rides the quote's own deadline: this credential must not outlive
-   * the offer it accepts. `maxUses: 1` because accepting twice is not a thing
-   * a customer does, and a credential that survives its use is one that can be
-   * replayed out of a browser history or a shared screenshot.
-   */
-  const acceptToken = canAccept
-    ? (
-        await mintPublicLink(db, {
-          companyId: resolved.company_id,
-          purpose: "quote_accept",
-          subjectType: "quote",
-          subjectId: row.id,
-          expiresAt: new Date(row.expires_at),
-          maxUses: 1,
-          actorUserId: null,
-        })
-      ).token
-    : null;
+  const [acceptToken, declineToken] = status === "sent" || status === "viewed"
+    ? await Promise.all([
+      issueQuoteDecisionToken(db, viewToken, resolved.link_id, "quote_accept", row.decision_version),
+      issueQuoteDecisionToken(db, viewToken, resolved.link_id, "quote_decline", row.decision_version),
+    ])
+    : [null, null];
 
   /*
    * First view is stamped, best-effort. Deliberately NOT awaited into the
@@ -172,13 +171,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   }
 
   return c.json({
-    /*
-     * The WORKSPACE's language, not the reader's device. Nothing here knows
-     * who is holding the phone — there is no session and no profile — so the
-     * honest default is the language the business writes in, which is the
-     * language they wrote this quote in.
-     */
-    locale: company.locale ?? companySettingDefault("locale"),
+    locale: resolveLocale(row.contact?.locale, company.locale),
     business_name: company.name,
     amount_cents: row.amount_cents,
     currency: row.currency,
@@ -186,57 +179,32 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     status,
     expires_at: row.expires_at,
     /** Whether pressing accept would do anything, decided here not on a client. */
-    can_accept: canAccept,
-    /*
-     * The authority to accept, minted for THIS view and returned to nobody
-     * else.
-     *
-     * The token in the URL cannot be this credential: it is written into the
-     * SMS body and `messages.body` is readable by every member holding
-     * `conversations.read` — including `read_only`, whom the capability table
-     * gives no write anywhere — by any `messages:read` API key, and by any
-     * customer-supplied webhook subscribed to `message.sent`. When the accept
-     * route resolved the view purpose, all of those parties could bind the
-     * business to a price, record it as the CUSTOMER's decision, create a job
-     * from it, and revoke the real customer's link in the process.
-     *
-     * SINGLE USE, and only minted when accepting is actually possible. A quote
-     * already answered or lapsed hands back nothing, so a client cannot press a
-     * button whose credential does not exist.
-     */
+    can_accept: acceptToken !== null,
     accept_token: acceptToken,
+    decline_token: declineToken,
   });
 });
 
-/**
- * Accepting, which is the whole point of the feature.
- *
- * NOT THE TOKEN FROM THE TEXT MESSAGE. This resolves `quote_accept`, which is
- * minted when the customer opens the page and returned only in that response —
- * see `GET /q/:token`.
- *
- * The distinction is the whole security of this route. The view token is
- * written into `messages.body`, where it is readable by every member with
- * `conversations.read` (`read_only` included), by any `messages:read` API key,
- * and by any workspace-supplied webhook endpoint subscribed to `message.sent`.
- * While this route accepted that token, all of them could commit the business
- * to a price, have it recorded as the customer's own decision, and lock the
- * customer out of their link — with no authenticated route in the product that
- * does the same thing, and no way to undo it.
- *
- * Double accept is still guarded by the WHERE clause on the update, which two
- * taps on a slow connection cannot beat; `maxUses: 1` on the credential makes
- * the second tap fail earlier and more honestly.
- */
+/** Accept using a single-use credential issued by the public quote page. */
 publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
-  const db = getDb(getEnv(c.env));
+  const body = await c.req.json<{ name?: unknown }>().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (name.length === 0 || name.length > 120) {
+    return errorResponse(c, "validation_failed", "Enter your name to accept this quote.", {
+      key: "quotes.acceptNameRequired",
+    });
+  }
+
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const country = callerCountry(c);
   const resolved = await resolvePublicLink(
     db,
     c.req.param("token"),
     "quote_accept",
-    callerCountry(c),
+    country,
   );
-  if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
   }
 
@@ -269,84 +237,35 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     return c.json({ accepted: false, status }, 409);
   }
 
-  /*
-   * The guard against a double accept is in the WHERE clause, not in the read
-   * above. Two taps on a slow connection are two requests, and a check-then-
-   * write would let both through — the second one overwriting the first
-   * acceptance's timestamp with a later one, which is a quiet corruption of
-   * the record the whole feature exists to keep.
-   */
-  const accepted = unwrap<{ id: string }[]>(
-    await db
-      .from("quotes")
-      .update({
-        status: "accepted",
-        decided_at: now.toISOString(),
-      })
-      .eq("company_id", resolved.company_id)
-      .eq("id", row.id)
-      .in("status", ["sent", "viewed"])
-      .select("id"),
-    "public quote accept",
-  );
-  if (accepted.length === 0) {
-    // Somebody else won the race. The quote IS accepted, so this is not a
-    // failure from the customer's side.
-    return c.json({ accepted: true, status: "accepted" });
+  const accepted = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: resolved.company_id,
+    p_quote_id: row.id,
+    p_decision: "accepted",
+    p_actor: null,
+    p_link_id: resolved.link_id,
+    p_name: name,
+    p_reason: null,
+    p_country: country,
+  }), "quote acceptance");
+  if (!accepted) {
+    const [current] = unwrap<QuoteState[]>(await db.from("quotes").select("status,expires_at")
+      .eq("company_id", resolved.company_id).eq("id", row.id).limit(1), "quote decision lookup");
+    if (!current) return publicLinkNotAvailable(c);
+    const status = effectiveQuoteStatus(current, now);
+    return c.json({ accepted: status === "accepted", status }, status === "accepted" ? 200 : 409);
   }
 
-  try {
-    const { error } = await db.from("public_links")
-      .update({ revoked_at: now.toISOString(), revoke_reason: "quote accepted" })
-      .eq("company_id", resolved.company_id)
-      .eq("subject_type", "quote")
-      .eq("subject_id", row.id)
-      .eq("purpose", "quote_accept")
-      .is("revoked_at", null);
-    if (error) throw new Error(error.message);
-  } catch (error) {
-    void reportHandledFailure(workerEnv(), "quote-link-revocation", error, {
-      ids: { quoteId: row.id },
+  if (row.conversation_id) {
+    await notifyQuoteAccepted(env, {
+      companyId: resolved.company_id,
+      conversationId: row.conversation_id,
+      quoteId: row.id,
+    }, db).catch((error: unknown) => {
+      void reportHandledFailure(env, "quote-accepted-notification", error, {
+        ids: { quoteId: row.id },
+      });
     });
   }
-
-  /*
-   * #287 — AND THE CREW IS TOLD.
-   *
-   * The customer accepts on a page nobody in the workspace is looking at, so
-   * without this the only trace is a status on a row. The issue's own words:
-   * "Acceptance is verbal. 'Yeah go ahead' in a text thread is what we have
-   * instead of a record, which is fine until it isn't." This is the record, and
-   * it lands in the one place both sides already look.
-   *
-   * NO actor_user_id. The customer is not a member, and attributing their
-   * decision to whichever crew member happened to send the quote would be a
-   * false record of who said yes — on exactly the artefact that exists to
-   * settle that question later.
-   *
-   * Best-effort, and deliberately AFTER the accept has committed. The
-   * acceptance is the customer's and is already durable; failing their request
-   * because our own timeline write failed would tell them the price was not
-   * accepted when it was.
-   */
-  await insertConversationEvents(db, [
-    {
-      company_id: resolved.company_id,
-      conversation_id: row.conversation_id ?? null,
-      actor_user_id: null,
-      type: "quote_accepted",
-      payload: {
-        quote_id: row.id,
-        amount_cents: row.amount_cents,
-        currency: row.currency,
-        description: row.description,
-      },
-    },
-  ]).catch((error: unknown) => {
-    void reportHandledFailure(workerEnv(), "quote-accepted-event", error, {
-      ids: { quoteId: row.id },
-    });
-  });
 
   /*
    * #287 — AND THE WORK STARTS.
@@ -413,6 +332,22 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   return c.json({ accepted: true, status: "accepted" });
 });
 
-/** Exported for the tests, which assert the decided-quote guard directly. */
-export const quoteIsAnswerable = (quote: QuoteState, now: Date): boolean =>
-  !isQuoteDecided(effectiveQuoteStatus(quote, now));
+publicQuoteRoutes.post("/q/:token/decline", publicLinkGuard(), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const country = callerCountry(c);
+  const resolved = await resolvePublicLink(db, c.req.param("token"), "quote_decline", country);
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
+    return publicLinkNotAvailable(c);
+  }
+  const declined = unwrap<boolean>(await db.rpc("api_record_quote_decision", {
+    p_company_id: resolved.company_id,
+    p_quote_id: resolved.subject_id,
+    p_decision: "declined",
+    p_actor: null,
+    p_link_id: resolved.link_id,
+    p_name: null,
+    p_reason: null,
+    p_country: country,
+  }), "public quote decline");
+  return c.json({ declined }, declined ? 200 : 409);
+});

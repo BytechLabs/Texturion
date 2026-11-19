@@ -16,7 +16,7 @@
  *      history, and inside third-party calendar servers. Guessing must be
  *      hopeless, not merely hard.
  *
- *   2. THE PLAINTEXT IS RETURNED ONCE AND NEVER STORED. Only its SHA-256 hash
+ *   2. THE PLAINTEXT IS NEVER STORED. Only its SHA-256 hash
  *      reaches the database, so a leaked backup, a log line, or a support
  *      screenshot discloses nothing usable. This is a password digest's
  *      reasoning applied to a URL, and it is what makes the access log safe to
@@ -33,6 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type PublicLinkPurpose =
   | "quote_view"
   | "quote_accept"
+  | "quote_decline"
   | "payment"
   | "calendar_feed"
   | "photo_set"
@@ -48,9 +49,41 @@ export type PublicLinkPurpose =
 export function generateToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
+  return encodeToken(bytes);
+}
+
+function encodeToken(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
+}
+
+export async function issueQuoteDecisionToken(
+  db: SupabaseClient,
+  viewToken: string,
+  viewLinkId: string,
+  purpose: "quote_accept" | "quote_decline",
+  decisionVersion: number,
+): Promise<string | null> {
+  const material = new TextEncoder().encode(`${purpose}:${decisionVersion}:${viewLinkId}:${viewToken}`);
+  let token = encodeToken(new Uint8Array(await crypto.subtle.digest("SHA-256", material)));
+  const issue = async (candidate: string) => {
+    const { data, error } = await db.rpc("api_issue_quote_decision_link", {
+      p_view_link_id: viewLinkId,
+      p_token_hash: await hashToken(candidate),
+      p_purpose: purpose,
+      p_decision_version: decisionVersion,
+    });
+    if (error) throw new Error(`quote decision link failed: ${error.message}`);
+    return data as string | null;
+  };
+  let state = await issue(token);
+  // A prior request can spend a credential before its quote write commits.
+  if (state === "spent") {
+    token = generateToken();
+    state = await issue(token);
+  }
+  return state === "ready" ? token : null;
 }
 
 /** SHA-256 hex. The only form of the token that is ever persisted. */

@@ -51,6 +51,7 @@ export const QUOTE_STATUSES = [
   "viewed",
   "accepted",
   "declined",
+  "withdrawn",
   "expired",
 ] as const;
 
@@ -67,6 +68,7 @@ export type QuoteStatusKey =
   | "quotes.statusViewed"
   | "quotes.statusAccepted"
   | "quotes.statusDeclined"
+  | "quotes.statusWithdrawn"
   | "quotes.statusExpired";
 
 export const QUOTE_STATUS_KEYS: Record<QuoteStatus, QuoteStatusKey> = {
@@ -75,6 +77,7 @@ export const QUOTE_STATUS_KEYS: Record<QuoteStatus, QuoteStatusKey> = {
   viewed: "quotes.statusViewed",
   accepted: "quotes.statusAccepted",
   declined: "quotes.statusDeclined",
+  withdrawn: "quotes.statusWithdrawn",
   expired: "quotes.statusExpired",
 };
 
@@ -86,9 +89,7 @@ export interface QuoteState {
 }
 
 /**
- * A decision is final. Expiry cannot un-accept a quote somebody accepted, and
- * cannot re-open one they declined — the deadline was for answering, and it
- * has been answered.
+ * A quote's deadline expires the offer while it is awaiting a decision.
  */
 export function isQuoteDecided(status: QuoteStatus): boolean {
   return status === "accepted" || status === "declined";
@@ -112,6 +113,7 @@ export function effectiveQuoteStatus(
   now: Date = new Date(),
 ): QuoteStatus {
   if (isQuoteDecided(quote.status)) return quote.status;
+  if (quote.status === "withdrawn") return "withdrawn";
   if (quote.status === "draft") return "draft";
   if (quote.status === "expired") return "expired";
   const expiry = Date.parse(quote.expires_at);
@@ -144,17 +146,18 @@ export function isQuoteOutstanding(
  *
  *   * nothing returns to `draft` — a price that has been sent has been seen by
  *     somebody, and pretending otherwise loses the record of what was offered;
- *   * `accepted` and `declined` lead nowhere, because a decision is final;
+ *   * owners and admins can reopen an acceptance while the offer is live;
  *   * `expired` leads nowhere either. Re-offering is a NEW quote at today's
  *     price, which is the honest thing for a trade whose material costs move.
  */
 const ALLOWED_NEXT: Record<QuoteStatus, readonly QuoteStatus[]> = {
   draft: ["sent"],
-  sent: ["viewed", "accepted", "declined", "expired"],
+  sent: ["viewed", "accepted", "declined", "withdrawn", "expired"],
   // Viewing is not answering: a customer who opened it can still do either.
-  viewed: ["accepted", "declined", "expired"],
-  accepted: [],
+  viewed: ["accepted", "declined", "withdrawn", "expired"],
+  accepted: ["viewed"],
   declined: [],
+  withdrawn: [],
   expired: [],
 };
 

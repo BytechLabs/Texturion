@@ -9,13 +9,14 @@ import Foundation
 
 // MARK: - The statuses
 
-/// The six answers to "where is this quote", as the SQL CHECK spells them.
+/// The states shown for a quote.
 enum QuoteStatus {
     static let draft = "draft"
     static let sent = "sent"
     static let viewed = "viewed"
     static let accepted = "accepted"
     static let declined = "declined"
+    static let withdrawn = "withdrawn"
     static let expired = "expired"
 
     /// Catalogue keys, one per status. Named the same on all three clients.
@@ -25,6 +26,7 @@ enum QuoteStatus {
         viewed: "quotes.statusViewed",
         accepted: "quotes.statusAccepted",
         declined: "quotes.statusDeclined",
+        withdrawn: "quotes.statusWithdrawn",
         expired: "quotes.statusExpired",
     ]
 }
@@ -66,6 +68,7 @@ enum Quotes {
     ) -> String {
         if isDecided(status) { return status }
         if status == QuoteStatus.draft { return QuoteStatus.draft }
+        if status == QuoteStatus.withdrawn { return QuoteStatus.withdrawn }
         if status == QuoteStatus.expired { return QuoteStatus.expired }
         guard let expiry = isoDate(expiresAt) else { return status }
         return expiry <= now ? QuoteStatus.expired : status
@@ -205,5 +208,34 @@ struct QuotesApi: Sendable {
     /// POST /v1/quotes/:id/send — mint the tokens and text the customer.
     func send(companyId: String, quoteId: String) async throws -> SentQuote {
         try await api.post("/v1/quotes/\(quoteId)/send", companyId: companyId)
+    }
+
+    func edit(
+        companyId: String,
+        quoteId: String,
+        amountCents: Int,
+        description: String,
+        expiresAt: String
+    ) async throws -> Quote {
+        try await api.patch(
+            "/v1/quotes/\(quoteId)",
+            body: JSONValue.object([
+                "amount_cents": .number(Double(amountCents)),
+                "description": .string(description),
+                "expires_at": .string(expiresAt),
+            ]),
+            companyId: companyId
+        )
+    }
+
+    func deleteDraft(companyId: String, quoteId: String) async throws {
+        try await api.delete("/v1/quotes/\(quoteId)", companyId: companyId)
+    }
+
+    func decide(companyId: String, quoteId: String, action: String, reason: String? = nil) async throws {
+        let body = reason.map { JSONValue.object(["reason": .string($0)]) }
+        let _: [String: Bool] = try await api.post(
+            "/v1/quotes/\(quoteId)/\(action)", body: body, companyId: companyId
+        )
     }
 }

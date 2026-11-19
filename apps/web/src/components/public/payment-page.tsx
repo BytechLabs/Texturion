@@ -3,6 +3,7 @@ import { ChevronRight, Lock } from "lucide-react";
 import { DEFAULT_LOCALE, isLocale } from '@loonext/shared';
 import type { PaymentRequestState } from '@loonext/shared';
 
+import { DocumentLanguage } from "@/components/marketing/document-language";
 import { makeTranslate } from '@/i18n/translate';
 import type { Translate } from '@/i18n/translate';
 
@@ -58,15 +59,6 @@ export function PaymentPage({
   description?: string;
   state?: PaymentRequestState;
   payUrl?: string | null;
-  /**
-   * #228: the BUSINESS's language, sent by the API.
-   *
-   * Not the reader's device and not ours. The person opening this has a
-   * relationship with the tradesperson, and a Quebec crew's customer meeting an
-   * English payment page is the Bill 96 problem in miniature. There is no
-   * provider here — this renders outside the app shell, for somebody with no
-   * account — so the lookup is built directly rather than taken from context.
-   */
   locale?: string;
   notAvailable?: boolean;
 }) {
@@ -75,6 +67,7 @@ export function PaymentPage({
   if (notAvailable || !state || !amount) {
     return (
       <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={language} />
         <h1 className="text-xl font-semibold tracking-tight">
           {t("payments.linkUnavailableTitle")}
         </h1>
@@ -88,6 +81,7 @@ export function PaymentPage({
   if (state !== "requested" || !payUrl) {
     return (
       <main lang={language} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+        <DocumentLanguage locale={language} />
         <h1 className="text-xl font-semibold tracking-tight">
           {settledHeading(state, t)}
         </h1>
@@ -100,6 +94,7 @@ export function PaymentPage({
 
   return (
     <main lang={language} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      <DocumentLanguage locale={language} />
       {/* WHO is asking, first and largest of the three facts — a payment
           request from an unnamed sender is a phishing text. */}
       <p className="text-[15px] text-muted-foreground">

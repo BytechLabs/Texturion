@@ -617,6 +617,7 @@ private struct ThreadBody: View {
                     api: graph.api,
                     companyId: detail.company_id,
                     conversationId: detail.id,
+                    quoteChangedTick: controller.quoteChangedTick,
                     role: viewerRole,
                     viewerLevel: detail.viewer_level,
                     draftOpen: Binding(

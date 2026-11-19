@@ -53,7 +53,7 @@ import type { Env } from "../env";
 
 import { conversationContactName } from "./contact-name";
 import { deliverPush } from "./deliver";
-import { PAYMENT_PUSH_COPY } from "./payment-copy";
+import { PAYMENT_PUSH_COPY, QUOTE_ACCEPTED_PUSH_COPY } from "./payment-copy";
 
 /**
  * The three things that happen to money after an ask is sent.
@@ -190,6 +190,30 @@ export async function notifyPayment(
   input: PaymentNotification,
   db: SupabaseClient = getDb(env),
 ): Promise<void> {
+  return notifyFinancialActivity(env, input, (contactName) => paymentAlert(env.APP_ORIGIN, input, contactName), db);
+}
+
+export async function notifyQuoteAccepted(
+  env: Env,
+  input: { companyId: string; conversationId: string; quoteId: string },
+  db: SupabaseClient = getDb(env),
+): Promise<void> {
+  const line = (locale: Locale) => QUOTE_ACCEPTED_PUSH_COPY[locale].line;
+  return notifyFinancialActivity(env, input, (contactName) => ({
+    title: (locale) => QUOTE_ACCEPTED_PUSH_COPY[locale].title(contactName),
+    body: line,
+    withheldBody: line,
+    url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
+    collapseKey: `quote:accepted:${input.quoteId}`,
+  }), db);
+}
+
+async function notifyFinancialActivity(
+  env: Env,
+  input: { companyId: string; conversationId: string },
+  createAlert: (contactName: string) => PaymentAlert,
+  db: SupabaseClient,
+): Promise<void> {
   const conversations = unwrapRows<{ phone_number_id: string | null }>(
     await db
       .from("conversations")
@@ -200,8 +224,6 @@ export async function notifyPayment(
     "conversation lookup",
   );
   const [conversation] = conversations;
-  // Gone between the payment and this running. Nothing to link to, so nothing
-  // to say — and not an error: the money is recorded either way.
   if (!conversation) return;
 
   const viewers = await listConversationViewers(db, {
@@ -235,7 +257,7 @@ export async function notifyPayment(
   // alert can say names them, so there is nothing left to send.
   if (contactName === null) return;
 
-  const alert = paymentAlert(env.APP_ORIGIN, input, contactName);
+  const alert = createAlert(contactName);
   const failures: unknown[] = [];
   await deliverPush(env, db, {
     category: "operational",
@@ -268,7 +290,7 @@ export async function notifyPayment(
   if (failures.length > 0) {
     throw new AggregateError(
       failures,
-      `payment alert: ${failures.length} delivery step(s) failed for ${alert.collapseKey}`,
+      `financial alert: ${failures.length} delivery step(s) failed for ${alert.collapseKey}`,
     );
   }
 }

@@ -33,6 +33,18 @@ object ThreadStrings : AppStrings.Section {
             "Accepted",
         "quotes.statusDeclined" to
             "Declined",
+        "quotes.statusWithdrawn" to "Withdrawn",
+        "quotes.withdraw" to "Withdraw",
+        "quotes.withdrawTitle" to "Withdraw this quote?",
+        "quotes.withdrawDetail" to "The customer will no longer be able to accept it.",
+        "quotes.undoAcceptance" to "Undo acceptance",
+        "quotes.undoAcceptanceDetail" to "The customer will be able to answer the quote again before it expires.",
+        "quotes.markDeclined" to "Mark declined",
+        "quotes.declineReason" to "Reason for declining",
+        "quotes.declineCrewDetail" to "The customer will no longer be able to accept this quote.",
+        "quotes.editDraft" to "Edit draft",
+        "quotes.deleteDraft" to "Delete draft",
+        "quotes.deleteDraftDetail" to "This removes the unsent quote from the conversation.",
         "quotes.statusExpired" to
             "Expired",
         "quotes.outstandingTitle" to
@@ -823,6 +835,18 @@ object ThreadStrings : AppStrings.Section {
             "Accepté",
         "quotes.statusDeclined" to
             "Refusé",
+        "quotes.statusWithdrawn" to "Retiré",
+        "quotes.withdraw" to "Retirer",
+        "quotes.withdrawTitle" to "Retirer ce devis ?",
+        "quotes.withdrawDetail" to "Le client ne pourra plus l’accepter.",
+        "quotes.undoAcceptance" to "Annuler l’acceptation",
+        "quotes.undoAcceptanceDetail" to "Le client pourra répondre de nouveau avant l’expiration du devis.",
+        "quotes.markDeclined" to "Marquer comme refusé",
+        "quotes.declineReason" to "Motif du refus",
+        "quotes.declineCrewDetail" to "Le client ne pourra plus accepter ce devis.",
+        "quotes.editDraft" to "Modifier le brouillon",
+        "quotes.deleteDraft" to "Supprimer le brouillon",
+        "quotes.deleteDraftDetail" to "Le devis non envoyé sera retiré de la conversation.",
         "quotes.statusExpired" to
             "Expiré",
         "quotes.outstandingTitle" to

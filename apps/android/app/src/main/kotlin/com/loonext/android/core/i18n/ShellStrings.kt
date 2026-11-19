@@ -54,9 +54,9 @@ object ShellStrings : AppStrings.Section {
         "push.channelUrgentDesc" to
             "Urgent customer texts and on-call alerts.",
         "push.channelPaymentsName" to
-            "Payments",
+            "Payments and quotes",
         "push.channelPaymentsDesc" to
-            "Money paid, refunded, or pulled back on a job.",
+            "Payment updates and accepted quotes.",
         "push.channelIncomingCallsName" to
             "Incoming calls",
         "push.channelIncomingCallsDesc" to
@@ -358,9 +358,9 @@ object ShellStrings : AppStrings.Section {
         "push.channelUrgentDesc" to
             "Textos urgents des clients et alertes de garde.",
         "push.channelPaymentsName" to
-            "Paiements",
+            "Paiements et soumissions",
         "push.channelPaymentsDesc" to
-            "Argent payé, remboursé ou repris sur un travail.",
+            "Mises à jour sur les paiements et soumissions acceptées.",
         "push.channelIncomingCallsName" to
             "Appels entrants",
         "push.channelIncomingCallsDesc" to

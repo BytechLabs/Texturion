@@ -753,7 +753,7 @@ export async function runScheduledSendJob(
       const message = await dispatchOutbound(env, db, fired.message, {
         from: destination.from,
         to: destination.to,
-        text: fired.message.body,
+        text: row.body,
         mediaUrls: [],
         clearance,
       });

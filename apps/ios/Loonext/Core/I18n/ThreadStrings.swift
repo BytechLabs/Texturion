@@ -50,6 +50,18 @@ enum ThreadStrings {
                 "Accepted",
             "quotes.statusDeclined":
                 "Declined",
+            "quotes.statusWithdrawn": "Withdrawn",
+            "quotes.withdraw": "Withdraw",
+            "quotes.withdrawTitle": "Withdraw this quote?",
+            "quotes.withdrawDetail": "The customer will no longer be able to accept it.",
+            "quotes.undoAcceptance": "Undo acceptance",
+            "quotes.undoAcceptanceDetail": "The customer will be able to answer the quote again before it expires.",
+            "quotes.markDeclined": "Mark declined",
+            "quotes.declineReason": "Reason for declining",
+            "quotes.declineCrewDetail": "The customer will no longer be able to accept this quote.",
+            "quotes.editDraft": "Edit draft",
+            "quotes.deleteDraft": "Delete draft",
+            "quotes.deleteDraftDetail": "This removes the unsent quote from the conversation.",
             "quotes.statusExpired":
                 "Expired",
             "quotes.outstandingTitle":
@@ -831,6 +843,18 @@ enum ThreadStrings {
                 "Accepté",
             "quotes.statusDeclined":
                 "Refusé",
+            "quotes.statusWithdrawn": "Retiré",
+            "quotes.withdraw": "Retirer",
+            "quotes.withdrawTitle": "Retirer ce devis ?",
+            "quotes.withdrawDetail": "Le client ne pourra plus l’accepter.",
+            "quotes.undoAcceptance": "Annuler l’acceptation",
+            "quotes.undoAcceptanceDetail": "Le client pourra répondre de nouveau avant l’expiration du devis.",
+            "quotes.markDeclined": "Marquer comme refusé",
+            "quotes.declineReason": "Motif du refus",
+            "quotes.declineCrewDetail": "Le client ne pourra plus accepter ce devis.",
+            "quotes.editDraft": "Modifier le brouillon",
+            "quotes.deleteDraft": "Supprimer le brouillon",
+            "quotes.deleteDraftDetail": "Le devis non envoyé sera retiré de la conversation.",
             "quotes.statusExpired":
                 "Expiré",
             "quotes.outstandingTitle":
