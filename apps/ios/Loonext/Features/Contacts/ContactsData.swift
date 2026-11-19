@@ -53,7 +53,7 @@ struct ContactMutations: Sendable {
     let multipart: MultipartClient
 
     func detail(companyId: String, contactId: String) async throws -> Contact {
-        try await api.get("/v1/contacts/\(contactId)", companyId: companyId)
+        try await api.get("/v1/contacts/\(contactId)", companyId: companyId, cacheInMemory: true)
     }
 
     func erasure(companyId: String, contactId: String) async throws -> CustomerErasure {

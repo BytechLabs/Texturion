@@ -586,21 +586,37 @@ struct CallsView: View {
     }
 
     private func reload() async {
+        let outcome = filter.outcome
+        let requestedReason = reason
+        let fullLog = outcome == nil && requestedReason == nil
+        if case .loading = state,
+           let cached: Page<Call> = await graph.api.cachedGet(
+               "/v1/calls", query: ["limit": "25", "outcome": outcome, "reason": requestedReason], companyId: companyId
+           ), !Task.isCancelled {
+            nextCursor = cached.next_cursor
+            state = .ready(cached.data)
+            if fullLog { ongoing = ongoingCalls(cached.data) }
+        }
+        guard !Task.isCancelled else { return }
         do {
             let page = try await service.calls(
                 companyId: companyId,
-                outcome: filter.outcome,
-                reason: reason
+                outcome: outcome,
+                reason: requestedReason
             )
             nextCursor = page.next_cursor
             state = .ready(page.data)
             // On the default pill the page just fetched IS the ongoing source,
             // so the pinned card costs no second request.
-            if filter == .all && reason == nil { ongoing = ongoingCalls(page.data) }
+            if fullLog { ongoing = ongoingCalls(page.data) }
+        } catch is CancellationError {
+            return
         } catch {
-            if case .ready = state {
+            if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true {
                 // Keep the stale list on a quiet refetch failure.
             } else {
+                nextCursor = nil
+                ongoing = []
                 state = .failed(error.userMessage)
             }
         }
@@ -608,7 +624,7 @@ struct CallsView: View {
         // no outcome yet), so a narrow pill reads the unfiltered log as well —
         // otherwise the live call would vanish the moment Missed is tapped. A
         // failure here just leaves the last known card up, never an error.
-        if filter != .all || reason != nil,
+        if !fullLog,
            let page = try? await service.calls(companyId: companyId) {
             ongoing = ongoingCalls(page.data)
         }

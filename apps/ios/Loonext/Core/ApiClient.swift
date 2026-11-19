@@ -60,23 +60,26 @@ actor ApiClient {
         _ path: String,
         query: [String: String?] = [:],
         companyId: String? = nil,
-        useOfflineFallback: Bool = true
+        useOfflineFallback: Bool = true,
+        cacheInMemory: Bool = false
     ) async throws -> T {
-        guard let offlineReads, let scope = offlineScope(path, query, companyId) else {
+        guard let offlineReads,
+              let scope = cacheScope(path, query, companyId, allowMemory: cacheInMemory) else {
             return try Self.decode(path, await raw("GET", path, query: query, companyId: companyId))
         }
         do {
             let data = try await raw("GET", path, query: query, companyId: companyId, expectedUserId: scope.userId)
             let response: T = try Self.decode(path, data)
-            await offlineReads.write(data, for: scope.key) { [sessionStore, userId = scope.userId] in
+            await offlineReads.write(data, for: scope.key, onDisk: scope.onDisk) { [sessionStore, userId = scope.userId] in
                 sessionStore.current()?.userId == userId
             }
+            guard sessionStore.current()?.userId == scope.userId else { throw CancellationError() }
             return response
         } catch let failure as ApiError {
             if failure.invalidatesOfflineReads {
                 await offlineReads.remove(scope.key)
             }
-            if useOfflineFallback, failure.code == ApiErrorCode.network,
+            if scope.onDisk, useOfflineFallback, failure.code == ApiErrorCode.network,
                let data = await offlineReads.read(scope.key),
                sessionStore.current()?.userId == scope.userId,
                let cached: T = try? Self.decode(path, data) {
@@ -91,22 +94,23 @@ actor ApiClient {
         query: [String: String?] = [:],
         companyId: String
     ) async -> T? {
-        guard let offlineReads, let scope = offlineScope(path, query, companyId),
-              let data = await offlineReads.read(scope.key),
+        guard let offlineReads, let scope = cacheScope(path, query, companyId, allowMemory: true),
+              let data = await offlineReads.read(scope.key, onDisk: scope.onDisk),
               sessionStore.current()?.userId == scope.userId else { return nil }
         return try? Self.decode(path, data)
     }
 
-    private func offlineScope(
-        _ path: String, _ query: [String: String?], _ companyId: String?
-    ) -> (key: String, userId: String)? {
-        guard let companyId, let userId = sessionStore.current()?.userId,
-              isOfflineRead(path: path, query: query, userId: userId) else { return nil }
+    private func cacheScope(
+        _ path: String, _ query: [String: String?], _ companyId: String?, allowMemory: Bool
+    ) -> (key: String, userId: String, onDisk: Bool)? {
+        guard let companyId, let userId = sessionStore.current()?.userId else { return nil }
+        let onDisk = isOfflineRead(path: path, query: query, userId: userId)
+        guard onDisk || allowMemory else { return nil }
         let parts = [userId, companyId, path] + query.compactMapValues { $0 }
             .sorted { $0.key < $1.key }
             .flatMap { [$0.key, $0.value] }
         guard let encoded = try? JSONEncoder().encode(parts) else { return nil }
-        return (String(decoding: encoded, as: UTF8.self), userId)
+        return (String(decoding: encoded, as: UTF8.self), userId, onDisk)
     }
 
     func post<T: Decodable & Sendable>(

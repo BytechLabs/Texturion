@@ -17,7 +17,7 @@ struct SettingsRepository: Sendable {
     // MARK: - Company
 
     func company(_ companyId: String) async throws -> CompanyView {
-        try await api.get("/v1/company", companyId: companyId)
+        try await api.get("/v1/company", companyId: companyId, cacheInMemory: true)
     }
 
     /// #749: the attributed settings currently off their default, with who
@@ -239,7 +239,7 @@ struct SettingsRepository: Sendable {
     }
 
     func usage(_ companyId: String, locale: String? = nil) async throws -> Usage {
-        try await api.get("/v1/usage", query: ["lang": locale], companyId: companyId)
+        try await api.get("/v1/usage", query: ["lang": locale], companyId: companyId, cacheInMemory: true)
     }
 
     // MARK: - #595 usage export (routes/exports.ts)
