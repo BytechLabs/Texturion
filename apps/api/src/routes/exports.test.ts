@@ -174,6 +174,24 @@ describe("workspace export media", () => {
     expect(res.status).toBe(404);
     expect(sb.find("POST", "/rest/v1/rpc/api_workspace_export_media")).toHaveLength(0);
   });
+
+  it("refuses all links from a revoked export even before its lease expires", async () => {
+    const { sb, routes } = world({
+      rows: [readyRow({ erasure_revoked_at: new Date().toISOString() })],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+    const media = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}/media`, {
+      companyId: COMPANY_ID,
+    });
+    expect(media.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/api_workspace_export_media")).toHaveLength(0);
+
+    const archive = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}`, {
+      companyId: COMPANY_ID,
+    });
+    expect(archive.status).toBe(200);
+    await expect(archive.json()).resolves.toMatchObject({ allowed_actions: [], files: [] });
+  });
 });
 
 describe("POST /v1/exports", () => {
