@@ -224,50 +224,33 @@ describe("GET /v1/contacts", () => {
     expect(wrongSort.status).toBe(422);
   });
 
-  it("searches profile fields and additional addresses within the contact list", async () => {
+  it("uses the shared search for q and keeps the existing added-order cursor", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_sorted_contacts", (call) => {
+      const body = call.body as { p_after_id: string | null };
+      const next = contactRow({ id: OTHER_ID, phone_e164: "+14165550198" });
+      return body.p_after_id ? [next] : [contactRow(), next];
+    });
     sb.on("GET", "/rest/v1/opt_outs", () => []);
     sb.on("GET", "/rest/v1/conversations", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      "/v1/contacts?q=Elm&limit=10",
-      { companyId: COMPANY_ID },
-    );
-    expect(res.status).toBe(200);
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
-    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
-    expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
-    expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*Elm*,phone_e164.ilike.*Elm*,business_name.ilike.*Elm*,email.ilike.*Elm*,custom_values.ilike.*Elm*,address.ilike.*Elm*,notes.ilike.*Elm*,contact_addresses.not.is.null)",
-    );
-    expect(call.url.searchParams.get("contact_addresses.company_id")).toBe(`eq.${COMPANY_ID}`);
-    expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*Elm*");
-    expect(call.url.searchParams.get("select")).toContain("contact_addresses()");
-    expect(call.url.searchParams.get("limit")).toBe("11");
-    // The list never fetches the (up-to-5000-char) notes column — it's detail-only.
-    expect(call.url.searchParams.get("select")).not.toContain("notes");
-  });
-
-  it("#459: leaves the search box alone — digits do not become a name search", async () => {
-    // Typing "416" in the contacts search box means an area code. Quietly also
-    // returning every name whose keypad letters spell 416 would make a text
-    // search answer a question nobody asked, so T9 is opt-in.
-    const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => []);
-    sb.on("GET", "/rest/v1/opt_outs", () => []);
-    sb.on("GET", "/rest/v1/conversations", () => []);
-    stubFetch(jwksRoute(auth), sb.route);
-
-    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=416", {
+    const q = 'Elm %-_("c"), (647) 892-3862';
+    const path = `/v1/contacts?q=${encodeURIComponent(q)}&limit=1`;
+    const token = await auth.token();
+    const first = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
+    expect(first.status).toBe(200);
+    const { next_cursor } = await first.json() as { next_cursor: string };
+    expect(decodeCursor(next_cursor)).toEqual({ id: CONTACT_ID, ts: contactRow().created_at });
+    const second = await apiRequest(app, env, token, `${path}&cursor=${encodeURIComponent(next_cursor)}`, {
       companyId: COMPANY_ID,
     });
-    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"))
-      .not.toContain("name_t9");
+    expect(await second.json()).toMatchObject({ data: [{ id: OTHER_ID }], next_cursor: null });
+    const calls = sb.find("POST", "/rest/v1/rpc/api_sorted_contacts");
+    expect(calls[0].body).toMatchObject({ p_company: COMPANY_ID, p_q: q, p_sort: "added", p_limit: 2 });
+    expect(calls[0].url.searchParams.get("select")).not.toContain("notes");
+    expect(calls[1].body).toMatchObject({ p_q: q, p_after_id: CONTACT_ID, p_after_at: contactRow().created_at });
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
   });
 
   it("#459: t9=1 makes the keypad a name search, at word starts only", async () => {
@@ -371,7 +354,7 @@ describe("GET /v1/contacts", () => {
     expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
   });
 
-  it("strips PostgREST/LIKE metacharacters from q", async () => {
+  it("strips PostgREST/LIKE metacharacters from the keypad query", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => []);
     stubFetch(jwksRoute(auth), sb.route);
@@ -380,12 +363,11 @@ describe("GET /v1/contacts", () => {
       app,
       env,
       await auth.token(),
-      `/v1/contacts?q=${encodeURIComponent('a%b_("c"),d')}`,
+      `/v1/contacts?t9=1&q=${encodeURIComponent('a%b_("c"),d')}`,
       { companyId: COMPANY_ID },
     );
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("or")).toContain("name.ilike.*abcd*");
-    expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*abcd*");
   });
 
   it("finds a customer by a phone number written the way it is read", async () => {
@@ -402,7 +384,7 @@ describe("GET /v1/contacts", () => {
       app,
       env,
       await auth.token(),
-      `/v1/contacts?q=${encodeURIComponent("(647) 892-3862")}`,
+      `/v1/contacts?t9=1&q=${encodeURIComponent("(647) 892-3862")}`,
       { companyId: COMPANY_ID },
     );
 
@@ -418,10 +400,10 @@ describe("GET /v1/contacts", () => {
     sb.on("GET", "/rest/v1/conversations", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
-    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=smith", {
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?t9=1&q=smith", {
       companyId: COMPANY_ID,
     });
-    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=6478923862", {
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?t9=1&q=6478923862", {
       companyId: COMPANY_ID,
     });
 
@@ -6396,7 +6378,7 @@ describe("contact phone numbers", () => {
  * number — nearly none of them. It has to be a union with the ordinary search,
  * not a replacement for it.
  */
-describe("searching a customer's other numbers", () => {
+describe("dialer search for a customer's other numbers", () => {
   /** Which of the two list queries a call is: the plain one, or the join. */
   function listCalls(sb: SupabaseStub) {
     const calls = sb.find("GET", "/rest/v1/contacts");
@@ -6440,7 +6422,7 @@ describe("searching a customer's other numbers", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=5550177",
+      "/v1/contacts?t9=1&q=5550177",
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
@@ -6477,7 +6459,7 @@ describe("searching a customer's other numbers", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=555",
+      "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
     const body = (await res.json()) as { data: { id: string }[] };
@@ -6501,7 +6483,7 @@ describe("searching a customer's other numbers", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=555",
+      "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
     const body = (await res.json()) as { data: { id: string }[] };
@@ -6527,7 +6509,7 @@ describe("searching a customer's other numbers", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=555",
+      "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
     expect(await res.text()).not.toContain("contact_phones");
@@ -6539,7 +6521,7 @@ describe("searching a customer's other numbers", () => {
     const sb = searchStubs({ plain: [contactRow()] });
     stubFetch(jwksRoute(auth), sb.route);
 
-    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=Dave", {
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?t9=1&q=Dave", {
       companyId: COMPANY_ID,
     });
     expect(listCalls(sb).joined).toHaveLength(0);
@@ -6576,7 +6558,7 @@ describe("searching a customer's other numbers", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=555",
+      "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
     const body = (await res.json()) as { data: { id: string }[] };
@@ -6673,7 +6655,7 @@ describe("filtering contacts by a custom field", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?field=system_type&value=Combi&q=5550177",
+      "/v1/contacts?field=system_type&value=Combi&t9=1&q=5550177",
       { companyId: COMPANY_ID },
     );
 

@@ -57,7 +57,7 @@ import { emitWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
-import { buildPage, encodeCursor, fromBase64Url, toBase64Url } from "../http/pagination";
+import { buildPage, decodeCursor, encodeCursor, fromBase64Url, toBase64Url } from "../http/pagination";
 import { csvResponse, csvSafeText, csvUnguardText, CsvUnterminatedQuoteError, parseCsvRows } from './core/csv';
 import type { CsvRow } from './core/csv';
 import { insertConversationEvents, latestConversationId } from './core/events';
@@ -1275,9 +1275,12 @@ async function listSortedContacts(
   sort: z.infer<typeof contactSortSchema>,
   rawCursor: string | undefined,
   limit: number,
+  legacyCursor: boolean,
 ) {
   let cursor: z.infer<typeof sortedContactCursor> | undefined;
-  if (rawCursor !== undefined) {
+  if (legacyCursor) {
+    if (rawCursor) cursor = { ...decodeCursor(rawCursor), sort: "added", name: null };
+  } else if (rawCursor !== undefined) {
     try {
       cursor = sortedContactCursor.parse(JSON.parse(fromBase64Url(rawCursor)));
       if (cursor.sort !== sort || (sort === "added" && !cursor.ts)) throw new Error("sort does not match");
@@ -1301,6 +1304,7 @@ async function listSortedContacts(
     }).select(CONTACT_LIST_COLUMNS + ",last_activity_at"),
     "sorted contacts",
   );
+  if (legacyCursor) return buildPage(rows, limit, "created_at");
   const last = rows[limit - 1];
   return {
     data: rows.slice(0, limit),
@@ -1318,16 +1322,13 @@ async function listLegacyContacts(
   { companyId, rawQ, tagFilter, filterField, filterValue }: ContactListFilters,
   cursor: ReturnType<typeof parseCursor>,
   limit: number,
-  t9: boolean,
 ) {
-  const addressSearch = rawQ && !t9 ? orIlikeValue(rawQ) : "";
   const byTag = tagFilter !== undefined && tagFilter !== "";
   const listTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
-  const listAddressJoin = addressSearch ? ",contact_addresses()" : "";
 
   let query = db
     .from("contacts")
-    .select(`${CONTACT_LIST_COLUMNS}${listTagJoin}${listAddressJoin}`)
+    .select(`${CONTACT_LIST_COLUMNS}${listTagJoin}`)
     .eq("company_id", companyId)
     .is("deleted_at", null)
     .is("merged_into", null);
@@ -1339,15 +1340,7 @@ async function listLegacyContacts(
     query = query.eq(`custom_fields->>${filterField}`, filterValue);
   }
   if (rawQ !== undefined && rawQ !== "") {
-    // #459: `t9=1` is the dialer saying "these digits may be a name". Opt-in so
-    // the contacts search box keeps meaning exactly what it meant.
-    const matches = contactSearchOr(rawQ, t9);
-    query = addressSearch
-      ? query
-          .eq("contact_addresses.company_id", companyId)
-          .ilike("contact_addresses.address", `*${addressSearch}*`)
-          .or(`${matches},contact_addresses.not.is.null`)
-      : query.or(matches);
+    query = query.or(contactSearchOr(rawQ, true));
   }
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
@@ -1472,16 +1465,17 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     throw new ApiError("validation_failed", "tag_id: not a valid id.");
   }
   const byTag = tagFilter !== undefined && tagFilter !== "";
-  const parsedSort = contactSortSchema.safeParse(c.req.query("sort") ?? "added");
+  const sortParameter = c.req.query("sort");
+  const parsedSort = contactSortSchema.safeParse(sortParameter ?? "added");
   if (!parsedSort.success) throw new ApiError("validation_failed", "sort must be name, recent, or added.");
   const sort = parsedSort.data;
   const t9 = c.req.query("t9") === "1";
   if (rawQ && rawQ.length > 200) throw new ApiError("validation_failed", "q: too long (max 200).");
   const filters = { companyId, rawQ, tagFilter: byTag ? tagFilter : undefined, filterField, filterValue };
-  const sorted = !t9 && c.req.query("sort") !== undefined;
+  const sorted = !t9 && (sortParameter !== undefined || Boolean(rawQ));
   const page = sorted
-    ? await listSortedContacts(db, filters, sort, c.req.query("cursor"), limit)
-    : await listLegacyContacts(db, filters, parseCursor(c), limit, t9);
+    ? await listSortedContacts(db, filters, sort, c.req.query("cursor"), limit, sortParameter === undefined)
+    : await listLegacyContacts(db, filters, parseCursor(c), limit);
 
   // Three independent per-page decorations — the opted-out badge (G6), last
   // activity (G6), and #191 created/updated actor names — none depends on
