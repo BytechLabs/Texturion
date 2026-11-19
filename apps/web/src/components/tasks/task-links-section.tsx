@@ -60,7 +60,6 @@ export function TaskLinksSection({ taskId }: { taskId: string }) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={t("tasks.linkAddAria")}
               className="tap-target inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12px] font-medium text-app-muted transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />

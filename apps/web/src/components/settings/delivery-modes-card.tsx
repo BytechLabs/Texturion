@@ -183,7 +183,7 @@ export function DeliveryModesCard({
             const time = event.target.value;
             if (time || !anySummary) void save({ summary_at: time || null });
           }}
-          className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
+          className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-base tabular-nums text-app-ink focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring md:text-[13px]"
         />
         <span className="text-[12px] text-app-muted-2">
           {prefs.summary_at || anySummary

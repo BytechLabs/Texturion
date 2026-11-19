@@ -345,7 +345,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
                 }
               />
             </div>
-            <span className="text-xs text-tertiary">
+            <span className="text-xs text-muted-foreground">
               {monthLabel(entry.month, t.locale)}
             </span>
           </div>

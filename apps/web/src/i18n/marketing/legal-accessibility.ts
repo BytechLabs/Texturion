@@ -117,9 +117,9 @@ export const accessibilityVerifiedFr: Record<
   "1.4.3 Contrast, rendered": {
     criterion: "**1.4.3** Contraste du rendu",
     holds:
-      "Le texte rendu est mesuré par rapport à son arrière-plan réel sur de vraies pages, dans les deux thèmes",
+      "Le contraste est mesuré dans les deux thèmes sur une liste commune de pages de l'application, de menus, de boîtes de dialogue et de pages client",
     sourceHolds:
-      "Rendered text measured against its actual background on real pages, both themes",
+      "Both themes are measured on the shared list of app pages, menus, dialogs, and customer pages",
   },
   "2.2.2 Pause, Stop, Hide": {
     criterion: "**2.2.2** Mettre en pause, arrêter, masquer",
@@ -166,9 +166,9 @@ export const accessibilityVerifiedFr: Record<
   "2.5.8 Target Size (Minimum)": {
     criterion: "**2.5.8** Taille de la cible (minimum)",
     holds:
-      "Les cibles interactives sont mesurées à 375 px selon le seuil de 24 px de 2.5.8; .tap-target (44 px) est reconnu au-dessus",
+      "Les commandes vérifiées sur téléphone respectent le minimum de 24 px aux largeurs de 320 px et de 375 px. L'utilitaire .tap-target offre une zone cliquable de 44 px",
     sourceHolds:
-      "Interactive targets measured at 375px against 2.5.8's 24px floor; .tap-target (44px) credited above it",
+      "Audited phone controls meet the 24px minimum at 320px and 375px. The .tap-target utility provides a 44px clickable area",
   },
   "2.5.3 Label in Name": {
     criterion: "**2.5.3** Étiquette dans le nom",
@@ -236,9 +236,9 @@ export const accessibilityVerifiedFr: Record<
   "1.4.10 Reflow": {
     criterion: "**1.4.10** Redimensionnement du contenu",
     holds:
-      "Chaque page publique, en anglais comme en français, tient dans une fenêtre de 320 px sans défilement horizontal de la page; les champs de texte font 16 px sur téléphone pour que Mobile Safari ne zoome pas à la mise en focus",
+      "Les pages publiques et les pages de l'application vérifiées tiennent dans une fenêtre de 320 px sans défilement horizontal de la page. Les champs de saisie de texte font au moins 16 px sur téléphone",
     sourceHolds:
-      "Every public page, in English and in French, fits a 320px viewport without the page scrolling sideways; text fields are 16px at phone widths so Mobile Safari does not zoom on focus",
+      "Audited public and signed-in pages fit a 320px viewport without horizontal page scrolling. Text-entry fields are at least 16px at phone widths",
   },
 };
 

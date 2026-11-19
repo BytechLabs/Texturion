@@ -101,7 +101,7 @@ export function DeviceRow({
         {userAgent && (
           // Kept, but at the bottom of the visual hierarchy: it is the thing
           // that settles an argument, not the thing that starts one.
-          <p className="mt-1 truncate text-xs text-muted-foreground/70">
+          <p className="mt-1 truncate text-xs text-muted-foreground">
             {userAgent}
           </p>
         )}

@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n/provider";
 import { useAttachmentGallery } from "@/lib/api/gallery";
 import { flattenPages } from "@/lib/api/pagination";
@@ -62,25 +62,81 @@ export function AttachmentsGallery({
 
   const hasNext = gallery.hasNextPage ?? false;
 
+  const panel = gallery.isPending ? (
+    <GallerySkeleton />
+  ) : gallery.isError ? (
+    <LoadError
+      variant="fill"
+      message={t("thread.galleryLoadFailed")}
+      onRetry={() => void gallery.refetch()}
+    />
+  ) : tabItems.length === 0 && !hasNext ? (
+    // Only truly empty once there are no more pages to load. With
+    // items still unfetched (hasNext), fall through so the "Load more"
+    // button shows instead of a false "nothing shared" on this tab.
+    <GalleryEmpty tab={tab} />
+  ) : (
+    <div className="space-y-6">
+      {groups.map((group) => (
+        <section key={group.label} className="space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground">
+            {group.label}
+          </h3>
+          {tab === "images" ? (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {group.items.map((item) => (
+                <GalleryThumb
+                  key={item.id}
+                  item={item}
+                  onOpen={() => setLightbox(item)}
+                />
+              ))}
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {group.items.map((item) => (
+                <GalleryFileRow key={item.id} item={item} />
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+
+      {hasNext && (
+        <div className="flex justify-center pt-1">
+          <button
+            type="button"
+            onClick={() => gallery.fetchNextPage()}
+            disabled={gallery.isFetchingNextPage}
+            className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground disabled:opacity-60"
+          >
+            {gallery.isFetchingNextPage
+              ? t("thread.loadingMore")
+              : t("thread.loadMore")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-          <div className="border-b border-border px-5 pt-5 pb-3">
-            <DialogTitle className="text-base font-semibold">
-              {t("thread.attachments")}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              {t("thread.galleryDescription", { name: contactName })}
-            </DialogDescription>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as GalleryTab)}
+            className="min-h-0 flex-1 gap-0"
+          >
+            <div className="border-b border-border px-5 pt-5 pb-3">
+              <DialogTitle className="text-base font-semibold">
+                {t("thread.attachments")}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {t("thread.galleryDescription", { name: contactName })}
+              </DialogDescription>
 
-            {/* Category tabs — quiet stone active pill, no petrol (§5.2). */}
-            <Tabs
-              value={tab}
-              onValueChange={(v) => setTab(v as GalleryTab)}
-              className="mt-3"
-            >
-              <TabsList>
+              <TabsList className="mt-3">
                 <TabsTrigger value="images">
                   {t("thread.tabImages")}
                   {imageCount > 0 && (
@@ -98,67 +154,18 @@ export function AttachmentsGallery({
                   )}
                 </TabsTrigger>
               </TabsList>
-            </Tabs>
-          </div>
+            </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50 px-5 py-4 dark:bg-stone-950/40">
-            {gallery.isPending ? (
-              <GallerySkeleton />
-            ) : gallery.isError ? (
-              <LoadError
-                variant="fill"
-                message={t("thread.galleryLoadFailed")}
-                onRetry={() => void gallery.refetch()}
-              />
-            ) : tabItems.length === 0 && !hasNext ? (
-              // Only truly empty once there are no more pages to load. With
-              // items still unfetched (hasNext), fall through so the "Load more"
-              // button shows instead of a false "nothing shared" on this tab.
-              <GalleryEmpty tab={tab} />
-            ) : (
-              <div className="space-y-6">
-                {groups.map((group) => (
-                  <section key={group.label} className="space-y-2">
-                    <h3 className="text-xs font-medium text-muted-foreground">
-                      {group.label}
-                    </h3>
-                    {tab === "images" ? (
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {group.items.map((item) => (
-                          <GalleryThumb
-                            key={item.id}
-                            item={item}
-                            onOpen={() => setLightbox(item)}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <ul className="space-y-1">
-                        {group.items.map((item) => (
-                          <GalleryFileRow key={item.id} item={item} />
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-                ))}
-
-                {hasNext && (
-                  <div className="flex justify-center pt-1">
-                    <button
-                      type="button"
-                      onClick={() => gallery.fetchNextPage()}
-                      disabled={gallery.isFetchingNextPage}
-                      className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground disabled:opacity-60"
-                    >
-                      {gallery.isFetchingNextPage
-                        ? t("thread.loadingMore")
-                        : t("thread.loadMore")}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+            {(["images", "files"] as const).map((category) => (
+              <TabsContent
+                key={category}
+                value={category}
+                className="min-h-0 overflow-y-auto bg-stone-50 px-5 py-4 dark:bg-stone-950/40"
+              >
+                {tab === category && panel}
+              </TabsContent>
+            ))}
+          </Tabs>
         </DialogContent>
       </Dialog>
 

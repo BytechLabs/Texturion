@@ -183,7 +183,7 @@ export function EmergencyCard({
                     type="button"
                     onClick={() => removeWord(word)}
                     aria-label={t("settings.emergencyWordRemoveAria", { word })}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="inline-grid size-11 place-items-center rounded-md text-muted-foreground hover:text-foreground md:size-4"
                   >
                     <X className="size-3.5" aria-hidden />
                   </button>

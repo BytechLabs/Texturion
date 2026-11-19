@@ -42,14 +42,14 @@ is nothing verified that is not here.
 | Criterion | What holds | Enforced by |
 |---|---|---|
 | **1.4.3** Contrast (Minimum) | Text token pairs recomputed from the actual hex values in `globals.css`, in **both** themes | `apps/web/src/app/globals.contrast.test.ts` |
-| **1.4.3** Contrast, rendered | Rendered text measured against its actual background on real pages, both themes | `scripts/theme-audit.mjs` (CI) |
+| **1.4.3** Contrast, rendered | Both themes are measured on the shared list of app pages, menus, dialogs, and customer pages | `scripts/theme-audit.mjs` (CI) |
 | **2.2.2** Pause, Stop, Hide | The homepage animation can be paused and resumed. A saved pause keeps it from starting on a later visit. | `apps/web/src/components/marketing/hero/arrival-layer.test.tsx` |
 | **2.3.3** Animation from Interactions | One base rule zeroes motion under `prefers-reduced-motion`; the rule cannot be weakened or deleted | `apps/web/src/app/reduced-motion.test.ts` |
 | **2.5.7** Dragging Movements | Every file that starts a drag records the code implementing its single-pointer alternative — on **all three** clients | `apps/web/src/app/dragging-alternatives.test.ts`, `scripts/check-gesture-alternatives.mjs` |
 | **2.4.7** Focus Visible | Every control reached by pressing `Tab` has an outline or a ring, measured on the rendered page in both themes | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **1.4.11** Non-text Contrast — focus | That indicator clears 3:1 against the surface behind it, with its alpha composited rather than assumed away | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **2.4.11** Focus Not Obscured (Minimum) | The focused control is not entirely covered by a sticky header or overlay, sampled from the compositor rather than computed from rectangles | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
-| **2.5.8** Target Size (Minimum) | Interactive targets measured at 375px against 2.5.8's 24px floor; `.tap-target` (44px) credited above it | `scripts/theme-audit.mjs` (CI) |
+| **2.5.8** Target Size (Minimum) | Audited phone controls meet the 24px minimum at 320px and 375px. The `.tap-target` utility provides a 44px clickable area | `scripts/theme-audit.mjs` (CI) |
 | **2.5.3** Label in Name | Every control's accessible name contains the words it shows, in order, so a voice-control user can say what they see. Card rows are a link on their title stretched over the card, and initials are drawn by CSS like a photo | `scripts/check-app-a11y.mjs` (CI) |
 | **4.1.2** Name, Role, Value — names | Interactive elements have an accessible name, computed the way an AT computes it | `scripts/theme-audit.mjs` (CI) |
 | **4.1.2** Name, Role, Value — roles | `role="tab"` carries `aria-selected`; `role="tablist"` contains real tabs; `aria-live` states its politeness | `apps/web/src/app/layout-v2-roles.test.ts` |
@@ -59,7 +59,13 @@ is nothing verified that is not here.
 | **3.3.8** Accessible Authentication (Minimum) | Nothing on the sign-in surface blocks paste, copy or drop; every password field says whether it is new or existing and every code field is `one-time-code`, so a password manager or the phone does the remembering | `apps/web/src/app/wcag22-new-criteria.test.ts` |
 | **3.2.6** Consistent Help | Every signed-out screen shows the same help link in the same slot, because it is rendered by the auth layout and not by each page; the signed-in and marketing help routes are pinned where their screens expect them | `apps/web/src/app/wcag22-new-criteria.test.ts` |
 | **2.1.4** Character Key Shortcuts | The inbox list's single-key shortcuts (j, k, e and the rest) can be turned off with Single-key shortcuts in Settings, Profile. They never fire while focus is in a field, the composer, a menu or a dialog, and they ignore any key pressed with Ctrl, Alt or Cmd | `apps/web/src/lib/inbox/shortcuts.test.ts`, `apps/web/src/components/inbox/use-inbox-shortcuts.test.tsx` |
-| **1.4.10** Reflow | Every public page, in English and in French, fits a 320px viewport without the page scrolling sideways; text fields are 16px at phone widths so Mobile Safari does not zoom on focus | `scripts/check-app-a11y.mjs` (CI)  |
+| **1.4.10** Reflow | Audited public and signed-in pages fit a 320px viewport without horizontal page scrolling. Text-entry fields are at least 16px at phone widths | `scripts/check-app-a11y.mjs` (CI) |
+
+The browser audits discover the app routes from the web route tree and check a
+shared list of at least 66 surfaces. Both scripts report the count and fail if
+coverage drops. The list includes dialogs, the onboarding name step, an
+incoming softphone call, and customer quote, receipt, and photo pages in
+English and Canadian French.
 
 Every one of these guards has been **proven by breaking it** — the rule was
 removed from the product, the test observed to fail, and the removal reverted.
