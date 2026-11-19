@@ -194,6 +194,7 @@ function PlanStep() {
 
   return (
     <StepShell
+      step="plan"
       backHref={previousStepHref("plan", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}

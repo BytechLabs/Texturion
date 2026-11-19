@@ -92,7 +92,6 @@ describe(registrationDraftComplete, () => {
       companyName: undefined,
       firstName: "Pat",
       lastName: "Doe",
-      ein: "1234", // last-4 identifier
       mobilePhone: "+15125550111",
     };
     expect(

@@ -435,6 +435,8 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(form.get("mode")).toBe("subscription");
     expect(form.get("client_reference_id")).toBe(COMPANY_ID);
     expect(form.get("automatic_tax[enabled]")).toBe("true");
+    expect(form.get("after_expiration[recovery][enabled]")).toBe("true");
+    expect(form.has("expires_at")).toBe(false);
     // Promo/coupon field shown at checkout (marketing promos + comp accounts).
     expect(form.get("allow_promotion_codes")).toBe("true");
     expect(form.get("line_items[0][price]")).toBe(env.STRIPE_STARTER_PRICE_ID);
@@ -477,6 +479,26 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(feeCartKey).toContain(`${COMPANY_ID}:checkout:`);
     // The fee line is IN the key, which is the whole fix.
     expect(feeCartKey).toContain(env.STRIPE_US_FEE_PRICE_ID);
+  });
+
+  it("replays a session created before recovery was enabled with the same key", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow()),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, completeRegistrationRows),
+      endpoint("POST", /checkout\/sessions/, (call) =>
+        call.form().has("after_expiration[recovery][enabled]")
+          ? Response.json({ error: { type: "idempotency_error", message: "Parameters differ" } }, { status: 400 })
+          : { id: "cs_original", url: "https://checkout.stripe.com/c/pay/cs_original" },
+      ),
+    ]);
+
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_original" });
+    const [current, replay] = harness.callsTo("POST", /checkout\/sessions/);
+    expect(replay.headers.get("Idempotency-Key")).toBe(current.headers.get("Idempotency-Key"));
+    expect(replay.form().has("after_expiration[recovery][enabled]")).toBe(false);
   });
 
   it("US company, fee already paid: no one-time line (never charged twice, SPEC §2)", async () => {

@@ -127,6 +127,10 @@ final class AuthManager {
         try await auth.sendPasswordReset(email: email, captchaToken: captchaToken)
     }
 
+    func resendSignupConfirmation(email: String, captchaToken: String? = nil) async throws {
+        try await auth.resendSignupConfirmation(email: email, captchaToken: captchaToken)
+    }
+
     /// Native Google via the PKCE browser flow (#166). Returns false when the
     /// user closed the sheet (calm no-op); on success the saved session
     /// routes upstream (Root observes the store).

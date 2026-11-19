@@ -26,7 +26,7 @@
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td bgcolor="#66801F" style="border-radius:6px;">
-                  <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">Confirm email</a>
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">Confirm email</a>
                 </td>
               </tr>
             </table>
@@ -34,8 +34,8 @@
         </tr>
         <tr>
           <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6E7163;">
-            If the button does not work, copy and paste this link into your browser:<br>
-            <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#66801F;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            If the button does not work, use this link:<br>
+            <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="color:#66801F;word-break:break-all;">Open the Loonext confirmation link</a>
           </td>
         </tr>
         <tr>

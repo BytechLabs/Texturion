@@ -31,13 +31,14 @@ export const legalPrivacyEn = {
   subprocessorsLink: "sub-processors page",
   deleteLink: "delete your data",
   securityLink: "security page",
-  officerFallback: "our Privacy Officer",
+  officerTitle: "our Privacy Officer",
+  operator: "**{entity}** operates Loonext and is responsible for the personal information covered by this policy.",
 
   scope:
     "This policy covers the personal information Loonext handles when a business uses the service to text its customers. It follows Canada's PIPEDA and Quebec's Law 25 and applies in both countries we serve. Two groups of people are involved: the **account users** on a business's crew, and the **contacts** those businesses text. The business is the party that decides who to text and why; Loonext processes that data to run the shared inbox on the business's behalf.",
   collectIntro: "We collect only what the service needs to work:",
   collectAccount:
-    "**Account data:** your name, email, and the business details you provide to register with the phone companies (legal business name, address, and a business identifier such as an EIN or BN). For the sole-proprietor path we collect the last four digits of an SSN/SIN and a mobile number for a one-time verification code, we never collect or store a full SSN/SIN.",
+    "**Account data:** your name, email, and the business details you provide to register with the phone companies (legal business name, address, and a business identifier such as an EIN or BN). For sole-proprietor registration, we collect a mobile number for a one-time verification code.",
   collectContact:
     "**Contact and message data:** the phone numbers, names, notes, and message content that flow through your inbox. This is your business's data; we hold it so your crew can see and reply to it.",
   collectBilling:
@@ -154,13 +155,14 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   subprocessorsLink: "page des sous-traitants",
   deleteLink: "la page sur la suppression de vos données",
   securityLink: "page sur la sécurité",
-  officerFallback: "notre responsable de la protection des renseignements personnels",
+  officerTitle: "notre responsable de la protection des renseignements personnels",
+  operator: "**{entity}** exploite Loonext et est responsable des renseignements personnels visés par cette politique.",
 
   scope:
     "La présente politique couvre les renseignements personnels que Loonext traite lorsqu'une entreprise utilise le service pour écrire à ses clients par texto. Elle respecte la LPRPDE du Canada et la Loi 25 du Québec et s'applique dans les deux pays que nous servons. Deux groupes de personnes sont concernés : les **utilisateurs du compte** qui font partie de l'équipe d'une entreprise, et les **contacts** à qui ces entreprises écrivent. L'entreprise est la partie qui décide à qui écrire et pourquoi; Loonext traite ces données pour exploiter la boîte de réception partagée au nom de l'entreprise.",
   collectIntro: "Nous ne recueillons que ce dont le service a besoin pour fonctionner :",
   collectAccount:
-    "**Données du compte :** votre nom, votre courriel et les renseignements sur l'entreprise que vous fournissez pour l'enregistrer auprès des compagnies de téléphone (dénomination sociale, adresse et identifiant d'entreprise comme un EIN ou un NE). Pour le parcours du travailleur autonome, nous recueillons les quatre derniers chiffres d'un SSN ou d'un NAS et un numéro de mobile pour un code de vérification à usage unique; nous ne recueillons ni ne conservons jamais un SSN ou un NAS complet.",
+    "**Données du compte :** votre nom, votre courriel et les renseignements sur l'entreprise que vous fournissez pour l'enregistrer auprès des compagnies de téléphone (dénomination sociale, adresse et identifiant d'entreprise comme un EIN ou un NE). Pour l'inscription des travailleurs autonomes, nous recueillons un numéro de cellulaire pour un code de vérification à usage unique.",
   collectContact:
     "**Données de contacts et de messages :** les numéros de téléphone, les noms, les notes et le contenu des messages qui transitent par votre boîte de réception. Ce sont les données de votre entreprise; nous les conservons pour que votre équipe puisse les consulter et y répondre.",
   collectBilling:

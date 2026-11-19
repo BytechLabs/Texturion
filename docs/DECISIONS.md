@@ -71,7 +71,7 @@ marketing page when a broader pass is wanted.
 - **Registration state machine** (`messaging_registrations` table: brand + campaign rows,
   statuses draft → submitted → pending → approved/rejected):
   - Onboarding wizard collects brand data (legal name, EIN or no-EIN → **Sole Proprietor path**
-    with last-4 SSN/SIN + OTP, address, website, opt-in flow description). Auto-submit via
+    with mobile OTP, address, website, opt-in flow description). Auto-submit via
     Telnyx API immediately after payment. No manual steps.
   - US-bound outbound is **blocked until campaign approval** (carriers hard-block unregistered
     10DLC since Feb 2025; approval 3–7+ business days). Canada-bound outbound from Canadian
@@ -145,6 +145,23 @@ marketing page when a broader pass is wanted.
     approval triggers a Resend email.
   - On cancellation, the Telnyx campaign is **deactivated** (stops recurring fees for churned
     customers).
+
+## D203 - collect only the identifiers the carrier needs (#790, amends D2)
+
+Sole proprietors verify their mobile number by OTP. Telnyx's Create Brand schema
+defines `ein` as a corporate tax ID and has no SSN or SIN field. The Campaign
+Registry's sole-proprietor requirements list names, contact details, and
+address. Keep the EIN or BN for standard brands only.
+
+Clear the personal identifier fragments kept by earlier 10DLC drafts and port
+requests. Wireless number type alone cannot establish that a carrier needs a
+personal identifier. The port form takes the transfer PIN. When a losing
+carrier confirms it needs more, handle the request through Telnyx porting
+support.
+
+[Telnyx Create Brand](https://developers.telnyx.com/api-reference/brands/create-brand) ·
+[TCR CSP User Guide](https://www.campaignregistry.com/wp-content/uploads/CSP-User-Guide_Feb-4-2026_Temp_comp.pdf) ·
+[Telnyx porting requirements](https://support.telnyx.com/en/articles/6460777-porting-requirements)
 
 ## D3. Opt-out compliance (STOP/HELP)
 

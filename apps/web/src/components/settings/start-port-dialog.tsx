@@ -56,7 +56,6 @@ export function StartPortDialog({ country }: { country: Country }) {
   const [authPersonName, setAuthPersonName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [pinPasscode, setPinPasscode] = useState("");
-  const [ssnSinLast4, setSsnSinLast4] = useState("");
   const [street, setStreet] = useState("");
   const [locality, setLocality] = useState("");
   const [adminArea, setAdminArea] = useState("");
@@ -65,10 +64,6 @@ export function StartPortDialog({ country }: { country: Country }) {
 
   const e164 = normalizeNanpInput(raw, "us-ca");
   const isWireless = checked?.is_wireless === true;
-  const ssnSinLabel =
-    country === "US"
-      ? t("settingsMore.startPortSsn")
-      : t("settingsMore.startPortSin");
   const regionLabel: MessageKey =
     country === "US"
       ? "settingsMore.portFixState"
@@ -86,7 +81,6 @@ export function StartPortDialog({ country }: { country: Country }) {
     setAuthPersonName("");
     setAccountNumber("");
     setPinPasscode("");
-    setSsnSinLast4("");
     setStreet("");
     setLocality("");
     setAdminArea("");
@@ -133,10 +127,8 @@ export function StartPortDialog({ country }: { country: Country }) {
       setError(t("settingsMore.startPortFieldsMissing"));
       return;
     }
-    if (isWireless && (!/^\d{4}$/.test(ssnSinLast4.trim()) || !pinPasscode.trim())) {
-      setError(
-        t("settingsMore.startPortWirelessMissing", { idKind: ssnSinLabel }),
-      );
+    if (isWireless && !pinPasscode.trim()) {
+      setError(t("settingsMore.startPortWirelessMissing"));
       return;
     }
     try {
@@ -151,7 +143,7 @@ export function StartPortDialog({ country }: { country: Country }) {
         service_postal_code: postalCode.trim(),
         wants_bridge_number: wantsBridge,
         ...(isWireless
-          ? { pin_passcode: pinPasscode.trim(), ssn_sin_last4: ssnSinLast4.trim() }
+          ? { pin_passcode: pinPasscode.trim() }
           : {}),
       });
       toast.success(t("settingsMore.startPortStarted"));
@@ -239,17 +231,8 @@ export function StartPortDialog({ country }: { country: Country }) {
               {isWireless ? (
                 <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
                   <Field label={t("settingsMore.startPortTransferPin")} value={pinPasscode} onChange={setPinPasscode} />
-                  <Field
-                    label={t("settingsMore.startPortLast4", {
-                      idKind: ssnSinLabel,
-                    })}
-                    value={ssnSinLast4}
-                    onChange={(v) => setSsnSinLast4(v.replaceAll(/\D/g, "").slice(0, 4))}
-                  />
                   <p className="text-[13px] text-muted-foreground sm:col-span-2">
-                    {t("settingsMore.startPortWirelessNote", {
-                      idKind: ssnSinLabel,
-                    })}
+                    {t("settingsMore.startPortWirelessNote")}
                   </p>
                 </div>
               ) : null}

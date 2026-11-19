@@ -1,7 +1,7 @@
 import { LanguageSwitch } from "@/components/marketing/language-switch";
 import Link from "next/link";
 
-import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@/lib/marketing/business";
+import { businessIdentityLine } from "@/lib/marketing/business";
 import { footerCopy } from '@/i18n/marketing/footer';
 import type { MarketingLocale } from '@/i18n/marketing/footer';
 import { LIVE_ROUTES } from "@/lib/marketing/site";
@@ -171,7 +171,7 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
   const copy = footerCopy(locale);
   const home = locale === "fr-CA" ? "/fr" : "/";
   const year = new Date().getFullYear();
-  const hasIdentity = LEGAL_ENTITY_NAME !== null && MAILING_ADDRESS !== null;
+  const identity = businessIdentityLine();
 
   return (
     <footer className="frf-root">
@@ -219,9 +219,9 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         {/* Sign-off (deck §F). Identity line only when ops supplies it;
             until then, nothing renders (Law 1: never a placeholder). */}
         <div className="font-body-mkt mt-14 space-y-3 text-sm leading-relaxed">
-          {hasIdentity ? (
+          {identity ? (
             <p className="text-[color:var(--fr-on-inverse-70)]">
-              {LEGAL_ENTITY_NAME} · {MAILING_ADDRESS}
+              {identity}
             </p>
           ) : null}
           <p className="text-[color:var(--fr-on-inverse-70)]">

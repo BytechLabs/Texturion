@@ -158,10 +158,10 @@ describe("brandRowComplete / campaignRowComplete", () => {
       ...COMPLETE_BRAND_DATA,
       firstName: "Mike",
       lastName: "Rivera",
-      ein: "1234",
       mobilePhone: "+14165550182",
     };
     delete soleData.companyName;
+    delete soleData.ein;
     delete soleData.website;
     expect(
       brandRowComplete(row({ sole_proprietor: true, data: soleData })),

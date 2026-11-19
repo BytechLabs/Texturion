@@ -2139,13 +2139,11 @@ private let settingsCoreEn: [String: String] = [
     "settingsMore.signatureLength":
         "That is {count} characters, so a long first text can be sent in "
             + "two parts instead of one.",
-    "settingsMore.sinLast4": "SIN (last 4)",
     "settingsMore.spendingCap": "Spending cap",
     "settingsMore.spendingCapDesc":
         "Your protection against surprise bills. The cap is a multiple of "
             + "your included usage. At the cap, sending and calling pause until "
             + "you raise it. Nothing bills past it.",
-    "settingsMore.ssnLast4": "SSN (last 4)",
     "settingsMore.storage": "Storage",
     "settingsMore.storageNotes": "Files on notes",
     "settingsMore.storageOther": "Other files",
@@ -2719,14 +2717,12 @@ private let settingsCoreFr: [String: String] = [
     "settingsMore.signatureLength":
         "Cela fait {count} caractères : un premier texto long peut donc "
             + "être envoyé en deux parties plutôt qu'une.",
-    "settingsMore.sinLast4": "NAS (4 derniers chiffres)",
     "settingsMore.spendingCap": "Plafond de dépenses",
     "settingsMore.spendingCapDesc":
         "Votre protection contre les factures-surprises. Le plafond est un "
             + "multiple de l'utilisation comprise dans votre forfait. Au "
             + "plafond, les envois et les appels s'arrêtent tant que vous ne "
             + "l'augmentez pas. Rien n'est facturé au-delà.",
-    "settingsMore.ssnLast4": "SSN (4 derniers chiffres)",
     "settingsMore.storage": "Stockage",
     "settingsMore.storageNotes": "Fichiers dans les notes",
     "settingsMore.storageOther": "Autres fichiers",

@@ -47,8 +47,6 @@ export interface PortDraft {
   accountNumber?: string;
   pinPasscode?: string;
   billingPhoneNumber?: string;
-  /** Wireless only — the last 4 of the account holder's SSN/SIN. */
-  ssnSinLast4?: string;
   serviceStreet?: string;
   serviceExtended?: string;
   serviceLocality?: string;
@@ -167,7 +165,7 @@ export function brandRowComplete(row: RegistrationRow | null): boolean {
   if (!data) return false;
   if (!BRAND_COMMON_KEYS.every((key) => present(data, key))) return false;
   if (row.sole_proprietor) {
-    return ["firstName", "lastName", "ein", "mobilePhone"].every((key) =>
+    return ["firstName", "lastName", "mobilePhone"].every((key) =>
       present(data, key),
     );
   }

@@ -2,12 +2,15 @@ import AuthenticationServices
 import Observation
 import SwiftUI
 
+private let confirmationResendCooldown: Duration = .seconds(60)
+
 /// One password-path attempt, kept whole so the SAME call can be retried
 /// with a fresh single-use captcha token (#166).
 enum PasswordAuthAction: Equatable {
     case signIn(email: String, password: String)
     case signUp(name: String, email: String, password: String)
     case reset(email: String)
+    case resendConfirmation(email: String)
 }
 
 /// The signed-out surface's state: busy/error, the two "email sent" terminal
@@ -26,6 +29,10 @@ final class AuthViewModel {
     private(set) var error: String?
     /// Signup ended with "check your email" instead of a session.
     private(set) var confirmationSent = false
+    private(set) var confirmationResendReady = false
+    private(set) var confirmationResent = false
+    private var confirmationEmail: String?
+    private var confirmationCooldown: Task<Void, Never>?
     /// Password-reset email fired.
     private(set) var resetSent = false
 
@@ -39,6 +46,11 @@ final class AuthViewModel {
     /// A stale error from the previous screen leaked across too.
     func resetScreenState() {
         confirmationSent = false
+        confirmationEmail = nil
+        confirmationResendReady = false
+        confirmationResent = false
+        confirmationCooldown?.cancel()
+        confirmationCooldown = nil
         resetSent = false
         error = nil
     }
@@ -84,6 +96,22 @@ final class AuthViewModel {
 
     func sendReset(email: String) {
         start(.reset(email: normalized(email)))
+    }
+
+    func resendConfirmation() {
+        guard let email = confirmationEmail, confirmationResendReady, !busy else { return }
+        startConfirmationCooldown()
+        start(.resendConfirmation(email: email))
+    }
+
+    private func startConfirmationCooldown() {
+        confirmationResendReady = false
+        confirmationResent = false
+        confirmationCooldown?.cancel()
+        confirmationCooldown = Task { [weak self] in
+            try? await Task.sleep(for: confirmationResendCooldown)
+            if !Task.isCancelled { self?.confirmationResendReady = true }
+        }
     }
 
     /// Token from the captcha sheet (nil = canceled). The presenter's
@@ -147,10 +175,17 @@ final class AuthViewModel {
                 displayName: name,
                 captchaToken: captchaToken
             )
-            if !signedIn { confirmationSent = true }
+            if !signedIn {
+                confirmationEmail = email
+                confirmationSent = true
+                startConfirmationCooldown()
+            }
         case .reset(let email):
             try await authManager.sendPasswordReset(email: email, captchaToken: captchaToken)
             resetSent = true
+        case .resendConfirmation(let email):
+            try await authManager.resendSignupConfirmation(email: email, captchaToken: captchaToken)
+            if confirmationEmail == email { confirmationResent = true }
         }
     }
 
@@ -159,6 +194,7 @@ final class AuthViewModel {
         case .signIn: AppStrings.translate(locale, "shell.authSignInFailed")
         case .signUp: AppStrings.translate(locale, "shell.authSignUpFailed")
         case .reset: AppStrings.translate(locale, "shell.authResetFailed")
+        case .resendConfirmation: AppStrings.translate(locale, "shell.authConfirmResendFailed")
         }
     }
 
@@ -451,6 +487,10 @@ private struct LoginForm: View {
                 text: $password,
                 kind: .password
             )
+            LinkButton(
+                AppStrings.translate(appLocale, "shell.authInvitePassword"),
+                action: onForgot
+            )
             ErrorLine(error: model.error)
             PrimaryButton(
                 title: AppStrings.translate(
@@ -498,6 +538,24 @@ private struct SignUpForm: View {
                 SentNote(
                     text: AppStrings.translate(appLocale, "shell.authCheckEmailNote")
                 )
+                Text(AppStrings.translate(appLocale, "shell.authCheckEmailSpam"))
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted300)
+                ErrorLine(error: model.error)
+                PrimaryButton(
+                    title: AppStrings.translate(appLocale, "shell.authConfirmResend"),
+                    enabled: model.confirmationResendReady && !model.busy
+                ) {
+                    model.resendConfirmation()
+                }
+                if model.confirmationResent {
+                    SentNote(text: AppStrings.translate(appLocale, "shell.authConfirmResent"))
+                }
+                if !model.confirmationResendReady {
+                    Text(AppStrings.translate(appLocale, "shell.authConfirmWait"))
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted300)
+                }
                 LinkButton(
                     AppStrings.translate(appLocale, "shell.authBackToSignIn"),
                     action: onLogin

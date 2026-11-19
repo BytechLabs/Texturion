@@ -7,7 +7,6 @@ struct PortForm: Equatable, Sendable {
     var authPersonName = ""
     var accountNumber = ""
     var pinPasscode = ""
-    var ssnSinLast4 = ""
     var street = ""
     var locality = ""
     var adminArea = ""
@@ -17,7 +16,7 @@ struct PortForm: Equatable, Sendable {
         !entityName.isBlank && !authPersonName.isBlank
             && !accountNumber.isBlank && !street.isBlank
             && !locality.isBlank && !adminArea.isBlank && !postalCode.isBlank
-            && (!wireless || (!pinPasscode.isBlank && ssnSinLast4.count == 4 && ssnSinLast4.allSatisfy(\.isNumber)))
+            && (!wireless || !pinPasscode.isBlank)
     }
 
     /// The shared fields of POST and PUT /v1/port-requests bodies.
@@ -33,7 +32,6 @@ struct PortForm: Equatable, Sendable {
         ]
         if wireless {
             fields["pin_passcode"] = .string(pinPasscode.trimmingCharacters(in: .whitespaces))
-            fields["ssn_sin_last4"] = .string(ssnSinLast4.trimmingCharacters(in: .whitespaces))
         }
         return fields
     }
@@ -69,14 +67,6 @@ private struct PortFormFields: View {
 
     @Environment(\.appLocale) private var appLocale
 
-    // SSN stays SSN in French — it is a US federal identifier and the form is
-    // filled from a US carrier's bill. SIN's Quebec name is NAS, and a Montreal
-    // owner reading "SIN" would hunt for a field their paperwork does not have.
-    private var ssnLabel: String {
-        AppStrings.translate(
-            appLocale, country == "US" ? "settingsMore.ssnLabel" : "settingsMore.sinLabel"
-        )
-    }
     private var regionLabel: String {
         AppStrings.translate(
             appLocale,
@@ -121,9 +111,7 @@ private struct PortFormFields: View {
         )
         if wireless {
             Text(
-                AppStrings.translate(
-                    appLocale, "settingsMore.portWirelessNote", ["idLabel": ssnLabel]
-                )
+                AppStrings.translate(appLocale, "settingsMore.portWirelessNote")
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -132,23 +120,6 @@ private struct PortFormFields: View {
                 AppStrings.translate(appLocale, "settingsMore.transferPin"),
                 text: $form.pinPasscode
             )
-            TextField(
-                AppStrings.translate(
-                    appLocale, "settingsMore.last4Of", ["idLabel": ssnLabel]
-                ),
-                text: Binding(
-                    get: { form.ssnSinLast4 },
-                    set: { next in
-                        if next.count <= 4 && next.allSatisfy(\.isNumber) {
-                            form.ssnSinLast4 = next
-                        }
-                    }
-                )
-            )
-            .textFieldStyle(.roundedBorder)
-            .keyboardType(.numberPad)
-            .disabled(!enabled)
-            .padding(.vertical, 4)
         }
         field(
             AppStrings.translate(appLocale, "settingsMore.streetAddress"),

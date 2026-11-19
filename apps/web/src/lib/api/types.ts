@@ -2480,8 +2480,6 @@ export interface CreatePortRequestInput {
   billing_phone_number?: string;
   account_number: string;
   pin_passcode?: string;
-  /** Wireless only — the last 4 of the account holder's SSN/SIN (stored last-4 only). */
-  ssn_sin_last4?: string;
   service_street: string;
   service_extended?: string;
   service_locality: string;

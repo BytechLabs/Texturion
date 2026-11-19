@@ -99,28 +99,15 @@ export const onboardingEn = {
   einNameUs: "EIN",
   einNameCa: "Business Number",
   einQuestionCa: "EIN / Business Number",
-  /*
-   * The government programme, by the name the reader's government uses for it.
-   * "SSN" stays "SSN" in French because it is a US programme; Canada's SIN is
-   * "NAS" in French and calling it "SIN" to a Quebec reader would send them
-   * looking for a card they do not have.
-   */
-  sinNameUs: "SSN",
-  sinNameCa: "SIN",
   yes: "Yes",
   no: "No",
   einHintUs: "An EIN is the 9-digit tax ID the IRS gave your business.",
   einHintCa: "The 9-digit number the CRA gave your business.",
   solePropLead: "No problem. We'll register you as a sole proprietor.",
   solePropDetail:
-    "Same texting features. Carriers verify you with the last 4 digits of " +
-    "your {idName} and a code texted to your phone. One thing to know: sole " +
-    "proprietor registrations are limited to one phone number.",
+    "Carriers verify your mobile number with a texted code. Sole proprietor registrations are limited to one phone number.",
   legalFirstName: "Legal first name",
   legalLastName: "Legal last name",
-  last4Label: "Last 4 digits of your {idName}",
-  last4Hint:
-    "Carriers use it to confirm you're you. We only ever ask for, and store, the last 4.",
   mobileLabel: "Your mobile number",
   mobileHint:
     "We'll text a 6-digit verification code to this number after payment.",
@@ -244,21 +231,11 @@ export const onboardingEn = {
   ifDifferent: "(if different)",
   portBillingPhoneHint:
     "The main number on the account, if it isn't the one you're transferring.",
-  portWirelessNote:
-    "This is a mobile number, so your carrier needs two extra details to " +
-    "release it. We only ever store the last 4 digits of the {idName}, never " +
-    "the full number.",
+  portWirelessNote: "Get the transfer PIN for this mobile number from your current carrier.",
   portPinLabel: "Transfer PIN / passcode",
   portPinPlaceholder: "Your carrier can give you this",
-  portLast4Label: "Last 4 of the account holder's {idName}",
-  portLast4Aria: "Why we ask for the {idName} last 4",
-  portLast4Tooltip:
-    "Mobile carriers verify the account holder's identity before releasing a " +
-    "number. We pass only the last 4 digits to the carrier and store only " +
-    "those 4, never the full {idName}.",
   portCarrierMissing:
     "Fill in the account holder, authorized person, and account number.",
-  portLast4Error: "Enter the last 4 digits of the account holder's {idName}.",
   portPinError: "Enter the transfer PIN from your current carrier.",
 
   // ── Port sub-wizard: the service address ──────────────────────────────────
@@ -339,6 +316,8 @@ export const onboardingEn = {
   oauthFailed:
     "We couldn't finish signing you in with that provider. Try again, or use " +
     "your email and password below.",
+  verificationLinkFailed:
+    "This email link is invalid or has expired. Sign in below or ask for a new link.",
   continueWithGoogle: "Continue with Google",
   openingGoogle: "Opening Google…",
   or: "or",
@@ -432,8 +411,6 @@ export const onboardingEn = {
   bizTaxIdRequired: "Enter your {id} (numbers and dashes are fine).",
   bizFirstNameRequired: "Enter your legal first name.",
   bizLastNameRequired: "Enter your legal last name.",
-  /** `id` is SSN or SIN, for the same reason. */
-  bizLast4Required: "Enter the last 4 digits of your {id}.",
   bizMobileInvalid: "Enter a US or Canadian mobile number.",
   bizWebsiteInvalid: "That doesn't look like a web address.",
 
@@ -528,6 +505,11 @@ export const onboardingEn = {
   checkYourEmail: "Check your email",
   confirmationSentPrefix: "We sent a confirmation link to",
   confirmationSentSuffix: ". Open it to finish creating your account.",
+  confirmationCheckSpam: "Check your spam folder if you don’t see the email.",
+  confirmationResend: "Resend confirmation email",
+  confirmationResent: "We requested another confirmation email.",
+  confirmationWait: "You can ask for another email after one minute.",
+  confirmationResendFailed: "The confirmation email could not be sent. Try again shortly.",
   wrongAddress: "Wrong address?",
   startOver: "Start over",
 
@@ -600,6 +582,9 @@ export const onboardingEn = {
   whatsYourName: "What's your name?",
   nameForTeammates: "Your teammates will see this on messages, notes, and tasks.",
   inviteNamePlaceholder: "Alex Rivera",
+  inviteProfileTitle: "Finish setting up your account",
+  inviteChoosePassword: "Choose a password",
+  inviteProfileSaveFailed: "We couldn't save your account details. Please try again.",
   joining: "Joining…",
   joiningTeam: "Joining your team…",
   saveNameFailed: "Couldn't save your name. Try again.",
@@ -761,8 +746,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   einNameUs: "EIN",
   einNameCa: "numéro d'entreprise",
   einQuestionCa: "EIN / numéro d'entreprise",
-  sinNameUs: "SSN",
-  sinNameCa: "NAS",
   yes: "Oui",
   no: "Non",
   einHintUs:
@@ -771,15 +754,9 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   solePropLead:
     "Aucun problème. Nous vous inscrirons comme travailleur autonome.",
   solePropDetail:
-    "Les mêmes fonctions de texto. Les opérateurs vous vérifient avec les 4 " +
-    "derniers chiffres de votre {idName} et un code envoyé par texto à votre " +
-    "téléphone. Une chose à savoir : les inscriptions de travailleurs " +
-    "autonomes sont limitées à un seul numéro de téléphone.",
+    "Les opérateurs vérifient votre numéro de cellulaire avec un code envoyé par texto. Les inscriptions de travailleurs autonomes sont limitées à un seul numéro de téléphone.",
   legalFirstName: "Prénom légal",
   legalLastName: "Nom légal",
-  last4Label: "4 derniers chiffres de votre {idName}",
-  last4Hint:
-    "Les opérateurs s'en servent pour confirmer votre identité. Nous ne demandons et ne conservons que les 4 derniers.",
   mobileLabel: "Votre numéro de cellulaire",
   mobileHint:
     "Nous texterons un code de vérification à 6 chiffres à ce numéro après le paiement.",
@@ -913,23 +890,11 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   ifDifferent: "(s'il est différent)",
   portBillingPhoneHint:
     "Le numéro principal du compte, s'il n'est pas celui que vous transférez.",
-  portWirelessNote:
-    "C'est un numéro mobile, alors votre opérateur exige deux renseignements " +
-    "de plus pour le libérer. Nous ne conservons que les 4 derniers chiffres " +
-    "du {idName}, jamais le numéro complet.",
+  portWirelessNote: "Demandez à votre fournisseur actuel le NIP de transfert de ce numéro de cellulaire.",
   portPinLabel: "NIP / mot de passe de transfert",
   portPinPlaceholder: "Votre opérateur peut vous le fournir",
-  portLast4Label: "4 derniers chiffres du {idName} du titulaire",
-  portLast4Aria:
-    "Pourquoi nous demandons les 4 derniers chiffres du {idName}",
-  portLast4Tooltip:
-    "Les opérateurs mobiles vérifient l'identité du titulaire avant de " +
-    "libérer un numéro. Nous transmettons seulement les 4 derniers chiffres à " +
-    "l'opérateur et ne conservons que ces 4 chiffres, jamais le {idName} complet.",
   portCarrierMissing:
     "Remplissez le titulaire du compte, la personne autorisée et le numéro de compte.",
-  portLast4Error:
-    "Entrez les 4 derniers chiffres du {idName} du titulaire du compte.",
   portPinError: "Entrez le NIP de transfert fourni par votre opérateur actuel.",
 
   // ── Port sub-wizard: the service address ──────────────────────────────────
@@ -1018,6 +983,8 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   oauthFailed:
     "Nous n'avons pas pu terminer votre connexion avec ce fournisseur. " +
     "Réessayez, ou utilisez votre courriel et votre mot de passe ci-dessous.",
+  verificationLinkFailed:
+    "Ce lien est invalide ou a expiré. Connectez-vous ci-dessous ou demandez un nouveau lien.",
   continueWithGoogle: "Continuer avec Google",
   openingGoogle: "Ouverture de Google…",
   or: "ou",
@@ -1080,7 +1047,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   bizTaxIdRequired: "Entrez votre {id} (les chiffres et les tirets conviennent).",
   bizFirstNameRequired: "Entrez votre prénom légal.",
   bizLastNameRequired: "Entrez votre nom de famille légal.",
-  bizLast4Required: "Entrez les 4 derniers chiffres de votre {id}.",
   bizMobileInvalid: "Entrez un numéro mobile américain ou canadien.",
   bizWebsiteInvalid: "Cela ne ressemble pas à une adresse web.",
 
@@ -1153,6 +1119,11 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   checkYourEmail: "Vérifiez vos courriels",
   confirmationSentPrefix: "Nous avons envoyé un lien de confirmation à",
   confirmationSentSuffix: ". Ouvrez-le pour terminer la création de votre compte.",
+  confirmationCheckSpam: "Vérifiez le dossier des courriels indésirables si le message n’apparaît pas.",
+  confirmationResend: "Renvoyer le courriel de confirmation",
+  confirmationResent: "Nous avons demandé un autre courriel de confirmation.",
+  confirmationWait: "Vous pouvez demander un autre courriel après une minute.",
+  confirmationResendFailed: "L’envoi du courriel de confirmation a échoué. Réessayez dans un instant.",
   wrongAddress: "Mauvaise adresse ?",
   startOver: "Recommencer",
 
@@ -1232,6 +1203,9 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   nameForTeammates:
     "Vos coéquipiers le verront sur les messages, les notes et les tâches.",
   inviteNamePlaceholder: "Alex Rivard",
+  inviteProfileTitle: "Terminez la configuration de votre compte",
+  inviteChoosePassword: "Choisissez un mot de passe",
+  inviteProfileSaveFailed: "Impossible d'enregistrer vos renseignements. Réessayez.",
   joining: "Adhésion…",
   joiningTeam: "Adhésion à votre équipe…",
   saveNameFailed: "Impossible d'enregistrer votre nom. Réessayez.",

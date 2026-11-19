@@ -316,12 +316,6 @@ object SettingsMoreStrings : AppStrings.Section {
             "deduction.",
 
         // -- Bringing a number in from another carrier -----------------------
-        // SSN stays SSN — it is a US federal identifier and the form is filled
-        // from a US carrier's bill. SIN's French name in Quebec is NAS, and a
-        // Montreal owner reading "SIN" would be looking for a field their
-        // paperwork does not have.
-        "settingsMore.ssnLabel" to "SSN",
-        "settingsMore.sinLabel" to "SIN",
         "settingsMore.stateLabel" to "State",
         "settingsMore.provinceLabel" to "Province",
         "settingsMore.zipLabel" to "ZIP code",
@@ -337,10 +331,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.authorizedPerson" to "Authorized person",
         "settingsMore.accountNumber" to "Account number",
         "settingsMore.portWirelessNote" to
-            "This is a mobile number. Enter the transfer PIN and the last 4 of the " +
-            "account holder's {idLabel}. We store only the last 4.",
+            "Get the transfer PIN for this mobile number from your current carrier.",
         "settingsMore.transferPin" to "Transfer PIN",
-        "settingsMore.last4Of" to "Last 4 of {idLabel}",
         "settingsMore.streetAddress" to "Street address",
         "settingsMore.city" to "City",
         "settingsMore.bringNumber" to "Bring your existing number",
@@ -552,7 +544,6 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.fieldLegalName" to "your legal business name",
         "settingsMore.enterContactEmail" to "Enter a contact email address.",
         "settingsMore.enterContactPhone" to "Enter a contact phone number.",
-        "settingsMore.enterLast4" to "Enter the last 4 digits of your {idLabel}.",
         "settingsMore.enterMobileForCode" to
             "Enter a US or Canadian mobile number; it gets the verification text.",
         "settingsMore.enterEin" to "Enter your 9-digit EIN (numbers only, dashes ok).",
@@ -1148,8 +1139,6 @@ object SettingsMoreStrings : AppStrings.Section {
             "Registration is {state}. Owners and admins can see the full details.",
         "settingsMore.registrationApproved" to "approved",
         "settingsMore.registrationOnFile" to "on file",
-        "settingsMore.ssnLast4" to "SSN (last 4)",
-        "settingsMore.sinLast4" to "SIN (last 4)",
         "settingsMore.legalName" to "Legal name",
         "settingsMore.addressLabel" to "Address",
         "settingsMore.websiteLabel" to "Website",
@@ -1603,8 +1592,6 @@ object SettingsMoreStrings : AppStrings.Section {
             "facturez — les frais de carte de Stripe sont la seule retenue.",
 
         // -- Bringing a number in from another carrier -----------------------
-        "settingsMore.ssnLabel" to "SSN",
-        "settingsMore.sinLabel" to "NAS",
         "settingsMore.stateLabel" to "État",
         "settingsMore.provinceLabel" to "Province",
         "settingsMore.zipLabel" to "Code ZIP",
@@ -1621,11 +1608,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.authorizedPerson" to "Personne autorisée",
         "settingsMore.accountNumber" to "Numéro de compte",
         "settingsMore.portWirelessNote" to
-            "Il s'agit d'un numéro mobile. Entrez le NIP de transfert et les 4 " +
-            "derniers chiffres du {idLabel} du titulaire. Nous ne conservons que " +
-            "les 4 derniers.",
+            "Demandez à votre fournisseur actuel le NIP de transfert de ce numéro de cellulaire.",
         "settingsMore.transferPin" to "NIP de transfert",
-        "settingsMore.last4Of" to "4 derniers chiffres du {idLabel}",
         "settingsMore.streetAddress" to "Adresse",
         "settingsMore.city" to "Ville",
         "settingsMore.bringNumber" to "Transférer votre numéro actuel",
@@ -1841,8 +1825,6 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.fieldLegalName" to "votre dénomination sociale",
         "settingsMore.enterContactEmail" to "Entrez une adresse courriel de contact.",
         "settingsMore.enterContactPhone" to "Entrez un numéro de téléphone de contact.",
-        "settingsMore.enterLast4" to
-            "Entrez les 4 derniers chiffres de votre {idLabel}.",
         "settingsMore.enterMobileForCode" to
             "Entrez un numéro mobile américain ou canadien ; c'est lui qui recevra " +
             "le texto de vérification.",
@@ -2486,8 +2468,6 @@ object SettingsMoreStrings : AppStrings.Section {
             "voir tous les détails.",
         "settingsMore.registrationApproved" to "approuvée",
         "settingsMore.registrationOnFile" to "au dossier",
-        "settingsMore.ssnLast4" to "SSN (4 derniers chiffres)",
-        "settingsMore.sinLast4" to "NAS (4 derniers chiffres)",
         "settingsMore.legalName" to "Dénomination sociale",
         "settingsMore.addressLabel" to "Adresse",
         "settingsMore.websiteLabel" to "Site Web",

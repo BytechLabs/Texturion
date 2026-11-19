@@ -232,6 +232,7 @@ export default function NumberStepPage() {
 
   return (
     <StepShell
+      step="number"
       backHref={backHref}
       index={progress.index}
       total={progress.total}

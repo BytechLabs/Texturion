@@ -800,8 +800,6 @@ export const settingsMoreEn = {
   regFieldCompanyName: "your legal business name",
   regEmailInvalid: "Enter a contact email address.",
   regPhoneInvalid: "Enter a contact phone number.",
-  regSsnLast4: "Enter the last 4 digits of your SSN.",
-  regSinLast4: "Enter the last 4 digits of your SIN.",
   regMobileInvalid:
     "Enter a US or Canadian mobile number; it gets the verification text.",
   regWebsiteInvalid:
@@ -816,11 +814,6 @@ export const settingsMoreEn = {
   regSampleLong: "Keep it under 1,024 characters.",
   regFirstNameLabel: "First name",
   regLastNameLabel: "Last name",
-  regSsnLabel: "Last 4 of your SSN",
-  regSinLabel: "Last 4 of your SIN",
-  regSsnHelp:
-    "Carriers use it to verify you're a real person. We never store the full " +
-    "number.",
   regMobileLabel: "Your mobile number",
   regMobileHelp: "A verification code is texted here after you resubmit.",
   regLegalNameLabel: "Legal business name",
@@ -961,20 +954,13 @@ export const settingsMoreEn = {
   startPortCheckFailed:
     "We couldn't check this number just now. Try again in a moment.",
   startPortFieldsMissing: "Fill in the account details and service address.",
-  startPortSsn: "SSN",
-  startPortSin: "SIN",
-  startPortWirelessMissing:
-    "This is a mobile number. Enter the transfer PIN and the last 4 of the " +
-    "account holder's {idKind}.",
+  startPortWirelessMissing: "Enter the transfer PIN for this mobile number.",
   startPortStarted: "Transfer started. Upload your documents to send it.",
   startPortFailed: "Couldn't start the transfer. Try again in a moment.",
   startPortCarrierAccount: "Your current carrier account",
   startPortAccountHolder: "Account holder",
   startPortTransferPin: "Transfer PIN",
-  startPortLast4: "Last 4 of {idKind}",
-  startPortWirelessNote:
-    "Mobile numbers need these to release. We store only the last 4 of the " +
-    "{idKind}.",
+  startPortWirelessNote: "Get the transfer PIN from your current carrier.",
   startPortServiceAddress: "Service address on file",
   startPortAddressNote:
     "From your latest bill. A mismatch is the #1 reason a transfer gets held " +
@@ -2072,8 +2058,6 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   regFieldCompanyName: "votre dénomination sociale",
   regEmailInvalid: "Entrez une adresse courriel de contact.",
   regPhoneInvalid: "Entrez un numéro de téléphone de contact.",
-  regSsnLast4: "Entrez les 4 derniers chiffres de votre SSN.",
-  regSinLast4: "Entrez les 4 derniers chiffres de votre NAS.",
   regMobileInvalid:
     "Entrez un numéro de cellulaire américain ou canadien ; c'est lui qui " +
     "reçoit le texto de vérification.",
@@ -2092,11 +2076,6 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   regSampleLong: "Restez sous les 1 024 caractères.",
   regFirstNameLabel: "Prénom",
   regLastNameLabel: "Nom de famille",
-  regSsnLabel: "4 derniers chiffres de votre SSN",
-  regSinLabel: "4 derniers chiffres de votre NAS",
-  regSsnHelp:
-    "Les fournisseurs s'en servent pour vérifier que vous êtes une vraie " +
-    "personne. Nous ne conservons jamais le numéro complet.",
   regMobileLabel: "Votre numéro de cellulaire",
   regMobileHelp:
     "Un code de vérification y est envoyé par texto après votre renvoi.",
@@ -2254,11 +2233,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
     "moment.",
   startPortFieldsMissing:
     "Remplissez les renseignements du compte et l'adresse du service.",
-  startPortSsn: "SSN",
-  startPortSin: "NAS",
-  startPortWirelessMissing:
-    "C'est un numéro de cellulaire. Entrez le NIP de transfert et les 4 " +
-    "derniers chiffres du {idKind} du titulaire du compte.",
+  startPortWirelessMissing: "Entrez le NIP de transfert de ce numéro de cellulaire.",
   startPortStarted:
     "Transfert lancé. Téléversez vos documents pour l'envoyer.",
   startPortFailed:
@@ -2266,10 +2241,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   startPortCarrierAccount: "Votre compte chez votre fournisseur actuel",
   startPortAccountHolder: "Titulaire du compte",
   startPortTransferPin: "NIP de transfert",
-  startPortLast4: "4 derniers chiffres du {idKind}",
-  startPortWirelessNote:
-    "Les numéros de cellulaire en ont besoin pour être libérés. Nous ne " +
-    "conservons que les 4 derniers chiffres du {idKind}.",
+  startPortWirelessNote: "Demandez le NIP de transfert à votre fournisseur actuel.",
   startPortServiceAddress: "Adresse du service au dossier",
   startPortAddressNote:
     "Selon votre facture la plus récente. Une adresse qui ne correspond pas " +

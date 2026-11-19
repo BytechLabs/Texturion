@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreatePortRequestForCompany } from "@/lib/api/porting";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -104,9 +105,6 @@ export default function PortTimingPage() {
         ? { billing_phone_number: port.billingPhoneNumber }
         : {}),
       ...(port.pinPasscode ? { pin_passcode: port.pinPasscode } : {}),
-      ...(port.isWireless && port.ssnSinLast4
-        ? { ssn_sin_last4: port.ssnSinLast4 }
-        : {}),
       ...(focDate
         ? { foc_datetime_requested: new Date(`${focDate}T12:00:00Z`).toISOString() }
         : {}),
@@ -126,6 +124,7 @@ export default function PortTimingPage() {
       // local draft and hand off to the dispatcher → registration or plan.
       clearOnboardingDraft();
       await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      trackOnboardingStepCompleted("port_timing");
       router.push("/onboarding");
     } catch (cause) {
       setError(
@@ -142,6 +141,7 @@ export default function PortTimingPage() {
 
   return (
     <StepShell
+      step="port_timing"
       backHref="/onboarding/port/address"
       index={progress.index}
       total={progress.total}

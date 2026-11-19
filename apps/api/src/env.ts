@@ -521,6 +521,9 @@ const envSchema = z.object({
    */
   CHECKOUT_RATE_LIMITER: rateLimiterSchema.optional(),
 
+  /** Bounds invite bursts independently for the workspace and the inviter. */
+  INVITE_RATE_LIMITER: rateLimiterSchema.optional(),
+
   /**
    * #335: the public-link surface (D75). Unauthenticated by design, so keyed
    * on IP — there is no account to key on. Optional in src/env.ts → dev/tests

@@ -351,57 +351,57 @@ describe("POST /v1/port-requests", () => {
     expect(port.ssn_sin_last4 ?? null).toBeNull();
   });
 
-  it("FIX 2 — flags a wireless number and REQUIRES ssn_sin_last4 + PIN", async () => {
-    const harness = buildHarness();
-    harness.state.portability = {
-      phone_number: PORT_E164,
-      portable: true,
-      phone_number_type: "mobile",
-    };
-    harness.telnyx.on("POST", /^\/v2\/porting_orders$/, () => ({
-      data: { id: "po-w", status: { value: "draft" } },
-    }));
-    harness.telnyx.on("PATCH", /^\/v2\/porting_orders\/po-w$/, () => ({
-      data: { id: "po-w" },
-    }));
+  it.each([CREATE_BODY, { ...CREATE_BODY, ssn_sin_last4: "6789" }])(
+    "requires a PIN for wireless ports and discards any legacy identifier",
+    async (intake) => {
+      const harness = buildHarness();
+      harness.state.portability = {
+        phone_number: PORT_E164,
+        portable: true,
+        phone_number_type: "mobile",
+      };
+      harness.telnyx.on("POST", /^\/v2\/porting_orders$/, () => ({
+        data: { id: "po-w", status: { value: "draft" } },
+      }));
+      harness.telnyx.on("PATCH", /^\/v2\/porting_orders\/po-w$/, () => ({
+        data: { id: "po-w" },
+      }));
 
-    // Missing ssn_sin_last4 on a wireless number → validation_failed, no rows.
-    const missingLast4 = await harness.request(
-      "/v1/port-requests",
-      jsonInit("POST", CREATE_BODY, KEY), // CREATE_BODY has a PIN but no last-4
-    );
-    expect(missingLast4.status).toBe(422);
-    expect((await missingLast4.json()) as unknown).toMatchObject({
-      error: { code: "validation_failed" },
-    });
-    expect(harness.rest.rows("port_requests")).toHaveLength(0);
+      const missingPin = await harness.request(
+        "/v1/port-requests",
+        jsonInit(
+          "POST",
+          { ...intake, pin_passcode: undefined },
+          KEY,
+        ),
+      );
+      expect(missingPin.status).toBe(422);
+      expect(harness.rest.rows("port_requests")).toHaveLength(0);
 
-    // Missing PIN on a wireless number → validation_failed.
-    const missingPin = await harness.request(
-      "/v1/port-requests",
-      jsonInit(
-        "POST",
-        { ...CREATE_BODY, pin_passcode: undefined, ssn_sin_last4: "6789" },
-        KEY,
-      ),
-    );
-    expect(missingPin.status).toBe(422);
+      const ok = await harness.request(
+        "/v1/port-requests",
+        jsonInit("POST", intake, KEY),
+      );
+      expect(ok.status).toBe(201);
+      const body = (await ok.json()) as Record<string, unknown>;
+      expect(body.is_wireless).toBe(true);
+      expect(body.ssn_sin_last4).toBeUndefined();
+      expect(body.has_ssn_sin_last4).toBe(false);
+      const port = harness.rest.rows("port_requests")[0];
+      expect(port.is_wireless).toBe(true);
+      expect(port.ssn_sin_last4 ?? null).toBeNull();
 
-    // Both present → created, is_wireless=true, last-4 stored (only 4 digits).
-    const ok = await harness.request(
-      "/v1/port-requests",
-      jsonInit("POST", { ...CREATE_BODY, ssn_sin_last4: "6789" }, KEY),
-    );
-    expect(ok.status).toBe(201);
-    const body = (await ok.json()) as Record<string, unknown>;
-    expect(body.is_wireless).toBe(true);
-    // §10: the last-4 is PII — returned only as an on-file boolean.
-    expect(body.ssn_sin_last4).toBeUndefined();
-    expect(body.has_ssn_sin_last4).toBe(true);
-    const port = harness.rest.rows("port_requests")[0];
-    expect(port.is_wireless).toBe(true);
-    expect(port.ssn_sin_last4).toBe("6789");
-  });
+      const edited = await harness.request(
+        `/v1/port-requests/${port.id}`,
+        jsonInit("PUT", { entity_name: "Updated name", ssn_sin_last4: "4321" }),
+      );
+      expect(edited.status).toBe(200);
+      expect(harness.rest.rows("port_requests")[0]).toMatchObject({
+        entity_name: "Updated name",
+      });
+      expect(harness.rest.rows("port_requests")[0].ssn_sin_last4 ?? null).toBeNull();
+    },
+  );
 
   it("FIX 2 — rejects a number Telnyx reports as not portable with its reason", async () => {
     const harness = buildHarness();

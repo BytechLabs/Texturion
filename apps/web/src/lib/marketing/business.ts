@@ -26,9 +26,6 @@ import {LEGAL_ENTITY_NAME, MAILING_ADDRESS} from "@loonext/shared";
 export { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@loonext/shared";
 
 
-/** Privacy officer name for Quebec Law 25 (BLUEPRINT §9), from ops. */
-export const PRIVACY_OFFICER_NAME: string | null = null;
-
 /** Support email, the only support channel (BLUEPRINT §2: no chat, no phone). */
 export const SUPPORT_EMAIL = "support@loonext.com";
 
@@ -38,16 +35,8 @@ export const SECURITY_EMAIL = "security@loonext.com";
 /** Privacy contact for /legal/privacy. */
 export const PRIVACY_EMAIL = "privacy@loonext.com";
 
-/**
- * The footer/legal identity line. Returns the real entity + address once ops
- * fills them in; until then, null so callers render nothing (Law 1: never a
- * placeholder sentence, never an invented company).
- */
 export function businessIdentityLine(): string | null {
-  if (LEGAL_ENTITY_NAME && MAILING_ADDRESS) {
-    return `${LEGAL_ENTITY_NAME} · ${MAILING_ADDRESS}`;
-  }
-  return null;
+  return [LEGAL_ENTITY_NAME, MAILING_ADDRESS].filter(Boolean).join(" · ") || null;
 }
 
 /** True once the real identity is in place (surfaces are honest either way). */

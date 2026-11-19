@@ -7,7 +7,22 @@
  * company name straight into markup. Every builder now comes through here so
  * escaping cannot drift again.
  */
-import { SUPPORT_EMAIL } from "@loonext/shared";
+import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
+
+const FOOTER_COPY = {
+  en: {
+    service: "This is a service message about your Loonext account.",
+    textReply: "Replying reaches a person, or write to",
+    htmlReply: "Replying to this email reaches a person, or write to",
+    tagline: "Loonext, flat-rate business texting.",
+  },
+  "fr-CA": {
+    service: "Ce message de service concerne votre compte Loonext.",
+    textReply: "Répondez à ce courriel ou écrivez à",
+    htmlReply: "Répondez à ce courriel ou écrivez à",
+    tagline: "Loonext, textos professionnels à tarif fixe.",
+  },
+};
 
 /**
  * Escape a string for interpolation into HTML text or double-quoted attribute
@@ -61,12 +76,12 @@ export { SUPPORT_EMAIL };
  * "reply to this email" with nothing around it, which is the reader least able
  * to go looking for another route.
  */
-export function emailTextFooter(): string {
+export function emailTextFooter(locale: Locale = "en"): string {
+  const { service, textReply, tagline } = FOOTER_COPY[locale];
   return (
     `\n\n---\n` +
-    `This is a service message about your Loonext account. ` +
-    `Replying reaches a person, or write to ${SUPPORT_EMAIL}.\n` +
-    `Loonext, flat-rate business texting.\n`
+    `${service} ${textReply} ${SUPPORT_EMAIL}.\n` +
+    `${tagline}\n`
   );
 }
 
@@ -82,10 +97,11 @@ export function emailTextFooter(): string {
  * and trustworthy, with no marketing chrome and no unsubscribe (not required).
  * `bodyHtml` is already escaped/structured by its builder; this only frames it.
  */
-export function emailLayout(bodyHtml: string): string {
+export function emailLayout(bodyHtml: string, locale: Locale = "en"): string {
+  const { service, htmlReply, tagline } = FOOTER_COPY[locale];
   return (
     `<!DOCTYPE html>` +
-    `<html lang="en"><head>` +
+    `<html lang="${locale}"><head>` +
     `<meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<meta name="color-scheme" content="light">` +
@@ -104,7 +120,7 @@ export function emailLayout(bodyHtml: string): string {
     `</td></tr>` +
     // Quiet footer.
     `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">` +
-    `This is a service message about your Loonext account.<br>` +
+    `${service}<br>` +
     // #252: this line used to say replies were NOT read, and that was written
     // when the routing had not been verified — "does not depend on any inbox
     // routing we would have to verify first", in its own words. The routing is
@@ -118,10 +134,10 @@ export function emailLayout(bodyHtml: string): string {
     // reply; two of them are the only stated route to undoing an irreversible
     // workspace deletion. A footer telling that reader their reply goes nowhere
     // does not make them write to support, it makes them give up.
-    `Replying to this email reaches a person, or write to ` +
+    `${htmlReply} ` +
     `<a href="mailto:${SUPPORT_EMAIL}" style="color:#3A430F;">${SUPPORT_EMAIL}</a>` +
     `.<br>` +
-    `Loonext, flat-rate business texting.` +
+    tagline +
     `</td></tr>` +
     `</table></td></tr></table>` +
     `</body></html>`

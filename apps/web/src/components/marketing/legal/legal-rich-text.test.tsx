@@ -1,4 +1,4 @@
-import { SUBPROCESSORS } from "@loonext/shared";
+import { MAILING_ADDRESS, SUBPROCESSORS } from "@loonext/shared";
 import securityPolicy from "@root/SECURITY.md";
 import accessibilityStatement from "@root/docs/ACCESSIBILITY.md";
 import dpaEn from "@root/docs/DPA.md";
@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { CountryProvider } from "@/components/marketing/country";
+import { organizationJsonLd } from "@/lib/marketing/seo";
 
 import { AccessibilityPageBody } from "./accessibility-page";
 import { AupPageBody } from "./aup-page";
@@ -116,6 +117,16 @@ describe("every legal page renders with no slot left in braces", () => {
     expect(render(BODIES.privacy("fr-CA"))).toContain(
       "<strong>notre responsable de la protection des renseignements personnels</strong>",
     );
+  });
+
+  it.each(["en", "fr-CA"] as const)("publishes approved legal identity in %s", (locale) => {
+    for (const page of [BODIES.privacy, BODIES.terms]) {
+      const html = render(page(locale));
+      expect(html).toContain("<strong>Bytech Labs</strong>");
+      expect(html.includes("<address ")).toBe(Boolean(MAILING_ADDRESS));
+    }
+    expect(organizationJsonLd()).toMatchObject({ name: "Loonext", legalName: "Bytech Labs" });
+    expect(organizationJsonLd().address).toBe(MAILING_ADDRESS ?? undefined);
   });
 
   it("rendered every page in both languages, privacy among them", () => {

@@ -134,7 +134,7 @@ create table public.port_requests (
                                                          -- finished port can be scrubbed; a LIVE one still
                                                          -- must carry it (CHECK + retention note below).
   pin_passcode           text,                          -- port-out PIN / passcode (wireless often requires)
-  is_wireless            boolean not null default false,-- mobile ports may need PIN + last-4 SSN (verify in build)
+  is_wireless            boolean not null default false,-- mobile ports may need a carrier transfer PIN
 
   -- Service address on file with the losing carrier (end_user.location, §3.3).
   service_street         text not null,
@@ -200,9 +200,8 @@ stored because Telnyx requires it in the order payload and a rejected port must 
 without re-collecting it; it is written **once** and never returned in any `/v1` response body (the
 `GET` serializer omits `pin_passcode` and `account_number`, returning only a boolean "on file"). LOA
 and invoice live in Telnyx (`/v2/documents`), not in Supabase Storage — we keep only the returned
-document UUIDs. **No full SSN/SIN is ever collected** (consistent with §10; wireless last-4 is
-**verify in build** — only collect if the portability check flags the number as wireless, and store
-last-4 only, mirroring the sole-prop `ein` rule).
+document UUIDs. The port forms do not collect SSN or SIN digits. If the losing
+carrier confirms it needs more information, contact Telnyx porting support (D203).
 
 **Retention — the credentials do not outlive the port.** Both reasons for holding them run out in
 the same place: the §3.4 PATCH is never issued again, and the port stops being editable (§7), once
@@ -656,7 +655,7 @@ document returns `validation_failed`).
 | Method & path | Role | Purpose / shape |
 |---|---|---|
 | `POST /v1/port-requests/check` | O/A | Portability check (pre-payment allowed). `{ phone_e164 }` → `{ portable: boolean, country, is_wireless, reason? }`. Rejects toll-free / non-US/CA with `validation_failed`. Wraps §3.1. No commitment, no DB write. |
-| `POST /v1/port-requests` | O/A | Create a port request (collect data). Body: the `port_requests` intake fields (§2.2) + `wants_bridge_number?`, `foc_datetime_requested?`, `ssn_sin_last4?` (wireless only — see below). Requires `Idempotency-Key`. **Runs the §3.1 portability check as part of create:** rejects a Telnyx-reported non-portable number with `validation_failed` + the `not_portable_reason`, and sets `is_wireless` from the check's `phone_number_type`. **Wireless numbers require `ssn_sin_last4` (last-4 of the account holder's SSN/SIN) AND `pin_passcode`** (`validation_failed` if either is missing); we store ONLY the last-4 (§2.2 / SPEC §10) — never for a landline. **Onboarding path:** allowed while `subscription_status='incomplete'` — writes the `port_requests` row (`status='draft'`) + the `phone_numbers` row (`source='ported'`, `status='provisioning'`) and **defers the Telnyx order to the paid webhook** (paid-first, D16). **Post-signup path:** requires `active` subscription (else `subscription_inactive`); starts `startPortSaga` immediately in `waitUntil` (which CREATES the draft order but does NOT confirm). 409 `conflict` if a non-cancelled port already exists for the number, or if a sole-prop company already has a non-released number. |
+| `POST /v1/port-requests` | O/A | Create a port request (collect data). Body: the `port_requests` intake fields (§2.2) + `wants_bridge_number?`, `foc_datetime_requested?`. Requires `Idempotency-Key`. **Runs the §3.1 portability check as part of create:** rejects a Telnyx-reported non-portable number with `validation_failed` + the `not_portable_reason`, and sets `is_wireless` from the check's `phone_number_type`. Wireless numbers require `pin_passcode` (`validation_failed` if missing). **Onboarding path:** allowed while `subscription_status='incomplete'` — writes the `port_requests` row (`status='draft'`) + the `phone_numbers` row (`source='ported'`, `status='provisioning'`) and **defers the Telnyx order to the paid webhook** (paid-first, D16). **Post-signup path:** requires `active` subscription (else `subscription_inactive`); starts `startPortSaga` immediately in `waitUntil` (which CREATES the draft order but does NOT confirm). 409 `conflict` if a non-cancelled port already exists for the number, or if a sole-prop company already has a non-released number. |
 | `GET /v1/port-requests` | M | List the company's ports with status + messaging_port_status + foc_date (cursor list per §10). Serializer **omits `pin_passcode`/`account_number`/`ssn_sin_last4`** (returns `has_pin`, `has_account_number`, `has_ssn_sin_last4` booleans). |
 | `GET /v1/port-requests/:id` | M | One port: full state machine position, foc_date, rejection_reason, submission_count, bridge linkage, document-on-file booleans. Refreshes from `GET /v2/porting_orders/{id}` opportunistically. |
 | `PUT /v1/port-requests/:id` | O/A | Edit port data while `draft` or `exception` (the fix-and-resubmit form). Re-upload LOA/invoice. `validation_failed` if the port is past the editable window (submitted/foc-confirmed/ported). |
@@ -667,7 +666,7 @@ document returns `validation_failed`).
 
 **Gate order for `POST /v1/port-requests` (post-signup path)** mirrors the send/provision gate style:
 membership (O/A) → subscription `active` → number is US/CA local & portable (portability check runs here,
-setting `is_wireless`; a wireless number additionally requires `ssn_sin_last4` + `pin_passcode`) → no
+setting `is_wireless`; a wireless number additionally requires `pin_passcode`) → no
 existing non-cancelled port for the number → sole-prop cap → insert `port_requests` + `phone_numbers`
 rows (idempotent on `provisioning_key`) → `waitUntil(startPortSaga)` (creates the draft order; the
 customer later uploads documents and calls `POST /:id/submit` to confirm).
@@ -858,7 +857,7 @@ Replace the current call-forwarding-workaround answer with the honest porting st
    `handlePortingEvent`.
 5. **Port API routes** — create/get/list/edit/documents/submit/resubmit/cancel with roles + existing error
    codes; pin/account/ssn_sin_last4 serializer omission. Create runs the §3.1 portability check (sets
-   `is_wireless`, requires `ssn_sin_last4` + PIN when wireless, rejects non-portable). `POST /:id/submit`
+   `is_wireless`, requires a PIN when wireless, rejects non-portable). `POST /:id/submit`
    and `/:id/resubmit` are documents-gated (409 `conflict` if LOA/invoice missing). ✅ wireless number
    flagged + last-4 required; non-portable rejected; landline path unchanged; confirm rejects without
    documents and succeeds with both; sole-prop cap enforced.
@@ -890,12 +889,11 @@ Replace the current call-forwarding-workaround answer with the honest porting st
 - **§3.6** whether `GET /v2/porting_orders/{id}` returns a messaging status field (poll) or the messaging
   track is webhook-only + a sub-resource GET. (The messaging-porting docs indicate `messaging_port_status`
   IS present on the GET porting-order body, so the cron can poll it; confirm the exact key at build.)
-- **§2.2** wireless-port extra requirements (PIN + last-4 SSN) — **RESOLVED / implemented.** The `POST
+- **§2.2** wireless-port transfer PIN. The `POST
   /v1/port-requests` create route runs the §3.1 portability check, sets `is_wireless` from
-  `phone_number_type` (`mobile`/`wireless`), and — when wireless — requires `ssn_sin_last4` **and**
-  `pin_passcode` (`validation_failed` otherwise). Only the last-4 is stored (the DB `ssn_sin_last4` CHECK
-  enforces exactly 4 digits); the full SSN/SIN is never collected, and the serializer returns only the
-  `has_ssn_sin_last4` boolean (SPEC §10). Landline ports collect neither. **(verify in build — response
+  `phone_number_type` (`mobile`/`wireless`). Wireless ports require `pin_passcode`.
+  The API discards retired identifier fields from older clients. The compatibility flag
+  `has_ssn_sin_last4` always returns false. **(verify in build — response
   schema only:** confirm the exact `phone_number_type` token Telnyx returns for wireless numbers.)
 
 Everything else in this spec is pinned to the verified Telnyx Porting API research: create body requires

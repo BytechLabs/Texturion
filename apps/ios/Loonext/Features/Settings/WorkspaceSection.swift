@@ -220,11 +220,7 @@ private struct IdentityRows: View {
             ? "\(field("firstName")) \(field("lastName"))".trimmingCharacters(in: .whitespaces)
             : field("companyName")
         let identifierLabel: String
-        if brand.sole_proprietor && country == "US" {
-            identifierLabel = t("settingsMore.ssnLast4")
-        } else if brand.sole_proprietor {
-            identifierLabel = t("settingsMore.sinLast4")
-        } else if country == "US" {
+        if country == "US" {
             identifierLabel = t("settingsMore.einLabel")
         } else {
             identifierLabel = t("settingsMore.businessNumberLabel")
@@ -234,7 +230,7 @@ private struct IdentityRows: View {
             .joined(separator: ", ")
         return [
             (t("settingsMore.legalName"), legalName),
-            (identifierLabel, field("ein")),
+            (identifierLabel, brand.sole_proprietor ? "" : field("ein")),
             (t("settingsMore.addressLabel"), address),
             (t("settingsMore.websiteLabel"), field("website")),
             (t("settingsMore.contactLabel"), field("email")),

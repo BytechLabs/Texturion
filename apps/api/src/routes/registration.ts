@@ -76,6 +76,8 @@ function sanitizeRow(
   role: MemberRole,
 ): Record<string, unknown> | null {
   if (!row) return null;
+  const data = { ...row.data };
+  if (row.kind === "brand" && row.sole_proprietor) delete data.ein;
   return {
     id: row.id,
     kind: row.kind,
@@ -93,7 +95,7 @@ function sanitizeRow(
       row.status,
       role,
     ),
-    ...(role === "owner" || role === "admin" ? { data: row.data } : {}),
+    ...(role === "owner" || role === "admin" ? { data } : {}),
   };
 }
 

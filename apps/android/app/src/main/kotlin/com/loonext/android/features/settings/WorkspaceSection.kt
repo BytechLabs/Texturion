@@ -245,8 +245,6 @@ private fun IdentityRows(brand: RegistrationDetail, country: String) {
         if (brand.sole_proprietor) "${field("firstName")} ${field("lastName")}".trim()
         else field("companyName")
     val identifierLabel = when {
-        brand.sole_proprietor && country == "US" -> t("settingsMore.ssnLast4")
-        brand.sole_proprietor -> t("settingsMore.sinLast4")
         country == "US" -> t("settingsMore.einLabel")
         else -> t("settingsMore.businessNumberLabel")
     }
@@ -256,7 +254,7 @@ private fun IdentityRows(brand: RegistrationDetail, country: String) {
 
     val rows = listOf(
         t("settingsMore.legalName") to legalName,
-        identifierLabel to field("ein"),
+        identifierLabel to if (brand.sole_proprietor) "" else field("ein"),
         t("settingsMore.addressLabel") to address,
         t("settingsMore.websiteLabel") to field("website"),
         t("settingsMore.contactLabel") to field("email"),

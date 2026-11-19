@@ -34,6 +34,7 @@ export const legalTermsEn = {
 
   agreement:
     "By creating a Loonext account or using the service, you agree to these terms on behalf of your business. If you don't agree, don't use Loonext. \"Loonext,\" \"we,\" and \"us\" mean the company that operates Loonext; \"you\" means the business that holds the account and the people it authorizes to use it.",
+  operator: "Loonext is operated by **{entity}**.",
   eligibility:
     "Loonext is built for businesses in the United States and Canada that text their own customers. You must be able to enter into a contract, run a real business, and give accurate business information when you register your number with the phone companies. You must have the consent of the people you text, see our {aup}.",
   subscriptionOne:
@@ -98,6 +99,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
 
   agreement:
     "En créant un compte Loonext ou en utilisant le service, vous acceptez les présentes conditions au nom de votre entreprise. Si vous êtes en désaccord, n'utilisez pas Loonext. « Loonext », « nous » et « notre » désignent l'entreprise qui exploite Loonext; « vous » désigne l'entreprise titulaire du compte et les personnes qu'elle autorise à l'utiliser.",
+  operator: "**{entity}** exploite Loonext.",
   eligibility:
     "Loonext est conçu pour les entreprises des États-Unis et du Canada qui envoient des textos à leurs propres clients. Vous devez avoir la capacité de conclure un contrat, exploiter une véritable entreprise et fournir des renseignements exacts sur votre entreprise lorsque vous enregistrez votre numéro auprès des compagnies de téléphone. Vous devez avoir le consentement des personnes à qui vous envoyez des textos; consultez notre {aup}.",
   subscriptionOne:

@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL } from "@loonext/shared";
+import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -11,6 +11,8 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   text: string;
+  /** Language of the shared service footer. */
+  locale?: Locale;
   /**
    * Per-send Reply-To override (e.g. the contact form sets it to the
    * submitter so support can reply directly). When absent, the env-level
@@ -23,18 +25,14 @@ export interface SendEmailInput {
    * `List-Unsubscribe` on recurring notification emails.
    */
   headers?: Record<string, string>;
+  /** Reuses the same Resend request for a retried send. */
+  idempotencyKey?: string;
   /**
    * What kind of message this is, which decides whether the service footer
    * belongs on it (#252).
    *
-   * Nearly everything here is transactional — account, billing, usage — and
-   * gets the footer appended centrally so no builder can ship a text part
-   * without it. `comparison-email.ts` is the one COMMERCIAL send: it goes to a
-   * captured prospect who by construction has no account, it carries its own
-   * CAN-SPAM block (postal address + unsubscribe), and it deliberately does not
-   * use `emailLayout`. Appending "a service message about your Loonext account"
-   * below that unsubscribe line would both misdescribe the message and put a
-   * second footer under the compliance block.
+   * Transactional messages get the service footer centrally. Commercial
+   * messages carry their own sender identification and unsubscribe link.
    *
    * Defaulted rather than required because transactional is the overwhelming
    * majority and a wrong default there is silent; `commercial-footer.test.ts`
@@ -135,6 +133,7 @@ export async function sendEmail(
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
+      ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
     },
     body: JSON.stringify({
       // #252: the critical stream, when one is configured. Unset falls back
@@ -152,10 +151,7 @@ export async function sendEmail(
       // text bodies were hand-written one by one, which is why the label
       // existed in one MIME part and not the other. A per-builder footer is one
       // somebody forgets on the send that matters.
-      //
-      // Commercial mail is exempt: it carries its own compliance block and is
-      // not a service message about an account the recipient does not have.
-      text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(),
+      text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(input.locale),
       reply_to: replyTo,
       ...(input.headers !== undefined ? { headers: input.headers } : {}),
     }),

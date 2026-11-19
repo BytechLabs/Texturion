@@ -915,8 +915,8 @@ function parseCampaignDraft(row: RegistrationRow): CampaignDraft | null {
  * #51 crash-after-create recovery: when a previous brand-create attempt left
  * its write-ahead marker but no local `telnyx_id`, the brand may exist at TCR
  * already (each POST carries a real one-time carrier fee). List the account's
- * brands filtered by displayName and adopt the one matching this draft's
- * displayName + EIN that no local row has claimed — mirroring provisioning's
+ * brands filtered by displayName and adopt the matching identity that no
+ * local row has claimed, mirroring provisioning's
  * `adoptOrphanNumber` (`customer_reference` orphan adoption). Returns null
  * when there is nothing to adopt (the prior attempt never reached Telnyx);
  * a listing failure propagates so the caller retries later instead of
@@ -945,7 +945,16 @@ async function adoptOrphanBrand(
         : null;
     if (!brandId) continue;
     if (record.displayName !== draft.displayName) continue;
-    if (record.ein !== draft.ein) continue;
+    if (isSoleProprietorDraft(draft)) {
+      if (
+        record.entityType !== "SOLE_PROPRIETOR" ||
+        record.firstName !== draft.firstName ||
+        record.lastName !== draft.lastName ||
+        record.mobilePhone !== draft.mobilePhone
+      ) continue;
+    } else if (record.ein !== draft.ein) {
+      continue;
+    }
     // Never steal a brand some other local row already tracks.
     if (await findRowByTelnyxId(db, "brand", brandId)) continue;
     return brandId;

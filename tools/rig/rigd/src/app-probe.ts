@@ -1067,12 +1067,9 @@ export class AppProbe implements AppApi {
   }
 
   /**
-   * S34's recipient: a confirmed local-auth account at the robot mailbox's
-   * `+s34-acct-` sub-address, with a password made here and kept nowhere. An
-   * invite to an address that has an account is the one the app mails over
-   * Resend itself (routes/team.ts, sendExistingAccountInvite); an invite to a
-   * new address is mailed by local auth into Mailpit. Answers the HTTP status,
-   * 200 when the account already existed.
+   * S34 uses a confirmed account at the robot mailbox's `+s34-acct-`
+   * sub-address to exercise the direct invite link. Returns the HTTP status,
+   * or 200 when the account already exists.
    */
   async createMailAccount(args: { email: string }): Promise<number> {
     if (!this.#isMailAccount(args.email)) throw new Error("app probe: only S34's own sub-address can be given an account");

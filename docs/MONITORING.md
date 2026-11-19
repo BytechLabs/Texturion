@@ -34,6 +34,7 @@ already do (D8). Alerts only read `environment = 'production'`.
 | `message_outcome` | API Worker, Telnyx status webhook | `status` (`delivered`, `failed`), `country` (two letters) | an outbound text reached a final status |
 | `email_sent` | API Worker | none | Resend accepted an email; the denominator of the bounce and complaint rates |
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
+| `team_invite_refused` | API Worker | `reason` (`workspace_rate_limit`, `inviter_rate_limit`) | The team invite endpoint reaches either six-attempt limit per minute |
 | `push_attempt` | API Worker and Durable Object | `purpose` (`ring`, `call_end`, `alert`), `channel`, `platform`, `priority`, `response_class` (`accepted`, `gone`, `unauthorized`, `rejected`, `throttled`, `provider_error`, `transport_error`), `http_status`, `latency_ms`, `call_session_id`, `user_id` (not in production), `attempted_at` | every push the server sent, one event per device |
 | `ring_beacon` | API Worker, relaying the apps | `platform`, `app_version`, `stage`, `call_session_id`, `user_id` (not in production), `occurred_at`, and the device state the app reports (`os`, `permissions`, `standby_bucket`, `power_save`, `device_idle`, `screen_locked`) | a device reported a ring stage; a Workers rate limiting binding bounds each member's beacons |
 | `call_started` | call Durable Object | `direction` (`inbound`, `outbound`), `call_session_id` | the call engine took a new call: its session began |
@@ -47,6 +48,12 @@ The funnel events from D8 (`checkout_completed`, `first_outbound_sent`,
 `registration_submitted`, `registration_approved`) are otherwise unchanged,
 and now carry `environment` too. Earlier ones do not, and the rules read a
 missing `environment` as production.
+
+Team invitations use Supabase Auth to create the verification link and Resend
+to deliver the message. Supabase's Auth email limits apply to messages it sends
+directly, such as signup confirmation and password reset. Local Supabase's
+`auth.rate_limit.email_sent` is set to 2 per hour when SMTP is enabled. Read the
+hosted project's Authentication rate limits to verify its production allowance.
 
 The call events come from the Durable Object because it owns every inbound and
 outbound call's state: each is sent once, after the transition that caused it

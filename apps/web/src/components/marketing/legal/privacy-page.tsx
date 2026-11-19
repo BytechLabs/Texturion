@@ -17,8 +17,9 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalSubprocessorsCopy } from "@/i18n/marketing/legal-subprocessors";
 import { legalPrivacyCopy } from "@/i18n/marketing/legal-privacy";
 import {
+  LEGAL_ENTITY_NAME,
+  MAILING_ADDRESS,
   PRIVACY_EMAIL,
-  PRIVACY_OFFICER_NAME,
 } from "@/lib/marketing/business";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 
@@ -92,6 +93,9 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       locale={locale}
     >
       <LegalSectionBlock id="scope" number="1" heading={copy.sectionScope}>
+        {LEGAL_ENTITY_NAME ? (
+          <p><LegalRichText text={copy.operator} slots={{ entity: LEGAL_ENTITY_NAME }} /></p>
+        ) : null}
         <p><LegalRichText text={copy.scope} /></p>
       </LegalSectionBlock>
 
@@ -239,7 +243,7 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
           <LegalRichText
             text={copy.law25}
             slots={{
-              officer: PRIVACY_OFFICER_NAME ?? copy.officerFallback,
+              officer: copy.officerTitle,
               privacyEmail,
             }}
           />
@@ -263,6 +267,7 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
 
       <LegalSectionBlock id="contact" number="12" heading={copy.sectionContact}>
         <p><LegalRichText text={copy.contact} slots={{ privacyEmail }} /></p>
+        {MAILING_ADDRESS ? <address className="not-italic">{MAILING_ADDRESS}</address> : null}
       </LegalSectionBlock>
     </LegalPage>
   );

@@ -48,7 +48,7 @@ function requestCheck(
  * POST /v1/port-requests — create a port request. Requires a client-UUID
  * Idempotency-Key (SPEC §7); the same key replays the same row. The server
  * re-runs the portability check and, for a wireless number, rejects a missing
- * `ssn_sin_last4` / `pin_passcode` with `validation_failed`.
+ * `pin_passcode` with `validation_failed`.
  */
 function requestCreate(
   companyId: string,

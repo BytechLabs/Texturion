@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -138,6 +139,7 @@ export default function PortNumberPage() {
 
   return (
     <StepShell
+      step="port_number"
       backHref="/onboarding/number"
       index={progress.index}
       total={progress.total}
@@ -208,7 +210,10 @@ export default function PortNumberPage() {
           <Button
             size="lg"
             className="w-full"
-            onClick={() => router.push("/onboarding/port/carrier")}
+            onClick={() => {
+              trackOnboardingStepCompleted("port_number");
+              router.push("/onboarding/port/carrier");
+            }}
           >
             {t("onboarding.continue")}
             <ArrowRight className="size-4" aria-hidden />

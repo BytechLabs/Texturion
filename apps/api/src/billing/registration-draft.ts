@@ -48,8 +48,7 @@ function brandDataComplete(row: RegistrationRow): boolean {
   const common = ["displayName", "email", "phone", "vertical", "street", "city", "state", "postalCode", "country"];
   if (!common.every((key) => present(data, key))) return false;
   if (row.sole_proprietor) {
-    // Sole Proprietor path: name + last-4 identifier + OTP mobile (§4.4).
-    return ["firstName", "lastName", "ein", "mobilePhone"].every((key) =>
+    return ["firstName", "lastName", "mobilePhone"].every((key) =>
       present(data, key),
     );
   }

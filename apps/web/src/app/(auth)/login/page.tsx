@@ -69,6 +69,8 @@ function LoginForm() {
   useEffect(() => {
     if (searchParams.get("error") === "oauth") {
       setServerError(t("onboarding.oauthFailed"));
+    } else if (searchParams.get("error") === "verification") {
+      setServerError(t("onboarding.verificationLinkFailed"));
     }
   }, [searchParams, t]);
 

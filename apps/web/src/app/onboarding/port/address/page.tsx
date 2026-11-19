@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
@@ -78,11 +79,13 @@ export default function PortAddressPage() {
       serviceAdminArea: adminArea.trim(),
       servicePostalCode: postalCode.trim(),
     });
+    trackOnboardingStepCompleted("port_address");
     router.push("/onboarding/port/timing");
   }
 
   return (
     <StepShell
+      step="port_address"
       backHref="/onboarding/port/carrier"
       index={progress.index}
       total={progress.total}

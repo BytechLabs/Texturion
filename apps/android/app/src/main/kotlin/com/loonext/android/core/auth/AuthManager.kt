@@ -201,6 +201,10 @@ class AuthManager(
         auth.sendPasswordReset(email, captchaToken)
     }
 
+    suspend fun resendSignupConfirmation(email: String, captchaToken: String? = null) {
+        auth.resendSignupConfirmation(email, captchaToken)
+    }
+
     // --- Google sign-in (#166): PKCE authorize handoff through the browser ---
 
     /** Stash the verifier before the browser leaves (process may die). */

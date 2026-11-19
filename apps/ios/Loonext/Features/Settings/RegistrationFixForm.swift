@@ -144,7 +144,6 @@ func registrationFixProblem(
             10
         ) { return problem }
 
-        let ein = form.ein.trimmingCharacters(in: .whitespacesAndNewlines)
         if soleProp {
             if let problem = blank(form.firstName, "settingsMore.fieldFirstName", 100) {
                 return problem
@@ -152,22 +151,11 @@ func registrationFixProblem(
             if let problem = blank(form.lastName, "settingsMore.fieldLastName", 100) {
                 return problem
             }
-            if !matches(ein, "^\\d{4}$") {
-                return say(
-                    "settingsMore.enterLast4",
-                    [
-                        "idLabel": say(
-                            country == "US"
-                                ? "settingsMore.ssnLabel"
-                                : "settingsMore.sinLabel"
-                        )
-                    ]
-                )
-            }
             if normalizeNanpInput(form.mobilePhone) == nil {
                 return say("settingsMore.enterMobileForCode")
             }
         } else {
+            let ein = form.ein.trimmingCharacters(in: .whitespacesAndNewlines)
             if let problem = blank(form.companyName, "settingsMore.fieldLegalName", 255) {
                 return problem
             }
@@ -223,7 +211,6 @@ func registrationFixPayload(
             "state": trimmed(form.state),
             "postalCode": trimmed(form.postalCode),
             "country": .string(country),
-            "ein": trimmed(form.ein),
         ]
         if soleProp {
             brand["firstName"] = trimmed(form.firstName)
@@ -231,6 +218,7 @@ func registrationFixPayload(
             brand["mobilePhone"] = .string(normalizeNanpInput(form.mobilePhone) ?? "")
         } else {
             brand["companyName"] = trimmed(form.companyName)
+            brand["ein"] = trimmed(form.ein)
         }
         // Omitted when blank: the API's website is optional, and an empty
         // string is not a URL.
@@ -291,9 +279,6 @@ struct RegistrationFixForm: View {
     }
     private var idLabel: String {
         t(country == "US" ? "settingsMore.einLabel" : "settingsMore.businessNumberLabel")
-    }
-    private var last4Label: String {
-        t(country == "US" ? "settingsMore.ssnLabel" : "settingsMore.sinLabel")
     }
 
     var body: some View {
@@ -358,14 +343,9 @@ struct RegistrationFixForm: View {
                 )
             }
             field(t("settingsMore.knownBusinessName"), text: $form.displayName)
-            field(
-                soleProp
-                    ? t("settingsMore.last4Of", ["idLabel": last4Label])
-                    : idLabel,
-                text: $form.ein,
-                keyboard: soleProp ? .numberPad : .default,
-                key: "ein"
-            )
+            if !soleProp {
+                field(idLabel, text: $form.ein, key: "ein")
+            }
             field(
                 t("settingsMore.contactEmail"),
                 text: $form.email,
@@ -472,7 +452,7 @@ struct RegistrationFixForm: View {
             state: wizardString(brandData, "state"),
             postalCode: wizardString(brandData, "postalCode"),
             companyName: wizardString(brandData, "companyName"),
-            ein: wizardString(brandData, "ein"),
+            ein: soleProp ? "" : wizardString(brandData, "ein"),
             website: wizardString(brandData, "website"),
             firstName: wizardString(brandData, "firstName"),
             lastName: wizardString(brandData, "lastName"),

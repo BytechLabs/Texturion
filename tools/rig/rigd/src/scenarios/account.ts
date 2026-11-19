@@ -1034,11 +1034,8 @@ const RESET_MEMBER = { tenant: "qa-w", member: "technician" } as const;
  * Mailpit; every link in each works. No missed-call alert is checked: D45
  * made missed calls push-only, so the API sends no mail for one.
  *
- * Only an invite to an address that already has a Loonext account goes
- * through Resend (routes/team.ts, sendExistingAccountInvite). An invite to a
- * new address is Supabase Auth's inviteUserByEmail, which on the rig is local
- * GoTrue's own SMTP into Mailpit and never reaches Resend, the guard or the
- * zone. So the run first gives the robot mailbox's sub-address an account.
+ * The run creates an account so its link check can open the accept page
+ * without consuming a new user's one-time token.
  */
 export const S34: ScenarioRunner = {
   id: "S34",
@@ -1091,7 +1088,9 @@ export const S34: ScenarioRunner = {
     }
     const inviteLinks = await linksWork(ctx, invite);
     ctx.evidence.invite_mail = { id: invite.id, arrived_ms: Date.parse(invite.received_at) - since, subject: invite.subject, link_statuses: inviteLinks.statuses };
-    if (!/invited to join/i.test(invite.subject)) return fail("invite_mail_wrong", `the mail at the robot mailbox is not the invite: its subject is "${invite.subject}"`);
+    if (!/\binvited(?: you)? to join\b/i.test(invite.subject)) {
+      return fail("invite_mail_wrong", `the mail at the robot mailbox is not the invite: its subject is "${invite.subject}"`);
+    }
     if (!invite.links.some((link) => link.includes(`/invite/${inviteId}`))) return fail("invite_link_broken", "the invite mail has no link to this invite's accept page");
     if (!inviteLinks.ok) return fail("invite_link_broken", `the invite's links answered ${inviteLinks.statuses.join(", ") || "nothing: it had none"}`);
     if (!reset) return fail("reset_mail_missing", "the password reset did not reach Mailpit within 2 min");

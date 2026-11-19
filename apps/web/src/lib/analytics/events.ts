@@ -17,29 +17,29 @@
  *   submit handler or a redirect (initPostHog never rejects).
  */
 
+import type { WizardStep } from "@/app/onboarding/steps";
 import type { PlanId, PlanModule } from "@/lib/api/types";
 
 import { initPostHog } from "./posthog";
 
-/** The wizard steps (mirrors app/onboarding/steps.ts WizardStep). */
 export type OnboardingStep =
-  | "name"
-  | "number"
-  | "business"
-  | "texting"
-  | "plan";
+  | WizardStep
+  | "port_number"
+  | "port_carrier"
+  | "port_address"
+  | "port_timing";
 
 /**
  * Once-guards, so re-mounts / polling effects / the dispatcher re-running
  * never double-count a milestone:
- * - signup_completed: once per BROWSER (localStorage) — it can fire from two
- *   surfaces (the signup page's instant-session branch, then the onboarding
- *   dispatcher after the confirm-email / OAuth round trip).
+ * - signup_completed: once per account in this browser (localStorage), from
+ *   either the signup page or the onboarding dispatcher after a redirect.
  * - checkout_completed: once per TAB (sessionStorage) — the setting-up screen
  *   re-renders on every poll tick while provisioning runs.
  */
 const SIGNUP_COMPLETED_GUARD_KEY = "loonext.evt.signup_completed";
 const CHECKOUT_COMPLETED_GUARD_KEY = "loonext.evt.checkout_completed";
+const SIGNUP_MAX_AGE_MS = 10 * 60 * 1000;
 
 function capture(
   event: string,
@@ -74,29 +74,36 @@ function claimOnce(
   }
 }
 
-/**
- * The signup form was submitted (client-side validation passed; the Supabase
- * call is in flight). Carries the pricing-builder intent when one exists —
- * plan/module enums only.
- */
 export function trackSignupStarted(
+  method: "email" | "google",
   intent?: { plan: PlanId; modules: readonly PlanModule[] } | null,
 ): void {
-  capture(
-    "signup_started",
-    intent ? { plan: intent.plan, modules: [...intent.modules] } : undefined,
-  );
+  capture("signup_started", {
+    method,
+    ...(intent && { plan: intent.plan, modules: [...intent.modules] }),
+  });
 }
 
 /**
  * A session exists for a brand-new account. Fired from the signup page when
  * email confirmation is disabled (instant session) AND from the onboarding
- * dispatcher (confirm-email + OAuth land there); the once-per-browser guard
- * keeps it to a single event.
+ * dispatcher (confirm-email + OAuth land there). The user ID stays in browser
+ * storage to deduplicate those paths.
  */
-export function trackSignupCompleted(): void {
-  if (!claimOnce("localStorage", SIGNUP_COMPLETED_GUARD_KEY)) return;
+export function trackSignupCompleted(user: {
+  id: string;
+  created_at: string;
+}): void {
+  const age = Date.now() - Date.parse(user.created_at);
+  if (!(age >= 0 && age < SIGNUP_MAX_AGE_MS)) return;
+  if (!claimOnce("localStorage", `${SIGNUP_COMPLETED_GUARD_KEY}.${user.id}`)) {
+    return;
+  }
   capture("signup_completed");
+}
+
+export function trackOnboardingStepViewed(step: OnboardingStep): void {
+  capture("onboarding_step_viewed", { step });
 }
 
 /** A wizard step's submit succeeded and the user moved forward. */
