@@ -823,15 +823,18 @@ export class AppProbe implements AppApi {
     );
   }
 
-  async widgetStart(args: { tenant: string; phoneRole: string; turnstileToken?: string }): Promise<ApiAnswer<{ verificationId?: string }>> {
+  async widgetTarget(args: { tenant: string; phoneRole: string }): Promise<{ widgetKey: string; phone: string }> {
     const [company] = await this.#rest<{ widget_key: string }[]>("companies", {
       id: `eq.${this.#tenant(args.tenant).company_id}`,
       select: "widget_key",
     });
     if (!company) throw new Error(`app probe: no company row for ${args.tenant}`);
+    return { widgetKey: company.widget_key, phone: this.#number(args.phoneRole) };
+  }
+
+  async widgetStart(args: { tenant: string; phoneRole: string; turnstileToken?: string }): Promise<ApiAnswer<{ verificationId?: string }>> {
     return this.#public("/widget/start", {
-      widgetKey: company.widget_key,
-      phone: this.#number(args.phoneRole),
+      ...await this.widgetTarget(args),
       ...(args.turnstileToken === undefined ? {} : { turnstileToken: args.turnstileToken }),
     });
   }

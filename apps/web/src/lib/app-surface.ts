@@ -39,6 +39,7 @@ const EXTRA_APP_PREFIXES = [
   // neither list it was 308ed to the marketing apex, which only lets itself
   // frame its pages, so Settings showed "loonext.com refused to connect".
   "/widget-preview",
+  "/widget-challenge",
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

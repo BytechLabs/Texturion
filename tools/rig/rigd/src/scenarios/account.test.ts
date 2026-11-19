@@ -186,34 +186,41 @@ describe("S22, picture messages both ways", () => {
 
 const WIDGET_TEXT = "123456 is your code to text this business from their website. It expires in 10 minutes.";
 
-function s27World() {
+function s27World({ countStart = true } = {}) {
   const world = fakeContext("S27");
-  const { app, robot } = world;
+  const { app, browser, robot } = world;
   app.widget.verifications = 0;
   app.widget.verify = { status: 201 };
-  const verifies: { verificationId: string; code: string; message: string }[] = [];
-  const start = app.widgetStart.bind(app);
-  app.widgetStart = async (args: { turnstileToken?: string }) => {
-    const answer = await start(args);
-    if (args.turnstileToken !== undefined && answer.status === 202) {
-      app.widget.verifications += 1;
-      robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: WIDGET_TEXT });
-    }
-    return answer;
-  };
-  const api: AppApi = app;
-  api.widgetVerify = async (args) => {
-    verifies.push(args);
-    return app.widget.verify;
+  const verifies: { code: string; message: string }[] = [];
+  const openPublic = browser.openPublic.bind(browser);
+  browser.openPublic = async (path) => {
+    const page = await openPublic(path);
+    let message = "";
+    return {
+      ...page,
+      async startWidget(args) {
+        message = args.message;
+        if (app.widget.start.status === 202) {
+          if (countStart) app.widget.verifications += 1;
+          robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: WIDGET_TEXT });
+        }
+        return app.widget.start;
+      },
+      async submitWidgetCode(code) {
+        verifies.push({ code, message });
+        return app.widget.verify;
+      },
+    };
   };
   return { ...world, verifies };
 }
 
 describe("S27, website widget code", () => {
   it("passes when a start with no token is refused and the texted code verifies and is counted", async () => {
-    const { ctx, verifies } = s27World();
+    const { browser, ctx, verifies } = s27World();
     expect((await S27.run(ctx)).outcome).toBe("pass");
-    expect(verifies).toEqual([{ verificationId: "verification-1", code: "123456", message: `Rig S27 widget ${ctx.nonce}` }]);
+    expect(browser.publicPages).toEqual(["/widget-preview"]);
+    expect(verifies).toEqual([{ code: "123456", message: `Rig S27 widget ${ctx.nonce}` }]);
     expect(ctx.evidence.verifications).toEqual({ before: 0, after: 1 });
     expect(ctx.evidence).not.toHaveProperty("code");
     expectNoPhoneNumber(ctx.evidence);
@@ -243,13 +250,7 @@ describe("S27, website widget code", () => {
     wrong.app.widget.verify = { status: 403, code: "forbidden" };
     await expect(S27.run(wrong.ctx)).resolves.toMatchObject({ failure_class: "code_refused" });
 
-    const uncounted = s27World();
-    const start = uncounted.app.widgetStart;
-    uncounted.app.widgetStart = async (args) => {
-      const answer = await start(args);
-      uncounted.app.widget.verifications = 0;
-      return answer;
-    };
+    const uncounted = s27World({ countStart: false });
     await expect(S27.run(uncounted.ctx)).resolves.toMatchObject({ failure_class: "budget_not_decremented" });
   });
 

@@ -122,6 +122,7 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   // session and no token. Outside both groups because it is not part of either
   // shell: framing (app) inside itself would nest the whole application.
   "widget-preview",
+  "widget-challenge",
   // Not pages: generated assets.
   "og",
   "fonts",

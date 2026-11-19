@@ -145,26 +145,15 @@ describe("what the two endpoints refuse to tell a caller", () => {
     expect(source).toContain("p_idempotency_key: `widget:${body.verificationId}`");
   });
 
-  it("answers an 11pm visitor with the owner's own away message", () => {
-    // #232 phase 3. `maybeSendAwayReply` hangs off the CARRIER webhook, and a
-    // widget message never goes near it — so a visitor typing at 11pm on a
-    // Sunday got a thread nobody would look at until Monday and no
-    // acknowledgement at all, from the highest-intent moment the product has.
-    //
-    // Two things have to be true and both are structural, which is why they
-    // are read from the source rather than from a stubbed send: the call
-    // exists, and it is behind `created`. Without the guard a double-tapped
-    // submit that re-threads would answer the same visitor twice.
-    const source = readFileSync(
-      new URL("widget.ts", import.meta.url),
-      "utf8",
-    );
-    expect(source).toContain("maybeSendAwayReply");
-    const guard = source.indexOf("if (landed.created)");
-    expect(guard).toBeGreaterThan(-1);
-    expect(source.indexOf("maybeSendAwayReply(env, db,")).toBeGreaterThan(guard);
-    // AFTER threading, because the reply is about a conversation that exists.
-    expect(source.indexOf("thread_inbound_message")).toBeLessThan(guard);
+  it("uses the inbound workflow only after threading a new widget message", () => {
+    const route = readFileSync(new URL("widget.ts", import.meta.url), "utf8");
+    const pipeline = readFileSync(new URL("../messaging/inbound.ts", import.meta.url), "utf8");
+    const guard = route.indexOf("if (!landed.created)");
+    expect(guard).toBeGreaterThan(route.indexOf('"thread_inbound_message"'));
+    expect(route.indexOf("await finishThreadedInbound")).toBeGreaterThan(guard);
+    const shared = pipeline.slice(pipeline.indexOf("export async function finishThreadedInbound"));
+    expect(shared).toContain("await maybeSendAwayReply(env, db,");
+    expect(shared).toContain("await notifyInboundMessage(");
   });
 
   it("resolves the line once, for both halves of a submission", () => {

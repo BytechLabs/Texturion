@@ -448,6 +448,10 @@ begin
   if v_conv.first_source is distinct from 'widget' then
     raise exception 'WV-14 FAILED: the conversation must record its first touch';
   end if;
+  if (v->>'contact_id')::uuid is distinct from v_conv.contact_id
+     or (v->>'contact_created')::boolean is distinct from true then
+    raise exception 'WV-14 FAILED: the result must identify the new contact';
+  end if;
 
   raise notice 'WV-14 PASSED: a widget message threads without a carrier id';
 end $$;
@@ -509,6 +513,7 @@ do $$
 declare
   first_call jsonb;
   again      jsonb;
+  follow_up  jsonb;
 begin
   first_call := public.thread_inbound_message(
     'dd000000-0000-4000-8000-0000000000c1'::uuid,
@@ -526,6 +531,17 @@ begin
   end if;
   if (again->>'created')::boolean then
     raise exception 'WV-15 FAILED: a replay reported itself as new';
+  end if;
+
+  follow_up := public.thread_inbound_message(
+    'dd000000-0000-4000-8000-0000000000c1'::uuid,
+    'dd000000-0000-4000-8000-0000000000f1'::uuid,
+    '+15557770002', 'I am available on Friday', null,
+    null, 200, 200, 'widget', 'widget:verification-follow-up');
+  if (follow_up->>'created')::boolean is distinct from true
+     or follow_up->>'contact_id' is distinct from (first_call->>'contact_id')
+     or (follow_up->>'contact_created')::boolean is distinct from false then
+    raise exception 'WV-15 FAILED: a new message must reuse the original contact';
   end if;
 
   raise notice 'WV-15 PASSED: a double submit is one thread';
