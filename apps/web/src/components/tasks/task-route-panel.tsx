@@ -63,6 +63,7 @@ function TaskDetailPanelHost({ taskId }: { taskId: string }) {
   return (
     <TaskDetailPanel
       taskId={taskId}
+      standalone
       onClose={() => {
         deleted.current = true;
         router.replace("/tasks");

@@ -10,8 +10,10 @@ import { ConnectionBanner } from "@/components/shell/connection-banner";
 import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
 import { SoftphoneProvider } from "@/lib/softphone/provider";
 import { useT } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { DocumentTitleProvider } from "@/lib/push/document-title";
 import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
@@ -23,6 +25,16 @@ import { Sidebar } from "./sidebar";
 import { WindowDropGuard } from "./window-drop-guard";
 
 const SIDEBAR_PREF_KEY = "loonext:sidebar-collapsed";
+const PAGE_NAMES: Record<string, MessageKey> = {
+  "/inbox": "shell.navInbox",
+  "/inbox/scheduled": "tasks.scheduledTitle",
+  "/scheduled": "tasks.scheduledTitle",
+  "/contacts": "shell.navContacts",
+  "/tasks": "shell.navTasks",
+  "/calls": "shell.navCalls",
+  "/settings": "shell.navSettings",
+  "/trash": "trash.title",
+};
 
 function readSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
@@ -54,6 +66,7 @@ function readSidebarCollapsed(): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const t = useT();
   const pathname = usePathname();
+  const pageName = PAGE_NAMES[pathname] ?? PAGE_NAMES[`/${pathname.split("/")[1]}`];
   // The inbox is the fixed 3-pane frame (inner panes own the scroll); every
   // other destination is a calm scrolling document.
   const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
@@ -114,7 +127,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               fixedFrame ? "overflow-hidden" : "overflow-y-auto",
             )}
           >
-            {children}
+            <DocumentTitleProvider baseName={pageName ? t(pageName) : undefined}>
+              {children}
+              <UnreadTitleManager />
+            </DocumentTitleProvider>
           </main>
         </div>
         <MobileTabBar />
@@ -124,8 +140,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable
           from the /tasks views, the checklist, and thread task-event lines. */}
         <TaskDrawerHost />
-        {/* G9 unread indicators: `(3) …` title prefix + favicon dot. */}
-        <UnreadTitleManager />
         {/* D28: cancel the browser's navigate-to-file on drops that miss a
           dropzone, so a stray drop never blows away an unsent draft. */}
         <WindowDropGuard />

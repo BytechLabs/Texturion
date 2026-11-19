@@ -21,6 +21,7 @@ import { outcomeLine, transcriptState } from "./call-detail-copy";
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatPhone } from "@/lib/format/phone";
+import { useDocumentTitle } from "@/lib/push/document-title";
 
 /**
  * #336 — a call finally has an address.
@@ -65,22 +66,24 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
   const t = useT();
   const call = useCall(sessionId);
   const router = useRouter();
+  const row = call.data;
+  const who = row
+    ? (row.contact_name?.trim() ||
+      row.caller_name?.trim() ||
+      (row.caller_e164 ? formatPhone(row.caller_e164) : t("shell.unknownCaller")))
+    : null;
+  useDocumentTitle(call.isLoadingError ? null : who);
 
   if (call.isPending) return <CallDetailSkeleton />;
-  if (call.isLoadingError || !call.data) {
+  if (call.isLoadingError || !row || who === null) {
     // A 404 here is also what a member without access to this call's number
     // gets — deliberately indistinguishable, so a permalink cannot be used to
     // prove a call exists.
     return <LoadError onRetry={() => call.refetch()} />;
   }
 
-  const row = call.data;
   // A list row cannot say whether its words were attempted, so that sentence waits for the detail.
   const fromList = call.isPlaceholderData;
-  const who =
-    row.contact_name?.trim() ||
-    row.caller_name?.trim() ||
-    (row.caller_e164 ? formatPhone(row.caller_e164) : t("shell.unknownCaller"));
   const transcript = transcriptState(row, t);
   const routingReason = callRoutingReason(row.routing ?? null, t);
   const endReason = callEndReason(row.ended_reason, t);

@@ -24,7 +24,7 @@ export function formatUnreadTitle(baseTitle: string, unread: number): string {
  */
 export interface TitleController {
   /** Compute what the document title should be right now. */
-  next(currentTitle: string, unread: number): string;
+  next(currentTitle: string, unread: number, override?: string): string;
   /** The title to leave behind on unmount (its own prefix removed). */
   restore(currentTitle: string): string;
 }
@@ -33,12 +33,12 @@ export function createTitleController(): TitleController {
   let base: string | null = null;
   let lastApplied: string | null = null;
   return {
-    next(currentTitle, unread) {
+    next(currentTitle, unread, override) {
       if (base === null || currentTitle !== lastApplied) {
         // The page (route change, dynamic thread name) set a new title.
         base = currentTitle;
       }
-      lastApplied = formatUnreadTitle(base, unread);
+      lastApplied = formatUnreadTitle(override ?? base, unread);
       return lastApplied;
     },
     restore(currentTitle) {

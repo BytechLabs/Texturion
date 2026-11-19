@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { avatarInitials, contactRepeatBadge, isFlaggedUrgent, URGENT_BADGE_LABEL } from '@loonext/shared';
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
+import { useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { useMembers } from "@/lib/api/team";
 import type {
   ContactDetail,
@@ -99,6 +101,14 @@ export function ThreadHeader({
   onFind?: () => void;
 }) {
   const t = useT();
+  const focus = useInboxFocus();
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const request = focus?.current;
+    if (request?.conversationId !== conversation.id || !request.headingPending || !heading.current) return;
+    request.headingPending = false;
+    heading.current.focus({ preventScroll: true });
+  }, [conversation.id, focus]);
   const navigate = useNavigate();
   const { actions, dialogs, setStatus, statusChoices, assignTo, bringBack, updating } =
     useConversationActions({
@@ -157,24 +167,27 @@ export function ThreadHeader({
   const snoozedUntil = conversation.snoozed_until ?? null;
   const snoozeKind = (conversation.snooze_kind ?? null);
 
-  // Lifted out of the JSX only so the #505 badge can sit beside it in a flex
-  // row without the no-badge path having to render a wrapper it does not need.
-  // Nothing about the button itself changed.
-  const nameButton = (
-    <button
-      type="button"
-      onClick={onToggleContactPanel}
-      aria-pressed={panelOpen}
-      aria-label={t("thread.viewContactAria", {
-        name,
-        phone: formatPhone(phone),
-      })}
-      // The name truncates inside, not on the button: overflow on the button
-      // would clip the tap-target's larger touch area.
-      className="tap-target block max-w-full rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
+  const nameHeading = (
+    <h1
+      ref={heading}
+      tabIndex={-1}
+      aria-label={name}
+      className="min-w-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="block truncate">{name}</span>
-    </button>
+      <button
+        type="button"
+        onClick={onToggleContactPanel}
+        aria-pressed={panelOpen}
+        aria-label={t("thread.viewContactAria", {
+          name,
+          phone: formatPhone(phone),
+        })}
+        // Truncating inside the button keeps the full tap target.
+        className="tap-target block max-w-full rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
+      >
+        <span className="block truncate">{name}</span>
+      </button>
+    </h1>
   );
 
   return (
@@ -234,20 +247,16 @@ export function ThreadHeader({
             column roughly 80px, so a ~100px chip would not sit beside the name
             — it would replace it. The phone keeps the fact one tap away in the
             panel sheet. Calling stays visible at every width because it is a
-            CONTROL (#133); this is a label, and a label loses.
-
-            The no-badge branch renders `nameButton` bare, so a first-time
-            caller's header is unchanged down to the DOM — which is the point:
-            a header that decorates everybody distinguishes nobody. */}
+            CONTROL (#133); this is a label, and a label loses. */}
         {repeatBadge === null && !urgent && !blocked && !muted ? (
-          nameButton
+          nameHeading
         ) : (
           // `min-w-0` so this wrapper can be narrower than its content:
           // without it the wrapper's automatic minimum is the un-shrinkable
           // badge, and a squeezed column would push the pill out over the
           // controls instead of letting the name truncate.
           <div className="flex min-w-0 items-center gap-1.5">
-            {nameButton}
+            {nameHeading}
             {/* #565: FIRST, and at every width — unlike the repeat badge beside
                 it, which hides below sm because a five-time customer is a fact
                 and a label loses to a control. This is an alert, and the phone

@@ -81,6 +81,7 @@ const onDismiss = vi.fn();
 
 /** One line Lou wrote, so a test can watch it leave with the answer. */
 const A_LINE = "Asked about Tuesday";
+const isStaleNotice = (text: string) => text.startsWith("New messages have come in since this catch-up");
 /** A thread with a standing on it, and a catch-up that has to sit under it. */
 const optedOut = (source: string) =>
   result({
@@ -178,8 +179,13 @@ const bodyText = () => document.body.textContent ?? "";
  * takes its place has text too. Comparing the ROLE-matched node against
  * `firstElementChild` is what makes "above everything Lou wrote" a real check.
  */
-const standingNode = () =>
-  screen.queryByRole("status") ?? screen.queryByRole("alert");
+const standingNode = () => {
+  const card = screen.queryByLabelText("Catch-up");
+  const regions = [...screen.queryAllByRole("status"), ...screen.queryAllByRole("alert")];
+  return regions.find((region) =>
+    region.parentElement === card && !isStaleNotice(region.textContent ?? ""),
+  ) ?? null;
+};
 /** The mark's own word for what it is doing, from the shipped `AiOrbState`. */
 const orbState = () =>
   document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
@@ -375,7 +381,7 @@ describe("the catch-up card — never invent a fact", () => {
 
     view.newMessageArrives("m-newer");
     expect(bodyText().length).toBeGreaterThan(settled.length);
-    expect(screen.getByRole("status")).toBeInstanceOf(Element);
+    expect(screen.getByText(isStaleNotice).getAttribute("role")).toBe("status");
     // And it offers to ask again — the server answers an unchanged thread from
     // its cache, so re-asking a moved thread is the only press that costs.
     expect(screen.getByText("Catch me up again")).toBeInstanceOf(Element);
@@ -383,7 +389,7 @@ describe("the catch-up card — never invent a fact", () => {
 
   it("does not cry staleness on a thread that has not moved", () => {
     ask(result({ lines: [line(WE_SAID, "Someone Tuesday", "msg-a")] }));
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(isStaleNotice)).toBeNull();
     expect(screen.queryByText("Catch me up again")).toBeNull();
   });
 

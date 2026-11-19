@@ -1,6 +1,9 @@
 /** @vitest-environment happy-dom */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useLayoutEffect, useRef } from "react";
 import { afterEach, expect, it, vi } from "vitest";
+
+import { InboxFocusProvider, queueThreadHeading, useInboxFocus } from "@/lib/inbox/navigation-focus";
 
 import { ThreadFindBar } from "./thread-find-bar";
 
@@ -28,6 +31,7 @@ it("opens on the matched message and steps in either direction", () => {
   );
 
   const input = screen.getByRole("searchbox");
+  expect(document.activeElement).toBe(input);
   expect(input).toHaveProperty("value", "furn");
   expect(screen.getByRole("status").textContent).toBe("2 of 2");
   fireEvent.click(screen.getByRole("button", { name: "Next match" }));
@@ -37,4 +41,40 @@ it("opens on the matched message and steps in either direction", () => {
   expect(jump).toHaveBeenLastCalledWith("older");
   fireEvent.keyDown(input, { key: "Escape" });
   expect(close).toHaveBeenCalledOnce();
+});
+
+function OpenedSearchThread({ openedManually }: { openedManually: boolean }) {
+  const focus = useInboxFocus();
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    queueThreadHeading(focus, "thread", "conversation:thread");
+    const request = focus?.current;
+    if (request) request.headingPending = false;
+    heading.current?.focus();
+  }, [focus]);
+
+  return (
+    <>
+      <h1 ref={heading} tabIndex={-1}>Conversation</h1>
+      <ThreadFindBar
+        conversationId="thread"
+        initialQuery="furn"
+        initialMessage="older"
+        openedManually={openedManually}
+        onJump={() => undefined}
+        onClose={() => undefined}
+      />
+    </>
+  );
+}
+
+it("keeps keyboard focus on a search result's thread heading until Find is opened explicitly", () => {
+  const { rerender } = render(
+    <InboxFocusProvider><OpenedSearchThread openedManually={false} /></InboxFocusProvider>,
+  );
+  expect(document.activeElement).toBe(screen.getByRole("heading"));
+  expect(screen.getByRole("searchbox")).toHaveProperty("value", "furn");
+
+  rerender(<InboxFocusProvider><OpenedSearchThread openedManually /></InboxFocusProvider>);
+  expect(document.activeElement).toBe(screen.getByRole("searchbox"));
 });

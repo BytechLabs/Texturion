@@ -36,6 +36,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { SearchField } from "@/components/ui/search-field";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { contactsViewFromSearch, writeField, writeQuery, writeSort, writeTag } from "@/lib/url/contact-list-url";
 
@@ -314,6 +315,10 @@ export function ContactsTable({
         onTag={writeTag}
       />
 
+      <ResultsStatus
+        query={query}
+        count={contacts.isSuccess && !contacts.isPlaceholderData ? rows.length : null}
+      />
       <div className="rounded-lg border bg-card">
         {contacts.isPending ? (
           <SkeletonRows />

@@ -34,7 +34,7 @@ function svgFaviconLink(): HTMLLinkElement {
   return link;
 }
 
-export function useUnreadTitle(): number {
+export function useUnreadTitle(titleOverride?: string): number {
   // Remembers exactly what it wrote, so page-authored titles (including ones
   // that legitimately start with parentheses) are never mis-stripped.
   const titleController = useRef<ReturnType<typeof createTitleController> | null>(null);
@@ -49,7 +49,7 @@ export function useUnreadTitle(): number {
   // observer can never feed itself.
   useEffect(() => {
     const apply = () => {
-      const next = controller.next(document.title, unread);
+      const next = controller.next(document.title, unread, titleOverride);
       if (document.title !== next) document.title = next;
     };
     apply();
@@ -60,7 +60,7 @@ export function useUnreadTitle(): number {
       characterData: true,
     });
     return () => observer.disconnect();
-  }, [controller, unread]);
+  }, [controller, unread, titleOverride]);
 
   // Favicon dot (G9).
   useEffect(() => {

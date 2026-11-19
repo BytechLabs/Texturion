@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { InboxPane } from "@/components/inbox/inbox-pane";
 import { InboxListSkeleton } from "@/components/inbox/empty-states";
 import { useT } from "@/i18n/provider";
+import { InboxFocusProvider } from "@/lib/inbox/navigation-focus";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,26 +23,29 @@ export default function InboxLayout({
   const listOnly = pathname === "/inbox";
 
   return (
-    <div className="flex h-full min-h-0">
-      <section
-        aria-label={t("appShell.conversationListAria")}
-        className={cn(
-          "h-full w-full min-w-0 flex-col md:flex md:w-[360px] md:shrink-0 md:border-r md:border-border",
-          listOnly ? "flex" : "hidden",
-        )}
-      >
-        <Suspense fallback={<InboxListSkeleton />}>
-          <InboxPane />
-        </Suspense>
-      </section>
-      <div
-        className={cn(
-          "h-full min-w-0 flex-1 md:block",
-          listOnly ? "hidden" : "block",
-        )}
-      >
-        {children}
+    <InboxFocusProvider>
+      <div className="flex h-full min-h-0">
+        <section
+          aria-label={t("appShell.conversationListAria")}
+          className={cn(
+            "h-full w-full min-w-0 flex-col md:flex md:w-[360px] md:shrink-0 md:border-r md:border-border",
+            listOnly ? "flex" : "hidden",
+          )}
+        >
+          <Suspense fallback={<InboxListSkeleton />}>
+            <InboxPane />
+          </Suspense>
+        </section>
+        <section
+          aria-label={t("thread.conversationPaneAria")}
+          className={cn(
+            "h-full min-w-0 flex-1 md:block",
+            listOnly ? "hidden" : "block",
+          )}
+        >
+          {children}
+        </section>
       </div>
-    </div>
+    </InboxFocusProvider>
   );
 }

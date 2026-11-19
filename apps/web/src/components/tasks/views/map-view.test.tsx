@@ -5,7 +5,7 @@
  * "No tasks yet" next to a list that has tasks. Whether any exist is asked
  * with one row, not by downloading every unlocated task to count them.
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
@@ -54,12 +54,17 @@ describe("Map view empty states (#752)", () => {
   });
   afterEach(cleanup);
 
-  it("explains the pause when tasks exist without a pin", () => {
+  it("explains the pause and announces zero map matches for unlocated tasks", async () => {
     answer(page([]), page([{ id: "a" }]));
-    render(<MapView state={state} />);
+    render(<MapView state={{ ...state, q: "inspection" }} />);
     expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeInstanceOf(Element);
     expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toBe(
+        EN.shell.resultsShown.replace("{count}", "0").replace("{query}", "inspection"),
+      );
+    });
   });
 
   it("keeps existing pins visible during the pause", () => {

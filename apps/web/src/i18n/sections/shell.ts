@@ -32,6 +32,8 @@ export const shellEn = {
   // ── The frame ────────────────────────────────────────────────────────────
   skipToContent: "Skip to content",
   recentNotifications: "Recent notifications",
+  resultShown: "1 result shown for “{query}”",
+  resultsShown: "{count} results shown for “{query}”",
   offline:
     "You’re offline. What’s already open stays readable, and Loonext will " +
     "catch up on its own once you’re back.",
@@ -78,6 +80,7 @@ export const shellEn = {
    */
   navForYouTitleCase: "For You",
   navInbox: "Inbox",
+  documentTitle: "{name} · Loonext",
   navCalls: "Calls",
   navTasks: "Tasks",
   navContacts: "Contacts",
@@ -440,6 +443,8 @@ export const shellFr: Translated<typeof shellEn> = {
 
   skipToContent: "Aller au contenu",
   recentNotifications: "Notifications récentes",
+  resultShown: "1 résultat affiché pour « {query} »",
+  resultsShown: "{count} résultats affichés pour « {query} »",
   offline:
     "Vous êtes hors ligne. Ce qui est déjà ouvert reste lisible, et Loonext " +
     "se remettra à jour tout seul dès votre retour.",
@@ -479,6 +484,7 @@ export const shellFr: Translated<typeof shellEn> = {
   navForYou: "Pour vous",
   navForYouTitleCase: "Pour vous",
   navInbox: "Boîte de réception",
+  documentTitle: "{name} · Loonext",
   navCalls: "Appels",
   navTasks: "Tâches",
   navContacts: "Contacts",

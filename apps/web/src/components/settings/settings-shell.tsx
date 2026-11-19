@@ -2,13 +2,14 @@
 
 import { usePathname } from "next/navigation";
 
-import { SettingsNav } from "@/components/settings/settings-nav";
+import { SETTINGS_SECTIONS, SettingsNav } from "@/components/settings/settings-nav";
 import {
   SettingsAnchorFocus,
   SettingsSearchPanel,
 } from "@/components/settings/settings-search";
 import { VersionFooter } from "@/components/settings/version-footer";
 import { useT } from "@/i18n/provider";
+import { useDocumentTitle } from "@/lib/push/document-title";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -25,6 +26,8 @@ export function SettingsShell({
   const t = useT();
   const pathname = usePathname();
   const atIndex = pathname === "/settings";
+  const section = SETTINGS_SECTIONS.find(({ href, slug }) => (href ?? `/settings/${slug}`) === pathname);
+  useDocumentTitle(t(section?.label ?? "shell.navSettings"));
 
   return (
     <div className="mx-auto flex w-full max-w-5xl gap-8 px-4 py-8 md:px-6 lg:gap-10">

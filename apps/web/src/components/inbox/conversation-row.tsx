@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import {
   AlarmClock,
@@ -29,6 +29,7 @@ import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { inboxHref } from "@/lib/inbox/thread-href";
+import { trackThreadLinkFocus, useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
@@ -164,6 +165,16 @@ function ConversationRowView({
   listQuery?: string;
 }) {
   const t = useT();
+  const focus = useInboxFocus();
+  const link = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (!focus || !link.current || active || window.location.pathname !== "/inbox") return;
+    if (link.current.closest('[aria-hidden="true"]')) return;
+    const request = focus.current;
+    if (request?.conversationId !== conversation.id || request.headingPending || request.searchResultId) return;
+    focus.current = null;
+    link.current.focus({ preventScroll: true });
+  }, [active, conversation.id, focus]);
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
   const href = inboxHref({ conversationId: conversation.id, listQuery });
@@ -266,6 +277,8 @@ function ConversationRowView({
         <span className="flex items-baseline justify-between gap-2">
           <Link
             href={href}
+            ref={link}
+            onClick={(event) => trackThreadLinkFocus(event, focus, conversation.id, active)}
             aria-current={active ? "page" : undefined}
             aria-label={rowLabel}
             // The time's own tooltip sits under the stretched link, so the

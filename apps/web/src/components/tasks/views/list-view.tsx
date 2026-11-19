@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { LoadError } from "@/components/ui/load-error";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -264,11 +265,18 @@ function TaskListBody({
 
   if (tasks.length === 0) {
     // An empty last answer says nothing yet about the filter now loading.
-    return busy ? <ListSkeleton rows={6} className="py-3 px-3" /> : <EmptyTasks state={state} />;
+    if (busy) return <ListSkeleton rows={6} className="py-3 px-3" />;
+    return (
+      <>
+        <ResultsStatus query={state.q} count={0} />
+        <EmptyTasks state={state} />
+      </>
+    );
   }
 
   return (
     <div className="overflow-x-auto" aria-busy={busy}>
+      <ResultsStatus query={state.q} count={busy ? null : tasks.length} />
       {!isEmpty(selection) && (
         <TaskBulkBar
           selection={selection}

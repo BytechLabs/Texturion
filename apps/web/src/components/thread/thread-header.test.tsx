@@ -156,3 +156,7 @@ it("gives the urgent badge a role and an accessible name", () => {
   expect(render(undefined, urgent)).toContain('role="img" aria-label="Urgent"');
   expect(render(undefined, { ...urgent, closed_at: "2026-11-01T13:00:00Z" })).not.toContain('aria-label="Urgent"');
 });
+
+it("names the main heading for the open conversation", () => {
+  expect(render(contact(1))).toMatch(/<h1[^>]+aria-label="Dana Rivera"/);
+});
