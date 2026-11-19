@@ -10093,6 +10093,10 @@ mentions, note files, AI summaries, voicemail path, transcript and intake, the
 timeline events that carry content, and the caller's number on a purged call. A
 legal hold (D77) stops the erasure but not the delete.
 
+Purging a conversation also erases its scheduled text bodies and snoozes and
+redacts its quote and payment descriptions. Quote and payment amounts, statuses,
+and billing references remain on record (#807).
+
 **What is kept, and why.** The row stays as a tombstone (`purged_at`) because the
 billing meter reads it: inbound segments and outbound MMS are counted from
 `messages`, `usage_events` point at it, and `call_records` hold the voice minutes.
