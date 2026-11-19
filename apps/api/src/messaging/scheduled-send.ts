@@ -56,6 +56,7 @@ import { listConversationViewers } from "../auth/conversation-audience";
 import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "../calendar/liveness";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { ApiError } from "../http/errors";
 import { deliverPush } from "../notifications/deliver";
 import { notifyFailedText } from "../notifications/failed-text";
@@ -576,11 +577,9 @@ async function expireStale(
     try {
       await disclose(env, db, row, "expired");
     } catch (error) {
-      console.error(
-        `scheduled send: expiry disclosure failed for ${row.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      void reportHandledFailure(env, "scheduled-send-expiry-notification", error, {
+        ids: { scheduledMessageId: row.id },
+      });
     }
   }
   return expired.length;

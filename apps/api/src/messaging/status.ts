@@ -22,7 +22,7 @@ import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyFailedText } from "../notifications/failed-text";
-import { captureEvent } from "../observability/capture";
+import { captureEvent, reportHandledFailure } from "../observability/capture";
 import { recordCarrierOptOut } from "./opt-out";
 import { phoneCountry } from "./delivery-by-country";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
@@ -302,10 +302,9 @@ async function reportUsageEvent(
       identifier: args.identifier,
     });
   } catch (error_) {
-    console.error(
-      `meter report failed for usage event ${args.usageEventId}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    void reportHandledFailure(env, "message-usage-meter-report", error_, {
+      ids: { usageEventId: args.usageEventId },
+    });
     return; // stripe_reported_at stays NULL → hourly cron re-reports
   }
 

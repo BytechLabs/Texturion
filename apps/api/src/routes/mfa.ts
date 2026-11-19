@@ -33,6 +33,7 @@ import { sendEmail } from "../email/resend";
 import { renderEmailHtml } from "../email/html";
 import { getEnv } from '../env';
 import type { Env } from '../env';
+import { reportHandledFailure } from "../observability/capture";
 import { errorResponse } from "../http/errors";
 import { parseJsonBody } from "./core/http";
 
@@ -372,9 +373,6 @@ async function notifyAccount(
       html: renderEmailHtml(message.body),
     });
   } catch (error) {
-    console.error(
-      "mfa notification failed:",
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "mfa-notification", error);
   }
 }

@@ -5,6 +5,7 @@ import type { AppEnv, AssuranceLevel } from "../context";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { errorResponse, OVERLOADED_MESSAGE } from "../http/errors";
+import { reportHandledFailure } from "../observability/capture";
 
 /**
  * Remote JWKS resolvers cached per isolate, keyed by URL. jose caches the
@@ -168,7 +169,7 @@ export function jwtAuth() {
     } catch (error) {
       if (keySetUnavailable(error)) {
         // Not the caller's fault and not a reason to sign them out.
-        console.warn("[503] the JWKS could not be fetched; the token was not judged");
+        void reportHandledFailure(env, "auth-jwks-unavailable", error);
         c.header("Retry-After", "5");
         return errorResponse(c, "service_unavailable", OVERLOADED_MESSAGE);
       }

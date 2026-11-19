@@ -2,6 +2,7 @@ import { getDb } from "../db";
 import { emailLayout, linkifyUrls, toHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { unwrap } from "../routes/core/http";
 
 const SEND_INTERVAL_MS = 550;
@@ -36,13 +37,16 @@ export async function sendWorkspaceMfaNotices(env: Env, now: Date, companyId?: s
     }
     try {
       await sendWorkspaceMfaNotice(env, notice);
-    } catch {
+    } catch (error) {
+      void reportHandledFailure(env, "workspace-mfa-notice-send", error);
       const release = await db.rpc("release_workspace_mfa_notice", {
         p_member_id: notice.member_id,
         p_required_at: notice.required_at,
         p_kind: notice.kind,
       });
-      if (release.error) console.error("Could not release a workspace two-factor notice.");
+      if (release.error) {
+        void reportHandledFailure(env, "workspace-mfa-notice-release", release.error);
+      }
       failures += 1;
     }
   }

@@ -6,6 +6,7 @@ import type { MemberRole, QuoteState } from '@loonext/shared';
 
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import type { AppEnv } from "../context";
 import { requireCapability } from "../auth/company";
 import {
@@ -623,7 +624,9 @@ quotesRoutes.post(
         },
       },
     ]).catch((error: unknown) => {
-      console.error(`quote sent event failed: ${String(error)}`);
+      void reportHandledFailure(env, "quote-sent-event", error, {
+        ids: { quoteId: row.id },
+      });
     });
 
     // No tokens. The accept token is the customer's to receive, once, in a text

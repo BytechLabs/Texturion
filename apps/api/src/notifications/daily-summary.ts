@@ -21,6 +21,7 @@ import type { Locale } from '@loonext/shared';
 import { resolveNumberAccess } from "../auth/number-access";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { deliverPush } from "./deliver";
 
 /** Task rows read per member to count what is overdue or due today. */
@@ -243,7 +244,9 @@ export async function runDailySummary(
       }
       summary.sent += 1;
     } catch (error_) {
-      console.error(`daily summary: ${row.user_id} failed`, error_);
+      void reportHandledFailure(env, "notification-daily-summary", error_, {
+        ids: { company_id: row.company_id },
+      });
     }
   }
 

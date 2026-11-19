@@ -29,6 +29,7 @@ import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 
 /** How long before the axe somebody is told. */
 const WARN_DAYS = 30;
@@ -95,11 +96,10 @@ export async function runRetentionNoticeJob(
       });
       sent += 1;
     } catch (error_) {
-      // The claim is already recorded, so this workspace will not be retried.
-      // That is the correct trade: a duplicate warning about data destruction
-      // is more alarming than a missed one, and the enforcement job is not
-      // built yet — nothing is actually at risk today.
-      console.error(`retention notice send failed for ${row.company_id}: ${String(error_)}`);
+      // Keep the claim so a retry cannot send a duplicate retention notice.
+      void reportHandledFailure(env, "retention-notice", error_, {
+        ids: { companyId: row.company_id },
+      });
     }
   }
 

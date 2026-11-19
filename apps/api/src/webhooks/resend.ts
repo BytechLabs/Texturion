@@ -4,7 +4,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
-import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
+import { captureEvent, reportHandledFailure, SYSTEM_DISTINCT_ID } from "../observability/capture";
 
 /**
  * #386 — the Resend webhook: the half of email that was never wired up.
@@ -236,7 +236,9 @@ async function processAndStamp(
     if (error) throw new Error(`webhook_events stamp failed: ${error.message}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`resend webhook ${eventId} (${event.type}) failed:`, message);
+    void reportHandledFailure(env, "resend-webhook-processing", error, {
+      ids: { eventId, eventType: event.type },
+    });
     await db
       .from("webhook_events")
       .update({ last_error: message })

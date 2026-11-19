@@ -166,11 +166,15 @@ describe(reportHandledFailure, () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const { waitUntil, pending } = invocation();
     try {
-      await reportHandledFailure(env(), "task-completion-follow-up", new Error("Database unavailable"), waitUntil);
+      await reportHandledFailure(env(), "task-completion-follow-up", new Error("Database unavailable"), {
+        waitUntil,
+        ids: { task_id: "test-task" },
+      });
 
       expect(log).toHaveBeenCalledExactlyOnceWith(
         "task-completion-follow-up:",
         expect.stringContaining("Error: Database unavailable"),
+        '{"task_id":"test-task"}',
       );
       expect(pending).toHaveLength(1);
       expect(sent).toHaveLength(1);
@@ -179,6 +183,7 @@ describe(reportHandledFailure, () => {
         operation: "task-completion-follow-up",
         $exception_level: "warning",
         $exception_fingerprint: "handled:task-completion-follow-up",
+        extra: { task_id: "test-task" },
       });
     } finally {
       log.mockRestore();

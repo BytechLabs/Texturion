@@ -498,7 +498,9 @@ widgetRoutes.post("/widget/verify", async (c) => {
     segments: null,
     mediaCount: 0,
     source: "widget",
-  }).catch((error: unknown) => reportHandledFailure(env, "widget-inbound-delivery", error));
+  }).catch((error: unknown) => reportHandledFailure(env, "widget-inbound-delivery", error, {
+    ids: { companyId, conversationId: landed.conversation_id },
+  }));
 
   return c.json({ ok: true }, 201);
 });

@@ -35,6 +35,7 @@ import { sendEmail } from "../email/resend";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
+import { reportHandledFailure } from "../observability/capture";
 
 /**
  * Destination inbox for contact submissions. A product constant, not config:
@@ -226,7 +227,7 @@ contactRoutes.post("/contact", async (c) => {
       html: renderEmailHtml(ack.text),
     });
   } catch (error_) {
-    console.error("contact acknowledgment email failed:", error_);
+    void reportHandledFailure(env, "contact-acknowledgment-email", error_);
   }
 
   return c.json({ ok: true }, 201);

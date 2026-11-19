@@ -48,6 +48,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   effectiveCnamDisplayName,
@@ -603,12 +604,9 @@ companiesRoutes.post("/companies", async (c) => {
         matches: flags,
       });
     } catch (error) {
-      // Awaited inside a try rather than handed to `executionCtx.waitUntil`.
-      // The execution context is not present in every environment this route
-      // runs in, and reaching for it turned a working signup into a 500 —
-      // which is a far worse bug than the one this screen prevents. The same
-      // shape as the referral block below, for the same reason.
-      console.error(`aup signup screen alert skipped: ${String(error)}`);
+      void reportHandledFailure(workerEnv(), "signup-category-alert", error, {
+        ids: { companyId: company.id as string },
+      });
     }
   }
 
@@ -624,7 +622,9 @@ companiesRoutes.post("/companies", async (c) => {
         refereeOwnerUserId: c.get("userId"),
       });
     } catch (error) {
-      console.error(`referral attribution skipped: ${String(error)}`);
+      void reportHandledFailure(workerEnv(), "signup-referral-attribution", error, {
+        ids: { companyId: company.id as string },
+      });
     }
   }
 
@@ -649,16 +649,19 @@ companiesRoutes.post("/companies", async (c) => {
           ? { referrer_host: host, params }
           : null;
       if (landing !== null || touch !== null) {
-        await db
+        const { error } = await db
           .from("companies")
           .update({
             signup_landing_path: landing,
             signup_first_touch: touch,
           })
           .eq("id", company.id);
+        if (error) throw new Error(error.message);
       }
     } catch (error) {
-      console.error(`signup attribution skipped: ${String(error)}`);
+      void reportHandledFailure(workerEnv(), "signup-first-touch-attribution", error, {
+        ids: { companyId: company.id as string },
+      });
     }
   }
 
@@ -1330,12 +1333,9 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   const turnedOnVoice = body.mctb_enabled === true;
   if (turnedOnVoice) {
     const enable = enableVoiceForCompany(env, db, c.get("companyId")).catch(
-      (error: unknown) => {
-        console.error(
-          `voice enable for company ${c.get("companyId")} failed:`,
-          error instanceof Error ? error.message : String(error),
-        );
-      },
+      (error: unknown) => reportHandledFailure(env, "workspace-voice-enablement", error, {
+        ids: { companyId: c.get("companyId") },
+      }),
     );
     const ctx = executionCtxOf(c);
     if (ctx) ctx.waitUntil(enable);
@@ -1387,12 +1387,9 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
           throw new Error(`cnam_submitted_at stamp failed: ${error.message}`);
         }
       }
-    })().catch((error: unknown) => {
-      console.error(
-        `call settings sync for company ${companyId} failed:`,
-        error instanceof Error ? error.message : String(error),
-      );
-    });
+    })().catch((error: unknown) => reportHandledFailure(env, "workspace-call-settings-sync", error, {
+      ids: { companyId },
+    }));
     const ctx = executionCtxOf(c);
     if (ctx) ctx.waitUntil(sync);
     else await sync;

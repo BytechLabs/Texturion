@@ -17,7 +17,7 @@ import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
-import { captureException, workerEnv } from "../observability/capture";
+import { captureException, errorLogText, workerEnv } from "../observability/capture";
 
 /**
  * The §4.3 number-provisioning saga. Every step is independently retryable and
@@ -1062,7 +1062,7 @@ export async function closeOutDeadProvisioningBestEffort(
     void captureException(workerEnv(), error, { source: "api", company_id: companyId });
     console.error(
       `${context}: dead-provisioning close-out failed for ${companyId} (retried on the next daily grace pass):`,
-      error instanceof Error ? error.message : String(error),
+      errorLogText(error),
     );
   }
 }

@@ -48,6 +48,7 @@ import { recordSpendingCapRefusal } from "../billing/usage-alerts";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
@@ -576,10 +577,9 @@ async function backfillVoicemailTranscript(
       .eq("call_session_id", args.sessionId);
     return outcome.text;
   } catch (error) {
-    console.error(
-      `voicemail transcript backfill failed for ${args.sessionId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "voicemail-transcript-backfill", error, {
+      ids: { callSessionId: args.sessionId },
+    });
     return null;
   }
 }
@@ -623,10 +623,9 @@ async function backfillVoicemailIntake(
       .eq("call_session_id", args.sessionId);
     return outcome.intake;
   } catch (error) {
-    console.error(
-      `voicemail intake backfill failed for ${args.sessionId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "voicemail-intake-backfill", error, {
+      ids: { callSessionId: args.sessionId },
+    });
     return null;
   }
 }

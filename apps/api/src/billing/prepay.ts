@@ -10,7 +10,7 @@ import type { PlanId } from './plans';
 
 import { getDb } from "../db";
 import { getStripe } from "./stripe";
-import { captureException } from "../observability/capture";
+import { captureException, reportHandledFailure } from "../observability/capture";
 
 /**
  * #400 / D107 — a prepaid year, delivered as a discount on the licensed line.
@@ -1075,9 +1075,9 @@ export async function ensurePrepaidDiscount(
       { source: "api", level: "warning" },
     );
   } catch (error) {
-    console.error(
-      `[prepay] convergence failed for company ${companyId}: ${(error as Error).message}`,
-    );
+    void reportHandledFailure(env, "prepay-convergence", error, {
+      ids: { companyId },
+    });
   }
 }
 
@@ -1165,10 +1165,9 @@ export async function sweepUncreditedConversions(
       credited += 1;
     } catch (error_) {
       failed += 1;
-      console.error(
-        `[prepay] could not credit conversion ${row.prepayment_id} ` +
-          `(${row.credit_cents} ${row.currency}): ${(error_ as Error).message}`,
-      );
+      void reportHandledFailure(env, "prepay-credit-conversion", error_, {
+        ids: { prepaymentId: row.prepayment_id },
+      });
     }
   }
   return { credited, failed };

@@ -22,6 +22,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { ApiError } from "../http/errors";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
@@ -366,10 +367,9 @@ export async function sendMissedCallText(
       db,
     );
   } catch (error) {
-    console.error(
-      `missed-call alert for conversation ${outcome.conversationId} failed:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "call-missed-alert", error, {
+      ids: { conversationId: outcome.conversationId },
+    });
   }
   // `alerted` even when notifyMissedCall threw: the attempt was made and
   // best-effort alerts are never retried — the webhook must not double-fire.

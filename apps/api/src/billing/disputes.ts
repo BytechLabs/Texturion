@@ -26,7 +26,7 @@ import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
 import { revokePrepaidYearForPaymentIntent } from "./prepay";
 
-import { opsNotice } from "../observability/capture";
+import { opsNotice, reportHandledFailure } from "../observability/capture";
 import type { Env } from "../env";
 import { getStripe } from "./stripe";
 
@@ -104,7 +104,9 @@ export async function handleChargeDispute(
     } catch (error_) {
       // Never let this fail the dispute record itself — that row is the alarm,
       // and losing it to a revocation error would hide the chargeback too.
-      console.error(`prepaid-year revocation failed for ${dispute.id}: ${String(error_)}`);
+      void reportHandledFailure(env, "dispute-revoke-prepaid-year", error_, {
+        ids: { disputeId: dispute.id },
+      });
     }
   }
 
@@ -176,7 +178,9 @@ async function customerIdForDispute(
   } catch (error) {
     // An unattributable dispute is MORE alarming, not less. The lookup failing
     // must never stop the record or the notice.
-    console.error(`dispute ${dispute.id}: charge lookup failed: ${String(error)}`);
+    void reportHandledFailure(env, "dispute-charge-lookup", error, {
+      ids: { disputeId: dispute.id },
+    });
     return null;
   }
 }

@@ -2026,27 +2026,32 @@ describe("POST /v1/messages/send — #475 which saved reply produced this", () =
     expect(stubs.templateUse.calls).toHaveLength(0);
   });
 
-  it("still returns 201 when the bookkeeping itself fails", async () => {
-    // The line that matters. A send that reached the carrier must never be
-    // reported as failed because a counter did not increment — the customer
-    // got the message either way, and a 500 here would have the crew send it
-    // twice.
+  it("reports a failed usage write and still returns 201 for the sent text", async () => {
     const stubs = sendStubs();
     stubFetch(
       ...stubs.all.filter((route) => route !== stubs.templateUse.route),
-      stubRoute(rpcMatch(env, "api_record_template_use"), () => {
-        throw new Error("ledger down");
-      }).route,
+      stubRoute(rpcMatch(env, "api_record_template_use"), () =>
+        Response.json({ message: "ledger down" }, { status: 500 }),
+      ).route,
     );
 
-    const response = await postSend({
-      conversation_id: CONVERSATION_ID,
-      body: "On our way!",
-      template_id: TEMPLATE_ID,
-    });
-    expect(response.status).toBe(201);
-    // And it really did send: the carrier call happened before the ledger.
-    expect(stubs.telnyx.calls).toHaveLength(1);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await postSend({
+        conversation_id: CONVERSATION_ID,
+        body: "On our way!",
+        template_id: TEMPLATE_ID,
+      });
+      expect(response.status).toBe(201);
+      expect(stubs.telnyx.calls).toHaveLength(1);
+      expect(log).toHaveBeenCalledWith(
+        "outbound-template-use-record:",
+        expect.stringContaining("ledger down"),
+        expect.stringContaining(TEMPLATE_ID),
+      );
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("records only after the carrier accepted it", async () => {

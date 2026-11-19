@@ -1184,12 +1184,17 @@ describe("POST /v1/billing/portal", () => {
 
         expect(response.status).toBe(503);
         await expect(response.text()).resolves.not.toContain("provider payload");
-        expect(report).toHaveBeenCalledExactlyOnceWith("stripe_billing_portal_failed", {
-          scope: "full",
-          operation,
-          reason: "stripe_permission_denied",
-          stripe_status: 403,
-        });
+        expect(report).toHaveBeenCalledExactlyOnceWith(
+          "stripe-billing-portal:",
+          expect.stringContaining("Error: Stripe denied access to the billing portal"),
+          JSON.stringify({
+            scope: "full",
+            operation,
+            reason: "stripe_permission_denied",
+            stripe_status: "403",
+          }),
+        );
+        expect(report.mock.calls[0][1]).not.toContain("provider payload");
       } finally {
         report.mockRestore();
       }

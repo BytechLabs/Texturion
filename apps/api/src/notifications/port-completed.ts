@@ -32,6 +32,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { deliverPush } from "./deliver";
 import { NUMBER_NOTICE_COPY } from "./number-copy";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
@@ -119,8 +120,8 @@ export async function pushPortCompleted(
     // Swallowed on purpose. The number is live and the email is sent; a push
     // outage must not turn a successful cutover into a failed job that retries
     // the whole completion.
-    console.error(
-      `port completion push failed for ${companyId}: ${String(error)}`,
-    );
+    void reportHandledFailure(env, "port-completion-notification", error, {
+      ids: { companyId },
+    });
   }
 }

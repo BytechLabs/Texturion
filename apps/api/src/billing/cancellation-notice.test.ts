@@ -157,7 +157,8 @@ describe("the notice itself", () => {
     // and nothing said so. A push that stops working for every workspace, with
     // no log, is indistinguishable from one nobody has needed yet.
     expect(logged).toHaveBeenCalledOnce();
-    expect(String(logged.mock.calls[0][0])).toMatch(/consequential push failed/);
+    expect(logged.mock.calls[0][0]).toBe("billing-consequential-push:");
+    expect(logged.mock.calls[0][1]).toContain("Error: consequential push audience failed: boom");
     logged.mockRestore();
   });
 

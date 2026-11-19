@@ -72,6 +72,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { errorLogText } from "../observability/capture";
 import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { MMS_BUCKET } from "../messaging/media";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
@@ -203,7 +204,7 @@ export async function runRetentionEnforceJob(
       // diagnosable from a dashboard.
       console.error(
         `retention enforcement failed for ${row.company_id}:`,
-        error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
+        errorLogText(error_),
       );
       failures.push(error_);
     }
@@ -215,10 +216,7 @@ export async function runRetentionEnforceJob(
   try {
     summary.voicemailsCleared = await clearOverdueVoicemailAudio(db);
   } catch (error_) {
-    console.error(
-      "voicemail audio retention failed:",
-      error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
-    );
+    console.error("voicemail audio retention failed:", errorLogText(error_));
     failures.push(error_);
   }
 

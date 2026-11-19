@@ -50,6 +50,7 @@ import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
 import { getEnv } from '../env';
 import type { Env } from '../env';
+import { reportHandledFailure } from "../observability/capture";
 import { revokeMemberTelephonyCredential } from "./webrtc";
 import { ApiError, errorResponse } from "../http/errors";
 import {
@@ -436,10 +437,9 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
   try {
     await revokeMemberTelephonyCredential(env, companyId, userId);
   } catch (error_) {
-    console.error(
-      `softphone revoke on self-leave failed for user ${userId}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    void reportHandledFailure(env, "member-softphone-revoke", error_, {
+      ids: { companyId, source: "self-leave" },
+    });
   }
   const ended = await endMemberAccess(db, env, userId);
 
@@ -520,10 +520,9 @@ Loonext`;
       html: renderEmailHtml(text),
     });
   } catch (error) {
-    console.error(
-      `owner notification on self-leave failed for company ${companyId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "team-departure-notification", error, {
+      ids: { companyId },
+    });
   }
 }
 
@@ -581,10 +580,9 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
     // D43 (#135): the softphone dies with the seat.
     await revokeMemberTelephonyCredential(env, companyId, userId);
   } catch (error_) {
-    console.error(
-      `softphone revoke on deactivation failed for member ${id}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    void reportHandledFailure(env, "member-softphone-revoke", error_, {
+      ids: { companyId, source: "deactivation" },
+    });
   }
   const ended = await endMemberAccess(db, env, userId);
 
@@ -653,10 +651,7 @@ async function endMemberAccess(
     ({ sessions, voice } = result);
     devices += result.devices;
   } catch (error) {
-    console.error(
-      `session revoke on deactivation failed for user ${userId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "member-session-revoke", error);
   }
   // Push rows are per person, not per company: a token left behind keeps
   // delivering another workspace's customer messages to a phone we have just
@@ -941,8 +936,10 @@ async function sendWorkspaceInvite(
       ),
     });
     return sent.id !== null;
-  } catch {
-    console.error(`Team invite email failed (${args.inviteId}).`);
+  } catch (error) {
+    void reportHandledFailure(env, "workspace-invite-email", error, {
+      ids: { companyId: args.companyId, inviteId: args.inviteId },
+    });
     return false;
   }
 }
@@ -1287,10 +1284,9 @@ async function emailNoteIfOrientationWillNotShowIt(
       ),
     });
   } catch (error) {
-    // Never-silent (D3), non-fatal: the membership stands either way.
-    console.error(
-      `joining-note email failed (${args.companyId}): ${String(error)}`,
-    );
+    void reportHandledFailure(env, "team-joining-email", error, {
+      ids: { companyId: args.companyId },
+    });
   }
 }
 
@@ -1339,9 +1335,8 @@ async function promptForBackupOwner(
       html: renderEmailHtml(text),
     });
   } catch (error) {
-    console.error(
-      `backup-owner prompt failed for company ${companyId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "backup-owner-notification", error, {
+      ids: { companyId },
+    });
   }
 }

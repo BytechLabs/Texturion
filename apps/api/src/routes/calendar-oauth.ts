@@ -31,6 +31,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
+import { reportHandledFailure } from "../observability/capture";
 import { generateToken, hashToken } from "../public-links/tokens";
 import { unwrap } from "./core/http";
 
@@ -396,19 +397,24 @@ calendarPublicRoutes.get("/calendar/oauth/:provider/callback", async (c) => {
       } catch {
         // No matching client-state digest was committed, so notifications are
         // rejected even if the provider's best-effort stop fails.
-        console.error("calendar OAuth provisional webhook cleanup failed", {
-          provider,
-        });
+        void reportHandledFailure(
+          env,
+          "calendar-oauth-webhook-cleanup",
+          new Error("Calendar OAuth provisional webhook cleanup failed"),
+          { ids: { provider } },
+        );
       }
     }
     // Never log the callback URL, query, state, verifier, authorization code,
     // access token, refresh token, ciphertext, or provider response. The class
     // name is enough to group operational failures without creating a second
     // credential store in logs.
-    console.error("calendar OAuth callback failed", {
-      provider,
-      error: error instanceof Error ? error.name : "UnknownError",
-    });
+    void reportHandledFailure(
+      env,
+      "calendar-oauth-callback",
+      new Error("Calendar OAuth callback failed"),
+      { ids: { provider, errorType: error instanceof Error ? error.name : "UnknownError" } },
+    );
     return failed();
   }
 });

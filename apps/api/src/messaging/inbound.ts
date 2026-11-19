@@ -27,10 +27,11 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { deadline } from "../http/deadline";
+import { ApiError } from "../http/errors";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { clearSavedInboundAlert, deliverSavedInboundAlert } from "../notifications/pending-inbound";
 import type { CrewNotifyVerdict } from "../notifications/pending-inbound";
-import { captureEvent, errorLogText } from "../observability/capture";
+import { captureEvent, errorLogText, reportHandledFailure } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
 import { classifyInbound } from "./spam-flag";
 import { stripImageLocation } from "../attachments/location";
@@ -245,8 +246,9 @@ async function captureFirstInboundReply(
     // referral bookkeeping problem must not fail a customer's inbound message.
     await qualifyReferralForSender(env, db, args.companyId);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error("first_inbound_reply capture skipped:", detail);
+    void reportHandledFailure(env, "first-inbound-reply-record", error, {
+      ids: { companyId: args.companyId },
+    });
   }
 }
 
@@ -452,7 +454,7 @@ export async function finishThreadedInbound(
         body,
       });
     } catch (error_) {
-      console.error("appointment confirmation failed:", error_);
+      void reportHandledFailure(env, "inbound-appointment-confirmation", error_);
     }
 
     // #313: "5" answering "how did it go?". Behind the same carrier gate and
@@ -480,7 +482,7 @@ export async function finishThreadedInbound(
         });
       }
     } catch (error_) {
-      console.error("job rating record failed:", error_);
+      void reportHandledFailure(env, "inbound-job-rating-record", error_);
     }
   }
 
@@ -517,10 +519,9 @@ export async function finishThreadedInbound(
         after: { from: fromE164 },
       });
     } catch (error_) {
-      console.error(
-        `opt-out language flag for conversation ${threaded.conversation_id} failed:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "inbound-opt-out-language", error_, {
+        ids: { conversationId: threaded.conversation_id },
+      });
     }
   }
 
@@ -589,7 +590,13 @@ export async function finishThreadedInbound(
         console.warn(`French opt-out confirmation refused for ${threaded.message_id}: ${confirmation.errorCode ?? "unknown"}`);
       }
     } catch (error) {
-      console.error(`French opt-out confirmation failed for ${threaded.message_id}:`, errorLogText(error));
+      if (error instanceof ApiError) {
+        console.warn(`French opt-out confirmation refused for ${threaded.message_id}:`, errorLogText(error));
+      } else {
+        void reportHandledFailure(env, "inbound-french-opt-out-confirmation", error, {
+          ids: { messageId: threaded.message_id },
+        });
+      }
     }
   }
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
@@ -609,10 +616,9 @@ export async function finishThreadedInbound(
         atUtc: new Date(),
       });
     } catch (error_) {
-      console.error(
-        `away-reply for conversation ${threaded.conversation_id} failed:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "inbound-away-reply", error_, {
+        ids: { conversationId: threaded.conversation_id },
+      });
     }
   }
 
@@ -667,10 +673,9 @@ export async function finishThreadedInbound(
         companyLocale: company?.locale ?? null,
       });
     } catch (error_) {
-      console.error(
-        `emergency acknowledgment for conversation ${threaded.conversation_id} failed:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "inbound-emergency-ack", error_, {
+        ids: { conversationId: threaded.conversation_id },
+      });
     }
   }
 
@@ -685,10 +690,9 @@ export async function finishThreadedInbound(
         businessName: company?.name ?? null,
       });
     } catch (error_) {
-      console.error(
-        `help reply for conversation ${threaded.conversation_id} failed:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "inbound-help-reply", error_, {
+        ids: { conversationId: threaded.conversation_id },
+      });
     }
   }
 
@@ -707,10 +711,9 @@ export async function finishThreadedInbound(
     try {
       await sendNotificationBudgetAlert(env, db, companyId, crossing, limits);
     } catch (error_) {
-      console.error(
-        `notification-budget alert for company ${companyId} failed:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "inbound-notification-budget-alert", error_, {
+        ids: { companyId },
+      });
     }
   }
 

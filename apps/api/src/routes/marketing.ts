@@ -40,6 +40,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
 import {
@@ -169,7 +170,7 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
     const result = await sendComparisonEmail(env, db, body.email);
     ({ sent } = result);
   } catch (error_) {
-    console.error(`marketing comparison send failed: ${String(error_)}`);
+    void reportHandledFailure(env, "marketing-comparison-email", error_);
   }
 
   // `sent` is reported honestly so the form can say "check your email" only when

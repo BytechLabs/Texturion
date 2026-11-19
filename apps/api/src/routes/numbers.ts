@@ -42,6 +42,7 @@ import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   parseJsonBody,
@@ -173,9 +174,9 @@ numbersRoutes.get("/", async (c) => {
           );
           ringTargets.set(row.id, dialTargets.length);
         } catch (error) {
-          console.error(
-            `ring target count failed for number ${row.id}: ${String(error)}`,
-          );
+          void reportHandledFailure(workerEnv(), "number-ring-target-count", error, {
+            ids: { phoneNumberId: row.id },
+          });
         }
       }),
   );
@@ -707,10 +708,9 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
       });
     }
   } catch (error_) {
-    console.error(
-      `extra-number convergence after release failed for ${companyId} (daily reconcile will settle it):`,
-      error_ instanceof Error ? error_.message : error_,
-    );
+    void reportHandledFailure(env, "extra-number-release-convergence", error_, {
+      ids: { companyId },
+    });
   }
 
   return c.json(sanitizeNumber(released as NumberRowFull, c.get("role")));

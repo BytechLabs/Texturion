@@ -28,6 +28,7 @@ import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { deliverPush } from "./deliver";
 import { NUMBER_NOTICE_COPY } from "./number-copy";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
@@ -172,6 +173,8 @@ export async function pushRegistrationApproved(
     // Swallowed on purpose. The transition is applied and the email is sent;
     // a push outage must not turn the best moment in the lifecycle into a
     // failed job that retries the whole approval.
-    console.error(`registration approval push failed for ${companyId}: ${String(error)}`);
+    void reportHandledFailure(env, "registration-approval-notification", error, {
+      ids: { companyId },
+    });
   }
 }

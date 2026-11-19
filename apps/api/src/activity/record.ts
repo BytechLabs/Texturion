@@ -14,6 +14,7 @@
  * change it describes has already been saved.
  */
 import type { getDb } from "../db";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -92,11 +93,9 @@ export async function recordActivity(db: Db, write: ActivityWrite): Promise<void
     });
     if (error) throw new Error(error.message);
   } catch (error) {
-    console.error(
-      `record_activity_add failed (${write.recordType} ${write.kind}): ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    void reportHandledFailure(workerEnv(), "record-activity-add", error, {
+      ids: { companyId: write.companyId, recordType: write.recordType, recordId: write.recordId, kind: write.kind },
+    });
   }
 }
 
@@ -116,10 +115,8 @@ export async function recordActivityForPhone(
       await recordActivity(db, { ...write, recordType: "contact", recordId: contactId });
     }
   } catch (error) {
-    console.error(
-      `record_activity_contacts_of_phone failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    void reportHandledFailure(workerEnv(), "record-activity-contacts", error, {
+      ids: { companyId: write.companyId, kind: write.kind },
+    });
   }
 }

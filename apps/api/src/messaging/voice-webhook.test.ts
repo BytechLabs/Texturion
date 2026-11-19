@@ -713,6 +713,7 @@ describe("handleCallEvent — terminal → text-back", () => {
 
   it.each([
     ["the leg already ended", 422, "90018", 0],
+    ["Telnyx denied the hang-up", 403, "10007", 1],
     ["Telnyx failed the hang-up", 500, "10007", 1],
   ])("refusing a leg when %s logs %s→%s as %i error(s)", async (_when, status, code, errors) => {
     const hangup = stubRoute(

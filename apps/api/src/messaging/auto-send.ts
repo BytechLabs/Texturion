@@ -23,6 +23,7 @@ import type { MessageAutomation } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { ApiError } from "../http/errors";
 import { isCarrierKeyword, suppressesAutoReply } from "./keywords";
 import { dispatchOutbound } from "./send";
@@ -194,9 +195,9 @@ export async function guardedAutoSend(
         .eq("id", args.conversationId)
         .eq("company_id", args.companyId);
       if (releaseError) {
-        console.error(
-          `${claimRpc} throttle release failed for conversation ${args.conversationId}: ${releaseError.message}`,
-        );
+        void reportHandledFailure(env, "auto-send-throttle-release", releaseError, {
+          ids: { conversationId: args.conversationId, claimRpc },
+        });
       }
     }
     throw error_;

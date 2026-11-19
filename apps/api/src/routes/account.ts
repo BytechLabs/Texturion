@@ -161,7 +161,7 @@ accountRoutes.delete("/account", async (c) => {
   const voiceRevoked = await releaseTelnyxCredentials(
     env,
     result.voice_credentials ?? [],
-    `account deletion ${userId}`,
+    "account deletion",
   );
 
   // #371 — the receipt, and the ORDERING IS THE WHOLE POINT. `severAuthIdentity`

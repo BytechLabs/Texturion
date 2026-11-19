@@ -25,7 +25,7 @@ import {
   campaignDraftSchema,
   isSoleProprietorDraft,
 } from "../telnyx/wizard";
-import { captureException } from "../observability/capture";
+import { captureException, reportHandledFailure } from "../observability/capture";
 
 /**
  * Registration routes (SPEC §7 route table, §4.2, §4.4). Mounted by the
@@ -247,7 +247,9 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
     try {
       await submitRegistration(env, companyId);
     } catch (error) {
-      console.error(`post-payment registration submit failed for ${companyId}: ${String(error)}`);
+      void reportHandledFailure(env, "post-payment-registration-submit", error, {
+        ids: { companyId },
+      });
     }
   }
 

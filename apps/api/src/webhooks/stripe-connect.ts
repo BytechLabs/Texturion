@@ -33,6 +33,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyPayment } from '../notifications/payment';
 import type { PaymentOutcome } from '../notifications/payment';
+import { reportHandledFailure } from "../observability/capture";
 import { insertConversationEvents } from "../routes/core/events";
 
 /**
@@ -325,7 +326,9 @@ async function alertTheCrew(
       db,
     );
   } catch (error) {
-    console.error(`payment alert failed for ${payment_request_id}: ${String(error)}`);
+    void reportHandledFailure(env, "stripe-connect-payment-notification", error, {
+      ids: { paymentRequestId: payment_request_id },
+    });
   }
 }
 
@@ -348,7 +351,7 @@ async function latestChargeFor(
   } catch (error) {
     // Not fatal. Without the charge id a later refund cannot be matched, which
     // costs a timeline row — not the payment, which is already recorded.
-    console.warn(`payment intent retrieve failed: ${String(error)}`);
+    void reportHandledFailure(env, "stripe-payment-intent-retrieve", error);
     return null;
   }
 }

@@ -30,6 +30,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { fetchWithDeadline } from "../http/deadline";
 import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
@@ -628,10 +629,10 @@ export async function deleteTelnyxRecording(
       });
     }
   } catch (error) {
-    console.error(
-      `telnyx recording delete failed for ${callSessionId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    if (error instanceof TelnyxApiError && error.status === 404) return;
+    void reportHandledFailure(env, "telnyx-recording-delete", error, {
+      ids: { callSessionId },
+    });
   }
 }
 

@@ -3,6 +3,7 @@ import type { Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { deliverPush } from "./deliver";
 import { DIGEST_PUSH_COPY } from "./digest-copy";
 
@@ -81,7 +82,9 @@ export async function runBatchFlush(
         summary.notifications += batch.notifications;
       }
     } catch (error_) {
-      console.error(`batch flush: ${batch.user_id} failed`, error_);
+      void reportHandledFailure(env, "notification-batch-flush", error_, {
+        ids: { companyId: batch.company_id },
+      });
     }
   }
 

@@ -44,7 +44,7 @@ import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
-import { captureException } from "../observability/capture";
+import { captureException, reportHandledFailure } from "../observability/capture";
 import {
   dispatchOutbound,
   gateOutboundSend,
@@ -239,7 +239,7 @@ paymentAccountRoutes.get(
         // The mirror is what we have. Saying "we cannot reach Stripe" on a
         // settings page nobody can act on from is worse than showing the last
         // known answer, which is right almost always.
-        console.warn(`connect refresh failed: ${String(error)}`);
+        void reportHandledFailure(env, "stripe-connect-refresh", error, { ids: { companyId } });
       }
     }
     return c.json(accountJson(row, scopeFor(c.get("role"))));
@@ -388,7 +388,7 @@ paymentRequestRoutes.post(
       try {
         account = await refreshConnectAccount(env, db, account);
       } catch (error) {
-        console.warn(`connect refresh failed: ${String(error)}`);
+        void reportHandledFailure(env, "stripe-connect-refresh", error, { ids: { companyId } });
       }
     }
     assertCanCharge(readinessOf(account));
@@ -925,7 +925,7 @@ async function stripeLinkUrl(
     );
     return link.active ? link.url : null;
   } catch (error) {
-    console.warn(`payment link retrieve failed: ${String(error)}`);
+    void reportHandledFailure(env, "stripe-payment-link-retrieve", error);
     return null;
   }
 }
@@ -944,7 +944,7 @@ async function deactivateStripeLink(
       { stripeAccount: account },
     );
   } catch (error) {
-    console.warn(`payment link deactivate failed: ${String(error)}`);
+    void reportHandledFailure(env, "stripe-payment-link-deactivate", error);
   }
 }
 
@@ -990,7 +990,9 @@ async function cancelQuietly(
       .eq("company_id", companyId)
       .eq("status", "requested");
   } catch (error) {
-    console.error(`payment request cleanup failed: ${String(error)}`);
+    void reportHandledFailure(env, "payment-request-cleanup", error, {
+      ids: { companyId, paymentRequestId: requestId },
+    });
   }
 }
 

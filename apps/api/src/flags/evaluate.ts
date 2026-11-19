@@ -29,6 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { flagDefault } from './registry';
 import type { FlagKey } from './registry';
 
@@ -89,7 +90,9 @@ async function loadFlags(
     cache.set(cacheKey, { values, expiresAt: now + TTL_MS });
     return values;
   } catch (error) {
-    console.error(`flags: evaluation failed, falling back to defaults: ${String(error)}`);
+    void reportHandledFailure(env, "flag-evaluation", error, {
+      ids: { scope: cacheKey },
+    });
     // Cache the empty answer too, briefly. Otherwise an outage in the flag
     // store turns into a retry storm against the same unhealthy database from
     // every request in flight.

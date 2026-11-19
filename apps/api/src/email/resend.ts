@@ -4,7 +4,7 @@ import type { Locale } from "@loonext/shared";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
-import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
+import { captureEvent, reportHandledFailure, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { emailTextFooter } from "./html";
 
 export interface SendEmailInput {
@@ -205,7 +205,7 @@ async function filterSuppressed(env: Env, to: string[]): Promise<string[]> {
     const blocked = new Set((data ?? []).map((row) => row.email));
     return to.filter((address) => !blocked.has(address.trim().toLowerCase()));
   } catch (error) {
-    console.error(`email suppression lookup failed, sending anyway: ${String(error)}`);
+    void reportHandledFailure(env, "email-suppression-lookup", error);
     return to;
   }
 }

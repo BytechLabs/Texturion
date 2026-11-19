@@ -5,9 +5,11 @@
  * attachment URL has been signed again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ERROR_CODE_STATUS } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { ApiError } from "../http/errors";
 import { signedMediaUrls } from "./media";
 import {
   claimMessageRetry,
@@ -17,7 +19,7 @@ import {
   STUCK_SEND_SECONDS,
 } from "./send";
 import type { MessageRow } from "./types";
-import { captureException } from "../observability/capture";
+import { captureException, errorLogText, reportHandledFailure } from "../observability/capture";
 
 /**
  * One automatic attempt, then the row falls to the fail-out sweeper.
@@ -146,8 +148,13 @@ export async function retryInterruptedSends(
       // fleet being retried. The row keeps its bumped counter, so it is the
       // fail-out sweeper's next, which is the correct destination for a send
       // that cannot go.
-      const detail = error_ instanceof Error ? error_.message : String(error_);
-      console.error(`auto-retry declined for message ${row.id}: ${detail}`);
+      if (error_ instanceof ApiError && ERROR_CODE_STATUS[error_.code] < 500) {
+        console.warn(`auto-retry declined for message ${row.id}:`, errorLogText(error_));
+      } else {
+        void reportHandledFailure(env, "message-auto-retry", error_, {
+          ids: { messageId: row.id },
+        });
+      }
       await persistSendInterruption(
         db,
         { id: row.id, company_id: row.company_id } as MessageRow,

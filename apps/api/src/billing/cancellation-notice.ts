@@ -20,6 +20,7 @@ import type Stripe from "stripe";
 import { recordAudit } from "../audit/log";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { reportHandledFailure } from "../observability/capture";
 import { pushConsequentialNotice } from "./consequential-push";
 import { SUBSCRIPTION_NOTICE_COPY } from "./subscription-notice-copy";
 import type { Env } from "../env";
@@ -99,7 +100,9 @@ export async function noticeCancellation(
       },
     });
   } catch (error) {
-    console.error(`cancellation audit failed for ${company.id}: ${String(error)}`);
+    void reportHandledFailure(env, "subscription-cancellation-audit", error, {
+      ids: { companyId: company.id },
+    });
   }
 
   try {
@@ -175,6 +178,8 @@ export async function noticeCancellation(
       collapseKey: `cancellation:${company.id}`,
     });
   } catch (error) {
-    console.error(`cancellation notice failed for ${company.id}: ${String(error)}`);
+    void reportHandledFailure(env, "subscription-cancellation-notice", error, {
+      ids: { companyId: company.id },
+    });
   }
 }
