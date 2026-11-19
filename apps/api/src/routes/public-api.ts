@@ -61,6 +61,8 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import { sendTextToConversation } from "../messaging/send-text";
+import { requestedAssignees } from "../tasks/assignees";
+import { afterTaskCreated } from "../tasks/follow-ups";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
 import { keysetFilter, optionalIdempotencyKey, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { composeConversation } from "./compose";
@@ -685,7 +687,16 @@ publicApiRoutes.post(
       );
     }
     if (!result?.task) throw new Error("api_create_public_task returned no row");
-    const [decorated] = await withLabelsAndRepeat(db, c.get("companyId"), [result.task]);
+    const companyId = c.get("companyId");
+    if (result.outcome === "created") {
+      await afterTaskCreated(c, {
+        companyId,
+        userId: c.get("userId"),
+        task: result.task,
+        assigneeIds: requestedAssignees(body) ?? [],
+      });
+    }
+    const [decorated] = await withLabelsAndRepeat(db, companyId, [result.task]);
     return c.json(publicTask(decorated), result.outcome === "replayed" ? 200 : 201);
   },
 );

@@ -36,6 +36,12 @@ export type OutboundWebhookEvent = {
   data: Record<string, unknown>;
 };
 
+type WebhookEventBatch = {
+  companyId: string;
+  type: WebhookEventType;
+  payloads: readonly Record<string, unknown>[];
+};
+
 /**
  * Write one delivery row per subscribed, active endpoint. Returns how many.
  *
@@ -43,19 +49,25 @@ export type OutboundWebhookEvent = {
  * execution context, and so the cron paths (which have no request to return)
  * can await it directly.
  */
-export async function enqueueWebhookEvent(
+export function enqueueWebhookEvent(
   db: SupabaseClient,
   event: OutboundWebhookEvent,
 ): Promise<number> {
+  return enqueueWebhookEventBatch(db, {
+    companyId: event.companyId,
+    type: event.type,
+    payloads: [event.data],
+  });
+}
+
+export async function enqueueWebhookEventBatch(
+  db: SupabaseClient,
+  batch: WebhookEventBatch,
+): Promise<number> {
+  if (batch.payloads.length === 0) return 0;
   try {
-    return await enqueue(db, event);
+    return await enqueue(db, batch);
   } catch (error) {
-    // This function is awaited from the middle of a send and the middle of the
-    // inbound handler, and every caller's comment says it cannot throw. That
-    // has to be TRUE rather than merely intended: a transport failure reaching
-    // `dispatchOutbound` would turn a text that already left the building into
-    // a 500, and a workspace's integration preference must never be able to do
-    // that. The event is lost and the message is not.
     void reportHandledFailure(workerEnv(), "webhook-enqueue", error);
     return 0;
   }
@@ -63,43 +75,41 @@ export async function enqueueWebhookEvent(
 
 async function enqueue(
   db: SupabaseClient,
-  event: OutboundWebhookEvent,
+  { companyId, type, payloads }: WebhookEventBatch,
 ): Promise<number> {
   const { data: endpoints, error } = await db
     .from("webhook_endpoints")
     .select("id")
-    .eq("company_id", event.companyId)
+    .eq("company_id", companyId)
     .eq("active", true)
     // `contains` is PostgREST's `@>`: endpoints whose subscription list
     // includes this name. The GIN index on `events` is what keeps this from
     // reading every endpoint the workspace owns.
-    .contains("events", [event.type])
+    .contains("events", [type])
     .limit(WEBHOOK_ENDPOINT_CAP);
 
   if (error || !endpoints || endpoints.length === 0) return 0;
 
   const createdAt = new Date().toISOString();
-  const rows = endpoints.map((endpoint: { id: string }) => {
-    // The delivery id is generated HERE rather than by the database default,
-    // because it has to appear inside the payload we are about to store. A
-    // row whose body claims a different id than the row itself is the kind of
-    // inconsistency that only shows up in somebody else's deduplication.
-    const id = crypto.randomUUID();
-    const envelope: WebhookEnvelope = {
-      id,
-      type: event.type,
-      created_at: createdAt,
-      company_id: event.companyId,
-      data: event.data,
-    };
-    return {
-      id,
-      company_id: event.companyId,
-      endpoint_id: endpoint.id,
-      event_type: event.type,
-      payload: envelope,
-    };
-  });
+  const rows = payloads.flatMap((data) =>
+    endpoints.map((endpoint: { id: string }) => {
+      const id = crypto.randomUUID();
+      const envelope: WebhookEnvelope = {
+        id,
+        type,
+        created_at: createdAt,
+        company_id: companyId,
+        data,
+      };
+      return {
+        id,
+        company_id: companyId,
+        endpoint_id: endpoint.id,
+        event_type: type,
+        payload: envelope,
+      };
+    }),
+  );
 
   const { error: insertError } = await db.from("webhook_deliveries").insert(rows);
   if (insertError) return 0;

@@ -28,6 +28,15 @@ interface AssigneeRow {
   user_id: string;
 }
 
+export function requestedAssignees(body: {
+  assignee_ids?: string[];
+  assigned_user_id?: string | null;
+}): string[] | undefined {
+  if (body.assignee_ids !== undefined) return [...new Set(body.assignee_ids)];
+  if (body.assigned_user_id === undefined) return undefined;
+  return body.assigned_user_id === null ? [] : [body.assigned_user_id];
+}
+
 function groupByTask(rows: AssigneeRow[]): Map<string, string[]> {
   const byTask = new Map<string, string[]>();
   for (const row of rows) {

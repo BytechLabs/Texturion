@@ -2112,6 +2112,48 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     expect(rpc.calls).toHaveLength(1);
   });
 
+  it("queues one webhook insert for completed tasks and asks ratings for customer work", async () => {
+    const noteTask = "88888888-0000-4000-8000-000000000088";
+    const callTask = "99999999-0000-4000-8000-000000000099";
+    const ids = [TASK_ID, noteTask, callTask];
+    const result = {
+      ...ok,
+      matched: 3,
+      applied: ids.map((id) => ({ id, previous: { done_at: null } })),
+    };
+    const rpc = rpcStub({
+      ...result,
+      completed_tasks: [
+        { id: TASK_ID, title: "Texted booking", source: { kind: "message", id: MESSAGE_ID }, askForRating: true },
+        { id: noteTask, title: "Internal note", source: { kind: "message", id: NOTE_ID }, askForRating: false },
+        { id: callTask, title: "Called booking", source: { kind: "call", id: CALL_ID }, askForRating: true },
+      ],
+    });
+    const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [{ id: "endpoint" }]);
+    const deliveries = stubRoute(restMatch(env, "POST", "webhook_deliveries"), () => []);
+    const settings = stubRoute(restMatch(env, "GET", "companies"), () => []);
+    const ratingReads = stubRoute(restMatch(env, "GET", "tasks"), () => []);
+    vi.mocked(notifyTaskChangeSafely).mockClear();
+    stubFetch(
+      jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route,
+      endpoints.route, deliveries.route, settings.route, ratingReads.route,
+    );
+
+    const response = await request("POST", "/v1/tasks/bulk", { action: "mark_done", ids });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(result);
+    expect(deliveries.calls).toHaveLength(1);
+    expect(deliveries.calls[0].body).toMatchObject([
+      { event_type: "task.completed", payload: { data: { task_id: TASK_ID, message_id: MESSAGE_ID } } },
+      { event_type: "task.completed", payload: { data: { task_id: noteTask, message_id: NOTE_ID } } },
+      { event_type: "task.completed", payload: { data: { task_id: callTask, message_id: null } } },
+    ]);
+    expect(ratingReads.calls.map((call) => call.url.searchParams.get("id")).sort())
+      .toEqual([`eq.${TASK_ID}`, `eq.${callTask}`].sort());
+    expect(notifyTaskChangeSafely).toHaveBeenCalledTimes(0);
+  });
+
   it("resolves a filter with the LIST's query, not a second one", async () => {
     // The whole design. "Mark everything matching this filter done" has to mean
     // exactly what the list showed, and the only way to guarantee that is for

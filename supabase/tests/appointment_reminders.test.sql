@@ -797,4 +797,64 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company uuid := '5e000000-0000-4000-8000-0000000000c1';
+  v_owner uuid := '5e000000-0000-4000-8000-00000000000a';
+  v_task uuid := '5e000000-0000-4000-8000-00000000ab02';
+  v_conversation uuid;
+  v_text uuid;
+  v_result jsonb;
+begin
+  update public.tasks set reminders_off = false, due_at = now() + interval '3 days' where id = v_task
+  returning conversation_id into v_conversation;
+  insert into public.scheduled_messages (company_id, conversation_id, task_id, body, send_at,
+    clock_timezone, clock_source, expires_at, created_by)
+  values (v_company, v_conversation, v_task, 'A separate update', now() + interval '1 day',
+    'America/New_York', 'area_code', now() + interval '2 days', v_owner)
+  returning id into v_text;
+  delete from public.calendar_reminder_replans where company_id = v_company and task_id = v_task;
+  v_result := pg_temp.sync(pg_temp.two_reminders());
+  if (v_result->>'added')::integer is distinct from 2 then
+    raise exception 'The bulk completion fixture needs two queued reminders: %', v_result;
+  end if;
+  update public.scheduled_messages set status = 'held', held_reason_key = 'customer_replied'
+   where company_id = v_company and task_id = v_task and origin = 'reminder'
+     and reminder_offset_minutes = 120 and status = 'pending';
+
+  v_result := public.api_bulk_tasks(v_company, v_owner, 'mark_done', array[v_task]);
+  if jsonb_array_length(v_result->'applied') is distinct from 1
+     or (v_result->'completed_tasks'->0->>'askForRating')::boolean is distinct from true
+     or exists (select 1 from public.scheduled_messages where company_id = v_company
+       and task_id = v_task and origin = 'reminder' and status in ('pending', 'held'))
+     or not exists (select 1 from public.scheduled_messages where id = v_text and status = 'pending') then
+    raise exception 'Bulk completion must cancel both reminders and retain scheduled texts: %', v_result;
+  end if;
+
+  v_result := pg_temp.sync(pg_temp.two_reminders());
+  if (v_result->>'added')::integer is distinct from 0 then
+    raise exception 'A planner reading before completion could queue reminders after it: %', v_result;
+  end if;
+
+  v_result := public.api_bulk_tasks(v_company, v_owner, 'mark_undone', array[v_task]);
+  if jsonb_array_length(v_result->'applied') is distinct from 1 or not exists (
+    select 1 from public.calendar_reminder_replans where company_id = v_company
+      and task_id = v_task and requester_user_id = v_owner and state = 'queued'
+  ) then
+    raise exception 'Bulk reopening must replan reminders: %', v_result;
+  end if;
+
+  v_result := pg_temp.sync(pg_temp.two_reminders());
+  if (v_result->>'added')::integer is distinct from 2 then
+    raise exception 'The bulk deletion fixture needs two queued reminders: %', v_result;
+  end if;
+  v_result := public.api_bulk_tasks(v_company, v_owner, 'delete', array[v_task]);
+  if jsonb_array_length(v_result->'applied') is distinct from 1 or exists (
+    select 1 from public.scheduled_messages where company_id = v_company and task_id = v_task
+      and origin = 'reminder' and status in ('pending', 'held')
+  ) then
+    raise exception 'Bulk deletion must cancel live reminders: %', v_result;
+  end if;
+end $$;
+
 rollback;
