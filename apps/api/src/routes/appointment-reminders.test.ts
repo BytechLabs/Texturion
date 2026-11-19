@@ -1,7 +1,3 @@
-/**
- * Saving the reminder rules replaces them: the old set is deleted, the new one
- * inserted, and the saved set returned.
- */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { copyFor } from "@loonext/shared";
 
@@ -46,11 +42,11 @@ it("suggests reminder text in the workspace's language", async () => {
 async function save(rules: { offset_minutes: number; body: string }[]) {
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(OWNER_ID, "owner"));
-  sb.on("DELETE", "/rest/v1/appointment_reminder_rules", () => []);
-  sb.on("POST", "/rest/v1/appointment_reminder_rules", () => []);
-  sb.on("GET", "/rest/v1/appointment_reminder_rules", () =>
-    rules.map((rule, index) => ({ id: `r${index}`, ...rule, enabled: true })),
-  );
+  sb.on("POST", "/rest/v1/rpc/api_replace_reminder_rules", () => ({
+    outcome: "saved",
+    rules: rules.map((rule, index) => ({ id: `r${index}`, ...rule, enabled: true })),
+    replanned_jobs: rules.length > 0 ? 3 : 0,
+  }));
   stubFetch(jwksRoute(auth), sb.route);
   const res = await apiRequest(app, env, await auth.token(), "/v1/appointment-reminders", {
     method: "PUT",
@@ -69,19 +65,19 @@ describe("PUT /v1/appointment-reminders", () => {
     const { res, sb } = await save(rules);
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { rules: unknown[] }).rules).toHaveLength(2);
-    expect(sb.find("DELETE", "/rest/v1/appointment_reminder_rules")).toHaveLength(1);
-    const inserted = sb.find("POST", "/rest/v1/appointment_reminder_rules")[0].body as {
-      offset_minutes: number;
-    }[];
-    expect(inserted.map((row) => row.offset_minutes)).toEqual([1440, 120]);
+    expect(await res.json()).toMatchObject({ rules, replanned_jobs: 3 });
+    expect(sb.find("POST", "/rest/v1/rpc/api_replace_reminder_rules")[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_rules: rules,
+    });
   });
 
   it("turns reminders off with an empty set, inserting nothing", async () => {
     const { res, sb } = await save([]);
 
     expect(res.status).toBe(200);
-    expect(sb.find("DELETE", "/rest/v1/appointment_reminder_rules")).toHaveLength(1);
-    expect(sb.find("POST", "/rest/v1/appointment_reminder_rules")).toHaveLength(0);
+    expect(await res.json()).toEqual({ rules: [], replanned_jobs: 0 });
+    expect(sb.find("POST", "/rest/v1/rpc/api_replace_reminder_rules")[0].body).toMatchObject({ p_rules: [] });
   });
 });

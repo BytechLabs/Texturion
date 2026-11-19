@@ -670,4 +670,47 @@ begin
   raise notice 'AR-12 PASSED: a reminder knows which inbound it was written against';
 end $$;
 
+do $$
+declare
+  v_company uuid := '5e000000-0000-4000-8000-0000000000c1';
+  v_owner uuid := '5e000000-0000-4000-8000-00000000000a';
+  v_task uuid := '5e000000-0000-4000-8000-00000000ab02';
+  v_result jsonb;
+  v_reminder uuid;
+begin
+  update public.tasks set reminders_off = false, due_at = now() + interval '3 days' where id = v_task;
+  perform pg_temp.sync(pg_temp.two_reminders());
+  update public.scheduled_messages
+     set status = 'held', held_reason = 'Customer replied.', held_reason_key = 'customer_replied'
+   where company_id = v_company and task_id = v_task and reminder_offset_minutes = 120 and status = 'pending'
+  returning id into v_reminder;
+
+  v_result := public.api_replace_reminder_rules(v_company, v_owner, '[{"offset_minutes":1440,"body":"See you tomorrow."}]');
+  if (v_result->>'replanned_jobs')::int is distinct from 1
+     or not exists (select 1 from public.scheduled_messages where id = v_reminder and status = 'canceled')
+     or not exists (
+       select 1 from public.api_claim_calendar_reminder_replans('rule-test', 10, 120)
+        where company_id = v_company and task_id = v_task
+     ) then
+    raise exception 'AR-13 FAILED: replacing a rule must cancel removed reminders and replan booked jobs: %', v_result;
+  end if;
+
+  v_result := public.api_replace_reminder_rules(v_company, v_owner, '[]');
+  if v_result->'rules' is distinct from '[]'::jsonb or exists (
+    select 1 from public.scheduled_messages where company_id = v_company
+      and origin = 'reminder' and status in ('pending', 'held')
+  ) then
+    raise exception 'AR-13 FAILED: clearing rules left live reminders: %', v_result;
+  end if;
+
+  perform pg_temp.sync(pg_temp.two_reminders());
+  select id into v_reminder from public.scheduled_messages where task_id = v_task
+    and reminder_offset_minutes = 120 and status = 'pending';
+  v_result := public.api_fire_scheduled_message(v_reminder, 1);
+  if v_result->>'outcome' is distinct from 'gone'
+     or not exists (select 1 from public.scheduled_messages where id = v_reminder and status = 'canceled') then
+    raise exception 'AR-13 FAILED: a reminder for a removed rule could still fire: %', v_result;
+  end if;
+end $$;
+
 rollback;

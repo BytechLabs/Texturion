@@ -1108,6 +1108,8 @@ private let settingsMoreIosRemindersEn: [String: String] = [
         + "one up — a job booked for tomorrow gets no text from us today.",
     "settingsMore.remindersSave": "Save reminders",
     "settingsMore.remindersSaved": "Saved. New jobs will carry these reminders.",
+    "settingsMore.remindersUpdatingOne": "Saved. Reminders for one booked job are being updated.",
+    "settingsMore.remindersUpdatingMany": "Saved. Reminders for {count} booked jobs are being updated.",
     "settingsMore.remindersSetUpUsual": "Set up the usual two",
     "settingsMore.remindersTitle": "Appointment reminders",
 ]
@@ -1130,6 +1132,8 @@ private let settingsMoreIosRemindersFr: [String: String] = [
         + "texto de notre part aujourd'hui.",
     "settingsMore.remindersSave": "Enregistrer les rappels",
     "settingsMore.remindersSaved": "Enregistré. Les nouveaux travaux porteront ces rappels.",
+    "settingsMore.remindersUpdatingOne": "Enregistré. Les rappels d'une tâche planifiée sont en cours de mise à jour.",
+    "settingsMore.remindersUpdatingMany": "Enregistré. Les rappels de {count} tâches planifiées sont en cours de mise à jour.",
     "settingsMore.remindersSetUpUsual": "Créer les deux rappels habituels",
     "settingsMore.remindersTitle": "Rappels de rendez-vous",
 ]

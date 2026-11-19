@@ -91,12 +91,16 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
 
   async function commit(rules: ReminderRule[]) {
     try {
-      await save.mutateAsync(rules);
-      toast.success(
-        rules.length === 0
-          ? t("settingsMore.remindersAllOff")
-          : t("settingsMore.remindersSaved"),
-      );
+      const result = await save.mutateAsync(rules);
+      const count = result.replanned_jobs ?? 0;
+      if (!result.rules.some((rule) => rule.enabled)) {
+        toast.success(t("settingsMore.remindersAllOff"));
+      } else if (count > 0) {
+        const message = count === 1 ? "settingsMore.remindersUpdatingOne" : "settingsMore.remindersUpdatingMany";
+        toast.success(t(message, { count }));
+      } else {
+        toast.success(t("settingsMore.remindersSaved"));
+      }
     } catch (error) {
       toast.error(
         error instanceof ApiError

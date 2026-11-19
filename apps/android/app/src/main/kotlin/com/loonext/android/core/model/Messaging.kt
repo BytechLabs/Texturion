@@ -551,7 +551,10 @@ data class ReminderRulesResponse(
 data class ReminderRulesBody(val rules: List<ReminderRule>)
 
 @Serializable
-data class ReminderRulesSaved(val rules: List<ReminderRule> = emptyList())
+data class ReminderRulesSaved(
+    val rules: List<ReminderRule> = emptyList(),
+    val replanned_jobs: Int = 0,
+)
 
 /** GET /v1/scheduled-messages. */
 @Serializable

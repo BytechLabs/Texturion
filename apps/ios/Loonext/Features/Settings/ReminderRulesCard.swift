@@ -158,13 +158,14 @@ struct ReminderRulesCard: View {
             )
             saved = result.rules
             draft = result.rules
-            scope.showMessage(
-                t(
-                    result.rules.isEmpty
-                        ? "settingsMore.remindersNowOff"
-                        : "settingsMore.remindersSaved"
-                )
-            )
+            if !result.rules.contains(where: \.enabled) {
+                scope.showMessage(t("settingsMore.remindersNowOff"))
+            } else if let count = result.replanned_jobs, count > 0 {
+                let key = count == 1 ? "settingsMore.remindersUpdatingOne" : "settingsMore.remindersUpdatingMany"
+                scope.showMessage(AppStrings.translate(appLocale, key, ["count": String(count)]))
+            } else {
+                scope.showMessage(t("settingsMore.remindersSaved"))
+            }
         } catch {
             scope.showMessage(error.userMessage)
         }
