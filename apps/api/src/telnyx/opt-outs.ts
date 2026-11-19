@@ -65,6 +65,7 @@ export interface CarrierOptOutPage {
 export async function listCarrierOptOuts(
   env: Env,
   messagingProfileId: string,
+  phoneE164?: string,
 ): Promise<CarrierOptOutPage> {
   const optOuts: CarrierOptOut[] = [];
   let page = 1;
@@ -75,11 +76,15 @@ export async function listCarrierOptOuts(
       path: "/v2/messaging_optouts",
       query: {
         "filter[messaging_profile_id]": messagingProfileId,
+        ...(phoneE164 ? { "filter[from]": phoneE164 } : {}),
         "page[number]": String(page),
         "page[size]": String(PAGE_SIZE),
       },
     });
 
+    if (phoneE164 && !Array.isArray(body?.data)) {
+      throw new Error("Telnyx returned no opt-out list for the sender");
+    }
     const items = Array.isArray(body?.data) ? body.data : [];
     for (const item of items) {
       // `from` is the customer. Anything without one is not usable as an

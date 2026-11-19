@@ -51,9 +51,12 @@ describe("#481 the off-ramp exemption is unreachable from anywhere else", () => 
     // The opt-out check in particular. A contact who sent STOP hears nothing,
     // ever, and a business leaving is not an exception to that (#331).
     const gate = readFileSync(join(SRC, "messaging", "send.ts"), "utf8");
+    const preSend = gate.slice(
+      gate.indexOf("export async function runPreSendGates("),
+      gate.indexOf("async function checkSendAvailability("),
+    );
     const afterExemption = gate.slice(gate.indexOf("offRampAllowed(env, companyId)"));
-    // Every remaining gate still sits below the one that was relaxed.
-    expect(afterExemption).toContain("opt_outs");
+    expect(preSend).toMatch(/await checkSendAvailability\([^;]+offRamp[^;]+\);[\s\S]*\.from\("opt_outs"\)/);
     expect(afterExemption).toContain("registration_pending");
     expect(afterExemption).toContain("Destination must be a US or Canada number");
   });

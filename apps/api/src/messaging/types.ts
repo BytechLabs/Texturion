@@ -60,6 +60,7 @@ export interface TelnyxMessagePayload {
   type?: string; // 'SMS' | 'MMS'
   direction?: string;
   text?: string;
+  autoresponse_type?: string;
   parts?: number;
   encoding?: string;
   cost?: { amount?: string; currency?: string } | null;

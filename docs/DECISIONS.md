@@ -176,6 +176,10 @@ older than 30 days for workspaces that never paid and have no carrier record.
   `stop_keyword | manual | import`, `created_at`, `revoked_at`, UNIQUE(company, phone)).
   Inbound webhook records STOP/START keywords (Telnyx marks them; also match the standard
   keyword list). START/UNSTOP revokes.
+- `ARRET`, `ARRÊT` and the exact phrase `arrêtez de m’écrire` record the same
+  opt-out as STOP. The app sends a French confirmation after recording the
+  block when Telnyx leaves the reply to us. `OUI` can lift an app-side block
+  once the carrier has cleared its own. `AIDE` gets the French help reply.
 - **Manual "mark opted out"** staff action (FCC 2025 rule: honor *any reasonable* revocation
   phrasing, e.g. "please stop texting me" — Telnyx only catches exact standalone keywords).
   Manual opt-out also pushes a block to Telnyx via API where supported.

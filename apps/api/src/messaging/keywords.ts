@@ -1,21 +1,6 @@
 import { isEmergencyKeyword } from "@loonext/shared";
 
-/**
- * The §5 / D3 standalone opt-out / opt-in / help keyword lists — the single
- * canonical source used by BOTH the inbound opt-out handler (inbound.ts) and the
- * shared auto-send guard (auto-send.ts). Telnyx auto-handles STOP/HELP/START
- * (profile-scoped, D3); no app auto-reply may fire ON one of these keywords
- * (FEATURE-GAPS Step 0b: "never fire on a STOP/HELP message").
- *
- * ONE ENTRY IS NOT CARRIER-HANDLED. `ARRET` is enforced entirely app-side
- * because Telnyx's set is English-only, so the sentence above stopped being
- * true of the whole list on 2026-08-04. The distinction matters when reading
- * this file: for every other keyword the network is a backstop behind us, and
- * for that one there is nothing behind us. See the note beside it.
- *
- * Matching is an exact match of the body after {@link normaliseKeyword}; no
- * Telnyx payload flag is relied on.
- */
+/** The app records STOP-family requests even when Telnyx leaves them to us. */
 export const STOP_KEYWORDS = new Set([
   "STOP",
   "STOPALL",
@@ -23,32 +8,11 @@ export const STOP_KEYWORDS = new Set([
   "CANCEL",
   "END",
   "QUIT",
-  // #228 - ARRET is the opt-out word a French-speaking customer in Canada will
-  // actually send, and it is the ONE entry in this file the carrier does not
-  // handle for us.
-  //
-  // Verified against the live messaging profile on 2026-08-04 rather than
-  // assumed: `smart_encoding` is off, there are no autoresp configs, so opt-out
-  // is Telnyx's built-in set, and that set is the English list above. An
-  // inbound ARRET therefore reaches us as an ordinary message. Before this it
-  // wrote no `opt_outs` row, raised no timeline event, and did not suppress the
-  // auto-reply - so somebody who asked in French to be left alone could receive
-  // an automated text back, and the crew's next send would go out normally.
-  //
-  // The basis is CASL, not the CWTA short-code rules that make STOP/ARRET/
-  // HELP/AIDE/INFO mandatory: those bind short codes and this product sends on
-  // long codes and toll-free. What binds us is that a clear withdrawal of
-  // consent has to be honoured whatever word carries it, and the safe direction
-  // for a standalone "ARRET" is never to keep texting.
-  //
-  // Both spellings, because a phone keyboard with French autocorrect produces
-  // the accent and a keyboard without it does not, and the difference is not
-  // the customer's problem.
   "ARRET",
   "ARRÊT",
 ]);
 
-export const START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
+export const START_KEYWORDS = new Set(["START", "UNSTOP", "YES", "OUI"]);
 
 /**
  * AIDE IS DELIBERATELY ABSENT, and that is the interesting half.
@@ -90,6 +54,14 @@ export function normaliseKeyword(body: string): string {
     .replaceAll(/\s+/g, " ");
 }
 
+export function isFrenchStopRequest(body: string): boolean {
+  const keyword = normaliseKeyword(body)
+    .normalize("NFD")
+    .replaceAll(/\p{M}/gu, "")
+    .replaceAll(/[’‘]/g, "'");
+  return keyword === "ARRET" || keyword === "ARRETEZ DE M'ECRIRE";
+}
+
 /** True when the inbound body is exactly a French request for help. */
 export function isFrenchHelpKeyword(body: string): boolean {
   return FRENCH_HELP_KEYWORDS.has(normaliseKeyword(body));
@@ -107,15 +79,12 @@ export {
   isEmergencyKeyword,
 } from "@loonext/shared";
 
-/**
- * True when the inbound body is a standalone STOP/START/HELP-family keyword
- * (Telnyx handles these; the guard must not auto-reply on them, and the
- * after-hours branch must not treat one as a normal "first inbound").
- */
+/** These requests take precedence over ordinary automated replies. */
 export function isCarrierKeyword(body: string): boolean {
   const keyword = normaliseKeyword(body);
   return (
     STOP_KEYWORDS.has(keyword) ||
+    isFrenchStopRequest(keyword) ||
     START_KEYWORDS.has(keyword) ||
     HELP_KEYWORDS.has(keyword)
   );

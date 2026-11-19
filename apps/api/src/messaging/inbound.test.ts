@@ -98,9 +98,9 @@ function serve(...stubs: Stub[]) {
   );
 }
 
-function numberStub(): Stub {
+function numberStub(companies?: { telnyx_messaging_profile_id: string }): Stub {
   return stubRoute(restMatch(env, "GET", "phone_numbers"), () => [
-    { id: NUMBER_ID, company_id: COMPANY_ID },
+    { id: NUMBER_ID, company_id: COMPANY_ID, status: "active", companies },
   ]);
 }
 
@@ -1475,6 +1475,56 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     expect(away.claim.calls, "the away reply answered an opt-out").toHaveLength(0);
   });
 
+  it.each(["ARRET", "ARRÊT", "arrêtez de m’écrire !", "ARRETEZ DE M'ECRIRE"])(
+    "records %j before sending a French confirmation",
+    async (text) => {
+      const { optOutUpsert, events } = keywordStubs();
+      const away = awayLiveStubs();
+      const thread = threadStub({});
+      const confirmation = stubRoute(
+        (url, request) => request.method === "POST" && url.href === "https://api.telnyx.com/v2/messages",
+        () => {
+          expect(optOutUpsert.calls).toHaveLength(1);
+          return { data: { id: "telnyx-confirmation" } };
+        },
+      );
+      serve(numberStub(), thread, optOutUpsert, events, confirmation, ...away.stubs);
+
+      await handleInboundMessage(env, inboundEvent({ text }));
+
+      expect(optOutUpsert.calls[0].body).toMatchObject({ source: "stop_keyword", revoked_at: null });
+      expect(events.calls[0].body).toMatchObject({ type: "opted_out" });
+      expect(thread.calls[0].body).not.toHaveProperty("p_notify_opt_out_hint");
+      expect(away.claim.calls).toHaveLength(0);
+      expect(confirmation.calls).toHaveLength(1);
+      expect(confirmation.calls[0].headers.get("Idempotency-Key")).toBe(`french-opt-out:${MESSAGE_ID}`);
+      expect(confirmation.calls[0].body).toMatchObject({
+        from: "+16135550100",
+        to: "+16135551000",
+        text: "Vous ne recevrez plus de textos de ce numéro.",
+      });
+    },
+  );
+
+  it.each([
+    [{ created: false }, {}],
+    [{ opted_out: true }, {}],
+    [{}, { autoresponseType: "STOP" }],
+  ])("skips a second French confirmation for thread %j and event %j", async (thread, event) => {
+    const { optOutUpsert, events } = keywordStubs();
+    const away = awayLiveStubs();
+    const confirmation = stubRoute(
+      (url, request) => request.method === "POST" && url.href === "https://api.telnyx.com/v2/messages",
+      () => ({ data: { id: "telnyx-confirmation" } }),
+    );
+    serve(numberStub(), threadStub(thread), optOutUpsert, events, confirmation, ...away.stubs);
+
+    await handleInboundMessage(env, inboundEvent({ ...event, text: "ARRÊT" }));
+
+    expect(optOutUpsert.calls).toHaveLength(1);
+    expect(confirmation.calls).toHaveLength(0);
+  });
+
   it("does send the away reply to an ordinary text at the same hour", async () => {
     // Without this the assertion above could pass on an away setup that never fires.
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -1557,5 +1607,60 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     expect(optOutUpsert.calls).toHaveLength(0);
     expect(events.calls).toHaveLength(0);
     expect(reminderLookup.calls, "the confirmation parser never saw it").toHaveLength(1);
+  });
+
+  it.each([false, true])("honors OUI with carrier block present = %s", async (carrierBlocked) => {
+    const { optOutRevoke, events, reminderLookup } = keywordStubs([{ id: "opt-out" }]);
+    const carrierOptOuts = stubRoute(
+      (url, request) => request.method === "GET" && url.pathname === "/v2/messaging_optouts",
+      () => ({ data: carrierBlocked ? [{ from: "+16135551000" }] : [] }),
+    );
+    serve(
+      numberStub({ telnyx_messaging_profile_id: "messaging-profile" }),
+      threadStub({ opted_out: true }),
+      awayDisabledStub(),
+      optOutRevoke,
+      events,
+      reminderLookup,
+      carrierOptOuts,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "Oui !" }));
+
+    expect(carrierOptOuts.calls[0].url.searchParams.get("filter[messaging_profile_id]")).toBe("messaging-profile");
+    expect(carrierOptOuts.calls[0].url.searchParams.get("filter[from]")).toBe("+16135551000");
+    expect(optOutRevoke.calls).toHaveLength(carrierBlocked ? 0 : 1);
+    if (!carrierBlocked) {
+      const [revoke] = optOutRevoke.calls;
+      const { revoked_at } = revoke.body as { revoked_at: string };
+      expect(revoke.url.searchParams.get("updated_at")).toBe(`lte.${revoked_at}`);
+    }
+    expect(events.calls).toHaveLength(carrierBlocked ? 0 : 1);
+    expect(reminderLookup.calls).toHaveLength(0);
+  });
+
+  it("lets OUI confirm an appointment without an active opt-out", async () => {
+    const { optOutRevoke, reminderLookup } = keywordStubs();
+    serve(numberStub(), threadStub({}), awayDisabledStub(), optOutRevoke, reminderLookup);
+
+    await handleInboundMessage(env, inboundEvent({ text: "Oui" }));
+
+    expect(optOutRevoke.calls).toHaveLength(0);
+    expect(reminderLookup.calls).toHaveLength(1);
+  });
+
+  it.each([[undefined, 1], ["HELP", 0]])("handles AIDE when Telnyx reports %s", async (autoresponseType, replies) => {
+    const away = awayLiveStubs();
+    serve(numberStub(), threadStub({}), ...away.stubs);
+
+    await handleInboundMessage(env, inboundEvent({ text: "Aide !", autoresponseType }));
+
+    expect(away.claim.calls).toHaveLength(replies);
+    if (replies) {
+      expect(away.claim.calls[0].body).toMatchObject({
+        p_automation: "help_reply",
+        p_body: expect.stringContaining("Repondez STOP"),
+      });
+    }
   });
 });
