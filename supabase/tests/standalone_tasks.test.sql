@@ -128,7 +128,7 @@ end $$;
 -- ST-2. create_task with no source.
 -- ---------------------------------------------------------------------------
 do $$
-declare r jsonb; v jsonb;
+declare r jsonb; v jsonb; v_note uuid;
 begin
   -- A title is required.
   r := public.create_task(
@@ -189,7 +189,8 @@ begin
      or (v->>'conversation_id')::uuid
         is distinct from 'a5000000-0000-4000-8000-0000000000e1'::uuid
      or (v->>'contact_id')::uuid
-        is distinct from 'a5000000-0000-4000-8000-0000000000a1'::uuid then
+        is distinct from 'a5000000-0000-4000-8000-0000000000a1'::uuid
+     or (v->>'reminders_off')::boolean is distinct from true then
     raise exception 'ST-2 FAILED: conversation-linked task is wrong: %', r;
   end if;
   if not exists (
@@ -199,6 +200,18 @@ begin
        and e.payload->>'task_id' = v->>'id'
        and not (e.payload ? 'message_id') and not (e.payload ? 'call_id')) then
     raise exception 'ST-2 FAILED: no task_created event on the linked conversation';
+  end if;
+
+  insert into public.messages (company_id, conversation_id, direction, body) values
+    ('a5000000-0000-4000-8000-0000000000c1', 'a5000000-0000-4000-8000-0000000000e1',
+     'note', 'Order the part')
+  returning id into v_note;
+  r := public.create_task(
+    'a5000000-0000-4000-8000-0000000000c1'::uuid, v_note, null, null,
+    null, now() + interval '3 days', 'a5000000-0000-4000-8000-00000000000a'::uuid);
+  if r->>'outcome' is distinct from 'created'
+     or (r->'task'->>'reminders_off')::boolean is distinct from true then
+    raise exception 'ST-2 FAILED: a promoted note started with reminders on: %', r;
   end if;
 
   -- The contact must be the conversation's.

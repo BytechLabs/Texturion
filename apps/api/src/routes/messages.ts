@@ -605,6 +605,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       companyId,
       messageId: updated.id,
       userId,
+      askForRating: updated.direction !== "note",
     });
   }
 
@@ -643,7 +644,12 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
  */
 function onPromotedMessageDone(
   c: Context<AppEnv>,
-  input: { companyId: string; messageId: string; userId: string },
+  input: {
+    companyId: string;
+    messageId: string;
+    userId: string;
+    askForRating: boolean;
+  },
 ): void {
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -670,11 +676,13 @@ function onPromotedMessageDone(
         source: { kind: "message", id: input.messageId },
       },
     });
-    await askForJobRating(db, {
-      companyId: input.companyId,
-      taskId: task.id,
-      userId: input.userId,
-    });
+    if (input.askForRating) {
+      await askForJobRating(db, {
+        companyId: input.companyId,
+        taskId: task.id,
+        userId: input.userId,
+      });
+    }
   })().catch((error: unknown) => reportHandledFailure(env, "task-completion-follow-up", error));
   executionCtxOf(c)?.waitUntil(work);
 }
