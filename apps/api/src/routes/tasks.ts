@@ -84,8 +84,6 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { enqueueWebhookEvent } from "../webhooks/outbound";
-import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
 import { companySettingDefault, roleHasCapability } from "@loonext/shared";
 import { doneToggleAction, taskAllowedActions } from "./task-actions";
@@ -93,9 +91,10 @@ import { ApiError, errorResponse } from "../http/errors";
 import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { captureUnusableModelOutput } from "../ai/output";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
-import { notifyAssigned } from "../notifications/assignment";
 import { mayHoldReference, syncReferences } from "../tasks/references";
-import { assigneeIdsSchema, MAX_ASSIGNEES } from "../tasks/assignees";
+import { assigneeIdsSchema, MAX_ASSIGNEES, requestedAssignees } from "../tasks/assignees";
+import { afterTaskCreated, afterTasksCompleted, notifyAssignedTask, syncRemindersAfterWrite } from "../tasks/follow-ups";
+import type { TaskCompletion } from "../tasks/follow-ups";
 import { notifyTaskChangeSafely } from '../tasks/notify';
 import type { TaskChange } from '../tasks/notify';
 import { PRIORITY_RANK, prioritySchema, repeatSchema, scopeSchema, withLabelsAndRepeat, withLabelsAndRepeatOne } from '../tasks/repeat';
@@ -991,25 +990,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     });
   }
 
-  // #515: a task created already pointed at somebody is a hand-off like any
-  // other. Creating one for yourself notifies nobody — `notifyAssigned` drops
-  // a self-assignment before it queries anything.
-  for (const assigneeUserId of assigneeIds) {
-    await notifyAssignedTask(c, {
-      companyId,
-      actorUserId: userId,
-      assigneeUserId,
-      task: result.task,
-      taskId: result.task.id as string,
-    });
-  }
-
-  // #237: a task created WITH a due date should already have its reminders.
-  await syncRemindersAfterWrite(c, {
-    companyId,
-    taskId: result.task.id as string,
-    userId,
-  });
+  await afterTaskCreated(c, { companyId, userId, task: result.task, assigneeIds });
 
   return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(created)), 201);
 });
@@ -1074,43 +1055,6 @@ export async function setTaskRepeat(
 }
 
 /**
- * Fire the #515 hand-off alert without letting it touch the response.
- *
- * Best-effort on purpose, and shared by both write paths: a dead push
- * subscription must never turn a saved task into an error for the person who
- * saved it. `waitUntil` where the runtime offers one, awaited otherwise (tests
- * and any host without an execution context), so nothing is silently dropped.
- */
-function notifyAssignedTask(
-  c: Context<AppEnv>,
-  input: {
-    companyId: string;
-    actorUserId: string;
-    assigneeUserId: string;
-    task: Record<string, unknown> | null;
-    taskId: string;
-  },
-): Promise<void> {
-  const env = getEnv(c.env);
-  const notify = notifyAssigned(env, {
-    kind: "task",
-    companyId: input.companyId,
-    taskId: input.taskId,
-    title: (input.task?.title as string | null | undefined) ?? null,
-    conversationId:
-      (input.task?.conversation_id as string | null | undefined) ?? null,
-    actorUserId: input.actorUserId,
-    assigneeUserId: input.assigneeUserId,
-  }).catch((error: unknown) => reportHandledFailure(env, "task-assignment-alert", error));
-  const ctx = executionCtxOf(c);
-  if (ctx) {
-    ctx.waitUntil(notify);
-    return Promise.resolve();
-  }
-  return notify;
-}
-
-/**
  * Fire a #689 D subscriber alert without letting it touch the response.
  *
  * The same contract as `notifyAssignedTask`: `waitUntil` where the runtime
@@ -1145,63 +1089,10 @@ async function readTaskBefore(
   }
 }
 
-/**
- * The crew a create or patch body asks for: `assignee_ids`, else the
- * one-person shorthand (null = nobody). Undefined when the body says nothing.
- */
-function requestedAssignees(body: {
-  assignee_ids?: string[];
-  assigned_user_id?: string | null;
-}): string[] | undefined {
-  if (body.assignee_ids !== undefined) return [...new Set(body.assignee_ids)];
-  if (body.assigned_user_id === undefined) return undefined;
-  return body.assigned_user_id === null ? [] : [body.assigned_user_id];
-}
-
 const sameInstant = (a: unknown, b: unknown): boolean => {
   if (a == null || b == null) return a == null && b == null;
   return new Date(a as string).getTime() === new Date(b as string).getTime();
 };
-
-/**
- * #237 — bring this job's reminders back in line with what it now says.
- *
- * Called after EVERY write, unconditionally, rather than only when `due_at`
- * moved. Deciding which edits are "reminder-relevant" is the judgement a caller
- * gets wrong eventually — a task marked done, a job suppressed, a rule changed
- * elsewhere — and the failure is a customer being told to expect somebody who
- * is not coming. The sync is idempotent and reads two small indexed rows, so
- * calling it always is cheaper than being clever about when.
- *
- * Best-effort, on the same `waitUntil` contract as the assignment alert: a
- * queue that could not be rebuilt must never turn a saved task into an error.
- * On a host with no execution context it is AWAITED rather than left dangling —
- * an unawaited fetch outlives the request that started it, and in the test
- * runner that means one route's background read landing inside another route's
- * assertions. (It did: a GET-filters test started failing only in the full
- * recursive run.)
- *
- * What makes best-effort safe rather than sloppy is `jobStillBooked` in
- * `messaging/scheduled-send.ts` — the fire-time check that refuses to send a
- * reminder for a job which is no longer booked, whatever the queue holds. This
- * call keeps the queue ACCURATE for the people looking at it; that check keeps
- * it SAFE for the customer.
- */
-function syncRemindersAfterWrite(
-  c: Context<AppEnv>,
-  input: { companyId: string; taskId: string; userId: string },
-): Promise<void> {
-  const env = getEnv(c.env);
-  const work = syncTaskReminders(getDb(env), input)
-    .then(() => undefined)
-    .catch((error: unknown) => reportHandledFailure(env, "task-reminder-sync", error));
-  const ctx = executionCtxOf(c);
-  if (ctx) {
-    ctx.waitUntil(work);
-    return Promise.resolve();
-  }
-  return work;
-}
 
 // --------------------------------------------------------------------------
 // #214 — task enrichment (Cloudflare Workers AI). A pure SUGGESTION endpoint:
@@ -1883,6 +1774,7 @@ interface TaskBulkResult {
   failed?: { id: string; reason: string }[];
   capped?: boolean;
   error?: string;
+  completed_tasks?: TaskCompletion[];
 }
 
 const taskBulkSchema = z
@@ -2044,7 +1936,11 @@ tasksRoutes.post(
     if (result.error === "tag_not_found") {
       throw new ApiError("validation_failed", "tag_id: no such tag in this company.");
     }
-    return c.json(result);
+    const { completed_tasks: completed, ...response } = result;
+    if (completed?.length) {
+      await afterTasksCompleted(c, { companyId, userId, tasks: completed });
+    }
+    return c.json(response);
   },
 );
 
@@ -2636,51 +2532,6 @@ async function loadTaskActivity(
 }
 
 /**
- * A call-anchored task just went done: the same two follow-ups
- * `onPromotedMessageDone` runs for a message task: tell the workspace's own
- * systems (#243 `task.completed`) and ask the customer how it went (#313).
- * Best-effort on `waitUntil`: finishing a job must never fail because a
- * satisfaction question could not be queued.
- */
-function onCallTaskDone(
-  c: Context<AppEnv>,
-  input: {
-    companyId: string;
-    userId: string;
-    task: {
-      id: string;
-      title: string | null;
-      source: ReturnType<typeof taskSource>;
-    };
-  },
-): void {
-  const env = getEnv(c.env);
-  const db = getDb(env);
-  const work = (async () => {
-    await enqueueWebhookEvent(db, {
-      companyId: input.companyId,
-      type: "task.completed",
-      data: {
-        task_id: input.task.id,
-        title: input.task.title,
-        message_id: null,
-        source: input.task.source,
-      },
-    });
-    // Only a job taken on the phone asks the customer how it went. A standalone
-    // task is the crew's own to-do (#689), even when it links to a thread.
-    if (input.task.source?.kind === "call") {
-      await askForJobRating(db, {
-        companyId: input.companyId,
-        taskId: input.task.id,
-        userId: input.userId,
-      });
-    }
-  })().catch((error: unknown) => reportHandledFailure(env, "task-completion-follow-up", error));
-  executionCtxOf(c)?.waitUntil(work);
-}
-
-/**
  * PATCH /v1/tasks/:id: metadata (T4) and, for a task with no message, `done`
  * (D64). An assignee change writes `task_assigned`; a due_at change writes
  * `task_due_set`. A message task's completion stays on the message route.
@@ -2895,14 +2746,16 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     // Only a real transition finishes a job: `unchanged` is a second tap on the
     // same tick and must not queue a second rating question.
     if (result.outcome === "updated" && body.done) {
-      onCallTaskDone(c, {
+      const source = taskSource(latest ?? {});
+      await afterTasksCompleted(c, {
         companyId,
         userId,
-        task: {
+        tasks: [{
           id,
           title: (latest?.title as string | null) ?? null,
-          source: taskSource(latest ?? {}),
-        },
+          source,
+          askForRating: source?.kind === "call",
+        }],
       });
     }
   }
@@ -2950,7 +2803,6 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // `latest` is the freshest. If an assignee no-op preceded nothing else, or a
   // combined no-op, fall back to the current row so the response is always the
   // task's present state.
-  // #237: unconditionally, whatever changed. See syncRemindersAfterWrite.
   if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
   if (latest) {

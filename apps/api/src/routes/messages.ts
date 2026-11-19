@@ -46,10 +46,9 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from "../env";
 import { notifyPromotedMessageDone } from "../tasks/notify";
-import { askForJobRating } from "../messaging/job-ratings";
+import { afterTasksCompleted, syncRemindersAfterWrite } from "../tasks/follow-ups";
 import { ApiError } from "../http/errors";
 import { reportHandledFailure } from "../observability/capture";
 import { encodeCursor } from '../http/pagination';
@@ -588,30 +587,14 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
 
   const updated = result.message;
 
-  // #313: a promoted message going DONE is a job finishing, which is the only
-  // moment worth asking a customer how it went.
-  //
-  // Gated on 'updated' rather than on `body.done`: the RPC answers 'unchanged'
-  // for a redundant mark-done, and a crew tapping the tick twice must not queue
-  // two questions. Gated on the message actually carrying a task, because a
-  // done note is somebody tidying their own list, not a visit.
-  //
-  // Best-effort on `waitUntil`, like every other automated ask: completing a
-  // job must never fail because a satisfaction question could not be queued,
-  // and the RPC behind it is idempotent per job, so a lost one costs a signal
-  // rather than correctness.
-  if (result.outcome === "updated" && body.done === true) {
-    onPromotedMessageDone(c, {
+  if (result.outcome === "updated" && body.done !== undefined) {
+    await afterPromotedMessageDoneChange(c, db, {
       companyId,
       messageId: updated.id,
       userId,
+      done: body.done,
       askForRating: updated.direction !== "note",
     });
-  }
-
-  // #689 D: the people following that job hear it was finished or reopened.
-  // Best-effort on `waitUntil`, like the ask above.
-  if (result.outcome === "updated" && body.done !== undefined) {
     const alert = notifyPromotedMessageDone(getEnv(c.env), {
       companyId,
       messageId: updated.id,
@@ -627,32 +610,18 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
   return c.json(messageJson(updated, attachments.get(updated.id) ?? []));
 });
 
-/**
- * A promoted message just went done — do the two things that follow.
- *
- * #313 — find the job this message was promoted into, and ask the customer how
- * it went. The lookup lives here rather than inside `askForJobRating` because
- * the done route knows a MESSAGE and the rating knows a TASK, and putting the
- * join in the messaging module would make it take an argument every other
- * caller has to translate into.
- *
- * #243 — and tell the workspace's own systems, off the SAME lookup. A second
- * message→task join for the webhook would be a second round trip on a hot
- * action to answer a question this one already answered, and the honest place
- * for `task.completed` is wherever the product decides a job is finished —
- * which is right here, not in a route named after tasks.
- */
-function onPromotedMessageDone(
+async function afterPromotedMessageDoneChange(
   c: Context<AppEnv>,
+  db: ReturnType<typeof getDb>,
   input: {
     companyId: string;
     messageId: string;
     userId: string;
+    done: boolean;
     askForRating: boolean;
   },
-): void {
+): Promise<void> {
   const env = getEnv(c.env);
-  const db = getDb(env);
   const work = (async () => {
     const tasks = unwrap<{ id: string; title: string | null }[]>(
       await db
@@ -662,29 +631,30 @@ function onPromotedMessageDone(
         .eq("message_id", input.messageId)
         .is("deleted_at", null)
         .limit(1),
-      "rating task lookup",
+      "promoted task lookup",
     );
     const [task] = tasks;
     if (!task) return;
-    await enqueueWebhookEvent(db, {
+    await syncRemindersAfterWrite(c, {
       companyId: input.companyId,
-      type: "task.completed",
-      data: {
-        task_id: task.id,
-        title: task.title,
-        message_id: input.messageId,
-        source: { kind: "message", id: input.messageId },
-      },
+      taskId: task.id,
+      userId: input.userId,
     });
-    if (input.askForRating) {
-      await askForJobRating(db, {
+    if (input.done) {
+      await afterTasksCompleted(c, {
         companyId: input.companyId,
-        taskId: task.id,
         userId: input.userId,
+        tasks: [{
+          ...task,
+          source: { kind: "message", id: input.messageId },
+          askForRating: input.askForRating,
+        }],
       });
     }
   })().catch((error: unknown) => reportHandledFailure(env, "task-completion-follow-up", error));
-  executionCtxOf(c)?.waitUntil(work);
+  const ctx = executionCtxOf(c);
+  if (ctx) ctx.waitUntil(work);
+  else await work;
 }
 
 /** Keyset for rows strictly NEWER than the cursor, (created_at, id) ascending. */

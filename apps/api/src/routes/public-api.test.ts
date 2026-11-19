@@ -616,19 +616,43 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
-  it("creates a public task as the key's creator", async () => {
+  it("creates a public booking and runs reminder and assignment follow-ups", async () => {
     const sb = stubWithKey(["tasks:write"]);
+    const due = new Date(Date.now() + 3 * 86_400_000);
+    due.setUTCHours(18, 0, 0, 0);
+    const task = {
+      id: "11111111-1111-4111-8111-111111111112",
+      title: "Fix the boiler",
+      message_id: "11111111-1111-4111-8111-111111111111",
+      conversation_id: CONVERSATION_ID,
+      due_at: due.toISOString(),
+      reminders_off: false,
+    };
     sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       outcome: "created",
-      task: { id: "tk-1", title: "Fix the boiler" },
+      task,
     }));
+    sb.on("GET", "/rest/v1/tasks", () => [{
+      ...task,
+      conversations: { contact_phone_e164: "+14165550100", contacts: { timezone: "America/Toronto" } },
+    }]);
+    sb.on("GET", "/rest/v1/appointment_reminder_rules", () => [
+      { offset_minutes: 120, body: "See you before the visit.", enabled: true },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => [{ phone_number_id: null }]);
+    sb.on("GET", "/rest/v1/company_members", () => [{ user_id: MEMBER_ID, role: "member" }]);
+    sb.on("GET", "/rest/v1/notification_prefs", () => [{ user_id: MEMBER_ID, push_enabled: false }]);
+    sb.on("POST", "/rest/v1/rpc/api_sync_task_reminders", () => ({ outcome: "synced", added: 1 }));
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/tasks", {
       method: "POST",
       body: JSON.stringify({
-        message_id: "11111111-1111-4111-8111-111111111111",
-        title: "Fix the boiler",
+        message_id: task.message_id,
+        title: task.title,
+        due_at: task.due_at,
+        assigned_user_id: MEMBER_ID,
       }),
     });
     expect(res.status).toBe(201);
@@ -638,7 +662,14 @@ describe("writes", () => {
       p_company_id: COMPANY_ID,
       p_actor_user_id: CREATOR,
       p_idempotency_key: null,
-      p_task: { title: "Fix the boiler" },
+      p_task: { title: task.title, due_at: task.due_at, assigned_user_id: MEMBER_ID },
+    });
+    const [preferenceRead] = sb.find("GET", "/rest/v1/notification_prefs");
+    expect(preferenceRead.url.searchParams.get("user_id")).toBe(`eq.${MEMBER_ID}`);
+    const [reminderSync] = sb.find("POST", "/rest/v1/rpc/api_sync_task_reminders");
+    expect(reminderSync.body).toMatchObject({
+      p_task_id: task.id,
+      p_reminders: [{ offset_minutes: 120, body: "See you before the visit." }],
     });
   });
 
@@ -661,6 +692,8 @@ describe("writes", () => {
       p_api_key_id: KEY_ID,
       p_idempotency_key: "task-create-1",
     });
+    expect(sb.find("POST", "/rest/v1/rpc/api_sync_task_reminders")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/notification_prefs")).toHaveLength(0);
   });
 
   it("returns a keyed conflict when a task request reuses an idempotency key", async () => {
@@ -779,6 +812,7 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
       p_task: { title: "Order a filter", contact_id: "22222222-2222-4222-8222-222222222222" },
     });
+    expect(sb.find("POST", "/rest/v1/rpc/api_sync_task_reminders")).toHaveLength(0);
   });
 
   it("creates a task for a crew and reports assignee_ids with assigned_user_id as the first (#689 C)", async () => {
@@ -794,6 +828,11 @@ describe("writes", () => {
     sb.on("GET", "/rest/v1/task_assignees", () => [
       { task_id: "tk-9", user_id: A },
       { task_id: "tk-9", user_id: B },
+    ]);
+    sb.on("GET", "/rest/v1/company_members", () => [{ user_id: A }, { user_id: B }]);
+    sb.on("GET", "/rest/v1/notification_prefs", () => [
+      { user_id: A, push_enabled: false },
+      { user_id: B, push_enabled: false },
     ]);
     sb.on("GET", "/rest/v1/profiles", () => [
       { user_id: A, display_name: "Ana" },

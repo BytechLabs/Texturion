@@ -17,6 +17,7 @@ import {
 } from "../public-links/tokens";
 import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
+import { afterTaskCreated } from "../tasks/follow-ups";
 
 /**
  * #287 — the half a homeowner sees. Outside `/v1`, and therefore outside every
@@ -371,7 +372,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
    * tell them the price was not accepted when it was.
    */
   if (row.message_id && row.created_by) {
-    const { error } = await db.rpc("create_task", {
+    const { data, error } = await db.rpc("create_task", {
       p_company_id: resolved.company_id,
       p_message_id: row.message_id,
       // The scope, in the customer's own agreed words.
@@ -389,6 +390,15 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       p_addr_provenance: null,
     });
     if (error) console.error(`quote accepted job failed: ${error.message}`);
+    const result = data as { outcome: string; task?: Record<string, unknown> } | null;
+    if (!error && result?.outcome === "created" && result.task) {
+      await afterTaskCreated(c, {
+        companyId: resolved.company_id,
+        userId: row.created_by,
+        task: result.task,
+        assigneeIds: [],
+      });
+    }
   }
 
   return c.json({ accepted: true, status: "accepted" });
