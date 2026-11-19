@@ -89,7 +89,9 @@ export const publicPaymentRoutes = new Hono<AppEnv>();
  * recognise is how a legitimate charge becomes a chargeback, which lands on the
  * business, not on us. A crew that needs longer sends another.
  */
-const PAYMENT_LINK_DAYS = 14;
+const PAYMENT_REQUEST_DAYS = 14;
+const PAYMENT_RECEIPT_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The row shape every response is built from. */
 const REQUEST_COLUMNS =
@@ -407,7 +409,7 @@ paymentRequestRoutes.post(
     }
 
     const description = body.description.trim();
-    const expiresAt = new Date(Date.now() + PAYMENT_LINK_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + PAYMENT_REQUEST_DAYS * DAY_MS);
 
     // The row first, so the link and the token have something to point at and
     // so a crash between the two leaves a request nobody can pay rather than a
@@ -436,11 +438,8 @@ paymentRequestRoutes.post(
       purpose: "payment",
       subjectType: "payment_request",
       subjectId: request.id,
-      expiresAt,
-      // Deliberately NOT single-use. A homeowner opens the text, gets
-      // interrupted, and comes back — and a link that died on the first tap
-      // would tell them the business had cancelled on them. The link dies when
-      // the request is PAID, which is the event that actually spends it.
+      expiresAt: new Date(expiresAt.getTime() + PAYMENT_RECEIPT_DAYS * DAY_MS),
+      // Customers reopen this page to check whether their payment went through.
       actorUserId: c.get("userId"),
     });
 
@@ -614,13 +613,12 @@ paymentRequestRoutes.post(
       (PaymentRequestRow & {
         stripe_payment_link_id: string | null;
         stripe_account_id: string;
-        public_link_id: string | null;
       })[]
     >(
       await db
         .from("payment_requests")
         .select(
-          `${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id,public_link_id`,
+          `${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id`,
         )
         .eq("company_id", companyId)
         .eq("id", requestId)
@@ -656,9 +654,6 @@ paymentRequestRoutes.post(
     }
 
     await deactivateStripeLink(env, row.stripe_account_id, row.stripe_payment_link_id);
-    if (row.public_link_id) {
-      await revokePublicLink(db, row.public_link_id, "the crew cancelled the request");
-    }
 
     const updated = unwrap<PaymentRequestRow[]>(
       await db
@@ -675,6 +670,11 @@ paymentRequestRoutes.post(
         .select(REQUEST_COLUMNS),
       "payment request cancel",
     )[0];
+    if (!updated) {
+      const current = await loadRequest(db, companyId, requestId);
+      if (!current) return errorResponse(c, "not_found", "No such payment request.");
+      return c.json(requestJson(current, c.get("role")));
+    }
 
     await insertConversationEvents(db, [
       {
@@ -699,7 +699,7 @@ paymentRequestRoutes.post(
       after: { status: "cancelled" },
     });
 
-    return c.json(requestJson(updated ?? row, c.get("role")));
+    return c.json(requestJson(updated, c.get("role")));
   },
 );
 

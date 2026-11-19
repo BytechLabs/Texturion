@@ -14,7 +14,6 @@ import {
 import {
   mintPublicLink,
   resolvePublicLink,
-  revokeLinksForSubject,
 } from "../public-links/tokens";
 import { insertConversationEvents } from "./core/events";
 import { unwrap } from "./core/http";
@@ -287,23 +286,18 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     return c.json({ accepted: true, status: "accepted" });
   }
 
-  /*
-   * Both tokens die with the decision. A quote that has been answered has no
-   * further use for a link, and leaving a live one is an accept route standing
-   * open on a settled price.
-   */
-  await revokeLinksForSubject(
-    db,
-    // #571 put the company id first and made it required: without it this
-    // revoked ANY workspace's live customer link from a subject uuid alone,
-    // and a subject uuid is something the app shows people.
-    resolved.company_id,
-    "quote",
-    row.id,
-    "quote accepted",
-  ).catch((error: unknown) => {
-    console.error(`quote link revoke failed: ${String(error)}`);
-  });
+  try {
+    const { error } = await db.from("public_links")
+      .update({ revoked_at: now.toISOString(), revoke_reason: "quote accepted" })
+      .eq("company_id", resolved.company_id)
+      .eq("subject_type", "quote")
+      .eq("subject_id", row.id)
+      .eq("purpose", "quote_accept")
+      .is("revoked_at", null);
+    if (error) console.error(`quote accept link revoke failed: ${error.message}`);
+  } catch (error) {
+    console.error(`quote accept link revoke failed: ${String(error)}`);
+  }
 
   /*
    * #287 — AND THE CREW IS TOLD.

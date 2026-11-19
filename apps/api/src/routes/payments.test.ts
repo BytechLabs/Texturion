@@ -480,11 +480,16 @@ describe("#224 asking for money", () => {
 
   it("mints a direct charge on the connected account with no platform fee", async () => {
     const harness = buildHarness();
+    const mint = vi.fn(() => "link-0001");
+    harness.rest.rpc("api_mint_public_link", mint);
     const response = await harness.request(
       `/v1/conversations/${CONVERSATION_ID}/payment-requests`,
       post({ amount_cents: 25_000, description: "Deposit for Tuesday" }),
     );
     expect(response.status).toBe(201);
+    const requestExpiry = new Date(String(harness.rest.rows("payment_requests")[0].expires_at));
+    const receiptExpiry = new Date(requestExpiry.getTime() + 30 * 24 * 60 * 60 * 1000);
+    expect(mint).toHaveBeenCalledWith(expect.objectContaining({ p_expires_at: receiptExpiry.toISOString() }));
 
     const create = harness.stripeCalls.find(
       (call) => call.url.pathname === "/v1/payment_links" && call.method === "POST",
@@ -573,11 +578,12 @@ describe("#224 calling it off", () => {
     expect(response.status).toBe(200);
   });
 
-  it("deactivates the Stripe link and revokes the customer's page", async () => {
+  it("deactivates checkout and keeps the cancelled page open", async () => {
+    const requestId = "55555555-0000-4000-8000-000000000057";
     const harness = buildHarness({
       requests: [
         {
-          id: "55555555-0000-4000-8000-000000000057",
+          id: requestId,
           company_id: COMPANY_ID,
           conversation_id: CONVERSATION_ID,
           contact_id: CONTACT_ID,
@@ -592,7 +598,17 @@ describe("#224 calling it off", () => {
         },
       ],
     });
-    const response = await harness.request("/v1/payment-requests/55555555-0000-4000-8000-000000000057/cancel", {
+    let revoked = false;
+    harness.rest.rpc("api_revoke_public_link", () => {
+      revoked = true;
+    });
+    harness.rest.rpc("api_resolve_public_link", () => revoked ? { ok: false, outcome: "revoked" } : {
+      ok: true,
+      outcome: "ok",
+      company_id: COMPANY_ID,
+      subject_id: requestId,
+    });
+    const response = await harness.request(`/v1/payment-requests/${requestId}/cancel`, {
       method: "POST",
     });
     expect(response.status).toBe(200);
@@ -602,6 +618,9 @@ describe("#224 calling it off", () => {
     expect(deactivate?.form.get("active")).toBe("false");
     expect(deactivate?.headers.get("Stripe-Account")).toBe(ACCOUNT_ID);
     expect(harness.rest.rows("payment_requests")[0].status).toBe("cancelled");
+    const receipt = await harness.request(`/pay/${"a".repeat(43)}`);
+    expect(receipt.status).toBe(200);
+    await expect(receipt.json()).resolves.toMatchObject({ state: "cancelled", pay_url: null });
   });
 
   it("the same cancel applied twice writes one thread event and calls Stripe once", async () => {
@@ -638,6 +657,38 @@ describe("#224 calling it off", () => {
     expect((await cancel()).status).toBe(200);
     expect(cancelledEvents(), "the thread was told twice").toHaveLength(1);
     expect(harness.stripeCalls, "Stripe was asked again").toHaveLength(stripeCalls);
+  });
+
+  it("reports a payment that settles during cancellation without recording a cancellation", async () => {
+    const requestId = "55555555-0000-4000-8000-000000000060";
+    const harness = buildHarness({
+      requests: [{
+        id: requestId,
+        company_id: COMPANY_ID,
+        conversation_id: CONVERSATION_ID,
+        contact_id: CONTACT_ID,
+        amount_cents: 25_000,
+        currency: "usd",
+        description: "Deposit",
+        status: "requested",
+        stripe_account_id: ACCOUNT_ID,
+        stripe_payment_link_id: "plink_0001",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      }],
+    });
+    const vendorFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (request.url === "https://api.stripe.com/v1/payment_links/plink_0001" && request.method === "POST") {
+        Object.assign(harness.rest.rows("payment_requests")[0], { status: "paid", paid_at: new Date().toISOString() });
+      }
+      return vendorFetch(request);
+    });
+
+    const response = await harness.request(`/v1/payment-requests/${requestId}/cancel`, { method: "POST" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ state: "paid" });
+    expect(harness.rest.rows("conversation_events")).toHaveLength(0);
   });
 
   it("refuses a request belonging to another workspace as a 404", async () => {

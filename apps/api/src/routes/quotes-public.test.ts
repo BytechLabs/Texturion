@@ -117,6 +117,21 @@ describe("GET /q/:token", () => {
     expect(body.can_accept).toBe(false);
   });
 
+  it("shows the receipt on an accepted quote's view link", async () => {
+    const sb = stubResolving("quote_view");
+    sb.on("GET", "/rest/v1/quotes", () => [quote({ status: "accepted" })]);
+    stubFetch(sb.route);
+
+    const res = await call(`/q/${TOKEN}`);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      status: "accepted",
+      can_accept: false,
+      accept_token: null,
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+  });
+
   it("stamps the first view once, and never over a decision", async () => {
     const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
@@ -188,21 +203,25 @@ describe("POST /q/:token/accept", () => {
     expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
   });
 
-  it("accepts a live quote and kills both links", async () => {
+  it("accepts a live quote and revokes only acceptance credentials", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
 
-    const revoke = sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject")[0];
-    // #571: the company id is required and first. Without it this revoked any
-    // workspace's live link from a subject uuid alone.
-    expect((revoke.body as { p_company_id: string }).p_company_id).toBe(COMPANY_ID);
+    const revoke = sb.find("PATCH", "/rest/v1/public_links")[0];
+    expect(Object.fromEntries(revoke.url.searchParams)).toMatchObject({
+      company_id: `eq.${COMPANY_ID}`,
+      subject_type: "eq.quote",
+      subject_id: `eq.${QUOTE_ID}`,
+      purpose: "eq.quote_accept",
+      revoked_at: "is.null",
+    });
   });
 
   it("tells the crew's thread that their quote was accepted", async () => {
@@ -215,7 +234,7 @@ describe("POST /q/:token/accept", () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
@@ -247,7 +266,7 @@ describe("POST /q/:token/accept", () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created" }));
     stubFetch(sb.route);
@@ -273,7 +292,7 @@ describe("POST /q/:token/accept", () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote({ message_id: null })]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
@@ -288,7 +307,7 @@ describe("POST /q/:token/accept", () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => {
       throw new Error("timeline down");
     });
@@ -339,7 +358,7 @@ describe("POST /q/:token/accept", () => {
       moved = true;
       return [{ id: QUOTE_ID }];
     });
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
@@ -357,7 +376,7 @@ describe("POST /q/:token/accept", () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     sb.on("PATCH", "/rest/v1/quotes", () => [{ id: QUOTE_ID }]);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("PATCH", "/rest/v1/public_links", () => []);
     stubFetch(sb.route);
 
     await call(`/q/${TOKEN}/accept`, { method: "POST" });

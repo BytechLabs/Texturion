@@ -161,7 +161,7 @@ export async function resolvePublicLink(
   return data as ResolvedLink;
 }
 
-/** Revoke one link — the payment that completed, the quote that was withdrawn. */
+/** Revoke one link, such as a payment request that could not be delivered. */
 export async function revokePublicLink(
   db: SupabaseClient,
   linkId: string,

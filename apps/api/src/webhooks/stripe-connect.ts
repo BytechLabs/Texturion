@@ -148,20 +148,12 @@ async function handleConnectCheckout(
     amount_cents?: number;
     currency?: string;
     description?: string;
-    public_link_id?: string | null;
   };
   // `already_paid` and `unknown` both stop here, and both are correct: a
   // redelivery must not write a second timeline row, and an event for a link we
   // did not create is not ours to act on.
   if (result.outcome !== "paid" || !result.company_id || !result.conversation_id) {
     return;
-  }
-
-  // The link has done its job. Revoked rather than left to expire so the page
-  // stops being openable the moment the money lands — a live payment page for a
-  // paid bill is how somebody pays twice.
-  if (result.public_link_id) {
-    await revokeQuietly(db, result.public_link_id);
   }
 
   await insertConversationEvents(db, [
@@ -354,12 +346,4 @@ async function latestChargeFor(
     console.warn(`payment intent retrieve failed: ${String(cause)}`);
     return null;
   }
-}
-
-async function revokeQuietly(db: SupabaseClient, linkId: string): Promise<void> {
-  const { error } = await db.rpc("api_revoke_public_link", {
-    p_link_id: linkId,
-    p_reason: "paid",
-  });
-  if (error) console.warn(`revoke paid link failed: ${error.message}`);
 }

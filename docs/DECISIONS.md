@@ -3873,9 +3873,12 @@ below follows from that sentence.
   Without this, one leaked view link accepts the quote.
 - **Expiry is NOT NULL.** A link with no expiry is the failure this exists to
   prevent, and making it representable would guarantee somebody creates one.
-- **Revocation is always individual.** `max_uses: 1` kills a payment link on
-  payment; revoke-by-subject is "this quote is withdrawn" in one call. The ICS
-  feed (#245) is the awkward case the issue names — long-lived by nature, pasted
+- **Revocation is always individual.** `max_uses: 1` spends a quote acceptance
+  token. A decision revokes the other acceptance tokens and keeps the quote
+  view open until its own expiry. A payment page stays open for receipt and
+  status checks until 30 days after the request expires, with its state
+  controlling whether it offers the Stripe link. Explicit revocation still
+  takes effect immediately. The ICS feed (#245) is long-lived and pasted
   into third-party servers — and individual rotation is the only control that
   fits it.
 - **One failure page for every failure.** Expired, revoked, spent, wrong purpose,
@@ -8118,7 +8121,9 @@ second time meets a card form for money they already sent. Ours is a D75 public
 link (256 bits, hash-only, mandatory expiry, individually revocable) showing
 three facts and one button, under the BUSINESS's name with none of our branding
 and none of the customer's own details. The card form stays Stripe's, on
-Stripe's domain.
+Stripe's domain. The request is payable for 14 days. Its public page stays
+open for another 30 days to show the settled or expired state. Payment and
+crew cancellation take away the card form immediately.
 
 ### What this does NOT change
 

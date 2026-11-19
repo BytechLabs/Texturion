@@ -21,6 +21,7 @@ import { FakeRest } from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
 import type { Stripe } from "../billing/stripe";
 import { notifyPayment } from "../notifications/payment";
+import { publicPaymentRoutes } from "../routes/payments";
 import { processStripeEvent } from "./stripe";
 
 /**
@@ -116,8 +117,6 @@ function buildHarness(rows: Record<string, unknown>[] = []) {
     };
   });
 
-  rest.rpc("api_revoke_public_link", () => null);
-
   const stripeCalls: string[] = [];
   stubFetch(
     async (url) => {
@@ -206,6 +205,26 @@ describe("#224 a connected account's checkout", () => {
     // No actor: the customer did this, and stamping a crew member would put a
     // name against somebody else's action.
     expect(events[0].actor_user_id).toBeNull();
+  });
+
+  it("keeps the customer's original link open as a receipt after the webhook", async () => {
+    const harness = buildHarness([openRequest()]);
+    harness.rest.table("companies").insert("companies", { id: COMPANY_ID, name: "Northline Plumbing" });
+    let revoked = false;
+    harness.rest.rpc("api_revoke_public_link", () => {
+      revoked = true;
+    });
+    harness.rest.rpc("api_resolve_public_link", () => revoked ? { ok: false, outcome: "revoked" } : {
+      ok: true,
+      outcome: "ok",
+      company_id: COMPANY_ID,
+      subject_id: harness.rest.rows("payment_requests")[0].id,
+    });
+
+    await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
+    const receipt = await publicPaymentRoutes.request(`/pay/${"a".repeat(43)}`, {}, harness.env);
+    expect(receipt.status).toBe(200);
+    await expect(receipt.json()).resolves.toMatchObject({ state: "paid", pay_url: null });
   });
 
   /**
