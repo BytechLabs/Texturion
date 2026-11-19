@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LoadError } from "@/components/ui/load-error";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
@@ -205,6 +206,10 @@ export function CalendarView({ state }: { state: TaskPageState }) {
 
   return (
     <div className="space-y-3">
+      <ResultsStatus
+        query={state.q}
+        count={query.isSuccess && !query.isPlaceholderData ? tasks.length : null}
+      />
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <Button

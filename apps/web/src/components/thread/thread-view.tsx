@@ -49,6 +49,7 @@ import type {
 } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { contactDisplayName } from "@/lib/format/phone";
+import { useDocumentTitle } from "@/lib/push/document-title";
 import {
   inboxHref,
   THREAD_CALL_PARAM,
@@ -213,6 +214,7 @@ function ThreadPlaceholder({ row, backHref }: { row: ConversationListItem; backH
   const t = useT();
   const memberNames = useMemberNames();
   const name = contactDisplayName(row.contact);
+  useDocumentTitle(name);
   const assigneeName = row.assigned_user_id
     ? memberNames.get(row.assigned_user_id) ?? t("thread.teammate")
     : null;
@@ -279,6 +281,7 @@ function ThreadLoaded({
   backHref: string;
   searchParams: URLSearchParams;
 }) {
+  useDocumentTitle(contactDisplayName(conversation.contact));
   const t = useT();
   const conversationId = conversation.id;
   const queryClient = useQueryClient();
@@ -476,6 +479,7 @@ function ThreadLoaded({
             conversationId={conversationId}
             initialQuery={initialFind ?? ""}
             initialMessage={searchParams.get(THREAD_MESSAGE_PARAM)}
+            openedManually={findOpen}
             onJump={(id) => setFindHit({ id })}
             onClose={() => {
               setFindOpen(false);

@@ -112,7 +112,7 @@ export function InboxPane() {
       />
       <FilterBar filters={filters} onChange={setFilters} />
       {searching ? (
-        <SearchResults q={q} listQuery={currentQuery} />
+        <SearchResults q={q} listQuery={currentQuery} activeConversationId={activeConversationId} />
       ) : (
         <>
           {/* G7 step 7: the dismissible getting-started checklist sits atop

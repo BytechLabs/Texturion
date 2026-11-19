@@ -68,6 +68,7 @@ import { useRecordActivity } from "@/lib/api/record-activity";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { useDocumentTitle } from "@/lib/push/document-title";
 import { cn } from "@/lib/utils";
 import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
 import type { AutosaveState } from "@/lib/hooks/use-debounced-autosave";
@@ -905,6 +906,9 @@ export default function ContactDetailPage({
     ? erasure.data : null;
   const resolvedId = contact.data?.id;
   const redirecting = !contact.isError && resolvedId !== undefined && resolvedId !== id;
+  useDocumentTitle(
+    contact.data && !contact.isError && !redirecting ? contactDisplayName(contact.data) : null,
+  );
   useEffect(() => {
     if (!redirecting || contact.isFetching) return;
     const { search, hash } = window.location;

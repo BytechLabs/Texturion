@@ -41,6 +41,7 @@ const OWN_TITLE_ALLOWED = new Set([
   "app/(app)/contacts/[id]/page.tsx",
   "components/calls/call-detail.tsx",
   "components/inbox/new-conversation.tsx",
+  "components/thread/thread-header.tsx",
 ]);
 
 function walk(dir: string): string[] {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useDocumentTitleOverride } from "@/lib/push/document-title";
 import { useUnreadTitle } from "@/lib/push/use-unread-title";
 
 /**
@@ -8,6 +9,7 @@ import { useUnreadTitle } from "@/lib/push/use-unread-title";
  * mounted once in the app shell so it covers every signed-in screen.
  */
 export function UnreadTitleManager() {
-  useUnreadTitle();
+  const title = useDocumentTitleOverride();
+  useUnreadTitle(title);
   return null;
 }

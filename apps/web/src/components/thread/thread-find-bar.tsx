@@ -7,28 +7,34 @@ import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { useT } from "@/i18n/provider";
 import { useFindThreadMessages } from "@/lib/api/messages";
+import { useInboxFocus } from "@/lib/inbox/navigation-focus";
 
 export function ThreadFindBar({
   conversationId,
   initialQuery,
   initialMessage,
+  openedManually = false,
   onJump,
   onClose,
 }: {
   conversationId: string;
   initialQuery: string;
   initialMessage: string | null;
+  openedManually?: boolean;
   onJump: (id: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
   const field = useRef<HTMLInputElement>(null);
+  const focus = useInboxFocus();
   const [input, setInput] = useState(initialQuery);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState(initialMessage);
   useEffect(() => {
+    const request = focus?.current;
+    if (!openedManually && request?.conversationId === conversationId && request.searchResultId) return;
     field.current?.focus({ preventScroll: true });
-  }, []);
+  }, [conversationId, focus, openedManually]);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), 250);
     return () => clearTimeout(timer);

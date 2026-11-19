@@ -81,6 +81,7 @@ export function AiStatus({
 }) {
   return (
     <span
+      role="status"
       className={cn(
         "inline-flex items-center gap-1.5 text-[11px] text-muted-foreground",
         className,

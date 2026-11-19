@@ -1,14 +1,16 @@
 "use client";
 
 import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { Lock, MessageSquarePlus, SearchX } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import { useT } from "@/i18n/provider";
 import { useInboxSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { trackThreadLinkFocus, useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { Timestamp } from "@/components/ui/timestamp";
 
 import { StatusPill } from "./status-pill";
@@ -25,6 +27,7 @@ interface SearchLink {
   id: string;
   title: string;
   href: string;
+  conversationId?: string;
   snippet?: string;
   phone?: string | null;
 }
@@ -49,11 +52,34 @@ export function renderSnippet(snippet: string): React.ReactNode[] {
   );
 }
 
-export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: string }) {
+export function SearchResults({
+  q,
+  listQuery = "",
+  activeConversationId,
+}: {
+  q: string;
+  listQuery?: string;
+  activeConversationId?: string | null;
+}) {
   const t = useT();
   const search = useInboxSearch(q);
   const canOpenSettings = useCanOpenSettings();
   const [scope, setScope] = useState<SearchScope>("all");
+  const focus = useInboxFocus();
+  const list = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeConversationId || !search.data || !focus || !list.current || window.location.pathname !== "/inbox") {
+      return;
+    }
+    const request = focus.current;
+    if (!request?.searchResultId || request.headingPending) return;
+    const links = list.current.querySelectorAll<HTMLAnchorElement>("a[data-inbox-result]");
+    const link = Array.from(links).find((item) => item.dataset.inboxResult === request.searchResultId);
+    if (!link || link.closest('[aria-hidden="true"]')) return;
+    focus.current = null;
+    link.focus({ preventScroll: true });
+  }, [activeConversationId, focus, scope, search.data]);
 
   if (search.isPending) {
     return <SearchSkeleton />;
@@ -102,6 +128,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
         id: hit.id,
         title: hit.file_name,
         href: inboxHref({ conversationId: hit.conversation_id, listQuery }),
+        conversationId: hit.conversation_id,
       }] : []),
     },
     {
@@ -114,11 +141,19 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
       })) : [],
     },
   ].filter((group) => scope === "all" || group.scope === scope);
-  const empty = uniqueConversations.length === 0 && contacts.length === 0 &&
-    !otherGroups.some((group) => group.hits.length > 0);
+  const count = uniqueConversations.length + contacts.length +
+    otherGroups.reduce((sum, group) => sum + group.hits.length, 0);
+
+  function handleThreadLinkClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    const { threadId, inboxResult } = event.currentTarget.dataset;
+    if (threadId && inboxResult) {
+      trackThreadLinkFocus(event, focus, threadId, threadId === activeConversationId, inboxResult);
+    }
+  }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div ref={list} className="min-h-0 flex-1 overflow-y-auto">
+      <ResultsStatus query={q} count={search.isPlaceholderData ? null : count} />
       <div className="sticky top-0 z-10 bg-app-ground px-4 py-2">
         <SegmentedControl
           value={scope}
@@ -134,7 +169,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
           ]}
         />
       </div>
-      {empty && (
+      {count === 0 && (
         <EmptyState
           className="min-h-44"
           icon={<SearchX strokeWidth={1.75} />}
@@ -149,6 +184,9 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
           {uniqueConversations.map((hit) => (
             <Link
               key={hit.id}
+              data-thread-id={hit.id}
+              data-inbox-result={`conversation:${hit.id}`}
+              onClick={handleThreadLinkClick}
               href={inboxHref({
                 conversationId: hit.id,
                 listQuery,
@@ -199,6 +237,9 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
               <div key={contact.id} className="flex items-center border-b border-border-subtle">
                 <Link
                   href={thread ? inboxHref({ conversationId: thread, listQuery }) : compose}
+                  data-thread-id={thread}
+                  data-inbox-result={thread ? `contact:${contact.id}` : undefined}
+                  onClick={thread ? handleThreadLinkClick : undefined}
                   className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <span className="truncate text-sm font-medium text-foreground">
@@ -226,7 +267,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
         </section>
       )}
       {otherGroups.map(({ heading, hits }) => (
-        <SearchLinkGroup key={heading} heading={heading} hits={hits} />
+        <SearchLinkGroup key={heading} heading={heading} hits={hits} onThreadLinkClick={handleThreadLinkClick} />
       ))}
       {showTexts && search.hasNextPage && (
         <div className="px-4 py-3">
@@ -247,7 +288,15 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
   );
 }
 
-function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[] }) {
+function SearchLinkGroup({
+  heading,
+  hits,
+  onThreadLinkClick,
+}: {
+  heading: string;
+  hits: SearchLink[];
+  onThreadLinkClick: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
   if (hits.length === 0) return null;
   return (
     <section aria-label={heading}>
@@ -256,6 +305,9 @@ function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[
         <div key={hit.id} className="flex items-center border-b border-border-subtle">
           <Link
             href={hit.href}
+            data-thread-id={hit.conversationId}
+            data-inbox-result={hit.conversationId ? `attachment:${hit.id}` : undefined}
+            onClick={hit.conversationId ? onThreadLinkClick : undefined}
             className="block min-w-0 flex-1 px-4 py-3 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className="block truncate text-sm font-medium text-foreground">{hit.title}</span>

@@ -11,6 +11,7 @@ import {
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationListItem } from "@/lib/api/types";
 import { flattenPages } from "@/lib/api/pagination";
+import { useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -232,6 +233,14 @@ export function ConversationList({
   }
   useFlipRows(rowElements, offsets);
   const ghosts = useRowExit(rows, offsets);
+  const focus = useInboxFocus();
+  useEffect(() => {
+    const request = focus?.current;
+    if (activeConversationId || window.location.pathname !== "/inbox") return;
+    if (!request || request.headingPending) return;
+    const index = rows.findIndex(({ id }) => id === request.conversationId);
+    if (index !== -1) virtualizer.scrollToIndex(index);
+  }, [activeConversationId, focus, rows, virtualizer]);
 
   // #694: j/k/e/s/a/l/r/u / ? on the list.
   const shortcuts = useInboxShortcuts({

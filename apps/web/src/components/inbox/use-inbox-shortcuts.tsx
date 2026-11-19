@@ -16,6 +16,7 @@ import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import type { ConversationListItem } from "@/lib/api/types";
 import type { BulkConversationsBody } from "@/lib/inbox/bulk-selection";
+import { queueThreadHeading, useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
 import { inboxHref } from "@/lib/inbox/thread-href";
 import { requestComposerFocus, shortcutForEvent } from '@/lib/inbox/shortcuts';
@@ -64,6 +65,7 @@ export function useInboxShortcuts({
   const router = useRouter();
   const [enabled] = useSingleKeyShortcuts();
   const [cursorId, setCursorId] = useState<string | null>(null);
+  const focus = useInboxFocus();
   const [helpOpen, setHelpOpen] = useState(false);
   const [picker, setPicker] = useState<{ kind: PickerKind; id: string } | null>(null);
   const members = useMembers();
@@ -139,6 +141,7 @@ export function useInboxShortcuts({
       if (!row) return;
       switch (action) {
         case "open": {
+          if (row.id !== active) queueThreadHeading(focus, row.id);
           router.push(inboxHref({ conversationId: row.id, listQuery }));
           return;
         }
@@ -175,7 +178,7 @@ export function useInboxShortcuts({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [enabled, router, markRead, markUnread]);
+  }, [enabled, focus, router, markRead, markUnread]);
 
   const cursorRow = cursorId ? rows.find((row) => row.id === cursorId) : undefined;
   const announcement = cursorRow

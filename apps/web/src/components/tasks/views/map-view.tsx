@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
@@ -62,6 +63,7 @@ export function MapView({ state }: { state: TaskPageState }) {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   const { located, missing } = useMemo(() => partitionLocated(tasks), [tasks]);
+  const status = <ResultsStatus query={state.q} count={query.isPlaceholderData ? null : located.length} />;
 
   const requestNearMe = () => {
     if (!("geolocation" in navigator)) {
@@ -111,18 +113,23 @@ export function MapView({ state }: { state: TaskPageState }) {
         </div>
       );
     }
-    if (anyUnlocated) {
-      return <UnmappedTasks />;
-    }
     return (
-      <div className="space-y-3">
-        <EmptyTasks state={state} />
-      </div>
+      <>
+        {status}
+        {anyUnlocated ? (
+          <UnmappedTasks />
+        ) : (
+          <div className="space-y-3">
+            <EmptyTasks state={state} />
+          </div>
+        )}
+      </>
     );
   }
 
   return (
     <div className="space-y-3">
+      {status}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <MapPin className="size-3.5" strokeWidth={1.75} aria-hidden />

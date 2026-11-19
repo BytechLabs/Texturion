@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { RecordContextMenu } from "@/components/ui/record-menu";
+import { ResultsStatus } from "@/components/ui/results-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { TASK_PAGE_LIMIT, useAllTasks, useTasks } from "@/lib/api/tasks";
@@ -100,13 +101,23 @@ export function BoardView({ state }: { state: TaskPageState }) {
   const all = [...byId.values()];
   const todo = all.filter((t) => !t.done);
   const done = all.filter((t) => t.done);
+  const status = <ResultsStatus query={state.q} count={busy ? null : all.length} />;
 
   // An empty last answer says nothing yet about the filter now loading.
-  if (all.length === 0) return busy ? <BoardSkeleton /> : <EmptyTasks state={state} />;
+  if (all.length === 0) {
+    if (busy) return <BoardSkeleton />;
+    return (
+      <>
+        {status}
+        <EmptyTasks state={state} />
+      </>
+    );
+  }
 
   if (state.group === "assignee" || state.group === "priority") {
     return (
       <div aria-busy={busy} className={cn("space-y-4", busy && BUSY_CLASS)}>
+        {status}
         <GroupedBoard tasks={all} group={state.group} busy={busy} />
         {moreDone && <LoadMoreButton more={moreDone} />}
       </div>
@@ -118,6 +129,7 @@ export function BoardView({ state }: { state: TaskPageState }) {
       aria-busy={busy}
       className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", busy && BUSY_CLASS)}
     >
+      {status}
       <Column title={t("tasks.boardColumnToDo")} tasks={todo} target={false} busy={busy} />
       <Column
         title={t("tasks.boardColumnDone")}

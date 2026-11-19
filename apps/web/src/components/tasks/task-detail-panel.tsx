@@ -39,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from '@/i18n/provider';
 import type { MessageKey, Translate } from '@/i18n/provider';
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
+import { useDocumentTitle } from "@/lib/push/document-title";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
@@ -165,13 +166,15 @@ function reminderLine(task: TaskDetail, t: Translate): string {
 export function TaskDetailPanel({
   taskId,
   onClose,
+  standalone = false,
 }: {
   taskId: string;
   onClose?: () => void;
+  standalone?: boolean;
 }) {
   return (
     <>
-      <TaskDetailContent taskId={taskId} onClose={onClose} />
+      <TaskDetailContent taskId={taskId} onClose={onClose} standalone={standalone} />
       <TaskSectionReads taskId={taskId} />
     </>
   );
@@ -192,23 +195,26 @@ function TaskSectionReads({ taskId }: { taskId: string }) {
 function TaskDetailContent({
   taskId,
   onClose,
+  standalone,
 }: {
   taskId: string;
   onClose?: () => void;
+  standalone: boolean;
 }) {
   const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const query = useTask(taskId);
+  const notFound =
+    query.error instanceof ApiError && query.error.code === "not_found";
+  const pendingRow = query.isPending ? findCachedTaskRow(queryClient, companyId, taskId) : undefined;
+  useDocumentTitle(standalone && !notFound ? (query.data?.title ?? pendingRow?.title ?? null) : null);
 
   if (query.isPending) {
-    const row = findCachedTaskRow(queryClient, companyId, taskId);
-    return row ? <TaskDetailPlaceholder row={row} /> : <TaskDetailSkeleton />;
+    return pendingRow ? <TaskDetailPlaceholder row={pendingRow} /> : <TaskDetailSkeleton />;
   }
 
   // A failed refetch keeps the loaded task on screen; a task that is gone does not.
-  const notFound =
-    query.error instanceof ApiError && query.error.code === "not_found";
   if (query.isLoadingError || notFound) {
     return (
       <LoadError
