@@ -10174,9 +10174,7 @@ three clients, with typed confirmation for Delete forever.
 **Jobs linked to a text or call.** The delete confirmation offers to trash the
 source alone or with its job. The Trash row shows the linked job number. A job
 trashed with its source comes back when the source is restored, and its reminders
-are replanned. Trashing the source alone keeps the job visible until the source
-is erased. At erasure, the job loses its title, description, address, and map
-position.
+are replanned. D169 describes what a kept job retains after its source is erased.
 
 **Customer erasure.** A member with `records.delete` and access to all of the
 customer's lines can confirm erasure in the contact's Manage section. The
@@ -10669,3 +10667,16 @@ A transition into removed or refused queues one operational push for the
 connecting member. Repeated observations of the same condition add no push.
 Delivery checks that the item still needs review and the member still has
 access. The notification opens For You and carries no customer details.
+
+## D169 - a kept job survives erasure of its source (#807, amends D150)
+
+Deleting only a text, note or call leaves its job in Tasks. When the source is
+erased, the job becomes standalone and keeps the same conversation access,
+job number, schedule, crew, completion, comments and direct job files. It gets
+a neutral title. The old title, description, address, map pin, and those values
+in job history are erased. Earlier jobs cannot reliably identify which of
+those fields came from the source. Outstanding appointment reminders stop.
+
+The delete dialog names the linked jobs and says what erasure removes. Choosing
+to delete the source and job erases both. Erasing a conversation or a customer
+also erases the jobs and files linked to that conversation or customer.

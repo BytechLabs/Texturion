@@ -1129,4 +1129,110 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  company constant uuid := 'd1000000-0000-4000-8000-000000000701';
+  actor constant uuid := 'd1000000-0000-4000-8000-000000000001';
+  line constant uuid := 'd1000000-0000-4000-8000-000000000702';
+  customer constant uuid := 'd1000000-0000-4000-8000-000000000703';
+  thread constant uuid := 'd1000000-0000-4000-8000-000000000704';
+  note constant uuid := 'd1000000-0000-4000-8000-000000000705';
+  job constant uuid := 'd1000000-0000-4000-8000-000000000706';
+  photo constant uuid := 'd1000000-0000-4000-8000-000000000707';
+  comment_id constant uuid := 'd1000000-0000-4000-8000-000000000708';
+  call constant uuid := 'd1000000-0000-4000-8000-000000000709';
+  call_job constant uuid := 'd1000000-0000-4000-8000-000000000710';
+  call_photo constant uuid := 'd1000000-0000-4000-8000-000000000711';
+  source_file constant uuid := 'd1000000-0000-4000-8000-000000000712';
+  due constant timestamptz := now() + interval '3 days';
+  done constant timestamptz := now() - interval '3 hours';
+  outcome jsonb;
+  series uuid;
+  occurrence_count integer;
+begin
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, subscription_status, plan)
+  values (company, 'Keep the job', actor, 'US', '212', now(), 'active', 'pro');
+  insert into public.company_members (company_id, user_id, role) values (company, actor, 'owner');
+  insert into public.phone_numbers (id, company_id, number_e164, status, provisioning_key, country)
+  values (line, company, '+12125550190', 'active', 'dt-preserved-job', 'US');
+  insert into public.contacts (id, company_id, phone_e164, name)
+  values (customer, company, '+12125550191', 'A customer');
+  insert into public.conversations (id, company_id, contact_id, phone_number_id, status, last_message_at)
+  values (thread, company, customer, line, 'open', now());
+  insert into public.messages
+    (id, company_id, conversation_id, direction, body, sent_by_user_id, done_at, done_by_user_id)
+  values (note, company, thread, 'note', 'Old gate instructions', actor, done, actor);
+  insert into public.calls
+    (id, company_id, phone_number_id, conversation_id, contact_id, direction, call_session_id, caller_e164, outcome)
+  values (call, company, line, thread, customer, 'inbound', 'kept-job-call', '+12125550191', 'answered');
+  insert into public.tasks
+    (id, company_id, message_id, source_call_id, conversation_id, title, description, due_at,
+     assigned_user_id, created_by_user_id, addr_street)
+  values
+    (job, company, note, null, thread, 'Old gate instructions', 'Code 3180', due, actor, actor, '102 Oak Street'),
+    (call_job, company, null, call, thread, 'Phone job', '', due, actor, actor, null);
+  insert into public.task_comments (id, company_id, task_id, author_user_id, body)
+  values (comment_id, company, job, actor, 'A separate job note');
+  insert into public.attachments
+    (id, company_id, owner_type, owner_id, conversation_id, storage_path, file_name, content_type)
+  values
+    (photo, company, 'task_comment', comment_id, thread, company || '/kept.jpg', 'kept.jpg', 'image/jpeg'),
+    (source_file, company, 'note', note, thread, company || '/source.jpg', 'source.jpg', 'image/jpeg'),
+    (call_photo, company, 'task', call_job, thread, company || '/erase.jpg', 'erase.jpg', 'image/jpeg');
+  insert into public.scheduled_messages
+    (company_id, conversation_id, task_id, origin, reminder_offset_minutes,
+     body, send_at, clock_timezone, clock_source, expires_at, created_by)
+  values (company, thread, job, 'reminder', 120, 'An outstanding reminder', due - interval '2 hours',
+          'America/New_York', 'contact', due, actor);
+  outcome := public.api_set_task_repeat(company, job, actor, '{"kind":"after_done","unit":"day"}');
+  if outcome->>'outcome' is distinct from 'set' then
+    raise exception 'The completed source job fixture needs a repeat rule';
+  end if;
+  series := (outcome->'task'->>'series_id')::uuid;
+  select count(*) into occurrence_count from public.tasks where series_id = series;
+
+  if exists (select 1 from public.api_trash_object_paths('message', note, company)) then
+    raise exception 'A live source exposed files for permanent deletion';
+  end if;
+  outcome := public.api_trash_message(company, actor, note, null, false);
+  if outcome->>'outcome' is distinct from 'trashed'
+     or not exists (select 1 from public.api_trash_object_paths('message', note, company)
+                     where path = company || '/source.jpg')
+     or exists (select 1 from public.api_trash_object_paths('message', note, company)
+                 where path = company || '/kept.jpg') then
+    raise exception 'Source-only deletion must pick the source file and retain the job file';
+  end if;
+  outcome := public.api_purge_trash_item('message', note, actor, company);
+  if outcome->>'outcome' is distinct from 'purged'
+     or not exists (select 1 from public.messages where id = note and purged_at is not null and body = '')
+     or not exists (select 1 from public.tasks where id = job and message_id is null and due_at = due
+                      and conversation_id = thread and assigned_user_id = actor and deleted_at is null
+                      and done_at = done and done_by_user_id = actor and title = 'Job #' || number
+                      and description = '' and addr_street is null and reminders_off)
+     or not exists (select 1 from public.attachments where id = photo)
+     or exists (select 1 from public.attachments where id = source_file)
+     or not exists (select 1 from public.task_comments where id = comment_id)
+     or not exists (select 1 from public.scheduled_messages where task_id = job and status = 'canceled')
+     or (select count(*) from public.tasks where series_id = series) is distinct from occurrence_count
+     or exists (select 1 from public.task_events where task_id = job
+                 and kind in ('created', 'title', 'description', 'address')
+                 and (from_value is not null or to_value is not null)) then
+    raise exception 'Erasing a source failed to keep the job and erase its inherited details';
+  end if;
+
+  outcome := public.api_trash_call(company, actor, call, false, null, true);
+  if outcome->>'outcome' is distinct from 'trashed'
+     or not exists (select 1 from public.api_trash_object_paths('call', call, company)
+                     where path = company || '/erase.jpg') then
+    raise exception 'The grouped call purge omitted a job file';
+  end if;
+  outcome := public.api_purge_trash_item('call', call, actor, company);
+  if outcome->>'outcome' is distinct from 'purged'
+     or exists (select 1 from public.attachments where id = call_photo)
+     or not exists (select 1 from public.tasks where id = call_job
+                     and deleted_at is not null and title = 'Removed') then
+    raise exception 'Erasing a call with its job did not erase the grouped job and files';
+  end if;
+end $$;
 rollback;
