@@ -1214,7 +1214,7 @@ begin
      or exists (select 1 from public.attachments where id = source_file)
      or not exists (select 1 from public.task_comments where id = comment_id)
      or not exists (select 1 from public.scheduled_messages where task_id = job and status = 'canceled')
-     or (select count(*) from public.tasks where series_id = series) <> occurrence_count
+     or (select count(*) from public.tasks where series_id = series) is distinct from occurrence_count
      or exists (select 1 from public.task_events where task_id = job
                  and kind in ('created', 'title', 'description', 'address')
                  and (from_value is not null or to_value is not null)) then
