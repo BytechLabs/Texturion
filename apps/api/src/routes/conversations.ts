@@ -1572,33 +1572,23 @@ conversationsRoutes.post(
       });
     }
 
-    // Customer-visible history only, oldest-first. INTERNAL NOTES ARE EXCLUDED
-    // BY THIS FILTER and that is load-bearing: a note is where a crew writes
-    // things the customer must never read, so it never reaches the model.
     const history = unwrap<
-      { direction: string; body: string | null; created_at: string }[]
+      { direction: "inbound" | "outbound"; body: string | null; created_at: string; source: "voicemail" | null }[]
     >(
-      await db
-        .from("messages")
-        .select("direction,body,created_at")
-        .eq("company_id", companyId)
-        .eq("conversation_id", id)
-        .is("deleted_at", null)
-        .in("direction", ["inbound", "outbound"])
-        .order("created_at", { ascending: false })
-        .limit(SUGGEST_REPLY_CONTEXT_MESSAGES),
+      await db.rpc("api_reply_suggestion_window", {
+        p_company_id: companyId,
+        p_conversation_id: id,
+        p_limit: SUGGEST_REPLY_CONTEXT_MESSAGES,
+      }),
       "reply suggestion history",
     );
     const messages: SuggestionMessage[] = history
-      .slice()
       .toReversed()
       .map((row) => ({
-        direction: row.direction === "inbound" ? "inbound" : "outbound",
+        direction: row.direction,
         body: row.body ?? "",
-        // Timing decides how much of the thread is worth reading: the prompt
-        // keeps the current exchange and drops history on the far side of a
-        // long silence (selectRecentContext).
         created_at: row.created_at,
+        ...(row.source === "voicemail" ? { source: row.source } : {}),
       }));
 
     // "Only when needed" (cost): with nothing typed and nothing unanswered,
