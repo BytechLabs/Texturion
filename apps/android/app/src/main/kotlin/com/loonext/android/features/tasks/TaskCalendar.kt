@@ -224,7 +224,7 @@ internal suspend fun fetchTaskCalendarSnapshot(
     val rows = mutableListOf<Task>()
     var pages = 0
     do {
-        rows += monthLoader.nextPage()
+        rows += monthLoader.nextPage().filterNot { it.calendar_hold }
         pages++
     } while (monthLoader.hasMore && pages < 12)
 
@@ -234,7 +234,7 @@ internal suspend fun fetchTaskCalendarSnapshot(
     pages = 0
     do {
         undatedLoader.nextPage().forEach { task ->
-            if (task.due_at == null) {
+            if (task.due_at == null && !task.calendar_hold) {
                 if (task.done) undatedDone++ else undatedOpen++
             }
         }

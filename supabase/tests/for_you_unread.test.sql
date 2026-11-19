@@ -671,7 +671,7 @@ as $fn$
                'task_id', t.id, 'title', t.title,
                'conversation_id', t.conversation_id, 'message_id', t.message_id,
                'assigned_user_id', t.assigned_user_id, 'due_at', t.due_at,
-               'overdue', t.overdue)
+               'overdue', t.overdue, 'calendar_hold', false)
                order by t.overdue desc, t.due_at asc nulls last, t.created_at asc, t.id asc)
       from my_tasks t), '[]'::jsonb),
     'unread', coalesce((

@@ -1353,6 +1353,7 @@ begin
   if not exists (
     select 1 from jsonb_array_elements(v->'my_tasks') item
      where item->>'task_id' = pg_temp.task_id()::text
+       and item->>'calendar_hold' = 'false'
   ) then
     raise exception 'CS-11 FAILED: dated conflict disappeared from focus queue %', v;
   end if;
@@ -1424,11 +1425,12 @@ begin
   v := public.api_for_you(
     pg_temp.company_id(), pg_temp.user_id(), now(), 20, null
   );
-  if exists (
+  if not exists (
     select 1 from jsonb_array_elements(v->'my_tasks') item
      where item->>'task_id' = pg_temp.task_id()::text
+       and item->>'calendar_hold' = 'true'
   ) then
-    raise exception 'CS-11 FAILED: refused task leaked into focus queue %', v;
+    raise exception 'CS-11 FAILED: refused task is missing its focus queue hold %', v;
   end if;
   v := public.api_apply_calendar_provider_snapshot(
     pg_temp.company_id(), pg_temp.connection_id(), 'attention-worker',
@@ -1765,11 +1767,12 @@ begin
   v := public.api_for_you(
     pg_temp.company_id(), pg_temp.user_id(), now(), 20, null
   );
-  if exists (
+  if not exists (
     select 1 from jsonb_array_elements(v->'my_tasks') item
      where item->>'task_id' = pg_temp.task_id()::text
+       and item->>'calendar_hold' = 'true'
   ) then
-    raise exception 'CS-11 FAILED: removed event leaked into focus queue %', v;
+    raise exception 'CS-11 FAILED: removed event is missing its focus queue hold %', v;
   end if;
   v := public.api_apply_calendar_provider_snapshot(
     pg_temp.company_id(), pg_temp.connection_id(), 'attention-worker',

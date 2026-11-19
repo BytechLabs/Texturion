@@ -173,16 +173,11 @@ internal fun LabelChip(name: String, fill: Color?, modifier: Modifier = Modifier
     }
 }
 
-/**
- * The compact meta line a row, card or pin shows under the title: priority
- * (high and urgent only), the repeat glyph, and the labels. Draws nothing for a
- * task with none of them, so a plain list stays as quiet as it was.
- */
 @Composable
 internal fun TaskBadges(task: Task, modifier: Modifier = Modifier, maxLabels: Int = 2) {
     val flagged = TaskPriority.isFlagged(task.priority)
     val repeating = showsRepeatIcon(task.repeat)
-    if (!flagged && !repeating && task.labels.isEmpty()) return
+    if (!flagged && !repeating && task.labels.isEmpty() && !task.calendar_hold) return
     Row(
         modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -191,6 +186,9 @@ internal fun TaskBadges(task: Task, modifier: Modifier = Modifier, maxLabels: In
         PriorityMark(task.priority)
         RepeatMark(task.repeat)
         LabelChips(task.labels, max = maxLabels)
+        if (task.calendar_hold) {
+            Text(t("contactsTasks.calendarHold"), style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 

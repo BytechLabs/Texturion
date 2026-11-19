@@ -662,19 +662,16 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(q.get("select")).not.toContain("messages");
     expect(q.get("select")).toContain("source_call:calls!source_call_id(");
     expect(q.get("select")).toContain("source_call_id");
-    // D137: provider-removal/refusal attention rows are a hold, not ordinary
-    // undated work. The empty calendar_hold embed is an anti-join over the
-    // composite tenant/task FK. A conflict is deliberately absent: it remains
-    // a dated task while the member chooses which schedule wins.
+    // Conflicts retain a usable date, so the hold badge only covers removal and refusal.
     expect(q.get("select")).toContain(
-      "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey()",
+      "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey(link_state)",
     );
     expect(q.get("calendar_hold.company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("calendar_hold.link_state")).toBe(
       "in.(event_removed,refused)",
     );
     expect(q.get("calendar_hold.link_state")).not.toContain("conflict");
-    expect(q.get("calendar_hold")).toBe("is.null");
+    expect(q.get("calendar_hold")).toBeNull();
   });
 
   it("derives done from the task_done_at computed column", async () => {
@@ -682,7 +679,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       taskRow({
         id: TASK_ID,
         done_state: null,
-        calendar_hold: [],
+        calendar_hold: [{ link_state: "refused" }],
       }),
       taskRow({
         id: "77777777-0000-4000-8000-000000000078",
@@ -697,10 +694,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     }>();
     // Row 1: done_at null → open. Row 2: done_at set → done. The join artifact
     // is stripped from the response (completion is derived, not stored).
-    expect(body.data[0]).toMatchObject({ done: false, status: "open" });
-    expect(body.data[1]).toMatchObject({ done: true, status: "done" });
+    expect(body.data[0]).toMatchObject({ done: false, status: "open", calendar_hold: true });
+    expect(body.data[1]).toMatchObject({ done: true, status: "done", calendar_hold: false });
     expect(body.data[0]).not.toHaveProperty("done_state");
-    expect(body.data[0]).not.toHaveProperty("calendar_hold");
   });
 
   it("#718: a message source carries its direction, so a note reads as a note", async () => {
@@ -987,13 +983,11 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // THE #221 fix: map_lat = coalesce(task.lat, contact.lat) — a task with its
     // OWN geocode but a non-geocoded contact now qualifies.
     expect(q.get("map_lat")).toBe("not.is.null");
-    // The map is another ordinary task-list projection and observes the same
-    // D137 hold; otherwise an all-day/refused task could still appear as a pin.
     expect(q.get("calendar_hold.company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("calendar_hold.link_state")).toBe(
       "in.(event_removed,refused)",
     );
-    expect(q.get("calendar_hold")).toBe("is.null");
+    expect(q.get("calendar_hold")).toBeNull();
     // Unrestricted caller → no hidden-number exclusion on the map view.
     expect(q.get("phone_number_id")).toBeNull();
   });
@@ -1083,7 +1077,6 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       "contact_lng",
       "map_lat",
       "phone_number_id",
-      "calendar_hold",
     ]) {
       expect(row).not.toHaveProperty(leak);
     }
@@ -2140,14 +2133,7 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     // task status column), and overdue adds the past-due bound.
     expect(url.searchParams.get("task_done_at")).toBe("is.null");
     expect(url.searchParams.get("due_at")).toContain("lt.");
-    // Select-all must not reach the attention-held rows the list hid.
-    expect(url.searchParams.get("calendar_hold.company_id")).toBe(
-      `eq.${COMPANY_ID}`,
-    );
-    expect(url.searchParams.get("calendar_hold.link_state")).toBe(
-      "in.(event_removed,refused)",
-    );
-    expect(url.searchParams.get("calendar_hold")).toBe("is.null");
+    expect(url.searchParams.get("calendar_hold")).toBeNull();
   });
 
   it("assign forwards the people to ADD as p_target_user_ids (#689 C)", async () => {

@@ -24,6 +24,7 @@ import {
 } from "@/lib/maps/basemap";
 import { createTileHealth, reportTileFailure } from "@/lib/maps/tile-health";
 
+import { TaskCalendarHold } from "../task-atoms";
 import { useTaskDrawer } from "../use-task-drawer";
 import { PriorityMark } from "../task-planning-ui";
 import { mapsDirectionsHref } from './map-types';
@@ -300,6 +301,7 @@ function TaskPeek({ task }: { task: LocatedTask }) {
     <div className="min-w-[180px] space-y-1">
       <p className="text-[13px] font-medium text-foreground">{task.title}</p>
       <PriorityMark priority={task.priority} />
+      <TaskCalendarHold task={task} />
       {task.contactName && (
         <p className="text-[12px] text-muted-foreground">{task.contactName}</p>
       )}
@@ -353,6 +355,7 @@ function ClusterPeek({
               {task.title}
             </Link>
             <PriorityMark priority={task.priority} />
+            <TaskCalendarHold task={task} />
           </li>
         ))}
         {tasks.length > 6 && (

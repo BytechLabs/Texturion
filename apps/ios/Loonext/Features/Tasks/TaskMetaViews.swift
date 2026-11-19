@@ -72,19 +72,24 @@ struct TaskLabelChips: View {
     }
 }
 
-/// The one line under a list row's title or on a board card: priority, repeat
-/// and labels. Draws nothing when none of them has anything to say.
 struct TaskRowBadges: View {
     let task: TaskItem
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         let priority = task.priorityValue
         let repeats = taskShowsRepeatIcon(task.repeatRule)
-        if priority.isFlagged || repeats || !task.labelList.isEmpty {
+        let calendarHold = task.calendar_hold == true
+        if priority.isFlagged || repeats || !task.labelList.isEmpty || calendarHold {
             HStack(spacing: 8) {
                 TaskPriorityMark(priority: priority)
                 if repeats { TaskRepeatMark() }
                 TaskLabelChips(labels: task.labelList)
+                if calendarHold {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.calendarHold"))
+                        .font(.caption)
+                        .foregroundStyle(BrandColor.muted700)
+                }
                 Spacer(minLength: 0)
             }
         }

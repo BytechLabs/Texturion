@@ -348,6 +348,7 @@ struct TaskDetailView: View {
             description: row.description,
             assigned_user_id: row.assigned_user_id,
             due_at: row.due_at,
+            calendar_hold: detail.calendar_hold,
             created_by_user_id: detail.created_by_user_id,
             created_at: detail.created_at,
             updated_at: row.updated_at,
@@ -776,6 +777,9 @@ struct TaskDetailView: View {
         )
         let overdue = !detail.done && parseWireTimestamp(detail.due_at).map { $0 < Date() } == true
         let dueLabel = timedDue(locale: appLocale) { due in
+            if detail.calendar_hold == true {
+                return AppStrings.translate(appLocale, "contactsTasks.calendarHold")
+            }
             if detail.due_at == nil {
                 return AppStrings.translate(appLocale, "contactsTasks.noDueDate")
             }
@@ -847,7 +851,7 @@ struct TaskDetailView: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
 
-            if !noAccess && (detail.reminders != nil || detail.due_at != nil) {
+            if !noAccess && detail.calendar_hold != true && (detail.reminders != nil || detail.due_at != nil) {
                 RowDivider()
                 HStack(spacing: 11) {
                     metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.remind"))

@@ -315,33 +315,25 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   return q as never;
 }
 
-/**
- * D137: a provider-removed/all-day/unknown-zone occurrence is waiting for the
- * member's explicit answer. It must not fall through into the ordinary task
- * queue as if it were simply an undated job. The empty embed plus `is.null` is
- * PostgREST's anti-join: first restrict the child relation to attention holds,
- * then keep only parent tasks with no such child. The composite FK named here
- * joins on BOTH company_id and task_id, so a link from another tenant can
- * neither hide nor reveal this workspace's task.
- *
- * Keep this helper on the list and bulk-filter paths together. A select-all
- * bulk action must never reach a task the corresponding list deliberately hid.
- */
 const CALENDAR_HOLD_EMBED =
-  "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey()";
+  "calendar_hold:task_calendar_links!task_calendar_links_company_id_task_id_fkey(link_state)";
 const CALENDAR_HOLD_STATES = ["event_removed", "refused"];
 
-function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
-  let q = query as never as {
+function filterCalendarHoldLinks<T>(query: T, companyId: string): T {
+  const q = query as never as {
     eq(col: string, value: string): typeof q;
     in(col: string, values: string[]): typeof q;
+  };
+  return q
+    .eq("calendar_hold.company_id", companyId)
+    .in("calendar_hold.link_state", CALENDAR_HOLD_STATES) as never;
+}
+
+function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
+  const q = filterCalendarHoldLinks(query, companyId) as never as {
     is(col: string, value: null): typeof q;
   };
-  q = q
-    .eq("calendar_hold.company_id", companyId)
-    .in("calendar_hold.link_state", CALENDAR_HOLD_STATES)
-    .is("calendar_hold", null);
-  return q as never;
+  return q.is("calendar_hold", null) as never;
 }
 
 /** The #690 filters as a list request or a bulk filter spells them. */
@@ -1588,7 +1580,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
         .eq("company_id", companyId)
         .is("deleted_at", null);
 
-  query = excludeCalendarAttentionHolds(query, companyId);
+  query = filterCalendarHoldLinks(query, companyId);
   query = applyTaskFilters(query, {
     companyId,
     doneAtCol,
@@ -1656,6 +1648,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     updated_at: string;
     priority: string;
     due_at: string | null;
+    calendar_hold?: { link_state: string }[];
     // Non-map path: `done` derives from the task_done_at computed column.
     done_state?: string | null;
     source_call?: SourceCallRow | null;
@@ -1678,9 +1671,11 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
   const shaped = pageRows.map((row) => {
-    const rest = { ...row } as Record<string, unknown>;
+    const rest = {
+      ...row,
+      calendar_hold: (row.calendar_hold?.length ?? 0) > 0,
+    } as Record<string, unknown>;
     // Empty embeds are filtering artifacts, never part of the task contract.
-    delete rest.calendar_hold;
     delete rest.task_tags;
     delete rest.task_assignees;
     delete rest.record_references;
@@ -1968,7 +1963,7 @@ tasksRoutes.post(
       let taskQuery = db
         .from(filter.has_location ? "task_map_rows" : "tasks")
         .select(
-          `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
+          `id${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
             assignee ? ",task_assignees!inner(user_id)" : ""
           }${extra.referencedHidden === undefined ? "" : REFERENCE_EMBED}`,
         )
@@ -1984,7 +1979,7 @@ tasksRoutes.post(
         }
       }
       const query = applyTaskFilters(
-        excludeCalendarAttentionHolds(taskQuery, companyId),
+        taskQuery,
         {
           companyId,
           doneAtCol: filter.has_location ? "done_at" : TASK_DONE_AT,
@@ -2364,21 +2359,22 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     reminders?: { state: string; next_send_at?: string };
     source_call: SourceCallRow | null;
     linked_contact: { id: string; name: string | null } | null;
+    calendar_hold?: { link_state: string }[];
     // Null for a call-anchored task (D64).
     messages: { id: string; body: string; done_at: string | null } | null;
     [key: string]: unknown;
   }
+  const query = db
+    .from("tasks")
+    .select(
+      `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,reminders:task_reminder_state,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
+        `${CALENDAR_HOLD_EMBED},messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)`,
+    )
+    .eq("company_id", companyId)
+    .eq("id", id)
+    .is("deleted_at", null);
   const rows = unwrap<unknown>(
-    await db
-      .from("tasks")
-      .select(
-        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,reminders:task_reminder_state,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
-          "messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)",
-      )
-      .eq("company_id", companyId)
-      .eq("id", id)
-      .is("deleted_at", null)
-      .limit(1),
+    await filterCalendarHoldLinks(query, companyId).limit(1),
     "task detail",
   ) as DetailRow[];
   const [row] = rows;
@@ -2393,7 +2389,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   );
   const profilesRead = loadProfiles(db, userIds, "profiles lookup");
 
-  const { messages, done_state, done_by, source_call, linked_contact, reminders, ...task } = row;
+  const { messages, done_state, done_by, source_call, linked_contact, reminders, calendar_hold, ...task } = row;
   // Conversation-derived reads run beside the access check and are dropped at 'none'.
   const [profiles, subscriptionRes, labelled, viewerLevel, attachmentUnions, activity] =
     await Promise.all([
@@ -2440,6 +2436,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   const done = (done_state ?? null) !== null;
   const identity = {
     ...labelled,
+    calendar_hold: (calendar_hold?.length ?? 0) > 0,
     subscribed: subscription[0] ? subscription[0].unsubscribed_at === null : false,
     contact: linkedContact(linked_contact),
     done,

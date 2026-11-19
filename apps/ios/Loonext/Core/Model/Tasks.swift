@@ -18,6 +18,7 @@ struct TaskItem: Codable, Sendable {
     @Default<DefaultEmptyString> var description: String
     let assigned_user_id: String?
     let due_at: String?
+    var calendar_hold: Bool?
     let created_by_user_id: String
     let created_at: String
     let updated_at: String
@@ -241,6 +242,7 @@ struct TaskDetail: Codable, Sendable {
     @Default<DefaultEmptyString> var description: String
     let assigned_user_id: String?
     let due_at: String?
+    var calendar_hold: Bool?
     let created_by_user_id: String
     let created_at: String
     let updated_at: String

@@ -136,6 +136,13 @@ describe("Tasks list status control (#743)", () => {
     server = { open: [task("t1", "Call Ana", false)], done: [task("t2", "Send quote", true)] };
   });
 
+  it("labels an open task waiting on a calendar decision", async () => {
+    server.open = [{ ...task("held", "Repair water heater", false), calendar_hold: true }];
+    renderList(OPEN);
+    await expect(screen.findByText("Repair water heater")).resolves.toBeDefined();
+    expect(screen.getByText("Calendar needs a decision")).toBeDefined();
+  });
+
   it("renders exactly one checkbox per row, and it selects", async () => {
     const { container } = renderList(MINE);
     await screen.findByText("Send quote");

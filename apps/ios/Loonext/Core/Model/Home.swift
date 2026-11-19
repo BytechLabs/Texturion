@@ -28,6 +28,7 @@ struct ForYouTask: Codable, Sendable {
     let assigned_user_id: String?
     let due_at: String?
     @Default<DefaultFalse> var overdue: Bool
+    var calendar_hold: Bool?
 }
 
 struct ForYouUnread: Codable, Sendable {

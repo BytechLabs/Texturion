@@ -80,6 +80,12 @@ export function TaskNumber({
   );
 }
 
+export function TaskCalendarHold({ task }: { task: Pick<Task, "calendar_hold"> }) {
+  const t = useT();
+  if (!task.calendar_hold) return null;
+  return <span className="text-xs font-medium text-warning">{t("tasks.calendarHold")}</span>;
+}
+
 /**
  * The due cell/chip (T6.1): tabular stone-400, amber ONLY when overdue and
  * not-done (never a red scare). Renders nothing for a task with no due date.

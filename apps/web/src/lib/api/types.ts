@@ -1154,6 +1154,7 @@ export interface Task {
   /** #689 C: the same people with display names. */
   assignees?: TaskAssignee[];
   due_at: string | null;
+  calendar_hold?: boolean;
   created_by_user_id: string;
   created_at: string;
   updated_at: string;
@@ -2661,6 +2662,7 @@ export interface ForYouTask {
   assigned_user_id: string | null;
   due_at: string | null;
   overdue: boolean;
+  calendar_hold?: boolean;
 }
 
 /** One conversation card in the /for-you "Unread" section. */
