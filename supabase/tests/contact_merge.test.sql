@@ -618,6 +618,7 @@ declare
   source_id uuid := gen_random_uuid();
   survivor_id uuid := gen_random_uuid();
   alternate_id uuid := gen_random_uuid();
+  folded_primary_id uuid;
   source_number text := '+14155550521';
   survivor_number text := '+14155550522';
   alternate_number text := '+14155550523';
@@ -659,13 +660,31 @@ begin
   exception when unique_violation then null;
   end;
 
+  select id into strict folded_primary_id from public.contact_phones
+    where company_id = company and contact_id = survivor_id and phone_e164 = source_number;
+  insert into public.opt_outs (company_id, phone_e164, source) values (company, source_number, 'carrier');
+  outcome := public.api_make_primary_contact_number(company, survivor_id, folded_primary_id, actor);
+  if outcome ->> 'outcome' is distinct from 'updated'
+     or not exists (select 1 from public.contacts where id = survivor_id and phone_e164 = source_number
+       and primary_number_source_id = source_id and updated_by_user_id = actor)
+     or not exists (select 1 from public.contact_phones where contact_id = survivor_id and phone_e164 = survivor_number)
+     or not exists (select 1 from public.opt_outs where company_id = company and phone_e164 = source_number
+       and source = 'carrier' and revoked_at is null) then
+    raise exception 'Promoting a folded number lost ownership or modified its opt-out';
+  end if;
+  outcome := public.api_make_primary_contact_number(company, survivor_id, folded_primary_id, actor);
+  if outcome ->> 'outcome' is distinct from 'not_found' then
+    raise exception 'Repeating a promotion swapped the numbers back';
+  end if;
+
   update public.contacts set business_name = 'New survivor business',
     custom_fields = custom_fields || '{"unit":"edited"}'::jsonb where id = survivor_id;
   outcome := public.api_unmerge_contact(company, source_id);
   if outcome ->> 'outcome' is distinct from 'unmerged'
      or not exists (select 1 from public.contacts where id = source_id and phone_e164 = source_number
        and email = 'folded@test.local' and business_name = 'Example Business' and merged_into is null)
-     or not exists (select 1 from public.contacts where id = survivor_id and email is null and timezone is null
+     or not exists (select 1 from public.contacts where id = survivor_id and phone_e164 = survivor_number
+       and primary_number_source_id is null and email is null and timezone is null
        and locale is null and business_name = 'New survivor business' and notes = 'Surviving note'
        and custom_fields = '{"unit":"edited"}'::jsonb)
      or (select count(*) from public.contact_addresses where contact_id = survivor_id) is distinct from 1

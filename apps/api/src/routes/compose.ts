@@ -63,7 +63,7 @@ import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import { insertConversationEvents } from './core/events';
 import type { ConversationEventRow } from './core/events';
 import { normalizeNanpPhone } from "./core/phone";
-import { contactNumberOwner } from "./core/contact-number";
+import { contactNumberOwner, selectedContactNumber } from "./core/contact-number";
 import {
   assertBodyWithinLimit,
   isUniqueViolation,
@@ -81,6 +81,7 @@ const composeSchema = z
   .object({
     contact_id: z.uuid().optional(),
     phone_e164: z.string().trim().min(1).max(32).optional(),
+    contact_phone_e164: z.string().trim().min(1).max(32).optional(),
     phone_number_id: z.uuid(),
     body: z.string().max(4096).refine((value) => value.trim().length > 0, {
       message: "body must not be empty.",
@@ -113,7 +114,9 @@ const composeSchema = z
   .refine(
     (value) => (value.contact_id === undefined) !== (value.phone_e164 === undefined),
     { message: "Provide exactly one of contact_id or phone_e164." },
-  );
+  )
+  .refine((value) => value.contact_phone_e164 === undefined || value.contact_id !== undefined,
+    { message: "Selecting a number requires contact_id." });
 
 const CONVERSATION_COLUMNS =
   "id,company_id,contact_id,phone_number_id,status,is_spam,assigned_user_id," +
@@ -433,11 +436,12 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // Destination phone BEFORE any write: contact_id path reads the stored
   // number; phone path normalizes + NANP-validates (422 — §10 layer 2).
   let destination: string;
+  let contactTimezone: string | null | undefined;
   if (body.contact_id) {
-    const rows = unwrap<{ phone_e164: string }[]>(
+    const rows = unwrap<{ phone_e164: string; timezone: string | null }[]>(
       await db
         .from("contacts")
-        .select("phone_e164")
+        .select("phone_e164,timezone")
         .eq("company_id", companyId)
         .eq("id", body.contact_id)
         .is("merged_into", null)
@@ -445,7 +449,10 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       "contact lookup",
     );
     if (!rows[0]) throw new ApiError("not_found", "No such contact.");
-    destination = rows[0].phone_e164;
+    destination = body.contact_phone_e164
+      ? await selectedContactNumber(db, companyId, body.contact_id, body.contact_phone_e164)
+      : rows[0].phone_e164;
+    contactTimezone = rows[0].timezone;
   } else {
     const normalized = normalizeNanpPhone(body.phone_e164 ?? "");
     if (!normalized) {
@@ -472,7 +479,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // and so a contact whose area code lies can be corrected in one place.
   const clock = isTollFreeDestination(destination)
     ? null
-    : await resolveDestinationClock(db, { companyId, phoneE164: destination });
+    : await resolveDestinationClock(db, { companyId, phoneE164: destination, contactTimezone });
   // #225 ask 5: an admin may switch the confirmation STEP off — for a 24-hour
   // emergency trade it fires on every 2am job, and a prompt that is always
   // dismissed teaches people to dismiss prompts. THIS IS THE ONLY PLACE THAT

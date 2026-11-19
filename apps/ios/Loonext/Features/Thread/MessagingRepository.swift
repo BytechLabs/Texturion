@@ -26,6 +26,8 @@ struct ComposeBody: Codable, Sendable {
     /// #274: whether the words changed after it was inserted.
     var template_edited: Bool?
 
+    var contact_phone_e164: String? = nil
+
     /// The quiet-hours 409 resend: the SAME body with the confirmation set.
     func confirmed() -> ComposeBody {
         ComposeBody(
@@ -39,7 +41,8 @@ struct ComposeBody: Codable, Sendable {
             // saved reply. Dropping these would undercount every template a
             // quiet-hours confirmation happened to touch.
             template_id: template_id,
-            template_edited: template_edited
+            template_edited: template_edited,
+            contact_phone_e164: contact_phone_e164
         )
     }
 }

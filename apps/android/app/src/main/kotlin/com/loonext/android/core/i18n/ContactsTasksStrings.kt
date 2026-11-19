@@ -30,6 +30,12 @@ object ContactsTasksStrings : AppStrings.Section {
             "Texts and calls from this number will show up under this customer, in their own conversation.",
         "contactsTasks.phoneRemove" to
             "Remove {number}",
+        "contactsTasks.phoneMakeMain" to "Make main number",
+        "contactsTasks.phoneOptedOut" to "Opted out of texts",
+        "contactsTasks.phoneMain" to "Main number",
+        "contactsTasks.phoneActions" to "Number actions",
+        "contactsTasks.phoneText" to "Message",
+        "contactsTasks.phoneCall" to "Call",
         // #228/#291 — the address list. Named the same as iOS so the two
         // phones spell one thing once; the sentences are pinned across all
         // three clients by address-parity.test.ts.
@@ -903,6 +909,12 @@ object ContactsTasksStrings : AppStrings.Section {
             "Les textos et les appels provenant de ce numéro apparaîtront sous ce client, dans sa propre conversation.",
         "contactsTasks.phoneRemove" to
             "Retirer {number}",
+        "contactsTasks.phoneMakeMain" to "Définir comme numéro principal",
+        "contactsTasks.phoneOptedOut" to "Désabonné des textos",
+        "contactsTasks.phoneMain" to "Numéro principal",
+        "contactsTasks.phoneActions" to "Actions du numéro",
+        "contactsTasks.phoneText" to "Texto",
+        "contactsTasks.phoneCall" to "Appeler",
         // #228/#291 — the address list. Named the same as iOS so the two
         // phones spell one thing once; the sentences are pinned across all
         // three clients by address-parity.test.ts.

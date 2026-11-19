@@ -172,6 +172,13 @@ struct ContactMutations: Sendable {
         )
     }
 
+    func makePrimaryPhone(companyId: String, contactId: String, phoneId: String) async throws {
+        let _: JSONValue = try await api.post(
+            "/v1/contacts/\(contactId)/phones/\(phoneId)/make-primary",
+            companyId: companyId
+        )
+    }
+
     /// #291: the fields this workspace defined for its own trade.
     ///
     /// Read by anyone who can read conversations, not just owners: a member

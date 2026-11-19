@@ -35,7 +35,7 @@ import { useContact, useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { OutboundMedia } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
-import type { Contact } from "@/lib/api/types";
+import type { Contact, ContactDetail } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import { MMS_ACCEPT, MMS_MAX_MEDIA_ITEMS } from "@/lib/attachments/mms";
@@ -101,6 +101,7 @@ export function NewConversation() {
 
   // --- Recipient -------------------------------------------------------------
   const [recipient, setRecipient] = useState<Recipient | null>(null);
+  const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   // #63 combobox active option (-1 = none): Arrow keys move it, Enter picks
@@ -124,6 +125,8 @@ export function NewConversation() {
   // ?contact={id} prefill (search results, contact pages) — resolved by the
   // PrefillContact child so the hook only mounts with a real id.
   const prefillId = searchParams.get("contact");
+  const prefillNumber = searchParams.get("number");
+  const prefillContactApplied = useRef(false);
 
   // #459 ?to={number}: the dialer's Message action, and the one prefill that
   // does NOT resolve to a contact — the whole point of dialing a stranger is
@@ -243,7 +246,7 @@ export function NewConversation() {
   // --- Gates preview (the API enforces independently) --------------------------
   const destinationE164 =
     recipient?.kind === "contact"
-      ? recipient.contact.phone_e164
+      ? selectedNumber ?? recipient.contact.phone_e164
       : (recipient?.kind === "number"
         ? recipient.e164
         : typedE164);
@@ -346,7 +349,7 @@ export function NewConversation() {
     // key, so a lost response can't double-send. The quiet-hours re-entry
     // changes nothing here — that rejection means nothing was sent.
     const signature = [
-      recipient?.kind === "contact" ? recipient.contact.id : destinationE164,
+      destinationE164,
       numberId,
       body,
       attachmentSignature(attachments),
@@ -358,7 +361,7 @@ export function NewConversation() {
 
     const inputBody: ComposeInput = {
       ...(recipient?.kind === "contact"
-        ? { contact_id: recipient.contact.id }
+        ? { contact_id: recipient.contact.id, ...(selectedNumber ? { contact_phone_e164: selectedNumber } : {}) }
         : { phone_e164: destinationE164 }),
       phone_number_id: numberId,
       body,
@@ -405,8 +408,9 @@ export function NewConversation() {
     });
   };
 
-  const selectContact = (contact: Contact) => {
+  const selectContact = (contact: Contact, number: string | null = null) => {
     setRecipient({ kind: "contact", contact });
+    setSelectedNumber(number);
     setInput("");
     setSearchOpen(false);
     setActiveIndex(-1);
@@ -460,13 +464,11 @@ export function NewConversation() {
       </header>
 
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-5 overflow-y-auto p-4 md:p-6">
-        {prefillId && recipient === null && (
-          <PrefillContact contactId={prefillId} onLoaded={selectContact} />
-        )}
-        {recipient?.kind === "contact" && (
-          <ContactOptOutProbe
-            contactId={recipient.contact.id}
-            onChange={setContactOptedOut}
+        {prefillId && recipient === null && !prefillContactApplied.current && (
+          <PrefillContact contactId={prefillId} onLoaded={(contact) => {
+            prefillContactApplied.current = true;
+            selectContact(contact, prefillNumber);
+          }}
           />
         )}
 
@@ -483,7 +485,7 @@ export function NewConversation() {
                 </span>
                 {recipient.kind === "contact" && (
                   <span className="tabular-nums text-muted-foreground">
-                    {formatPhone(recipient.contact.phone_e164)}
+                    {formatPhone(selectedNumber ?? recipient.contact.phone_e164)}
                   </span>
                 )}
                 <button
@@ -633,6 +635,11 @@ export function NewConversation() {
             </div>
           )}
         </div>
+
+        {recipient?.kind === "contact" && (
+          <ContactNumberChoice contactId={recipient.contact.id} selected={selectedNumber}
+            onNumberChange={setSelectedNumber} onOptOutChange={setContactOptedOut} />
+        )}
 
         {/* From number (Pro companies can hold two). */}
         {activeNumbers.length > 1 && (
@@ -838,23 +845,44 @@ export function NewConversation() {
   );
 }
 
-/**
- * Headless: GET /v1/contacts/:id carries `opted_out`; lift it so the
- * opted-out banner shows before a doomed send (G5).
- */
-function ContactOptOutProbe({
+function ContactNumberChoice({
   contactId,
-  onChange,
+  selected,
+  onOptOutChange,
+  onNumberChange,
 }: {
   contactId: string;
-  onChange: (optedOut: boolean) => void;
+  selected: string | null;
+  onOptOutChange: (optedOut: boolean) => void;
+  onNumberChange: (number: string | null) => void;
 }) {
+  const t = useT();
   const contact = useContact(contactId);
-  const optedOut = contact.data?.opted_out ?? false;
+  const phones = contact.data?.phones;
+  const alternate = phones?.find((entry) => entry.phone_e164 === selected);
+  const optedOut = selected === null ? contact.data?.opted_out : alternate?.opted_out;
   useEffect(() => {
-    onChange(optedOut);
-  }, [optedOut, onChange]);
-  return null;
+    onOptOutChange(optedOut ?? false);
+  }, [optedOut, onOptOutChange]);
+  if (!contact.data || !phones?.length) return null;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="compose-recipient-number">{t("contacts.fieldNumber")}</Label>
+      <SimpleSelect
+        id="compose-recipient-number"
+        value={selected ?? contact.data.phone_e164}
+        onValueChange={(value) => onNumberChange(value === contact.data?.phone_e164 ? null : value)}
+        options={[
+          { value: contact.data.phone_e164, label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164) },
+          ...phones.map((entry) => ({
+            value: entry.phone_e164,
+            label: [entry.label, formatPhone(entry.phone_e164), entry.opted_out ? t("contacts.phoneOptedOut") : null]
+              .filter(Boolean).join(" · "),
+          })),
+        ]}
+      />
+    </div>
+  );
 }
 
 /** Resolve a ?contact= prefill without conditional hooks in the parent. */
@@ -863,7 +891,7 @@ function PrefillContact({
   onLoaded,
 }: {
   contactId: string;
-  onLoaded: (contact: Contact) => void;
+  onLoaded: (contact: ContactDetail) => void;
 }) {
   const contact = useContact(contactId);
   const { data } = contact;

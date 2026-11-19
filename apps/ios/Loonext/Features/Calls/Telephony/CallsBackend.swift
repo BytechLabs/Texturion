@@ -31,6 +31,7 @@ struct OutboundCallBody: Codable, Sendable {
     let contact_id: String?
     let to: String?
     let phone_number_id: String?
+    var contact_phone_e164: String? = nil
 }
 
 /// GET /v1/calls/live/by-leg/:ccid — ring leg -> customer session.
@@ -104,7 +105,8 @@ protocol CallsBackend: Sendable {
         conversationId: String?,
         contactId: String?,
         to: String?,
-        phoneNumberId: String?
+        phoneNumberId: String?,
+        contactPhoneE164: String?
     ) async throws -> BrowserCallAuth
 
     /// Resolve an answered inbound RING leg to the customer call_session_id —
@@ -143,7 +145,8 @@ struct CallsService: CallsBackend {
         conversationId: String? = nil,
         contactId: String? = nil,
         to: String? = nil,
-        phoneNumberId: String? = nil
+        phoneNumberId: String? = nil,
+        contactPhoneE164: String? = nil
     ) async throws -> BrowserCallAuth {
         try await api.post(
             "/v1/calls/browser",
@@ -151,7 +154,8 @@ struct CallsService: CallsBackend {
                 conversation_id: conversationId,
                 contact_id: contactId,
                 to: to,
-                phone_number_id: phoneNumberId
+                phone_number_id: phoneNumberId,
+                contact_phone_e164: contactPhoneE164
             ),
             companyId: companyId
         )

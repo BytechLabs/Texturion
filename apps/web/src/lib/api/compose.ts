@@ -19,6 +19,7 @@ import type { ComposeResult } from "./types";
 export interface ComposeInput {
   contact_id?: string;
   phone_e164?: string;
+  contact_phone_e164?: string;
   phone_number_id: string;
   body: string;
   quiet_hours_confirmed?: boolean;

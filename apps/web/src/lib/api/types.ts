@@ -1576,6 +1576,8 @@ export interface ContactDetail extends Contact {
     phone_e164: string;
     label: string | null;
     created_at: string;
+    opted_out?: boolean;
+    opt_out_source?: string | null;
   }[];
   opted_out: boolean;
   /**

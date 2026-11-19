@@ -4,6 +4,7 @@ import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +40,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactPhone
+import com.loonext.android.ui.common.ActionGroup
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.formatPhone
 
 /**
  * #291 — the other numbers this customer answers.
@@ -67,6 +73,9 @@ fun PhoneList(
     phones: List<ContactPhone>,
     onAdd: (label: String?, phone: String) -> Unit,
     onRemove: (String) -> Unit,
+    onText: ((String) -> Unit)? = null,
+    onCall: (String) -> Unit,
+    onMakePrimary: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -91,23 +100,42 @@ fun PhoneList(
                     modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    buildString {
-                        entry.label?.let {
-                            append(it)
-                            append(" · ")
-                        }
-                        append(entry.phone_e164)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                )
+                Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                    Text(
+                        listOfNotNull(entry.label, formatPhone(entry.phone_e164)).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (entry.opted_out) Text(t("contactsTasks.phoneOptedOut"), style = MaterialTheme.typography.labelSmall)
+                }
                 IconButton(onClick = { clipboard.setText(AnnotatedString(entry.phone_e164)) }) {
                     Icon(
                         Icons.Outlined.ContentCopy,
                         contentDescription = t("contactsTasks.copyNumber"),
                         modifier = Modifier.size(IconSize.Small),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                var actionsOpen by remember(entry.id) { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { actionsOpen = true }) {
+                        Icon(Icons.Outlined.MoreHoriz, contentDescription = t("contactsTasks.phoneActions"))
+                    }
+                    RecordMenu(
+                        expanded = actionsOpen,
+                        onDismiss = { actionsOpen = false },
+                        actions = listOf(
+                            RecordAction("text", "contactsTasks.phoneText", ActionGroup.PRIMARY,
+                                allowed = onText != null, enabled = !entry.opted_out),
+                            RecordAction("call", "contactsTasks.phoneCall", ActionGroup.PRIMARY),
+                            RecordAction("make-primary", "contactsTasks.phoneMakeMain", ActionGroup.STATE),
+                        ),
+                        onSelect = { action, _ ->
+                            when (action) {
+                                "text" -> onText?.invoke(entry.phone_e164)
+                                "call" -> onCall(entry.phone_e164)
+                                "make-primary" -> onMakePrimary(entry.id)
+                            }
+                        },
                     )
                 }
                 Icon(

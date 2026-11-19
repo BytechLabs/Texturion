@@ -25,6 +25,9 @@ struct PhoneList: View {
     let phones: [ContactPhone]
     let onAdd: (String?, String) -> Void
     let onRemove: (String) -> Void
+    let onText: ((String) -> Void)?
+    let onCall: (String) -> Void
+    let onMakePrimary: (String) -> Void
 
     @State private var adding = false
     @State private var draftLabel = ""
@@ -44,7 +47,13 @@ struct PhoneList: View {
                         UIPasteboard.general.string = entry.phone_e164
                     } label: {
                         HStack(spacing: 6) {
-                            Text(line(for: entry))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(line(for: entry))
+                                if entry.opted_out == true {
+                                    Text(AppStrings.translate(appLocale, "contactsTasks.phoneOptedOut"))
+                                        .foregroundStyle(BrandColor.muted500)
+                                }
+                            }
                             Image(systemName: "doc.on.doc")
                                 .foregroundStyle(BrandColor.muted500)
                         }
@@ -53,6 +62,17 @@ struct PhoneList: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint(AppStrings.translate(appLocale, "contactsTasks.copyNumber"))
+                    Menu {
+                        if let onText {
+                            Button(AppStrings.translate(appLocale, "contactsTasks.phoneText")) { onText(entry.phone_e164) }
+                                .disabled(entry.opted_out == true)
+                        }
+                        Button(AppStrings.translate(appLocale, "contactsTasks.phoneCall")) { onCall(entry.phone_e164) }
+                        Button(AppStrings.translate(appLocale, "contactsTasks.phoneMakeMain")) { onMakePrimary(entry.id) }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.phoneActions"))
                     Button {
                         onRemove(entry.id)
                     } label: {
@@ -138,8 +158,9 @@ struct PhoneList: View {
     }
 
     private func line(for entry: ContactPhone) -> String {
-        guard let label = entry.label, !label.isEmpty else { return entry.phone_e164 }
-        return "\(label) · \(entry.phone_e164)"
+        let number = formatPhone(entry.phone_e164)
+        guard let label = entry.label, !label.isEmpty else { return number }
+        return "\(label) · \(number)"
     }
 }
 

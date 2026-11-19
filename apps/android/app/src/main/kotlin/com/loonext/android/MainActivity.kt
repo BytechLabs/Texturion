@@ -1111,6 +1111,7 @@ private fun ReadyShell(
                         },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onComposeNew = { push(Overlay.Compose(it)) },
+                        onComposeNumber = { contactId, number -> push(Overlay.Compose(contactId, prefillPhone = number)) },
                         onOpenTask = { push(Overlay.Task(it)) },
                     )
 
