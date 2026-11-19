@@ -82,7 +82,7 @@ const PUBLIC_CONTACT_COLUMNS =
   "id,phone_e164,name,email,business_name,address,notes,created_at,updated_at";
 
 const PUBLIC_TASK_COLUMNS =
-  "id,number,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at,priority,series_id";
+  "id,number,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,due_on,due_time_set,assigned_user_id,created_at,priority,series_id";
 
 type PublicListRow = { id: string; created_at: string } & Record<string, unknown>;
 type PublicConversationRow = { id: string; last_message_at: string } & Record<string, unknown>;
@@ -156,6 +156,7 @@ const createTaskSchema = z
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(2000).optional(),
     due_at: z.iso.datetime({ offset: true }).optional(),
+    due_on: z.iso.date().optional(),
     // One person, as before. `assignee_ids` (up to ten) wins when both are sent.
     assigned_user_id: z.uuid().nullable().optional(),
     assignee_ids: z.array(z.uuid()).max(10).optional(),
@@ -166,6 +167,10 @@ const createTaskSchema = z
     priority: prioritySchema.optional(),
     label_ids: z.array(z.uuid()).max(20).optional(),
     repeat: repeatSchema.optional(),
+  })
+  .refine((body) => !body.due_at || !body.due_on, {
+    message: "Provide a time or a date for this job.",
+    path: ["due_on"],
   })
   .refine((body) => body.message_id !== undefined || body.title !== undefined, {
     message: "title is required when the task has no message_id.",
@@ -544,7 +549,7 @@ publicApiRoutes.post(
     const body = await parseJsonBody(c, createTaskSchema);
     const idempotencyKey = optionalIdempotencyKey(c);
     const db = getDb(getEnv(c.env));
-    if (body.repeat?.kind === "schedule" && !body.due_at) {
+    if (body.repeat?.kind === "schedule" && !body.due_at && !body.due_on) {
       return errorResponse(
         c,
         "validation_failed",

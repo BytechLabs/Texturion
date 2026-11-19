@@ -297,6 +297,10 @@ enum ApiErrorStrings {
             "apiRefusals.publicTaskRepeatNeedsDueDate": "repeat: a schedule needs a due date to start from.",
             "apiRefusals.publicTaskUnknownTag": "That tag is not in this workspace.",
             "apiRefusals.remindersNeedCustomer": "Link a customer conversation to turn on reminders.",
+            "apiRefusals.bookingNotFound": "No such task.",
+            "apiRefusals.bookingSourceCustomer": "A task created from a text or call keeps its customer.",
+            "apiRefusals.bookingCustomerUnavailable": "Choose an available customer or conversation.",
+            "apiRefusals.bookingConfirmationNeedsDate": "Set a date for this open job before confirming it.",
             "apiRefusals.remindersWorkspaceNotFound": "No such workspace.",
             "apiRefusals.scheduledTextHorizon": "We can hold a message for up to {days} days.",
             "apiRefusals.scheduledTextKeyUsed":
@@ -652,6 +656,10 @@ enum ApiErrorStrings {
                 "Choisissez une date d’échéance pour démarrer la récurrence.",
             "apiRefusals.publicTaskUnknownTag": "Cette étiquette est introuvable dans cet espace de travail.",
             "apiRefusals.remindersNeedCustomer": "Associez une conversation avec un client pour activer les rappels.",
+            "apiRefusals.bookingNotFound": "Cette tâche est introuvable.",
+            "apiRefusals.bookingSourceCustomer": "Une tâche créée à partir d’un texto ou d’un appel conserve son client.",
+            "apiRefusals.bookingCustomerUnavailable": "Choisissez un client ou une conversation disponible.",
+            "apiRefusals.bookingConfirmationNeedsDate": "Fixez une date pour cette tâche ouverte avant de la confirmer.",
             "apiRefusals.remindersWorkspaceNotFound": "Cet espace de travail est introuvable.",
             "apiRefusals.scheduledTextHorizon": "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
             "apiRefusals.scheduledTextKeyUsed":

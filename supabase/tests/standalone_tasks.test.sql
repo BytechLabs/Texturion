@@ -574,6 +574,80 @@ begin
   raise notice 'ST-5 PASSED: timeline, calendar access and reminders handle a task with no conversation';
 end $$;
 
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  member_id constant uuid := 'a5000000-0000-4000-8000-00000000000b';
+  conversation constant uuid := 'a5000000-0000-4000-8000-0000000000e1';
+  customer constant uuid := 'a5000000-0000-4000-8000-0000000000a1';
+  other_customer constant uuid := 'a5000000-0000-4000-8000-0000000000a2';
+  job uuid;
+  outcome jsonb;
+begin
+  insert into public.tasks (company_id, title, due_at, created_by_user_id)
+  values (company, 'Link a booking', now() + interval '2 days', owner_id)
+  returning id into job;
+  update public.company_members set deactivated_at = null
+   where company_id = company and user_id = member_id;
+
+  outcome := public.set_task_links(company, job, member_id, null, conversation);
+  if outcome->>'outcome' is distinct from 'no_conversation' then
+    raise exception 'A member could link a booking to a hidden line: %', outcome;
+  end if;
+  outcome := public.set_task_links(company, job, owner_id, other_customer, conversation);
+  if outcome->>'outcome' is distinct from 'contact_mismatch' then
+    raise exception 'A booking accepted a customer outside the selected conversation: %', outcome;
+  end if;
+
+  outcome := public.set_task_links(company, job, owner_id, null, conversation);
+  if outcome->>'outcome' is distinct from 'updated'
+     or (outcome->'task'->>'contact_id')::uuid is distinct from customer
+     or (outcome->'task'->>'reminders_off')::boolean is distinct from true
+     or not exists (select 1 from public.task_events where task_id = job and kind = 'customer') then
+    raise exception 'The booking did not inherit its selected customer and access: %', outcome;
+  end if;
+
+  outcome := public.api_set_task_confirmation(company, job, member_id, true);
+  if outcome->>'outcome' is distinct from 'not_found' then
+    raise exception 'A denied member could confirm a booking: %', outcome;
+  end if;
+  outcome := public.api_set_task_confirmation(company, job, owner_id, true);
+  if outcome->'task'->>'confirmed_by' is distinct from 'crew'
+     or not exists (select 1 from public.task_events
+                     where task_id = job and kind = 'confirmation' and actor_user_id = owner_id) then
+    raise exception 'Crew confirmation did not retain its actor: %', outcome;
+  end if;
+  outcome := public.api_set_task_confirmation(company, job, owner_id, false);
+  if outcome->'task'->>'confirmed_at' is not null or outcome->'task'->>'confirmed_by' is not null then
+    raise exception 'Crew confirmation was not cleared: %', outcome;
+  end if;
+end $$;
+
+do $$
+declare
+  company constant uuid := 'a5000000-0000-4000-8000-0000000000c1';
+  owner_id constant uuid := 'a5000000-0000-4000-8000-00000000000a';
+  day_only constant date := current_date + 2;
+  job uuid;
+  outcome jsonb;
+begin
+  outcome := public.create_task_with_date(company, null, 'Visit on a day', null, null, null, owner_id, day_only);
+  if outcome->>'outcome' is distinct from 'created'
+     or (outcome->'task'->>'due_on')::date is distinct from day_only
+     or (outcome->'task'->>'due_time_set')::boolean is distinct from false
+     or outcome->'task'->>'due_at' is not null then
+    raise exception 'Creating a day-only task must leave the time unset: %', outcome;
+  end if;
+  job := (outcome->'task'->>'id')::uuid;
+  outcome := public.update_task(company, job, null, null, now() + interval '2 days', false, owner_id);
+  if outcome->>'outcome' is distinct from 'updated'
+     or outcome->'task'->>'due_on' is not null
+     or (outcome->'task'->>'due_time_set')::boolean is distinct from true then
+    raise exception 'Replacing a day with a timed booking did not clear the day-only value: %', outcome;
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL STANDALONE TASK TESTS PASSED' as result;
