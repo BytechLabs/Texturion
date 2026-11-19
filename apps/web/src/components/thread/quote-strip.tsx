@@ -2,9 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { FileText, Pencil, Send, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import {
   billingCurrencyOf,
@@ -18,6 +16,16 @@ import type { Translate } from '@/i18n/provider';
 import { useChangeQuoteDraft, useCreateQuote, useQuoteDecision, useQuotes, useSendQuote } from '@/lib/api/quotes';
 import type { Quote, QuoteDecisionAction } from '@/lib/api/quotes';
 import { cn } from "@/lib/utils";
+
+const DECISION_COPY = {
+  withdraw: { title: "quotes.withdrawTitle", description: "quotes.withdrawDetail", label: "quotes.withdraw" },
+  decline: { title: "quotes.markDeclined", description: "quotes.declineCrewDetail", label: "quotes.markDeclined" },
+  "undo-acceptance": {
+    title: "quotes.undoAcceptance",
+    description: "quotes.undoAcceptanceDetail",
+    label: "quotes.undoAcceptance",
+  },
+} as const;
 
 /**
  * #287 — what this thread has been quoted, and the way to quote it.
@@ -232,6 +240,7 @@ export function QuoteStrip({
     input?.focus();
   }, []);
   const showForm = canSend && (draftOpen || editId !== null);
+  const decisionCopy = quoteDecision && DECISION_COPY[quoteDecision.action];
 
   const now = Date.now();
   const rows = (quotes.data?.data ?? []).filter((quote) =>
@@ -325,18 +334,34 @@ export function QuoteStrip({
         />
       ))}
 
-      {quoteDecision && quoteDecision.action !== "decline" && (
+      {quoteDecision && decisionCopy && (
         <ConfirmDialog
           open
           onOpenChange={(open) => {
             if (!open && !decision.isPending) setQuoteDecision(null);
           }}
-          title={t(quoteDecision.action === "withdraw" ? "quotes.withdrawTitle" : "quotes.undoAcceptance")}
-          description={t(quoteDecision.action === "withdraw" ? "quotes.withdrawDetail" : "quotes.undoAcceptanceDetail")}
-          confirmLabel={t(quoteDecision.action === "withdraw" ? "quotes.withdraw" : "quotes.undoAcceptance")}
+          title={t(decisionCopy.title)}
+          description={t(decisionCopy.description)}
+          confirmLabel={t(decisionCopy.label)}
           pending={decision.isPending}
-          onConfirm={() => decision.mutate(quoteDecision, { onSuccess: () => setQuoteDecision(null) })}
+          confirmDisabled={quoteDecision.action === "decline" && !reason.trim()}
+          onConfirm={() => decision.mutate({
+            ...quoteDecision,
+            reason: quoteDecision.action === "decline" ? reason.trim() : undefined,
+          }, { onSuccess: () => setQuoteDecision(null) })}
         >
+          {quoteDecision.action === "decline" && (
+            <label className="flex flex-col gap-1.5 text-sm">
+              {t("quotes.declineReason")}
+              <textarea
+                className="min-h-20 rounded-app-ctrl border border-input bg-background px-3 py-2"
+                value={reason}
+                maxLength={500}
+                disabled={decision.isPending}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+          )}
           {decision.isError && (
             <p role="alert" className="text-sm text-destructive">
               {t(quoteDecision.action === "withdraw" ? "quotes.withdrawFailed" : "quotes.decisionFailed")}
@@ -344,42 +369,6 @@ export function QuoteStrip({
           )}
         </ConfirmDialog>
       )}
-
-      <Dialog open={quoteDecision?.action === "decline"} onOpenChange={(open) => {
-        if (!open && !decision.isPending) setQuoteDecision(null);
-      }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("quotes.markDeclined")}</DialogTitle>
-            <DialogDescription>{t("quotes.declineCrewDetail")}</DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={(event) => {
-            event.preventDefault();
-            if (!quoteDecision || !reason.trim() || decision.isPending) return;
-            decision.mutate({ ...quoteDecision, reason: reason.trim() }, { onSuccess: () => setQuoteDecision(null) });
-          }}>
-            <label className="flex flex-col gap-1.5 text-sm">
-              {t("quotes.declineReason")}
-              <textarea
-                className="min-h-20 rounded-app-ctrl border border-input bg-background px-3 py-2"
-                value={reason}
-                maxLength={500}
-                onChange={(event) => setReason(event.target.value)}
-                required
-              />
-            </label>
-            {decision.isError && <p role="alert" className="text-sm text-destructive">{t("quotes.decisionFailed")}</p>}
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={decision.isPending} onClick={() => setQuoteDecision(null)}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" variant="destructive" disabled={!reason.trim() || decision.isPending}>
-                {t("quotes.markDeclined")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={deleteId !== null}
