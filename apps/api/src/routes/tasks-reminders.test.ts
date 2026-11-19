@@ -37,18 +37,16 @@ afterEach(() => {
 });
 
 /** Records the order the two writes happened in. */
-function harness(options: { found?: boolean } = {}) {
+function harness(outcome: "updated" | "not_found" | "no_conversation" = "updated") {
   const order: string[] = [];
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
   sb.on("POST", "/rest/v1/rpc/set_task_reminders_off", () => {
     order.push("set-flag");
-    return options.found === false
-      ? { outcome: "not_found", task: null }
-      : {
-          outcome: "updated",
-          task: { id: TASK_ID, reminders_off: true, confirmed_at: null },
-        };
+    return {
+      outcome,
+      task: outcome === "updated" ? { id: TASK_ID, reminders_off: true, confirmed_at: null } : null,
+    };
   });
   // The sync's own reads, which follow.
   sb.on("GET", "/rest/v1/tasks", () => {
@@ -85,7 +83,7 @@ describe("PUT /v1/tasks/:id/reminders", () => {
   });
 
   it("404s a job that is not here", async () => {
-    const { sb } = harness({ found: false });
+    const { sb } = harness("not_found");
     stubFetch(jwksRoute(auth), sb.route);
 
     const response = await apiRequest(
@@ -96,6 +94,24 @@ describe("PUT /v1/tasks/:id/reminders", () => {
       { method: "PUT", companyId: COMPANY_ID, body: { off: true } },
     );
     expect(response.status).toBe(404);
+  });
+
+  it("refuses to enable reminders on a job with no customer conversation", async () => {
+    const { sb, order } = harness("no_conversation");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tasks/${TASK_ID}/reminders`,
+      { method: "PUT", companyId: COMPANY_ID, body: { off: false } },
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      error: { message_key: "apiRefusals.remindersNeedCustomer" },
+    });
+    expect(order).toEqual(["set-flag"]);
   });
 
   it("422s a body that does not say which way", async () => {

@@ -12,10 +12,15 @@
  * An offset in minutes off an absolute instant has no such failure mode, and
  * the test below is what says this code took that route.
  */
-import { describe, expect, it } from "vitest";
+import { copyFor } from "@loonext/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { planReminders } from './appointment-reminders';
+import { getDb } from "../db";
+import { supabaseStub } from "../test/routes-harness";
+import { completeEnv, stubFetch } from "../test/support";
+import { planReminders, syncTaskReminders } from './appointment-reminders';
 import type { ReminderRule } from './appointment-reminders';
+import { resolveSendMergeFields } from "./merge";
 
 const DAY_BEFORE: ReminderRule = {
   offset_minutes: 1440,
@@ -29,6 +34,74 @@ const TWO_HOURS: ReminderRule = {
 };
 
 const render = (body: string) => body.replace("{job_day}", "Thursday");
+
+describe(syncTaskReminders, () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    { locale: null, expected: "mardi a 14 h", greeting: "Bonjour Jo" },
+    { locale: "en", expected: "Tuesday at 2:00", greeting: "Hi Jo" },
+  ])("uses the booked task and the stock reminder for $locale", async ({ locale, expected, greeting }) => {
+    const env = completeEnv();
+    const sb = supabaseStub(env);
+    const taskId = "5e3f1a2b-7c4d-4e6f-8a9b-0c1d2e3f4a5b";
+    const dueAt = "2026-12-01T19:00:00.000Z";
+    const companyId = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
+    sb.on("GET", "/rest/v1/tasks", ({ url }) => {
+      const params = url.searchParams;
+      if (params.get("select") === "due_at") {
+        return [{ due_at: params.get("id") === `eq.${taskId}` ? dueAt : "2026-11-30T19:00:00Z" }];
+      }
+      return [{
+        due_at: dueAt,
+        reminders_off: false,
+        conversation_id: "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a",
+        companies: { name: "Acme", locale: "fr-CA" },
+        conversations: { contact_phone_e164: "+14165550100", contacts: { name: "Jo", timezone: "America/Toronto", locale } },
+      }];
+    });
+    sb.on("GET", "/rest/v1/companies", () => []);
+    sb.on("GET", "/rest/v1/appointment_reminder_rules", () => [{
+      ...copyFor("fr-CA").appointmentReminders[0], enabled: true,
+    }]);
+    sb.on("POST", "/rest/v1/rpc/api_sync_task_reminders", () => ({ outcome: "synced", added: 1 }));
+    stubFetch(sb.route);
+
+    await syncTaskReminders(getDb(env), {
+      companyId,
+      taskId,
+      userId: "eedcc567-40cc-43a0-93fd-92914be593ec",
+      now: new Date("2026-11-28T14:00:00Z"),
+    });
+
+    const lookup = sb.find("GET", "/rest/v1/tasks")[1].url.searchParams;
+    expect(lookup.get("deleted_at")).toBe("is.null");
+    expect(lookup.get("company_id")).toBe(`eq.${companyId}`);
+    const args = sb.find("POST", "/rest/v1/rpc/api_sync_task_reminders")[0].body as { p_reminders: { body: string }[] };
+    expect(args.p_reminders).toHaveLength(1);
+    const reminder = args.p_reminders[0].body;
+    expect(reminder).toContain(`${greeting},`);
+    expect(reminder).toContain("Acme");
+    expect(reminder).toContain(expected);
+    expect(reminder).not.toMatch(/[\u00A0\u202F]/);
+  });
+
+  it("adds a date to the weekday when the visit is more than six days away", async () => {
+    const env = completeEnv();
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/tasks", () => [{ due_at: "2026-12-08T19:00:00.000Z" }]);
+    stubFetch(sb.route);
+
+    const fields = await resolveSendMergeFields(getDb(env), "{job_day} at {job_time}", {
+      companyId: "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d",
+      conversationId: "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a",
+      now: new Date("2026-11-28T14:00:00Z"),
+    });
+
+    expect(fields.jobDay).toContain("Tuesday");
+    expect(fields.jobDay).toMatch(/\d/);
+  });
+});
 
 describe("#237 planReminders", () => {
   const now = new Date("2026-08-03T12:00:00Z");

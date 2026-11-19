@@ -369,9 +369,9 @@ struct TaskDetailView: View {
             addr_postal_code: row.addr_postal_code,
             addr_country: row.addr_country,
             addr_provenance: row.addr_provenance,
-            // #237: re-read for the same reason as the address — a rename or a
-            // due edit must not drop the reminder state the screen is showing.
             reminders_off: row.reminders_off,
+            reminders: row.due_at == detail.due_at && row.reminders_off == detail.reminders_off
+                ? detail.reminders : nil,
             confirmed_at: row.confirmed_at,
             confirmed_by: row.confirmed_by,
             source: detail.source,
@@ -790,6 +790,7 @@ struct TaskDetailView: View {
             )
         }
 
+        let canRemind = detail.conversation_id != nil && detail.reminders?.state != "no_customer_thread"
         // Spec 23: a paper card of Assignee / Due rows with hairlines.
         return PaperCard {
             Button {
@@ -846,11 +847,7 @@ struct TaskDetailView: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
 
-            // #237: directly under the due date, because it only means anything
-            // as a qualifier on it — a job with no date sends nothing whatever
-            // this says, and the switch would read as broken sitting anywhere
-            // else. Hidden without a date, for the same reason.
-            if detail.due_at != nil {
+            if !noAccess && (detail.reminders != nil || detail.due_at != nil) {
                 RowDivider()
                 HStack(spacing: 11) {
                     metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.remind"))
@@ -862,7 +859,7 @@ struct TaskDetailView: View {
                     Toggle(
                         "",
                         isOn: Binding(
-                            get: { !(detail.reminders_off ?? false) },
+                            get: { canRemind && detail.reminders_off != true },
                             set: { on in
                                 runPatch {
                                     try await mutations.setReminders(
@@ -875,7 +872,7 @@ struct TaskDetailView: View {
                         )
                     )
                     .labelsHidden()
-                    .disabled(noAccess)
+                    .disabled(!canRemind)
                     .accessibilityLabel(
                         AppStrings.translate(appLocale, "contactsTasks.remindAria")
                     )
@@ -1049,6 +1046,23 @@ struct TaskDetailView: View {
     /// which has already unwrapped it, and a computed property reaching for
     /// `self.detail` would be a second source for the same fact.
     private func reminderStateLine(_ detail: TaskDetail) -> String {
+        let state = detail.conversation_id == nil ? "no_customer_thread" : (detail.reminders?.state ?? "")
+        switch state {
+        case "no_customer_thread": return AppStrings.translate(appLocale, "contactsTasks.remindNoCustomerThread")
+        case "none_configured": return AppStrings.translate(appLocale, "contactsTasks.remindNoneConfigured")
+        case "off": return AppStrings.translate(appLocale, "contactsTasks.remindOff")
+        case "sent": return AppStrings.translate(appLocale, "contactsTasks.remindSent")
+        case "held": return AppStrings.translate(appLocale, "contactsTasks.remindHeld")
+        case "none_queued": return AppStrings.translate(appLocale, "contactsTasks.remindNoneQueued")
+        case "queued":
+            guard let next = detail.reminders?.next_send_at else {
+                return AppStrings.translate(appLocale, "contactsTasks.remindNoneQueued")
+            }
+            return timedDue(locale: appLocale) { due in
+                AppStrings.translate(appLocale, "contactsTasks.remindQueued", ["when": due(next)])
+            }.visible
+        default: break
+        }
         if detail.confirmed_at != nil {
             return AppStrings.translate(
                 appLocale,

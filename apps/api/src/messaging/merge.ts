@@ -19,10 +19,14 @@
  * A message with no tokens — the overwhelming majority — does no work at all.
  */
 import { applyMergeFields, mergeFieldsNeeded } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { unwrap } from "../routes/core/http";
+
+const SIX_DAYS_MS = 6 * 86_400_000;
+const NONBREAKING_SPACES = /[\u00A0\u202F]/g;
 
 /** The already-loaded contact + company slice a merge needs. */
 export interface MergeContext {
@@ -69,10 +73,13 @@ export async function resolveSendMergeFields(
   input: {
     companyId: string;
     conversationId?: string | null;
+    jobTaskId?: string;
     /** The member sending it, for {my_name}. */
     userId?: string | null;
     /** The contact's timezone, so {job_day}/{job_time} read in THEIR day. */
     timeZone?: string | null;
+    locale?: Locale;
+    now?: Date;
   },
 ): Promise<MergeContext> {
   const needed = mergeFieldsNeeded(body);
@@ -98,44 +105,39 @@ export async function resolveSendMergeFields(
   }
 
   if ((needed.has("job_day") || needed.has("job_time")) && input.conversationId) {
-    /**
-     * The next scheduled visit IS the next open task with a due date on this
-     * conversation. That is not a stand-in for an appointment model we have not
-     * built — in this product a due-dated task is exactly what a crew books,
-     * and inventing a second scheduled thing beside it would leave two answers
-     * to "when are you coming".
-     */
     try {
-      // "Open" is the task's effective done state (the source message's done_at,
-      // or the task's own when it came from a call, D64), read through the
-      // `task_done_at` computed column.
-      const rows = unwrap<{ due_at: string | null }[]>(
-        await db
-          .from("tasks")
-          .select("due_at")
-          .eq("company_id", input.companyId)
-          .eq("conversation_id", input.conversationId)
-          .is("task_done_at", null)
-          .not("due_at", "is", null)
+      const now = input.now ?? new Date();
+      const tasks = db.from("tasks")
+        .select("due_at")
+        .eq("company_id", input.companyId)
+        .eq("conversation_id", input.conversationId)
+        .is("deleted_at", null);
+      const visit = input.jobTaskId === undefined
+        ? tasks.is("task_done_at", null)
+          .gte("due_at", now.toISOString())
           .order("due_at", { ascending: true })
-          .limit(1),
-        "merge next visit",
+        : tasks.eq("id", input.jobTaskId);
+      const rows = unwrap<{ due_at: string | null }[]>(
+        await visit.limit(1),
+        "merge job time",
       );
       const dueAt = rows[0]?.due_at ?? null;
       if (dueAt !== null) {
-        // In the CONTACT'S zone, not the workspace's. "Tuesday at 2" has to be
-        // the customer's Tuesday — the whole message is a promise to them.
-        const zone = input.timeZone ?? "UTC";
+        const timeZone = input.timeZone ?? "UTC";
+        const locale = input.locale === "fr-CA" ? "fr-CA" : "en-CA";
         const when = new Date(dueAt);
-        ctx.jobDay = new Intl.DateTimeFormat("en-CA", {
+        const includeDate = when.getTime() - now.getTime() > SIX_DAYS_MS;
+        ctx.jobDay = new Intl.DateTimeFormat(locale, {
           weekday: "long",
-          timeZone: zone,
-        }).format(when);
-        ctx.jobTime = new Intl.DateTimeFormat("en-CA", {
+          timeZone,
+          ...(includeDate ? { month: "numeric", day: "numeric" } : {}),
+        }).format(when).replaceAll(NONBREAKING_SPACES, " ");
+        const time = new Intl.DateTimeFormat(locale, {
           hour: "numeric",
           minute: "2-digit",
-          timeZone: zone,
-        }).format(when);
+          timeZone,
+        }).format(when).replaceAll(NONBREAKING_SPACES, " ");
+        ctx.jobTime = locale === "fr-CA" ? time.replace(/ h 00$/, " h") : time;
       }
     } catch {
       // Best effort, as above.

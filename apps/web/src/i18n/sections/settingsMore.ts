@@ -620,6 +620,8 @@ export const settingsMoreEn = {
   remindersSaveAction: "Save reminders",
   remindersAllOff: "Reminders are off. Nothing will go out automatically.",
   remindersSaved: "Saved. New jobs will carry these reminders.",
+  remindersUpdatingOne: "Saved. Reminders for one booked job are being updated.",
+  remindersUpdatingMany: "Saved. Reminders for {count} booked jobs are being updated.",
 
   /* Require two-factor for everyone (#314) */
   mfaTitle: "Require two-factor for everyone",
@@ -1870,6 +1872,8 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
     "Les rappels sont désactivés. Rien ne partira automatiquement.",
   remindersSaved:
     "Enregistré. Les nouvelles tâches porteront ces rappels.",
+  remindersUpdatingOne: "Enregistré. Les rappels d'une tâche planifiée sont en cours de mise à jour.",
+  remindersUpdatingMany: "Enregistré. Les rappels de {count} tâches planifiées sont en cours de mise à jour.",
 
   mfaTitle: "Exiger la double authentification pour tout le monde",
   mfaDescription:

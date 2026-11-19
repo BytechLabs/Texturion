@@ -14,10 +14,11 @@
  * question arriving at 5am, or a reminder arriving after the van.
  */
 import {
-  copyForContact,
+  copyFor,
   isPoorRating,
   JOB_RATED_EVENT,
   parseRatingReply,
+  resolveLocale,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -128,16 +129,20 @@ export async function askForJobRating(
     .select("locale")
     .eq("id", input.companyId)
     .limit(1);
-  const {ratingAsk} = copyForContact(
+  const locale = resolveLocale(
     conversation?.contacts?.locale ?? null,
     ((companyRow.data ?? [])[0] as { locale: string | null } | undefined)?.locale ?? null,
   );
+  const { ratingAsk } = copyFor(locale);
 
   const ctx = await resolveSendMergeFields(db, ratingAsk, {
     companyId: input.companyId,
     conversationId: task.conversation_id,
+    jobTaskId: input.taskId,
     userId: input.userId,
     timeZone: clock.timezone,
+    locale,
+    now,
   });
 
   // The newest inbound now, as `api_schedule_message` records it. Without it the

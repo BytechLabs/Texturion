@@ -54,7 +54,7 @@ export function useSaveReminderRules() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (rules: ReminderRule[]) =>
-      apiFetch<{ rules: ReminderRule[] }>("/v1/appointment-reminders", {
+      apiFetch<{ rules: ReminderRule[]; replanned_jobs?: number }>("/v1/appointment-reminders", {
         method: "PUT",
         companyId,
         body: {

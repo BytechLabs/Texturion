@@ -2107,6 +2107,10 @@ describe("POST /v1/messages/send — #274 the tokens that do real work", () => {
       body: "Confirming {job_day} at {job_time}",
     });
     expect(stubs.taskLookup.calls).toHaveLength(1);
+    const filters = stubs.taskLookup.calls[0].url.searchParams;
+    expect(filters.get("deleted_at")).toBe("is.null");
+    expect(filters.get("task_done_at")).toBe("is.null");
+    expect(filters.get("due_at")).toMatch(/^gte\./);
     const sent = (stubs.telnyx.calls[0].body as { text: string }).text;
     expect(sent).not.toContain("{");
     expect(sent.startsWith("Confirming ")).toBe(true);
