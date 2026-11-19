@@ -935,6 +935,7 @@ private fun TaskDetailBody(
                     ) {
                         Text(
                             when {
+                                detail.calendar_hold -> t("contactsTasks.calendarHold")
                                 detail.due_at == null -> t("contactsTasks.noDueDate")
                                 overdue -> t(
                                     "contactsTasks.overdueDot",
@@ -960,7 +961,7 @@ private fun TaskDetailBody(
 
                     val reminder = detail.reminders
                     val canRemind = detail.conversation_id != null && reminder?.state != "no_customer_thread"
-                    if (!noAccess && (reminder != null || detail.due_at != null)) {
+                    if (!noAccess && !detail.calendar_hold && (reminder != null || detail.due_at != null)) {
                         RowDivider()
                         MetaRow(
                             label = t("contactsTasks.remind"),

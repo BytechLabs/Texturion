@@ -128,7 +128,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   // pills stayed lit and changed nothing, which is what both phone apps
   // already got right (matchesCalendarTab).
   const tasks = flattenPages(query.data).filter((task) => {
-    if (task.due_at === null || !visibleKeys.has(dueCell(task.due_at, timeZone).key)) {
+    if (
+      task.calendar_hold ||
+      task.due_at === null ||
+      !visibleKeys.has(dueCell(task.due_at, timeZone).key)
+    ) {
       return false;
     }
     if (state.tab === "open") return !task.done;

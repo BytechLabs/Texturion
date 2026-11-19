@@ -21,7 +21,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { TaskNumber } from "../task-atoms";
+import { TaskCalendarHold, TaskNumber } from "../task-atoms";
 import { TaskStatusPicker } from "../task-status-picker";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
@@ -406,6 +406,7 @@ function TaskRowView({
               <PriorityMark priority={task.priority} />
               <RepeatMark repeat={task.repeat} />
               <LabelChips labels={task.labels} />
+              <TaskCalendarHold task={task} />
             </div>
             {source && (
               <Link

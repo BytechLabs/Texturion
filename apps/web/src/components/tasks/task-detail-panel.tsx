@@ -70,7 +70,7 @@ import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
-import { TaskDoneCheckbox, TaskNumber } from "./task-atoms";
+import { TaskCalendarHold, TaskDoneCheckbox, TaskNumber } from "./task-atoms";
 import { ReferenceChips } from "./reference-text";
 import { ReferencePicker } from "./reference-picker";
 import { TaskLinksSection } from "./task-links-section";
@@ -704,6 +704,7 @@ function TaskDetailLoaded({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="task-due">{t("tasks.due")}</Label>
+              <TaskCalendarHold task={task} />
               {task.due_at && (
                 <button
                   type="button"
@@ -740,7 +741,7 @@ function TaskDetailLoaded({
           </div>
         </section>
 
-        {task.viewer_level !== "none" && (task.reminders !== undefined || task.due_at !== null) && (
+        {task.viewer_level !== "none" && !task.calendar_hold && (task.reminders !== undefined || task.due_at !== null) && (
           <section className="flex flex-wrap items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-app-ink">

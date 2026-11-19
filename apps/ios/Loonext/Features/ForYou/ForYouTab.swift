@@ -1122,7 +1122,8 @@ struct ForYouList: View {
                         TaskLineRow(
                             title: row.title,
                             overdue: row.overdue,
-                            dueAt: row.due_at
+                            dueAt: row.due_at,
+                            calendarHold: row.calendar_hold == true
                         ) { openTask(row.task_id) }
                     }
                 }
@@ -1457,6 +1458,7 @@ private struct TaskLineRow: View {
     let title: String
     let overdue: Bool
     let dueAt: String?
+    var calendarHold = false
     let onTap: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -1496,6 +1498,9 @@ private struct TaskLineRow: View {
         // timedDue, NOT timedText: relative time measures time ELAPSED, so
         // every future due date came out as "Due now".
         timedDue(locale: appLocale) { due in
+            if calendarHold {
+                return AppStrings.translate(appLocale, "contactsTasks.calendarHold")
+            }
             if overdue {
                 return AppStrings.translate(appLocale, "inbox.forYouWhyOverdueTask")
             }

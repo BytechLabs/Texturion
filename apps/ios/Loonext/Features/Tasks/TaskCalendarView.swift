@@ -684,14 +684,14 @@ struct TaskCalendarView: View {
             var accumulated: [TaskItem] = []
             var pages = 0
             repeat {
-                accumulated += try await monthLoader.nextPage()
+                accumulated += try await monthLoader.nextPage().filter { $0.calendar_hold != true }
                 pages += 1
             } while monthLoader.hasMore && pages < 12
             var open = 0
             var done = 0
             pages = 0
             repeat {
-                for task in try await undatedLoader.nextPage() where task.due_at == nil {
+                for task in try await undatedLoader.nextPage() where task.due_at == nil && task.calendar_hold != true {
                     if task.done { done += 1 } else { open += 1 }
                 }
                 pages += 1

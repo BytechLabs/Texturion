@@ -29,6 +29,7 @@ export const tasksEn = {
   statusOpen: "Open",
   statusDone: "Done",
   overdue: "Overdue",
+  calendarHold: "Calendar needs a decision",
   /** Read aloud before the date, so overdue is not colour-only (WCAG 1.4.1). */
   overdueSrPrefix: "Overdue: ",
   today: "Today",
@@ -662,6 +663,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
   statusOpen: "Ouverte",
   statusDone: "Terminée",
   overdue: "En retard",
+  calendarHold: "Décision de calendrier requise",
   overdueSrPrefix: "En retard : ",
   today: "Aujourd'hui",
   tomorrow: "Demain",

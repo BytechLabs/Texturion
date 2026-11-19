@@ -281,7 +281,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
     );
   };
 
-  const why = task.overdue
+  const timing = task.overdue
     ? t("inbox.forYouWhyOverdueTask")
     : (task.due_at
       ? t("inbox.forYouWhyDue", { when: formatDue(task.due_at, t) })
@@ -314,7 +314,10 @@ function TaskRow({ task }: { task: ForYouTask }) {
           {task.title}
         </span>
         <span className="mt-0.5 block">
-          <Why text={why} warn={task.overdue} />
+          <Why
+            text={task.calendar_hold ? t("tasks.calendarHold") : timing}
+            warn={task.calendar_hold || task.overdue}
+          />
         </span>
       </button>
       {task.conversation_id !== null && (

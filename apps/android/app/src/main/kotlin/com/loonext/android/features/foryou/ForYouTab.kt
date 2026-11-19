@@ -975,6 +975,7 @@ internal fun ForYouList(
                                 title = row.title,
                                 overdue = row.overdue,
                                 dueAt = row.due_at,
+                                calendarHold = row.calendar_hold,
                                 // #718: a task row opens the task.
                                 onClick = { onOpenTask(row.task_id) },
                             )
@@ -1289,7 +1290,13 @@ private fun PersonRow(
 
 /** Task row: 22dp outline ring, 13.5sp SemiBold title, due/overdue why-line. */
 @Composable
-private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClick: () -> Unit) {
+private fun TaskQueueRow(
+    title: String,
+    overdue: Boolean,
+    dueAt: String?,
+    calendarHold: Boolean = false,
+    onClick: () -> Unit,
+) {
     val pressSource = remember { MutableInteractionSource() }
     Row(
         Modifier
@@ -1324,6 +1331,7 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
             // every future due date came out as "Due now".
             val why = timedDue(LocalAppLocale.current) { due ->
                 when {
+                    calendarHold -> t("contactsTasks.calendarHold")
                     overdue -> t("inbox.forYouWhyOverdueTask")
                     dueAt != null -> t("inbox.forYouWhyDue", "when" to due(dueAt))
                     else -> t("inbox.forYouWhyOpenTask")

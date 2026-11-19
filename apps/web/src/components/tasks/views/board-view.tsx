@@ -13,7 +13,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { TaskAssignee, TaskDue, TaskNumber } from "../task-atoms";
+import { TaskAssignee, TaskCalendarHold, TaskDue, TaskNumber } from "../task-atoms";
 import { groupTasks } from '../task-grouping';
 import type { TaskColumn } from '../task-grouping';
 import { priorityLabelKey } from "../task-planning";
@@ -358,6 +358,7 @@ function BoardCard({
       <div className="mt-2 flex items-center justify-between gap-2">
         <TaskAssignee task={task} showName={false} />
         <TaskDue task={task} className="text-[12px]" />
+        <TaskCalendarHold task={task} />
       </div>
       {/* Keyboard-accessible move (the DnD alternative, §7 a11y). */}
       <button

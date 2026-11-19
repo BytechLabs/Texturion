@@ -29,6 +29,7 @@ data class ForYouTask(
     val assigned_user_id: String? = null,
     val due_at: String? = null,
     val overdue: Boolean = false,
+    val calendar_hold: Boolean = false,
 )
 
 /**
