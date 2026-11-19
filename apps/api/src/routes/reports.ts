@@ -10,11 +10,9 @@
  *
  * THE DEFINITION LIVES IN THE SQL, and `docs/RESPONSE-TIME.md` states it in the
  * words this API and the three clients use. In short: one measurement per
- * conversation — the first inbound message, and the first HUMAN reply after it
- * (`automated = false`, because an auto-reply is the state this product exists
- * to get out of, not a response to it). Threads we opened are not leads, notes
- * are not replies, spam is excluded, and a lead nobody answered is COUNTED —
- * dropping it would let a workspace improve its median by ignoring more leads.
+ * conversation. It starts with the first inbound text or missed call and ends
+ * with the first human text, callback or answered inbound call. Crew outreach,
+ * spam and deleted activity are excluded. Unanswered leads stay in the totals.
  *
  * WHAT THIS LAYER ADDS, and why it is here rather than in SQL:
  *
@@ -82,6 +80,10 @@ interface StatsPayload {
   leads: number;
   answered: number;
   unanswered: number;
+  text_first?: number;
+  call_first?: number;
+  auto_text_sent?: number;
+  replied_to_auto_text?: number;
   median_seconds: number | null;
   p90_seconds: number | null;
   by_member: { user_id: string; answered: number; median_seconds: number }[];
@@ -348,6 +350,10 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     // Named plainly. This is the leak the issue asks to have named, and it is
     // the number a workspace could otherwise improve by ignoring more leads.
     unanswered: current.unanswered,
+    text_first: current.text_first ?? current.leads,
+    call_first: current.call_first ?? 0,
+    auto_text_sent: current.auto_text_sent ?? null,
+    replied_to_auto_text: current.replied_to_auto_text ?? null,
     median_seconds: current.median_seconds,
     p90_seconds: current.p90_seconds,
     business_hours: sideOf(inHours),
