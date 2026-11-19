@@ -13,6 +13,7 @@
  */
 
 import type { PlanId, PlanModule } from "@/lib/api/types";
+import type { Locale } from "@loonext/shared";
 
 export const SITE_URL = "https://loonext.com";
 
@@ -115,6 +116,13 @@ export function appLinkBase(origin: string | undefined): string {
 
 const APP_BASE = appLinkBase(process.env.NEXT_PUBLIC_APP_ORIGIN);
 const SIGNUP_URL = `${APP_BASE}/signup`;
+
+export function appLink(path: string, locale: Locale): string {
+  if (locale === "en") return path;
+  const url = new URL(path, "https://app.invalid");
+  url.searchParams.set("lang", locale);
+  return path.startsWith("/") ? `${url.pathname}${url.search}${url.hash}` : url.href;
+}
 
 /** The app (separate Worker origin in production; same-origin route locally). */
 export const APP_LINKS = {

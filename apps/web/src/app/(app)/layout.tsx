@@ -16,6 +16,9 @@ import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
 
 import { AppProviders } from "../app-providers";
+import { metadata as rootMetadata, RootDocument } from "../root-document";
+
+export { viewport } from "../root-document";
 
 /**
  * The signed-in application: company context (X-Company-Id source), one
@@ -36,6 +39,7 @@ import { AppProviders } from "../app-providers";
  */
 
 export const metadata: Metadata = {
+  ...rootMetadata,
   // Pin the signed-in app's own title template + a plain default on the group
   // layout, so tab titles stay stable regardless of the marketing root's copy:
   // core routes that supply a title read "%s · Loonext" (for-you, tasks, and
@@ -49,7 +53,7 @@ export const metadata: Metadata = {
 export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
+  const app = (
     <AppProviders showToaster={false}>
       <CompanyProvider scopeClassName={`${golosText.variable} app-scope font-sans`}>
         <Toaster position="bottom-left" />
@@ -105,4 +109,5 @@ export default function AppLayout({
       </CompanyProvider>
     </AppProviders>
   );
+  return <RootDocument>{app}</RootDocument>;
 }

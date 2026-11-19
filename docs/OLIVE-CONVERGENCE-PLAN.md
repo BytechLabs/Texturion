@@ -352,7 +352,7 @@ The lime band is the one genuinely good news in the marketing half: white-on-oli
 
 | file | what |
 |---|---|
-| `apps/web/src/app/layout.tsx:83` | `themeColor` `#0F766E` / `#0c1211` → `#F3F3EE` / `#141610` (OS reads it) |
+| `apps/web/src/app/root-document.tsx` | `themeColor` `#0F766E` / `#0c1211` → `#F3F3EE` / `#141610` (OS reads it) |
 | `apps/web/src/app/manifest.ts:24-25` | `background_color` `#FAFAF9` → `#F3F3EE`; `theme_color` `#0F766E` → `#191B14` |
 | `apps/web/public/offline.html:6,17-31` | self-contained palette incl. the only hand-authored dark block outside `globals.css` |
 | `apps/web/src/app/(marketing)/opengraph-image.tsx:31+` | still the **dead v3** palette (`#041F1C`, `#02110F`, `#3FD5C0`) — proof this class of miss already happened once |

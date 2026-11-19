@@ -4,6 +4,8 @@ import com.loonext.android.features.contacts.Nanp as ContactNanp
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
+import com.loonext.android.features.settings.BillingCurrency
+import com.loonext.android.features.settings.formatMoney
 import com.loonext.android.features.settings.lastCompleteMonth
 import com.loonext.android.features.settings.prepaidConversionCopy
 import com.loonext.android.features.thread.MessagePhone
@@ -41,6 +43,32 @@ import org.junit.Test
  * place the cases live, which is the problem this is meant to solve.
  */
 class ParityVectorsTest {
+    @Serializable
+    private data class MoneyVector(
+        val cents: Int,
+        val currency: String,
+        val audience: String,
+        val locale: String,
+        val expected: String,
+    )
+
+    @Test
+    fun `localized currency matches the TypeScript`() {
+        val cases = Json.decodeFromString<List<MoneyVector>>(vectors("money.json"))
+        assertTrue(cases.isNotEmpty())
+        for (case in cases) {
+            assertEquals(
+                case.expected,
+                formatMoney(
+                    case.cents,
+                    BillingCurrency.valueOf(case.currency.uppercase()),
+                    BillingCurrency.valueOf(case.audience.uppercase()),
+                    case.locale,
+                ),
+            )
+        }
+    }
+
     @Serializable
     private data class SegmentVector(
         val text: String,

@@ -93,9 +93,15 @@ export default function SignupPage() {
   // Where a completed auth should land: onboarding, carrying the intent in
   // the URL so it survives contexts where the stash doesn't exist (the
   // confirm-email link opened in another browser/profile).
-  const onboardingPath = planIntent
-    ? `/onboarding?${planIntentSearch(planIntent)}`
+  const onboardingParams = new URLSearchParams(planIntent ? planIntentSearch(planIntent) : "");
+  if (t.locale === "fr-CA") onboardingParams.set("lang", t.locale);
+  const onboardingPath = onboardingParams.size
+    ? `/onboarding?${onboardingParams}`
     : "/onboarding";
+
+  useEffect(() => {
+    document.title = `${t("onboarding.tabSignUp")} · Loonext`;
+  }, [t]);
 
   const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<FormValues>({
@@ -111,7 +117,7 @@ export default function SignupPage() {
       password: values.password,
       options: {
         // The DB trigger copies display_name into profiles (SPEC §6).
-        data: { display_name: values.name },
+        data: { display_name: values.name, locale: t.locale },
         // Carries the plan intent through the confirm-email round trip — the
         // onboarding dispatcher re-stashes it from the URL on landing.
         emailRedirectTo: `${window.location.origin}${onboardingPath}`,
@@ -122,7 +128,7 @@ export default function SignupPage() {
       // Captcha tokens are single-use — mint a fresh one before a retry.
       turnstileRef.current?.reset();
       setCaptchaToken(null);
-      setServerError(authErrorMessage(error));
+      setServerError(authErrorMessage(error, t));
       return;
     }
     if (data.session) {
@@ -155,7 +161,7 @@ export default function SignupPage() {
           captchaToken: token ?? undefined,
         },
       });
-      if (error) setServerError(authErrorMessage(error));
+      if (error) setServerError(authErrorMessage(error, t));
       else setResent(true);
     } catch {
       setServerError(t("onboarding.confirmationResendFailed"));

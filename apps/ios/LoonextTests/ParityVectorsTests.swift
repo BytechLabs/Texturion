@@ -19,6 +19,27 @@ import XCTest
 /// wrong costs money or wakes somebody up: segment counting (what a customer is
 /// billed) and NANP lookup (destination validity, and the quiet-hours clock).
 final class ParityVectorsTests: XCTestCase {
+    private struct MoneyVector: Decodable {
+        let cents: Int
+        let currency: String
+        let audience: String
+        let locale: String
+        let expected: String
+    }
+
+    func testLocalizedCurrencyMatchesTypeScript() throws {
+        let cases = try vectors("money.json", as: [MoneyVector].self)
+        XCTAssertFalse(cases.isEmpty)
+        for item in cases {
+            let currency = try XCTUnwrap(BillingCurrency(rawValue: item.currency))
+            let audience = try XCTUnwrap(BillingCurrency(rawValue: item.audience))
+            XCTAssertEqual(
+                formatMoneyIn(item.cents, currency, audience: audience, locale: item.locale),
+                item.expected
+            )
+        }
+    }
+
     private struct SegmentVector: Decodable {
         let text: String
         let encoding: String

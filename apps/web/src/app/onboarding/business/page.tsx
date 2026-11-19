@@ -1,6 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isLocale, resolveLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
+import { apiFetch } from "@/lib/api/client";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -189,6 +192,12 @@ export default function BusinessIdentityPage() {
   const saveRegistration = useSaveOnboardingRegistration();
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
+  const [customerLocale, setCustomerLocale] = useState<Locale | null>(null);
+  const activeLocale = customerLocale ?? resolveLocale(state.company?.locale, t.locale);
+
+  useEffect(() => {
+    document.title = `${t("onboarding.tabBusinessDetails")} · Loonext`;
+  }, [t]);
 
   const country: "US" | "CA" =
     state.company?.country ?? state.draft.country ?? "US";
@@ -314,12 +323,20 @@ export default function BusinessIdentityPage() {
 
     try {
       let companyId = state.companyId ?? createdCompanyId.current;
+      if (companyId && customerLocale && customerLocale !== state.company?.locale) {
+        await apiFetch("/v1/company", {
+          method: "PATCH",
+          companyId,
+          body: { locale: customerLocale },
+        });
+      }
       if (!companyId) {
         // D15: the creating browser's timezone rides along silently.
         const timezone = browserTimezone();
         const company = await createCompany.mutateAsync({
           name: state.draft.name?.trim() ?? "",
           country,
+          locale: activeLocale,
           requested_area_code: state.draft.areaCode ?? "",
           // Choose-your-number: carry the onboarding pick through to the order.
           ...(state.draft.chosenNumber
@@ -380,6 +397,22 @@ export default function BusinessIdentityPage() {
           className="space-y-6"
           noValidate
         >
+          <div className="space-y-2">
+            <label htmlFor="customer-language" className="text-sm font-medium">
+              {t("onboarding.customerLanguage")}
+            </label>
+            <SimpleSelect
+              id="customer-language"
+              value={activeLocale}
+              onValueChange={(value) => {
+                if (isLocale(value)) setCustomerLocale(value);
+              }}
+              options={[
+                { value: "fr-CA", label: "Français" },
+                { value: "en", label: "English" },
+              ]}
+            />
+          </div>
           <FormField
             control={form.control}
             name="hasEin"

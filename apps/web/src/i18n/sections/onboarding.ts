@@ -90,6 +90,7 @@ export const onboardingEn = {
 
   // ── Step: business identity (10DLC brand) ─────────────────────────────────
   businessTitle: "Tell us about your business",
+  customerLanguage: "Your customers will be texted in",
   businessSubtitle:
     "Carriers require this before a business can text customers. We file " +
     "everything for you. It takes about 2 minutes.",
@@ -737,6 +738,7 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
 
   // ── Step: business identity ───────────────────────────────────────────────
   businessTitle: "Parlez-nous de votre entreprise",
+  customerLanguage: "Vos clients recevront leurs textos en",
   businessSubtitle:
     "Les opérateurs l'exigent avant qu'une entreprise puisse texter des " +
     "clients. Nous remplissons tout pour vous. Ça prend environ 2 minutes.",

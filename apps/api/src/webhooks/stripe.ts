@@ -30,7 +30,7 @@ import {
   grantPrepaidYear,
   isPrepayCheckout,
 } from "../billing/prepay";
-import { billingRecipients } from "../billing/recipients";
+import { billingRecipients, billingRecipientsByLocale } from "../billing/recipients";
 import { emailLedger, sendLedgered } from "../billing/send-ledgered";
 import { getStripe, stripeCryptoProvider } from '../billing/stripe';
 import type { Stripe } from '../billing/stripe';
@@ -974,7 +974,7 @@ export async function syncSubscription(
   env: Env,
   subscriptionId: string,
   db: SupabaseClient = getDb(env),
-): Promise<{ id: string; name: string; status: LocalSubscriptionStatus }[]> {
+): Promise<{ id: string; name: string; locale: string | null; status: LocalSubscriptionStatus }[]> {
   const stripe = getStripe(env);
   const subscription = await stripe.subscriptions.retrieve(
     subscriptionId,
@@ -1011,11 +1011,12 @@ export async function syncSubscription(
     // #277: paused_at + paused_price_cents ride along so the pause convergence
     // below can tell "already correct" from "needs a write" without a read of
     // its own — see the note there for why that distinction matters.
-    .select("id,name,owner_user_id,canceled_at,deleted_at,paused_at,paused_price_cents,pending_plan_schedule_id,company_modules(module,disabled_at,grandfathered)");
+    .select("id,name,locale,owner_user_id,canceled_at,deleted_at,paused_at,paused_price_cents,pending_plan_schedule_id,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
   const companies = (data ?? []) as {
     id: string;
     name: string;
+    locale: string | null;
     owner_user_id: string;
     canceled_at: string | null;
     deleted_at: string | null;
@@ -1155,7 +1156,7 @@ export async function syncSubscription(
   }
   // Expose the mirrored (truth) status so callers can gate on it — e.g. the
   // dunning email must not fire when an out-of-order success left this active.
-  return companies.map(({ id, name }) => ({ id, name, status }));
+  return companies.map(({ id, name, locale }) => ({ id, name, locale, status }));
 }
 
 /**
@@ -1484,32 +1485,49 @@ async function handleInvoicePaymentFailed(
           collapseKey: key,
         });
 
-        const portal = `${env.APP_ORIGIN}/settings/billing`;
-        const invoiceLine = invoice.hosted_invoice_url
-          ? `You can also pay the open invoice directly: ${invoice.hosted_invoice_url}\n\n`
-          : "";
-        const text =
-          `Hi,\n\nA payment for ${company.name}'s Loonext subscription failed, so ` +
-          `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n` +
-          `Update your payment method to resume texting: ${portal}\n\n` +
-          invoiceLine +
-          `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
-        const to = await billingRecipients(env, company.id, db);
-        if (to.length === 0) {
+        const recipients = await billingRecipientsByLocale(db, company.id, company.locale);
+        if (recipients.size === 0) {
           void captureException(env, "No billing contacts for payment notice", {
             source: "api",
             company_id: company.id,
           });
           return false;
         }
-        const email = await sendEmail(env, {
-          to,
-          subject: "Your Loonext payment failed: outbound texting is paused",
-          text,
-          html: renderEmailHtml(text),
-          critical: true,
-        });
-        return email.id !== null;
+        const portal = `${env.APP_ORIGIN}/settings/billing`;
+        const invoiceUrl = invoice.hosted_invoice_url;
+        const deliveries = await Promise.all([...recipients].map(([locale, to]) => {
+          const french = locale === "fr-CA";
+          const subject = french
+            ? "Votre paiement Loonext a échoué : l’envoi de textos est en pause"
+            : "Your Loonext payment failed: outbound texting is paused";
+          const text = french
+            ? [
+                "Bonjour,",
+                `Le paiement de l’abonnement Loonext de ${company.name} a échoué. L’envoi de textos est en pause. La réception de textos et votre tableau de bord restent accessibles.`,
+                `Mettez à jour votre mode de paiement pour reprendre l’envoi de textos : ${portal}`,
+                invoiceUrl ? `Vous pouvez aussi régler la facture directement : ${invoiceUrl}` : "",
+                "Stripe tentera de prélever le paiement de nouveau au cours des deux prochaines semaines.",
+                "Loonext",
+              ].filter(Boolean).join("\n\n")
+            : [
+                "Hi,",
+                `A payment for ${company.name}'s Loonext subscription failed, so outbound texting is paused. Receiving texts and your dashboard keep working.`,
+                `Update your payment method to resume texting: ${portal}`,
+                invoiceUrl ? `You can also pay the open invoice directly: ${invoiceUrl}` : "",
+                "Stripe retries the charge automatically over the next two weeks.",
+                "Loonext",
+              ].filter(Boolean).join("\n\n");
+          return sendEmail(env, {
+            to,
+            subject,
+            text,
+            html: renderEmailHtml(text, locale),
+            locale,
+            critical: true,
+            idempotencyKey: `${company.id}:${key}:${locale}`,
+          });
+        }));
+        return deliveries.every((email) => email.id !== null);
       },
     });
   }

@@ -101,7 +101,7 @@ function LoginForm() {
       // Captcha tokens are single-use — mint a fresh one before a retry.
       turnstileRef.current?.reset();
       setCaptchaToken(null);
-      setServerError(authErrorMessage(error));
+      setServerError(authErrorMessage(error, t));
       return;
     }
 

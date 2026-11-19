@@ -1,9 +1,12 @@
+import { navCopy } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 import { homeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import Link from "next/link";
 
 import { ConvergedField, CtaButton, FrSection } from "@/components/marketing/fr";
-import { PRIMARY_CTA_LABEL, SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { SIGNUP_HREF } from "@/components/marketing/nav-links";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
@@ -41,8 +44,8 @@ export function FinalCta({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         </p>
 
         <div className="mt-8">
-          <CtaButton href={SIGNUP_HREF} variant="on-cobalt" size="lg">
-            {PRIMARY_CTA_LABEL}
+          <CtaButton href={appLink(SIGNUP_HREF, locale)} variant="on-cobalt" size="lg">
+            {navCopy(locale).ctaPrimary}
           </CtaButton>
         </div>
         {/* #328: the closing reassurance line is the last figure on the page,
@@ -56,7 +59,7 @@ export function FinalCta({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         <p className="font-body-mkt mx-auto mt-12 max-w-[62ch] text-[15px] leading-[1.7] text-[color:var(--fr-on-olive-70)]">
           {copy.ctaFounderBefore}{" "}
           <Link
-            href={LIVE_ROUTES.contact}
+            href={localizedPath(LIVE_ROUTES.contact, locale)}
             className="font-semibold text-[color:var(--fr-on-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-on-olive)]"
           >
             {copy.ctaEmail}
@@ -67,7 +70,7 @@ export function FinalCta({ locale = "en" }: { locale?: MarketingLocale } = {}) {
         <p className="font-body-mkt mx-auto mt-6 max-w-[62ch] text-[13px] leading-[1.7] text-[color:var(--fr-on-olive-55)]">
           {copy.ctaSecurityBefore}{" "}
           <Link
-            href={LIVE_ROUTES.security}
+            href={localizedPath(LIVE_ROUTES.security, locale)}
             className="text-[color:var(--fr-on-olive-70)] underline underline-offset-4 hover:text-[color:var(--fr-on-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-on-olive)]"
           >
             {copy.ctaSecurity}

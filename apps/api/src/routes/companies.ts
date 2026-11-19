@@ -87,6 +87,7 @@ const createSchema = z.object({
   // D15: onboarding sends the browser's IANA zone; validated below against
   // the runtime's timezone database (a zod enum cannot express it).
   timezone: z.string().trim().min(1).max(100).optional(),
+  locale: z.enum(LOCALES).optional(),
   // AUP acceptance is implicit now (the create RPC stamps aup_accepted_at
   // unconditionally); the field is accepted for back-compat but no longer gates
   // creation — the visible checkbox was removed as needless signup friction.
@@ -565,15 +566,17 @@ companiesRoutes.post("/companies", async (c) => {
   const staged: Record<string, string> = {};
   if (body.crew_size) staged.crew_size = body.crew_size;
   if (body.signup_source) staged.signup_source = body.signup_source;
+  if (body.locale) staged.locale = body.locale;
   if (Object.keys(staged).length > 0) {
     const { error: stageError } = await db
       .from("companies")
       .update(staged)
       .eq("id", company.id);
     if (stageError) {
-      // Never fail the signup over a segmentation field. The workspace is more
-      // important than knowing how big its crew is or where it came from.
-      console.error(`signup segmentation persist skipped: ${stageError.message}`);
+      // The workspace already exists. Returning an error could create a duplicate on retry.
+      console.error(`staged workspace settings persist skipped: ${stageError.message}`);
+    } else if (body.locale) {
+      company.locale = body.locale;
     }
   }
 

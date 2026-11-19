@@ -51,6 +51,7 @@ export const pricingEn = {
     "Every add-on is off by default and none is required to text. Turn them on here or later in settings, and off the same way.",
   builderChangePlans:
     "Change plans anytime in billing settings: upgrades apply immediately, downgrades at the end of your billing period.",
+  builderFlatMonthly: "/mo, flat",
   builderReceiptTitle: "Your plan, priced",
   builderEveryMonth: "Every month",
   builderRegLine: "One-time US registration, first month only",
@@ -74,6 +75,8 @@ export const pricingEn = {
   addonsBody:
     "The base plan is the complete product, calling included, nothing above is held back. Canada numbers is the only add-on that exists, optional and priced right here, with the limits written out before you pay.",
   addonPerMo: "/mo",
+  addonBillingNote:
+    "The same add-on, at the same price, is what you'll see in billing settings once it goes on sale. There is no other list.",
   addonRegionsCaLabel: "Canada numbers",
   addonRegionsCaBlurb:
     "Get and text Canadian numbers alongside your US number.",
@@ -150,6 +153,9 @@ export const pricingEn = {
     "A message to Karen from Reyes Plumbing being counted: one text, 122 characters, plain",
 
   guaranteeTitle: "Try it for a month, on us if it's not for you.",
+  featureGuaranteeUs: "30-day money-back guarantee. Full refund, including the registration fee. No fine print.",
+  featureGuaranteeCa: "30-day money-back guarantee. Full refund, no fine print.",
+  featureCtaTerms: "/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK",
   guaranteeBefore:
     "If Loonext isn't right for your crew, email us within 30 days of signing up and we'll refund your first invoice in full,",
   guaranteeUs: "subscription and registration fee included",
@@ -290,6 +296,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
     "Chaque supplément est désactivé par défaut et aucun n'est requis pour envoyer des textos. Activez-les ici ou plus tard dans les réglages, et désactivez-les de la même façon.",
   builderChangePlans:
     "Changez de forfait quand vous voulez dans les réglages de facturation : les mises à niveau s'appliquent immédiatement, les rétrogradations à la fin de votre période de facturation.",
+  builderFlatMonthly: "/mois, prix fixe",
   builderReceiptTitle: "Votre forfait, chiffré",
   builderEveryMonth: "Chaque mois",
   builderRegLine:
@@ -316,6 +323,8 @@ export const pricingFr: Translated<typeof pricingEn> = {
   addonsBody:
     "Le forfait de base est le produit complet, appels compris, rien de ce qui précède n'est retenu. Les numéros canadiens sont le seul supplément qui existe, optionnel et chiffré ici même, avec les limites écrites avant que vous payiez.",
   addonPerMo: "/mois",
+  addonBillingNote:
+    "Vous verrez ce même supplément au même prix dans les réglages de facturation dès qu’il sera offert. Il n’y a pas d’autre liste.",
   addonRegionsCaLabel: "Numéros canadiens",
   addonRegionsCaBlurb:
     "Obtenez des numéros canadiens et écrivez avec, à côté de votre numéro américain.",
@@ -392,6 +401,9 @@ export const pricingFr: Translated<typeof pricingEn> = {
     "Un message à Karen de Reyes Plumbing en train d'être compté : un texto, 122 caractères, simple",
 
   guaranteeTitle: "Essayez-le un mois, à nos frais si ça ne vous convient pas.",
+  featureGuaranteeUs: "Garantie de remboursement de 30 jours. Remboursement intégral, frais d’enregistrement compris.",
+  featureGuaranteeCa: "Garantie de remboursement intégral de 30 jours.",
+  featureCtaTerms: "/MOIS À PRIX FIXE · AU MOIS · GARANTIE DE 30 JOURS",
   guaranteeBefore:
     "Si Loonext ne convient pas à votre équipe, écrivez-nous dans les 30 jours suivant votre inscription et on rembourse votre première facture au complet,",
   guaranteeUs: "abonnement et frais d'enregistrement compris",

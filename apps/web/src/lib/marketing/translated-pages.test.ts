@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { buildMetadata } from "./seo";
 import { languagesFor, TRANSLATED_PAGES, twinOf } from "./translated-pages";
 
 /**
@@ -46,6 +47,18 @@ function frenchRoutes(dir: string, urlPrefix = ""): string[] {
 
 describe("#228/D138 the French pages and the registry agree", () => {
   const routes = frenchRoutes(FR_GROUP);
+
+  it("marks French metadata and keeps its search description within 160 characters", () => {
+    const title = "Boîte de réception partagée";
+    const metadata = buildMetadata({
+      title,
+      description: (title + " pour toute votre équipe. ").repeat(5).trim(),
+      path: "/fr/boite-partagee",
+    });
+    expect(metadata.openGraph?.locale).toBe("fr_CA");
+    expect(metadata.description?.length).toBeLessThanOrEqual(160);
+    expect(metadata.description).toMatch(/\p{L}[.…]$/u);
+  });
 
   it("found the French route group at all", () => {
     // Without this the two assertions below pass on empty lists, which is what

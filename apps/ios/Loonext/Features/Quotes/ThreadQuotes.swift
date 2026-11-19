@@ -250,7 +250,7 @@ private struct QuoteStripRow: View {
         // The row carries its own currency, the way a payment request does: a
         // quote is denominated when it is written, and a workspace that later
         // changes billing currency must not restate old prices.
-        let money = quote.amountLabel
+        let money = quote.amountLabel(locale: appLocale)
 
         HStack(spacing: 6) {
             Image(systemName: "doc.text")

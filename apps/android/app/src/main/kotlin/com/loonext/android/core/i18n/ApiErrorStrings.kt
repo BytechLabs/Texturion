@@ -25,6 +25,30 @@ package com.loonext.android.core.i18n
  */
 object ApiErrorStrings : AppStrings.Section {
     override val en = mapOf(
+        "apiRefusals.areaCodeCountryMismatch" to
+            "requested_area_code must be a {country} area code (the company's country).",
+        "apiRefusals.areaCodeNotAssigned" to
+            "requested_area_code is not an assigned US/CA geographic area code.",
+        "apiRefusals.billingAlreadySubscribed" to
+            "This company already has a subscription.",
+        "apiRefusals.inviteAlreadyPending" to
+            "A pending invite for this email already exists.",
+        "apiRefusals.numberCountryMismatch" to
+            "chosen_number_e164 must be a {country} number (the company's country).",
+        "apiRefusals.numberNotAssigned" to
+            "chosen_number_e164 is not an assigned US/CA geographic number.",
+        "apiRefusals.outboundSendPaused" to
+            "Texting is paused while we deal with an issue. Nothing you sent was lost.",
+        "apiRefusals.paymentsNotSetUp" to
+            "This workspace has not set up payments yet.",
+        "apiRefusals.portAlreadyPending" to
+            "A transfer for this number is already in progress.",
+        "apiRefusals.textEnablementAlreadyPending" to
+            "This number already has a text-enablement in progress.",
+        "apiRefusals.textEnablementNumberInUse" to
+            "This number is already in service on Loonext and can't be text-enabled.",
+        "apiRefusals.textEnablementWrongCode" to
+            "That code didn't match. Request a new code and try again.",
         "apiErrors.unauthorized" to "You're signed out. Sign in again to carry on.",
         "apiErrors.forbidden" to "You don't have access to that.",
         "apiErrors.subscription_inactive" to "Your subscription isn't active.",
@@ -77,6 +101,30 @@ object ApiErrorStrings : AppStrings.Section {
     )
 
     override val frCA = mapOf(
+        "apiRefusals.areaCodeCountryMismatch" to
+            "Choisissez un indicatif régional du pays où votre espace de travail est enregistré ({country}).",
+        "apiRefusals.areaCodeNotAssigned" to
+            "Choisissez un indicatif régional géographique attribué au Canada ou aux États-Unis.",
+        "apiRefusals.billingAlreadySubscribed" to
+            "Cet espace de travail a déjà un abonnement.",
+        "apiRefusals.inviteAlreadyPending" to
+            "Une invitation à cette adresse courriel est déjà en attente.",
+        "apiRefusals.numberCountryMismatch" to
+            "Choisissez un numéro du pays où votre espace de travail est enregistré ({country}).",
+        "apiRefusals.numberNotAssigned" to
+            "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
+        "apiRefusals.outboundSendPaused" to
+            "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
+        "apiRefusals.paymentsNotSetUp" to
+            "Les paiements ne sont pas encore configurés dans cet espace de travail.",
+        "apiRefusals.portAlreadyPending" to
+            "Un transfert est déjà en cours pour ce numéro.",
+        "apiRefusals.textEnablementAlreadyPending" to
+            "L’activation des textos est déjà en cours pour ce numéro.",
+        "apiRefusals.textEnablementNumberInUse" to
+            "Ce numéro est déjà en service sur Loonext. Vous ne pouvez pas y activer les textos de cette façon.",
+        "apiRefusals.textEnablementWrongCode" to
+            "Ce code ne correspond pas. Demandez un nouveau code, puis réessayez.",
         "apiErrors.unauthorized" to "Vous êtes déconnecté. Reconnectez-vous pour continuer.",
         "apiErrors.forbidden" to "Vous n'avez pas accès à cela.",
         "apiErrors.subscription_inactive" to "Votre abonnement n'est pas actif.",

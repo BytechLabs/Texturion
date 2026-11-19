@@ -120,7 +120,7 @@ describe("POST /v1/companies (company-exempt)", () => {
     });
   });
 
-  it("stages a chosen number on create when its area code matches the country", async () => {
+  it("stages the chosen number and the French language at workspace creation", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
     sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
@@ -134,12 +134,16 @@ describe("POST /v1/companies (company-exempt)", () => {
         country: "US",
         requested_area_code: "212",
         chosen_number_e164: "+12125550188",
+        locale: "fr-CA",
       },
     });
     expect(res.status).toBe(201);
-    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
-      chosen_number_e164: "+12125550188",
-    });
+    await expect(res.json()).resolves.toMatchObject({ locale: "fr-CA" });
+    const updates = sb.find("PATCH", "/rest/v1/companies").map((call) => call.body);
+    expect(updates).toEqual(expect.arrayContaining([
+      { chosen_number_e164: "+12125550188" },
+      { locale: "fr-CA" },
+    ]));
   });
 
   it("422s a chosen number whose area code is a different country", async () => {

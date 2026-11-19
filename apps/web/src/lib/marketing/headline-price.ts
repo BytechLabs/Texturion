@@ -1,5 +1,7 @@
 import { formatMoney, PLAN_PRICE_CENTS, PLAN_SEATS } from '@loonext/shared';
-import type { BillingCurrency } from '@loonext/shared';
+import type { BillingCurrency, Locale } from '@loonext/shared';
+import { fill } from "@/i18n/marketing/fill";
+import { priceCopy } from "@/i18n/marketing/price-copy";
 
 /**
  * #385 — the price and the seat count it covers, as one thing.
@@ -35,8 +37,8 @@ import type { BillingCurrency } from '@loonext/shared';
  * competitor still wins on the arithmetic our own page already does — we were
  * risking credibility for margin we already had.
  */
-export function headlinePrice(audience: BillingCurrency): string {
-  return formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience);
+export function headlinePrice(audience: BillingCurrency, locale: Locale = "en"): string {
+  return formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience, locale);
 }
 
 /** The USD figure for metadata and other surfaces without a selected country. */
@@ -46,4 +48,8 @@ export const HEADLINE_PRICE = headlinePrice("usd");
  * The suffix that must accompany it. Never inline this string at a call site —
  * the test exists to make that impossible.
  */
-export const HEADLINE_PRICE_SUFFIX = `/mo · the whole crew, up to ${PLAN_SEATS.starter}`;
+export function headlinePriceSuffix(locale: Locale): string {
+  return fill(priceCopy[locale].headlineSuffix, { seats: String(PLAN_SEATS.starter) });
+}
+
+export const HEADLINE_PRICE_SUFFIX = headlinePriceSuffix("en");

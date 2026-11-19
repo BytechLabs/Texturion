@@ -256,23 +256,23 @@ otp_expiry = 3600
 # hosted project (docs/deploy/02-supabase.md §7). Subjects stay in sync here
 # for local parity ([local_smtp] captures what would have been sent).
 [auth.email.template.confirmation]
-subject = "Confirm your email"
+subject = '{{ if eq (printf "%v" .Data.locale) "fr-CA" }}Confirmez votre adresse courriel{{ else }}Confirm your email{{ end }}'
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.invite]
-subject = "You're invited to Loonext"
+subject = "{{ if eq (printf \"%v\" .Data.locale) \"fr-CA\" }}Vous êtes invité à rejoindre Loonext{{ else }}You're invited to Loonext{{ end }}"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.magic_link]
-subject = "Your Loonext sign-in link"
+subject = '{{ if eq (printf "%v" .Data.locale) "fr-CA" }}Votre lien de connexion à Loonext{{ else }}Your Loonext sign-in link{{ end }}'
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.recovery]
-subject = "Reset your Loonext password"
+subject = '{{ if eq (printf "%v" .Data.locale) "fr-CA" }}Réinitialisez votre mot de passe Loonext{{ else }}Reset your Loonext password{{ end }}'
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.email_change]
-subject = "Confirm your new email"
+subject = '{{ if eq (printf "%v" .Data.locale) "fr-CA" }}Confirmez votre nouvelle adresse courriel{{ else }}Confirm your new email{{ end }}'
 content_path = "./supabase/templates/email_change.html"
 
 # Uncomment to customize notification email template

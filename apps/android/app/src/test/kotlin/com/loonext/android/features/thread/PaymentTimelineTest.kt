@@ -135,6 +135,12 @@ class PaymentTimelineTest {
     // --- The five lines ---------------------------------------------------------
 
     @Test
+    fun `the timeline amount uses Canadian French formatting`() {
+        val paid = paymentEvent("payment_paid", cents = 125_050, currency = "cad", description = null)
+        assertEquals("Le client a payé 1 250,50 \$", eventLine(paid, NAMES, CONTACT, locale = "fr-CA"))
+    }
+
+    @Test
     fun `each payment line is the shared wording, with the amount in it`() {
         assertEquals("Dana asked for \$250 — Deposit", line("payment_requested"))
         assertEquals("They paid \$250 — Deposit", line("payment_paid"))

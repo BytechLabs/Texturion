@@ -25,8 +25,11 @@
  * buttons for the add-ons, and an aria-live receipt.
  */
 
+import { navCopy } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/fill";
+import { priceCopy } from "@/i18n/marketing/price-copy";
 import { pricingCopy } from "@/i18n/marketing/pricing";
 import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 import { useEffect, useRef, useState } from 'react';
@@ -38,7 +41,6 @@ import {
 } from "@/lib/analytics/events";
 
 import { CtaButton } from "@/components/marketing/fr";
-import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
 import type { Plan } from "@/app/(marketing)/pricing/pricing-data";
 import type { PlanId, PlanModule } from '@/lib/api/types';
 import { cn } from "@/lib/utils";
@@ -121,6 +123,7 @@ export function PlanBuilder({
   locale?: MarketingLocale;
 }) {
   const copy = pricingCopy(locale);
+  const guarantee = priceCopy[locale];
   const { country } = useCountry();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_SELECTION.plan);
   const planRefs = useRef<Partial<Record<PlanId, HTMLButtonElement | null>>>({});
@@ -137,7 +140,7 @@ export function PlanBuilder({
 
   const selection = { plan, addons };
   const audience = country === "ca" ? "cad" : "usd";
-  const price = (dollars: number) => formatMoney(Math.round(dollars * 100), "usd", audience);
+  const price = (dollars: number) => formatMoney(Math.round(dollars * 100), "usd", audience, locale);
   const plans = plansProp.map((p) => ({
     ...p,
     price: price(PLAN_PRICE_CENTS.usd[p.id] / 100),
@@ -249,7 +252,7 @@ export function PlanBuilder({
                     {p.price}
                   </span>
                   <span className="text-sm text-[color:var(--fr-ink-55)]">
-                    /mo, flat
+                    {copy.builderFlatMonthly}
                   </span>
                 </span>
                 <span className="mt-1 block text-[0.875rem] text-[color:var(--fr-ink-55)]">
@@ -271,8 +274,7 @@ export function PlanBuilder({
           })}
         </div>
         <p className="mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          Change plans anytime in billing settings: upgrades apply immediately,
-          downgrades at the end of your billing period.
+          {copy.builderChangePlans}
         </p>
 
         {/* #134/D42: the add-on step renders only while something is actually
@@ -311,7 +313,7 @@ export function PlanBuilder({
                         <span className="fr-mono-data shrink-0 text-[color:var(--fr-ink)]">
                           {card.price}
                           <span className="text-[color:var(--fr-ink-55)]">
-                            /mo
+                            {copy.addonPerMo}
                           </span>
                         </span>
                       </span>
@@ -347,7 +349,7 @@ export function PlanBuilder({
                 {chosenPlan.name}
               </dt>
               <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                {chosenPlan.price}/mo
+                {chosenPlan.price}{copy.addonPerMo}
               </dd>
             </div>
             {SELLABLE_ADDON_CARDS.filter((card) =>
@@ -361,7 +363,7 @@ export function PlanBuilder({
                   {card.label}
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                  + {price(addonMonthlyDollars(card))}/mo
+                  + {price(addonMonthlyDollars(card))}{copy.addonPerMo}
                 </dd>
               </div>
             ))}
@@ -374,7 +376,7 @@ export function PlanBuilder({
             <span className="fr-figure text-[color:var(--fr-ink)]">
               {price(monthly)}
               <span className="fr-mono-data ml-1 text-[color:var(--fr-ink-55)]">
-                /mo
+                {copy.addonPerMo}
               </span>
             </span>
           </div>
@@ -426,22 +428,20 @@ export function PlanBuilder({
         )}
 
         <CtaButton
-          href={signupHref(selection)}
+          href={appLink(signupHref(selection), locale)}
           className="mt-6 w-full"
           ariaLabel={fill(copy.builderCtaAria, {
-            cta: PRIMARY_CTA_LABEL,
+            cta: navCopy(locale).ctaPrimary,
             plan: chosenPlan.name,
             price: price(monthly),
           })}
         >
-          {PRIMARY_CTA_LABEL}
+          {navCopy(locale).ctaPrimary}
         </CtaButton>
 
         <p className="mt-4 flex items-start gap-2 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink)]">
           <GreenTick />
-          {country === "us"
-            ? "30-day money-back guarantee. Full refund, including the registration fee. No fine print."
-            : "30-day money-back guarantee. Full refund, no fine print."}
+          {country === "us" ? guarantee.guaranteeUs : guarantee.guaranteeCa}
         </p>
       </div>
     </div>

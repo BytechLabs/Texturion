@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   }),
   openGraph: {
     type: "website",
+    locale: "fr_CA",
     siteName: "Loonext",
     url: absoluteUrl(PATH),
     title: homeFr.ogTitle,

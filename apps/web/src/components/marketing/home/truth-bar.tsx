@@ -32,7 +32,7 @@ export function TruthBar({ locale = "en" }: { locale?: MarketingLocale } = {}) {
       className="!py-10 md:!py-14"
       containerClassName="flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between"
     >
-      <HeadlinePriceFigure size="display" tone="ink" />
+      <HeadlinePriceFigure size="display" tone="ink" locale={locale} />
       <ul className="flex flex-wrap items-stretch gap-3">
         {CHIPS.map((chip) => (
           <li

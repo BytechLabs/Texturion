@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { CountryText } from "@/components/marketing/country";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
@@ -93,7 +94,7 @@ export function ContractorsPageBody({
           <>
             {copy.truthSuiteBefore}{" "}
             <Link
-              href="/compare"
+              href={localizedPath("/compare", locale)}
               className="text-[color:var(--fr-olive)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
               {copy.truthSuiteLink}

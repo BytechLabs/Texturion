@@ -21,6 +21,7 @@ vi.mock("@/components/shell/mfa-gate", () => ({
   MfaGate: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("@/lib/app/fonts", () => ({ golosText: { variable: "font-golos" } }));
+vi.mock("../root-document", () => ({ metadata: {} }));
 vi.mock("@/lib/company/provider", () => ({
   CompanyProvider: ({ children }: { children: React.ReactNode }) => children,
 }));

@@ -1,8 +1,10 @@
+import { navCopy } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
 import { homeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CtaButton, Eyebrow, FrSection } from "@/components/marketing/fr";
 import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/missed-text-calculator-static";
-import { PRIMARY_CTA_LABEL, SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { SIGNUP_HREF } from "@/components/marketing/nav-links";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 
 import { LazyMissedTextCalculator } from "./lazy-islands";
@@ -47,7 +49,7 @@ export function DoTheMath({
             {copy.mathCloseAfter}
           </p>
           <div className="mt-8">
-            <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
+            <CtaButton href={appLink(SIGNUP_HREF, locale)}>{navCopy(locale).ctaPrimary}</CtaButton>
           </div>
         </div>
 

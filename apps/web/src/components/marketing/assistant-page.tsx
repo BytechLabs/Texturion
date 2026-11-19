@@ -56,7 +56,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={copy.heroSub}
@@ -126,7 +126,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore} <PlanPrice plan="starter" />/mo on Starter for up
           to 3 people, <PlanPrice plan="pro" />/mo on Pro for up to 15. The
@@ -140,7 +140,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
           </Link>{" "}
           and the{" "}
           <Link
-            href="/legal/subprocessors"
+            href={localizedPath("/legal/subprocessors", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             {copy.subprocessorsLink}
@@ -149,7 +149,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
         </p>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -206,7 +206,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />

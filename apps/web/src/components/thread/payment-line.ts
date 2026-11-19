@@ -1,5 +1,5 @@
 import { BILLING_CURRENCIES, DEFAULT_BILLING_CURRENCY, formatMoney } from '@loonext/shared';
-import type { BillingCurrency } from '@loonext/shared';
+import type { BillingCurrency, Locale } from '@loonext/shared';
 
 import type { Translate } from "@/i18n/translate";
 import type { ConversationEvent, ConversationEventType } from "@/lib/api/types";
@@ -88,7 +88,7 @@ function currencyOf(payload: Record<string, unknown>): BillingCurrency {
  * "US$" / "CA$" qualifier: a business reading its own money in its own thread
  * is not the case that qualifier exists for. Same call the strip makes.
  */
-export function paymentEventAmount(event: ConversationEvent): string | null {
+export function paymentEventAmount(event: ConversationEvent, locale: Locale): string | null {
   const {payload} = event;
   const cents = centsAt(payload, AMOUNT_KEY);
   const figure =
@@ -98,7 +98,8 @@ export function paymentEventAmount(event: ConversationEvent): string | null {
           : cents)
       : cents;
   if (figure === null) return null;
-  return formatMoney(figure, currencyOf(payload));
+  const currency = currencyOf(payload);
+  return formatMoney(figure, currency, currency, locale);
 }
 
 /**
@@ -175,8 +176,9 @@ export function paymentEventLine(
   type: NarratedPaymentEventType,
   by: string,
   t: Translate,
+  locale: Locale,
 ): string {
-  const amount = paymentEventAmount(event);
+  const amount = paymentEventAmount(event, locale);
   const line = paymentHeadline(type, by, amount, t);
   const description = paymentEventDescription(event);
   return description

@@ -80,6 +80,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { estimateSegments } from "../packages/shared/src/segments.ts";
+import { formatMoney } from "../packages/shared/src/billing-currency.ts";
 import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, messagePhones, NANP_AREA_CODES, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
@@ -120,6 +121,24 @@ const englishPrepaidCopy = (key) => {
 };
 
 const OUT_DIR = join("packages", "shared", "vectors");
+
+function moneyVectors() {
+  return [
+    [125_050, "cad", "cad", "fr-CA"],
+    [3_900, "cad", "cad", "fr-CA"],
+    [500, "usd", "cad", "fr-CA"],
+    [500, "cad", "usd", "fr-CA"],
+    [-5_050, "cad", "cad", "fr-CA"],
+    [125_050, "usd", "usd", "en"],
+    [500, "usd", "cad", "en"],
+  ].map(([cents, currency, audience, locale]) => ({
+    cents,
+    currency,
+    audience,
+    locale,
+    expected: formatMoney(cents, currency, audience, locale),
+  }));
+}
 
 /**
  * The segment inputs. Chosen to cover every boundary the three implementations
@@ -877,6 +896,7 @@ const FILES = {
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,
   "last-complete-month.json": lastCompleteMonthVectors,
   "payments.json": paymentVectors,
+  "money.json": moneyVectors,
   "quick-add.json": quickAddVectors,
   "task-references.json": referenceVectors,
   "call-screening.json": screeningVectors,

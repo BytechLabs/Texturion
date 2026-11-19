@@ -66,7 +66,7 @@ export function CompliancePageBody({
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={
@@ -254,7 +254,7 @@ export function CompliancePageBody({
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore}{" "}
           <PlanPrice plan="starter" /> {copy.pricingOr} <PlanPrice plan="pro" />.
@@ -276,7 +276,7 @@ export function CompliancePageBody({
         />
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -363,14 +363,14 @@ export function CompliancePageBody({
       </CountryOnly>
 
       <CountryOnly country="us">
-        <FeatureCta
+        <FeatureCta locale={locale}
           heading={copy.ctaTitleUs}
           sub={copy.ctaSubUs}
         />
       </CountryOnly>
 
       <CountryOnly country="ca">
-        <FeatureCta
+        <FeatureCta locale={locale}
           heading={copy.ctaTitleCa}
           sub={copy.ctaSubCa}
         />

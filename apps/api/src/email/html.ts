@@ -167,6 +167,6 @@ export function linkifyUrls(escapedHtml: string): string {
  * (paragraph body via {@link toHtml}, URLs linkified, framed by {@link
  * emailLayout}). Callers pass the SAME text as the multipart text/plain part.
  */
-export function renderEmailHtml(text: string): string {
-  return emailLayout(linkifyUrls(toHtml(text)));
+export function renderEmailHtml(text: string, locale?: Locale): string {
+  return emailLayout(linkifyUrls(toHtml(text)), locale);
 }

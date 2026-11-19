@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { initPostHog } from "@/lib/analytics/posthog";
 
-import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
+import { boundaryCopyFor, boundaryReference, useBoundaryLocale } from "./boundary-copy";
 
 /**
  * Root error boundary: catches any render throw outside the (app) group's own
@@ -123,6 +123,9 @@ export default function RootError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const locale = useBoundaryLocale();
+  const copy = boundaryCopyFor(locale);
+  const home = locale === "fr-CA" ? "/fr" : "/";
   useEffect(() => {
     // Console for local debugging; PostHog (when configured) for production.
     console.error("Root boundary error", error);
@@ -130,28 +133,28 @@ export default function RootError({
   }, [error]);
 
   return (
-    <main style={styles.main}>
-      <Link href="/" style={styles.wordmark} aria-label={copy.homeAria}>
+    <main lang={locale} style={styles.main}>
+      <Link href={home} style={styles.wordmark} aria-label={copy.homeAria}>
         Lo<span style={styles.wordmarkO}>o</span>next
       </Link>
       <div>
         <h1 style={styles.heading}>{copy.errorHeading}</h1>
         <p style={styles.body}>
           {copy.errorBodyBefore}{" "}
-          <Link href="/contact" style={styles.secondary}>
+          <Link href={locale === "fr-CA" ? "/fr/contact" : "/contact"} style={styles.secondary}>
             {copy.errorContactLink}
           </Link>{" "}
           {copy.errorBodyAfter}
         </p>
         {error.digest ? (
-          <p style={styles.digest}>{boundaryReference(error.digest)}</p>
+          <p style={styles.digest}>{boundaryReference(error.digest, locale)}</p>
         ) : null}
       </div>
       <div style={styles.actions}>
         <button type="button" onClick={reset} style={styles.retry}>
           {copy.retry}
         </button>
-        <Link href="/" style={styles.secondary}>
+        <Link href={home} style={styles.secondary}>
           {copy.backToHome}
         </Link>
       </div>

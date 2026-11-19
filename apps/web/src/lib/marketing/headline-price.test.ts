@@ -14,6 +14,7 @@ import {
   HEADLINE_PRICE,
   HEADLINE_PRICE_SUFFIX,
   headlinePrice,
+  headlinePriceSuffix,
 } from "./headline-price";
 
 /**
@@ -51,8 +52,8 @@ function tsxFiles(dir: string): string[] {
 }
 
 /** Every string that IS the headline price, in every currency we bill in. */
-const HEADLINE_FIGURES = BILLING_CURRENCIES.map((currency) =>
-  headlinePrice(currency),
+const HEADLINE_FIGURES = BILLING_CURRENCIES.flatMap((currency) =>
+  [headlinePrice(currency, "en"), headlinePrice(currency, "fr-CA")],
 );
 
 /**
@@ -89,6 +90,9 @@ describe("the headline price carries its crew size", () => {
     // a fourth invite, so the marketing claim and the gate cannot drift — #334's
     // complaint about claims with nothing tying them to the decision behind them.
     expect(HEADLINE_PRICE_SUFFIX).toContain(String(PLAN_SEATS.starter));
+    expect(headlinePriceSuffix("fr-CA")).toBe(
+      `/mois · toute l’équipe, jusqu’à ${PLAN_SEATS.starter} personnes`,
+    );
     expect(PLAN_SEATS.starter).toBe(3);
   });
 
@@ -101,11 +105,11 @@ describe("the headline price carries its crew size", () => {
   });
 
   it("is never rendered with a hand-written suffix", () => {
-    // THE ONE THAT MATTERS. A `MonoFigure` whose value is the headline price
-    // must take its suffix from the constant. Anything else is the claim
-    // travelling again, and it would look completely reasonable in review.
     const offenders = headlineFigures()
-      .filter(({ tag }) => !tag.includes("HEADLINE_PRICE_SUFFIX"))
+      .filter(({ tag }) => !(
+        tag.includes("suffix={headlinePriceSuffix(") ||
+        tag.includes("suffix={HEADLINE_PRICE_SUFFIX}")
+      ))
       .map(
         ({ file, tag }) =>
           `${file.replace(process.cwd(), "")}: ${tag.replaceAll(/\s+/g, " ")}`,
@@ -114,7 +118,7 @@ describe("the headline price carries its crew size", () => {
       offenders,
       "a MonoFigure renders the headline price with its own suffix:\n" +
         `${offenders.join("\n")}\n` +
-        "Use HEADLINE_PRICE_SUFFIX from @/lib/marketing/headline-price. " +
+        "Use headlinePriceSuffix from @/lib/marketing/headline-price. " +
         "The Starter price covers three seats, and D12 puts the ICP at 1-10 — " +
         "for most of the target market this is not the price they will pay.",
     ).toEqual([]);

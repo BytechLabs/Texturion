@@ -88,6 +88,18 @@ describe("a French reader gets French", () => {
 });
 
 describe("specific server message keys", () => {
+  it("keeps a number-country refusal specific in French", () => {
+    const error = parseErrorBody(422, {
+      error: {
+        code: "validation_failed",
+        message: "chosen_number_e164 must be a CA number (the company's country).",
+        message_key: "apiRefusals.numberCountryMismatch",
+        message_vars: { country: "CA" },
+      },
+    }, makeTranslate("fr-CA"));
+    expect(error.message).toBe("Choisissez un numéro du pays où votre espace de travail est enregistré (CA).");
+  });
+
   const keyed = {
     error: {
       code: "validation_failed",

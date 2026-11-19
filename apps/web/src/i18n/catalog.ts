@@ -50,6 +50,7 @@
  * exactly the drift this file exists to prevent.
  */
 import { apiErrorsEn, apiErrorsFr } from "./sections/apiErrors";
+import { apiRefusalsEn, apiRefusalsFr } from "./sections/apiRefusals";
 import { areaCodesEn, areaCodesFr } from "./sections/areaCodes";
 import { appShellEn, appShellFr } from "./sections/appShell";
 import { commonEn, commonFr } from "./sections/common";
@@ -334,6 +335,7 @@ const contactsTasksFr: Translated<typeof contactsTasksEn> = {
 export const EN = {
   common: commonEn,
   apiErrors: apiErrorsEn,
+  apiRefusals: apiRefusalsEn,
   areaCodes: areaCodesEn,
   payments: paymentsEn,
   settings: settingsEn,
@@ -367,6 +369,7 @@ export type Catalog = {
 export const FR_CA: Catalog = {
   common: commonFr,
   apiErrors: apiErrorsFr,
+  apiRefusals: apiRefusalsFr,
   areaCodes: areaCodesFr,
   payments: paymentsFr,
   settings: settingsFr,

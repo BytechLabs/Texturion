@@ -127,6 +127,7 @@ const nextConfig: NextConfig = {
   // rewriting them to per-module deep imports keeps the shared chunk (and thus
   // its parse/eval cost, the TBT driver) to only what's actually referenced.
   experimental: {
+    globalNotFound: true,
     optimizePackageImports: ["lucide-react", "radix-ui"],
     // Off: under Turbopack, inlining copies the global stylesheet into every
     // segment of every page's client-reference manifest, and the Worker no

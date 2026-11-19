@@ -98,7 +98,7 @@ export default function UpdatePasswordPage() {
       password: values.password,
     });
     if (error) {
-      setServerError(authErrorMessage(error));
+      setServerError(authErrorMessage(error, t));
       return;
     }
     toast(t("onboarding.passwordUpdated"));

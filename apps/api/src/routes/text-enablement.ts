@@ -237,6 +237,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "conflict",
       "This number already has a text-enablement in progress.",
+      { key: "apiRefusals.textEnablementAlreadyPending" },
     );
   }
 
@@ -283,6 +284,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "conflict",
       "This number is already in service on Loonext and can't be text-enabled.",
+      { key: "apiRefusals.textEnablementNumberInUse" },
     );
   }
   if (slot.outcome === "plan_limit") {
@@ -805,6 +807,7 @@ textEnablementRoutes.post(
         c,
         "validation_failed",
         "That code didn't match. Request a new code and try again.",
+        { key: "apiRefusals.textEnablementWrongCode" },
       );
     }
     return c.json({ verified: true });

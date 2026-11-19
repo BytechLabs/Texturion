@@ -190,13 +190,13 @@ object Payments {
         PaymentAmountProblem.TOO_SMALL -> AppStrings.translate(
             locale,
             "payments.amountTooSmall",
-            mapOf("amount" to formatMoney(MIN_CENTS, currency)),
+            mapOf("amount" to formatMoney(MIN_CENTS, currency, locale = locale)),
         )
 
         PaymentAmountProblem.TOO_LARGE -> AppStrings.translate(
             locale,
             "payments.amountTooLarge",
-            mapOf("amount" to formatMoney(MAX_CENTS, currency)),
+            mapOf("amount" to formatMoney(MAX_CENTS, currency, locale = locale)),
         )
 
         PaymentAmountProblem.NOT_WHOLE ->
@@ -228,7 +228,7 @@ object Payments {
         url: String,
         locale: String,
     ): String {
-        val amount = formatMoney(amountCents, currency)
+        val amount = formatMoney(amountCents, currency, locale = locale)
         return AppStrings.translate(
             locale,
             "payments.requestSms",

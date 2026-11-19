@@ -29,6 +29,7 @@
  * it is resolved before; the note on STARTER_USD says so out loud.
  */
 
+import { navCopy } from "@/i18n/marketing/nav";
 import Link from "next/link";
 
 import {
@@ -39,7 +40,6 @@ import {
   FrSection,
   PanelFrame,
 } from "@/components/marketing/fr";
-import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import { LedgerTable } from "@/components/marketing/compare/ledger-table";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
@@ -55,7 +55,7 @@ import { UsageMeterEmbed } from "@/components/marketing/pricing/usage-meter-embe
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/marketing/seo";
-import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS, LIVE_ROUTES, appLink } from "@/lib/marketing/site";
 import { LazySegmentCounter } from "@/app/(marketing)/pricing/lazy-segment-counter";
 import {
   elsewhereColumns,
@@ -176,7 +176,7 @@ export function PricingPageBody({
             <p className="mt-8 max-w-3xl text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
               {planFairUseNote(locale)}{" "}
               <Link
-                href={LIVE_ROUTES.fairUse}
+                href={localizedPath(LIVE_ROUTES.fairUse, locale)}
                 className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
               >
                 {copy.fairUseLink}
@@ -200,7 +200,7 @@ export function PricingPageBody({
               </p>
             </div>
             <CtaButton
-              href={LIVE_ROUTES.contact}
+              href={localizedPath(LIVE_ROUTES.contact, locale)}
               variant="secondary"
               className="shrink-0"
             >
@@ -311,7 +311,7 @@ export function PricingPageBody({
           <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
             {fill(copy.elsewhereIntroBefore, { asOf: COMPARE_AS_OF })}{" "}
             <Link
-              href={LIVE_ROUTES.compareIndex}
+              href={localizedPath(LIVE_ROUTES.compareIndex, locale)}
               className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
             >
               {copy.elsewhereIntroLink}
@@ -378,7 +378,7 @@ export function PricingPageBody({
               </p>
               <p className="mt-4">
                 <Link
-                  href={LIVE_ROUTES.refunds}
+                  href={localizedPath(LIVE_ROUTES.refunds, locale)}
                   className="text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
                 >
                   {copy.refundLink}
@@ -479,8 +479,8 @@ export function PricingPageBody({
             {copy.ctaTitle}
           </h2>
           <div className="mt-8 flex justify-center">
-            <CtaButton href={APP_LINKS.signup} size="lg">
-              {PRIMARY_CTA_LABEL}
+            <CtaButton href={appLink(APP_LINKS.signup, locale)} size="lg">
+              {navCopy(locale).ctaPrimary}
             </CtaButton>
           </div>
           {/* #328 sweep, found while removing price literals: this line read

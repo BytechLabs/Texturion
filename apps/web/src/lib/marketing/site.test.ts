@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_LINKS, appLinkBase } from "./site";
+import { APP_LINKS, appLink, appLinkBase } from "./site";
 
 /**
  * #115: app links must be absolute when the marketing/app host split is
@@ -34,6 +34,13 @@ describe("appLinkBase", () => {
 });
 
 describe("APP_LINKS", () => {
+  it("carries the French locale alongside the checkout intent", () => {
+    expect(appLink("/signup?plan=pro", "fr-CA")).toBe("/signup?plan=pro&lang=fr-CA");
+    expect(appLink("https://app.loonext.com/login", "fr-CA"))
+      .toBe("https://app.loonext.com/login?lang=fr-CA");
+    expect(appLink("/signup?plan=pro", "en")).toBe("/signup?plan=pro");
+  });
+
   it("always ends with the app paths, absolute or relative", () => {
     expect(APP_LINKS.login.endsWith("/login")).toBe(true);
     expect(APP_LINKS.signup.endsWith("/signup")).toBe(true);

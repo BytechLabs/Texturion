@@ -283,12 +283,13 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
   ];
 }
 
-function recipientEndpoints(): StubEndpoint[] {
+function recipientEndpoints(profiles: { user_id: string; locale: string }[] = []): StubEndpoint[] {
   return [
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
       { user_id: "11111111-1111-4111-8111-111111111111" },
       { user_id: "22222222-2222-4222-8222-222222222222" },
     ]),
+    endpoint("GET", /\/rest\/v1\/profiles/, () => profiles),
     endpoint("GET", /\/auth\/v1\/admin\/users\/1{4}/, () => ({
       id: "11111111-1111-4111-8111-111111111111",
       email: "owner@example.com",
@@ -1445,6 +1446,35 @@ describe("§9 event → state table", () => {
     const email = emails[0].json() as { subject: string; text: string };
     expect(email.subject).toContain("payment failed");
     expect(email.text).toContain("https://invoice.stripe.test/i/in_1");
+  });
+
+  it("invoice.payment_failed: sends each recipient group its own language", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "past_due" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing", locale: "en" },
+      ]),
+      ...recipientEndpoints([{ user_id: "22222222-2222-4222-8222-222222222222", locale: "fr-CA" }]),
+    ]);
+    await deliver(eventOf("invoice.payment_failed", invoiceFixture()), harness);
+
+    const emails = harness.callsTo("POST", /api\.resend\.com/).map((call) => call.json());
+    expect(emails).toHaveLength(2);
+    expect(emails).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        to: ["owner@example.com"],
+        subject: expect.stringContaining("payment failed"),
+      }),
+      expect.objectContaining({
+        to: ["admin@example.com"],
+        subject: expect.stringContaining("Votre paiement Loonext a échoué"),
+        html: expect.stringContaining('<html lang="fr-CA">'),
+        text: expect.stringContaining("Mettez à jour votre mode de paiement"),
+      }),
+    ]));
   });
 
   it("invoice.payment_failed: no dunning email when the re-fetched subscription is active (out-of-order)", async () => {

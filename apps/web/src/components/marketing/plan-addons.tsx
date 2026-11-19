@@ -131,8 +131,7 @@ export function PlanAddons({
         ))}
       </div>
       <p className="mt-6 text-center text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-        The same add-on, at the same price, is what you&apos;ll see in billing
-        settings once it goes on sale. There is no other list.
+        {copy.addonBillingNote}
       </p>
     </FrSection>
   );

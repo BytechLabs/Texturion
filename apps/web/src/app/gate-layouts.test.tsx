@@ -5,6 +5,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import OnboardingLayout from "./onboarding/layout";
 
+vi.mock("next/headers", () => ({
+  headers: () => Promise.resolve(new Headers()),
+}));
+vi.mock("./root-document", () => ({
+  metadata: {},
+  RootDocument: ({ children }: { children: React.ReactNode }) => children,
+  viewport: {},
+}));
+
 /**
  * #207 LAW: every full-screen authenticated gate must mount the SHARED gate
  * escape (workspace switcher + sign out) from
@@ -125,11 +134,9 @@ vi.mock("@/components/shell/wordmark", () => ({
 
 
 describe("onboarding gate renders the escape hatch (#207)", () => {
-  it("a multi-workspace member sees the workspace switcher and sign out on every wizard step", () => {
+  it("a multi-workspace member sees the workspace switcher and sign out on every wizard step", async () => {
     const markup = renderToStaticMarkup(
-      <OnboardingLayout>
-        <div data-testid="wizard-step" />
-      </OnboardingLayout>,
+      await OnboardingLayout({ children: <div data-testid="wizard-step" /> }),
     );
     expect(markup).toContain('aria-label="Switch workspace"');
     // Cookie unset in this environment → same first-membership fallback as

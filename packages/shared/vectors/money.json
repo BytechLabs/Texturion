@@ -1,0 +1,51 @@
+[
+  {
+    "cents": 125050,
+    "currency": "cad",
+    "audience": "cad",
+    "locale": "fr-CA",
+    "expected": "1 250,50 $"
+  },
+  {
+    "cents": 3900,
+    "currency": "cad",
+    "audience": "cad",
+    "locale": "fr-CA",
+    "expected": "39 $"
+  },
+  {
+    "cents": 500,
+    "currency": "usd",
+    "audience": "cad",
+    "locale": "fr-CA",
+    "expected": "5 $ US"
+  },
+  {
+    "cents": 500,
+    "currency": "cad",
+    "audience": "usd",
+    "locale": "fr-CA",
+    "expected": "5 $ CA"
+  },
+  {
+    "cents": -5050,
+    "currency": "cad",
+    "audience": "cad",
+    "locale": "fr-CA",
+    "expected": "-50,50 $"
+  },
+  {
+    "cents": 125050,
+    "currency": "usd",
+    "audience": "usd",
+    "locale": "en",
+    "expected": "$1,250.50"
+  },
+  {
+    "cents": 500,
+    "currency": "usd",
+    "audience": "cad",
+    "locale": "en",
+    "expected": "US$5"
+  }
+]

@@ -171,7 +171,7 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={
@@ -266,7 +266,7 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.truthPlansBefore} <PlanPrice plan="starter" />/mo on
           Starter for up to 3 people and one local number,{" "}
@@ -279,7 +279,7 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
         </p>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedTitle}
         intro={copy.relatedBody}
         links={[
@@ -332,7 +332,7 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={copy.ctaBody}
       />

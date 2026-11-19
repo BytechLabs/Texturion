@@ -20,7 +20,8 @@ import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-s
 import { signupHref } from "@/components/marketing/pricing/plan-math";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 import type { PlanId } from "@/lib/api/types";
-import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { LIVE_ROUTES, appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { TruthStrip } from "./truth-strip";
 import { UsageMeterEmbed } from "./usage-meter";
@@ -63,12 +64,12 @@ export interface HomePlan {
   cta: string;
 }
 
-const price = (plan: PlanId, audience: BillingCurrency) =>
-  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience);
+const price = (plan: PlanId, audience: BillingCurrency, locale: MarketingLocale) =>
+  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience, locale);
 
 /** The one-time US registration fee, on the invoice it actually lands on. */
-const registrationFee = (currency: BillingCurrency) =>
-  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+const registrationFee = (currency: BillingCurrency, locale: MarketingLocale) =>
+  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency, currency, locale);
 
 /**
  * Plan plus the one-time fee: what a US shop pays in month one.
@@ -78,10 +79,12 @@ const registrationFee = (currency: BillingCurrency) =>
  * and "$58 your first month" is the sentence a reader checks against their
  * first statement.
  */
-const firstMonth = (plan: PlanId, currency: BillingCurrency) =>
+const firstMonth = (plan: PlanId, currency: BillingCurrency, locale: MarketingLocale) =>
   formatMoney(
     PLAN_PRICE_CENTS[currency][plan] + US_REGISTRATION_FEE_CENTS[currency],
     currency,
+    currency,
+    locale,
   );
 
 /** The plain string a line item spells (what a lawyer would read). */
@@ -124,39 +127,38 @@ export const HOME_PLANS: readonly HomePlan[] = homePlans(homeEn);
 /** The deck's §Global guarantee microcopy, under the pricing CTAs. US default
  *  (mentions the registration fee); the Canada variant drops it (there is none
  *  to refund). */
-export const GUARANTEE_MICROCOPY =
-  "30-day money-back guarantee. Full refund, including the registration fee. No fine print.";
-export const GUARANTEE_MICROCOPY_CA =
-  "30-day money-back guarantee. Full refund, no fine print.";
+export const GUARANTEE_MICROCOPY = homeEn.dealGuaranteeUs;
+export const GUARANTEE_MICROCOPY_CA = homeEn.dealGuaranteeCa;
 
 /** The Truth Strip lines branch on the site-wide country: a US visitor reads
  *  the one-time registration fee and the carrier wait; a Canadian visitor reads
  *  the flat monthly price, same-day story. Never both together (owner ruling
  *  v1). Each set is built with the currency its country is billed in, so the
  *  closing currency line is no longer the same sentence in both. */
-export const dealTruthLinesUs = (copy: HomeCopy) =>
+export const dealTruthLinesUs = (copy: HomeCopy, locale: MarketingLocale = "en") =>
   [
     {
       text: fill(copy.dealTruthUsPrice, {
-        starter: price("starter", "usd"),
-        registration: registrationFee("usd"),
-        firstMonth: firstMonth("starter", "usd"),
+        starter: price("starter", "usd", locale),
+        registration: registrationFee("usd", locale),
+        firstMonth: firstMonth("starter", "usd", locale),
       }),
     },
     { text: copy.dealActivationUs, tick: true },
     { text: copy.dealTaxUs },
   ] as const;
 
-export const dealTruthLinesCa = (copy: HomeCopy) =>
+export const dealTruthLinesCa = (copy: HomeCopy, locale: MarketingLocale = "en") =>
   [
     {
-      text: fill(copy.dealTruthCaPrice, { starter: price("starter", "cad") }),
+      text: fill(copy.dealTruthCaPrice, { starter: price("starter", "cad", locale) }),
     },
     { text: copy.dealActivationCa, tick: true },
     { text: copy.dealTaxCa },
   ] as const;
 
-function PlanCard({ plan }: { plan: HomePlan }) {
+function PlanCard({ plan, locale }: { plan: HomePlan; locale: MarketingLocale }) {
+  const suffix = homeCopy(locale).dealMonthly;
   return (
     <FrCard className="flex h-full flex-col p-6 sm:p-8">
       <div className="flex items-center justify-between gap-3">
@@ -176,15 +178,15 @@ function PlanCard({ plan }: { plan: HomePlan }) {
       <p className="mt-3">
         <CountryOnly country="us">
           <MonoFigure
-            value={price(plan.id, "usd")}
-            suffix="/mo"
+            value={price(plan.id, "usd", locale)}
+            suffix={suffix}
             size="display"
           />
         </CountryOnly>
         <CountryOnly country="ca">
           <MonoFigure
-            value={price(plan.id, "cad")}
-            suffix="/mo"
+            value={price(plan.id, "cad", locale)}
+            suffix={suffix}
             size="display"
           />
         </CountryOnly>
@@ -219,7 +221,7 @@ function PlanCard({ plan }: { plan: HomePlan }) {
       </ul>
 
       <div className="mt-auto pt-8">
-        <CtaButton href={signupHref({ plan: plan.id, addons: [] })} className="w-full">
+        <CtaButton href={appLink(signupHref({ plan: plan.id, addons: [] }), locale)} className="w-full">
           {plan.cta}
         </CtaButton>
       </div>
@@ -240,7 +242,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
 
       <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 md:grid-cols-2">
         {homePlans(copy).map((plan) => (
-          <PlanCard key={plan.name} plan={plan} />
+          <PlanCard key={plan.name} plan={plan} locale={locale} />
         ))}
       </div>
 
@@ -253,17 +255,16 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
           strokeWidth={2.5}
           aria-hidden
         />
-        <CountryText us={GUARANTEE_MICROCOPY} ca={GUARANTEE_MICROCOPY_CA} />
+        <CountryText us={copy.dealGuaranteeUs} ca={copy.dealGuaranteeCa} />
       </p>
 
       {/* #121: the home page carries no allowance or per-text figures; the
           concrete mechanics live in one place, and this is the "*" the plan
           cards point to. */}
       <p className="font-body-mkt mx-auto mt-3 max-w-4xl text-center text-sm text-[color:var(--fr-ink-70)]">
-        * Texting, pictures, and calling are included under an automated
-        fair-use policy, and almost every crew stays well inside it.{" "}
+        {copy.dealFairUseIntro}{" "}
         <Link
-          href={LIVE_ROUTES.fairUse}
+          href={localizedPath(LIVE_ROUTES.fairUse, locale)}
           className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           {copy.dealFairUse}
@@ -273,26 +274,26 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
       {/* Enterprise escape hatch: Pro caps at 15, so a bigger crew needs to know
           the contact-sales tier exists (#83). One quiet line, not a third card. */}
       <p className="font-body-mkt mx-auto mt-4 max-w-4xl text-center text-sm text-[color:var(--fr-ink-70)]">
-        More than 15 on the crew?{" "}
+        {copy.dealEnterpriseIntro}{" "}
         <Link
-          href={LIVE_ROUTES.contact}
+          href={localizedPath(LIVE_ROUTES.contact, locale)}
           className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           {copy.dealEnterprise}
         </Link>
-        , unlimited seats at the same flat, no-per-user price.
+        {copy.dealEnterpriseOutro}
       </p>
 
       <CountryOnly country="us">
         <TruthStrip
           className="mx-auto mt-10 max-w-4xl"
-          lines={dealTruthLinesUs(copy)}
+          lines={dealTruthLinesUs(copy, locale)}
         />
       </CountryOnly>
       <CountryOnly country="ca">
         <TruthStrip
           className="mx-auto mt-10 max-w-4xl"
-          lines={dealTruthLinesCa(copy)}
+          lines={dealTruthLinesCa(copy, locale)}
         />
       </CountryOnly>
 
@@ -338,7 +339,7 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
 
       <p className="mt-12 text-center">
         <Link
-          href={LIVE_ROUTES.pricing}
+          href={localizedPath(LIVE_ROUTES.pricing, locale)}
           className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           {copy.dealSeePricing}

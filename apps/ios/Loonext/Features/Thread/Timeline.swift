@@ -578,7 +578,7 @@ func paymentEventLine(
     // a price in a currency nobody chose.
     func money(_ amount: Int?) -> String? {
         guard let amount = amount else { return nil }
-        return formatMoneyIn(amount, currency, audience: currency)
+        return formatMoneyIn(amount, currency, audience: currency, locale: locale)
     }
 
     let head: String
