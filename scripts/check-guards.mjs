@@ -51,7 +51,7 @@ function guardCommands() {
   const found = [
     ...workflow.matchAll(/^\s*run:\s*(node scripts\/([\w-]+)\.mjs(\s+--check)?)\s*$/gm),
   ]
-    .filter(([, , script, checkFlag]) => script.startsWith("check-") || checkFlag)
+    .filter(({ 2: script, 3: checkFlag }) => script.startsWith("check-") || checkFlag)
     .filter(([, command, script]) => {
       // A job with its own working directory (Android's R8 check runs in
       // apps/android, against a release build) has its own scripts folder.

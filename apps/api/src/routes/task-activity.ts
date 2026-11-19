@@ -47,6 +47,7 @@
  * act, so a member who may only read the conversation cannot comment on its task.
  */
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { recordActivity } from "../activity/record";
@@ -244,7 +245,7 @@ interface TaskGate {
  * task requires: "read" to look, "note" to write.
  */
 export async function requireTask(
-  c: import("hono").Context<AppEnv>,
+  c: Context<AppEnv>,
   db: Db,
   taskId: string,
   need: "read" | "note",
@@ -260,7 +261,7 @@ export async function requireTask(
       .limit(1),
     "task gate lookup",
   );
-  const task = rows[0];
+  const [task] = rows;
   if (!task) return errorResponse(c, "not_found", "No such task.");
   if (task.conversation_id) {
     try {
@@ -615,7 +616,7 @@ taskActivityRoutes.delete(
 );
 
 async function setSubscription(
-  c: import("hono").Context<AppEnv>,
+  c: Context<AppEnv>,
   subscribed: boolean,
 ): Promise<Response> {
   const taskId = pathUuid(c, "id");

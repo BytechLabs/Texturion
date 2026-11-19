@@ -9,11 +9,11 @@
  * given age, mounts the real hook, and counts what reached the API.
  */
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "@/app/app-providers";
 import { useReferralMoment } from "./billing";
-import { useBlockedSenders } from "./blocked-senders";
+import { useBlockedSenders, useBlockSender } from "./blocked-senders";
 import { useDataExports } from "./exports";
 import { keys } from "./keys";
 import { useLeadSources } from "./lead-sources";
@@ -77,17 +77,57 @@ async function refetchesAt(
   client.setQueryData(queryKey, { data: [] }, { updatedAt: Date.now() - ageMs });
   mount(client, hook);
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
   });
   return apiFetch.mock.calls.length > 0;
 }
-
-afterEach(cleanup);
 
 beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockResolvedValue({ data: [] });
 });
+
+it.each(["workspace-wide", "phone-specific"])(
+  "discards a stale %s blocked-sender read after a successful block",
+  async (scope) => {
+    const initial = Promise.withResolvers<{ data: [] }>();
+    const sender = {
+      id: "block-1",
+      phone_e164: "+15555550100",
+      reason: null,
+      blocked_by: null,
+      created_at: "2026-07-15T10:00:00Z",
+    };
+    const phone = scope === "phone-specific" ? sender.phone_e164 : undefined;
+    apiFetch
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValueOnce(sender)
+      .mockResolvedValueOnce({ data: [sender] });
+
+    const { result } = mount(makeClient(), () => ({
+      list: useBlockedSenders(phone),
+      block: useBlockSender(),
+    }));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledOnce());
+    act(() => result.current.block.mutate(sender.phone_e164));
+
+    await waitFor(() => expect(result.current.list.data?.data).toEqual([sender]));
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/v1/blocked-senders",
+      expect.objectContaining({
+        companyId: C,
+        searchParams: { phone_digits: phone?.slice(1) },
+        signal: expect.objectContaining({ aborted: true }),
+      }),
+    );
+    await act(async () => {
+      initial.resolve({ data: [] });
+      await initial.promise;
+    });
+    expect(result.current.list.data?.data).toEqual([sender]);
+  },
+);
 
 describe("app defaults", () => {
   it("QC-1: unused data stays 30 minutes and a reconnect leaves freshness to realtime", () => {
@@ -174,7 +214,7 @@ describe("reads nobody is looking at are not made", () => {
     const client = makeClient();
     mount(client, () => useTemplates("use", { enabled: false }));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     expect(apiFetch).not.toHaveBeenCalled();
   });
@@ -183,7 +223,7 @@ describe("reads nobody is looking at are not made", () => {
     const client = makeClient();
     mount(client, () => useUsage({ enabled: false }));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     expect(apiFetch).not.toHaveBeenCalled();
   });

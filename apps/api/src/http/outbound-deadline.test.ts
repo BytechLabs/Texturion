@@ -1,12 +1,12 @@
 import { createRequire } from "node:module";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Node } from "typescript";
+import type * as TypeScript from "typescript";
 import { expect, it } from "vitest";
 
 import { productionSources, sourceText } from "../test/source-tree";
 
-const ts = createRequire(import.meta.url)("typescript") as typeof import("typescript");
+const ts = createRequire(import.meta.url)("typescript") as typeof TypeScript;
 const sourceRoot = fileURLToPath(new URL("../", import.meta.url));
 const rawFetchAllowlist: Record<string, number> = {
   "billing/stripe.ts": 1, // Stripe controls the timeout through its client.
@@ -26,7 +26,7 @@ function rawFetchLines(file: string): number[] {
   if (!/\bfetch\s*(?:\?\.\s*)?\(/.test(text)) return [];
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const lines: number[] = [];
-  function visit(node: Node) {
+  function visit(node: TypeScript.Node) {
     if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const globalFetch = ts.isIdentifier(callee) && callee.text === "fetch";

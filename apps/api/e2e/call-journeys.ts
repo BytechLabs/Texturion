@@ -151,7 +151,7 @@ export async function inboundMissed(driver: JourneyDriver, crew: JourneyCrew): P
 
   driver.voice.hangup(customer.callControlId);
   const hangup = driver.voice.takeEvent();
-  if (!hangup || hangup.data.event_type !== "call.hangup") {
+  if (hangup?.data.event_type !== "call.hangup") {
     throw new Error("The caller hangup did not produce a terminal webhook");
   }
   await driver.deliver(hangup);

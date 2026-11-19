@@ -29,7 +29,7 @@
 import { roleHasCapability } from './capabilities';
 import type { Capability, MemberRole } from './capabilities';
 
-export type { MemberRole };
+export type { MemberRole } from "./capabilities";
 
 /**
  * Canonical section ids. Each client maps its own route/enum onto these; the

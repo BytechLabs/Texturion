@@ -70,7 +70,8 @@ export function spokenTime(minutes: number, locale: Locale = "en"): string {
   if (locale === "fr-CA") {
     if (hour24 === 0 && minute === 0) return "minuit";
     if (hour24 === 12 && minute === 0) return "midi";
-    return `${hour24} h` + (minute === 0 ? "" : " " + String(minute).padStart(2, "0"));
+    const minutes = minute === 0 ? "" : ` ${String(minute).padStart(2, "0")}`;
+    return `${hour24} h${minutes}`;
   }
   if (hour24 === 0 && minute === 0) return "midnight";
   if (hour24 === 12 && minute === 0) return "noon";

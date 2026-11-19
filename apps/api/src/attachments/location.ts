@@ -42,7 +42,7 @@
  */
 
 /** Tag 0x8825 in IFD0: "the GPS directory starts here". */
-const GPS_IFD_POINTER = 0x8825;
+const GPS_IFD_POINTER = 0x88_25;
 
 /**
  * What the pointer entry becomes.
@@ -51,7 +51,7 @@ const GPS_IFD_POINTER = 0x8825;
  * entry and skips it rather than following four zero bytes to the start of the TIFF
  * header and reading whatever is there as a directory.
  */
-const NEUTRALISED_TAG = 0xdead;
+const NEUTRALISED_TAG = 0xDE_AD;
 
 /** Bytes per IFD entry: tag(2) + type(2) + count(4) + value-or-offset(4). */
 const ENTRY_SIZE = 12;
@@ -128,23 +128,23 @@ function findTiffBlocks(bytes: Uint8Array, contentType: string): TiffBlock[] {
  * of compressed image data and following it would mean parsing pixels as a directory.
  */
 function jpegTiffBlocks(bytes: Uint8Array): TiffBlock[] {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return [];
+  if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8) return [];
   const found: TiffBlock[] = [];
   let at = 2;
   while (at + 4 <= bytes.length) {
-    if (bytes[at] !== 0xff) break;
+    if (bytes[at] !== 0xFF) break;
     const marker = bytes[at + 1];
     // Start of scan: everything after this is entropy-coded pixel data.
-    if (marker === 0xda || marker === 0xd9) break;
+    if (marker === 0xDA || marker === 0xD9) break;
     // Standalone markers carry no length.
-    if (marker >= 0xd0 && marker <= 0xd9) {
+    if (marker >= 0xD0 && marker <= 0xD9) {
       at += 2;
       continue;
     }
     const length = (bytes[at + 2] << 8) | bytes[at + 3];
     if (length < 2 || at + 2 + length > bytes.length) break;
     const payload = at + 4;
-    if (marker === 0xe1 && payload + 6 <= bytes.length) {
+    if (marker === 0xE1 && payload + 6 <= bytes.length) {
       const isExif =
         bytes[payload] === 0x45 && // E
         bytes[payload + 1] === 0x78 && // x
@@ -229,7 +229,7 @@ function heifTiffBlocks(bytes: Uint8Array): TiffBlock[] {
   const limit = Math.min(bytes.length - 8, 1_000_000);
   for (let at = 0; at < limit; at += 1) {
     const little = bytes[at] === 0x49 && bytes[at + 1] === 0x49;
-    const big = bytes[at] === 0x4d && bytes[at + 1] === 0x4d;
+    const big = bytes[at] === 0x4D && bytes[at + 1] === 0x4D;
     if (!little && !big) continue;
     const magic = little
       ? bytes[at + 2] | (bytes[at + 3] << 8)
@@ -258,7 +258,7 @@ function neutraliseGpsInTiff(bytes: Uint8Array, block: TiffBlock): boolean {
   if (length < 8 || start + 8 > bytes.length) return false;
 
   const little = bytes[start] === 0x49 && bytes[start + 1] === 0x49;
-  const big = bytes[start] === 0x4d && bytes[start + 1] === 0x4d;
+  const big = bytes[start] === 0x4D && bytes[start + 1] === 0x4D;
   if (!little && !big) return false;
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -379,7 +379,7 @@ function openerAfter(
   for (let at = from; at < Math.min(bytes.length, from + 8); at += 1) {
     if (bytes[at] === 0x22) return { at, closer: 0x22 }; // "
     if (bytes[at] === 0x27) return { at, closer: 0x27 }; // '
-    if (bytes[at] === 0x3e) return { at, closer: 0x3c }; // > … <
+    if (bytes[at] === 0x3E) return { at, closer: 0x3C }; // > … <
   }
   return null;
 }

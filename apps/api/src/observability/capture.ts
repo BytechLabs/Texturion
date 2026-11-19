@@ -141,7 +141,7 @@ export function scrubbedError(value: unknown, depth = 0): unknown {
 export function errorLogText(error: unknown): string {
   if (error instanceof Error) {
     const heading = `${error.name}: ${error.message}`;
-    const stack = error.stack;
+    const { stack } = error;
     if (stack?.startsWith(heading)) return scrubText(stack);
     return scrubText(stack ? `${heading}\n${stack}` : heading);
   }
@@ -158,10 +158,10 @@ function send(
   sending: () => Promise<void>,
   waitUntil: WaitUntil,
 ): Promise<void> {
-  const done = sending().catch((cause: unknown) => {
+  const done = sending().catch((error: unknown) => {
     console.error(
       `posthog ${name} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   });
   waitUntil(done);

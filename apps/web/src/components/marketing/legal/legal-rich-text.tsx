@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 const MARKS = /(\{[A-Za-z][A-Za-z0-9]*\}|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/;
 const SLOTS_ONLY = /(\{[A-Za-z][A-Za-z0-9]*\})/;
 const SLOT_PATTERN = /\{([A-Za-z][A-Za-z0-9]*)\}/;
+const EMPTY_SLOTS: Record<string, ReactNode> = {};
 
 /**
  * The deliberately small rich-text grammar used by translated legal copy.
@@ -17,7 +18,7 @@ const SLOT_PATTERN = /\{([A-Za-z][A-Za-z0-9]*)\}/;
  */
 export function LegalRichText({
   text,
-  slots = {},
+  slots = EMPTY_SLOTS,
 }: {
   text: string;
   slots?: Record<string, ReactNode>;

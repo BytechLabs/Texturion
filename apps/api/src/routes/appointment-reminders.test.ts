@@ -36,7 +36,7 @@ it("suggests reminder text in the workspace's language", async () => {
   });
 
   expect(res.status).toBe(200);
-  expect(await res.json()).toMatchObject({ suggested: copyFor("fr-CA").appointmentReminders });
+  await expect(res.json()).resolves.toMatchObject({ suggested: copyFor("fr-CA").appointmentReminders });
 });
 
 async function save(rules: { offset_minutes: number; body: string }[]) {
@@ -65,8 +65,9 @@ describe("PUT /v1/appointment-reminders", () => {
     const { res, sb } = await save(rules);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ rules, replanned_jobs: 3 });
-    expect(sb.find("POST", "/rest/v1/rpc/api_replace_reminder_rules")[0].body).toEqual({
+    await expect(res.json()).resolves.toMatchObject({ rules, replanned_jobs: 3 });
+    const [replacement] = sb.find("POST", "/rest/v1/rpc/api_replace_reminder_rules");
+    expect(replacement.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
       p_rules: rules,
@@ -77,7 +78,7 @@ describe("PUT /v1/appointment-reminders", () => {
     const { res, sb } = await save([]);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ rules: [], replanned_jobs: 0 });
+    await expect(res.json()).resolves.toEqual({ rules: [], replanned_jobs: 0 });
     expect(sb.find("POST", "/rest/v1/rpc/api_replace_reminder_rules")[0].body).toMatchObject({ p_rules: [] });
   });
 });

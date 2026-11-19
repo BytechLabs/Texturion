@@ -75,7 +75,7 @@ describe(reportSegmentUsage, () => {
         value: 1,
         identifier: "telnyx_msg_2",
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow("rate limited");
   });
 });
 

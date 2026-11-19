@@ -124,16 +124,17 @@ describe("#228 every client can name every refusal", () => {
     expect(REQUIRED.size).toBeGreaterThan(15);
   });
 
-  for (const client of Object.keys(CATALOGUES)) {
-    it(`${client} has a sentence for every error code, and no extras`, () => {
+  it.each(Object.keys(CATALOGUES))(
+    "%s has a sentence for every error code, and no extras",
+    (client) => {
       expect(
         sorted(keys[client]),
         `${client}'s error vocabulary has drifted from packages/shared. A ` +
           `missing key is not a missing translation — the catalogues fail open, ` +
           `so the reader meets the key's own name on screen.`,
       ).toEqual(sorted(REQUIRED));
-    });
-  }
+    },
+  );
 });
 
 describe("#228 the French is real French", () => {

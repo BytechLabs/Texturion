@@ -532,18 +532,16 @@ export async function finishThreadedInbound(
   let notificationFailure: { error: unknown } | undefined;
   try {
     if (pendingAlert && threaded.crew_notify_verdict) {
-      if (spamSilences) {
-        await clearSavedInboundAlert(db, companyId, threaded.message_id);
-      } else {
-        await deliverSavedInboundAlert(env, db, {
-          messageId: threaded.message_id,
-          companyId,
-          conversationId: threaded.conversation_id,
-          body,
-          verdict: threaded.crew_notify_verdict,
-          requireUnread: !threaded.created,
-        });
-      }
+      await (spamSilences
+        ? clearSavedInboundAlert(db, companyId, threaded.message_id)
+        : deliverSavedInboundAlert(env, db, {
+            messageId: threaded.message_id,
+            companyId,
+            conversationId: threaded.conversation_id,
+            body,
+            verdict: threaded.crew_notify_verdict,
+            requireUnread: !threaded.created,
+          }));
     } else if (
       threaded.crew_notify_state === undefined &&
       threaded.created && !spamSilences && (emergency || allowEmail || allowPush)

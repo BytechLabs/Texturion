@@ -14,7 +14,7 @@ import { MfaGate } from "@/components/shell/mfa-gate";
 import { useCompany } from "./companies";
 import { ApiError } from "./error";
 import { keys } from "./keys";
-import { meCompanyQueryOptions } from "./me-company";
+import { meCompanyQueryOptions } from "./me";
 import type { CompanyView, Me } from "./types";
 
 const { api } = vi.hoisted(() => ({
@@ -62,12 +62,12 @@ afterEach(() => {
   cleanup();
 });
 
-describe("useCompany", () => {
+describe(useCompany, () => {
   it("joins the hydrated /v1/me in flight instead of asking /v1/company", async () => {
     let answer!: (value: Me) => void;
     api.mockImplementation((path) =>
       path === "/v1/me"
-        ? new Promise<Me>((resolve) => (answer = resolve))
+        ? new Promise<Me>((resolve) => { answer = resolve; })
         : Promise.resolve(fromCompany),
     );
     const queryClient = newClient();
@@ -117,7 +117,7 @@ describe("useCompany", () => {
         </MfaGate>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("enter your code")).toBeTruthy();
+    await expect(screen.findByText("enter your code")).resolves.toBeInstanceOf(Element);
     expect(screen.queryByText("the shell")).toBeNull();
     expect(calls()).toEqual([`/v1/me@${COMPANY}`, `/v1/company@${COMPANY}`]);
   });

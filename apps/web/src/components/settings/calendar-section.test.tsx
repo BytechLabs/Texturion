@@ -81,14 +81,14 @@ describe("#744 the one Calendar section", () => {
     expect(screen.getAllByRole("heading", { name: "Calendar" })).toHaveLength(1);
     expect(
       screen.getByRole("heading", { name: "Connect Google or Microsoft (two-way)" }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     expect(
       screen.getByRole("heading", {
         name: "Subscribe from any calendar app (read-only)",
       }),
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Connect Google Calendar" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Set up my calendar" })).toBeTruthy();
+    ).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Connect Google Calendar" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Set up my calendar" })).toBeInstanceOf(Element);
     expect(document.querySelector("details")).toBeNull();
     expect(document.querySelectorAll("section#calendar")).toHaveLength(1);
   });
@@ -99,7 +99,7 @@ describe("#744 the one Calendar section", () => {
     const details = document.querySelector("details");
     expect(details).not.toBeNull();
     expect(details?.hasAttribute("open")).toBe(false);
-    expect(screen.getByText("Or subscribe read-only")).toBeTruthy();
+    expect(screen.getByText("Or subscribe read-only")).toBeInstanceOf(Element);
     expect(
       screen.queryByRole("heading", {
         name: "Subscribe from any calendar app (read-only)",
@@ -109,10 +109,10 @@ describe("#744 the one Calendar section", () => {
 
   it("speaks French", () => {
     renderSection("fr-CA");
-    expect(screen.getByRole("heading", { name: "Calendrier" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Calendrier" })).toBeInstanceOf(Element);
     expect(
       screen.getByRole("heading", { name: "Connecter Google ou Microsoft (bidirectionnel)" }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 });
 
@@ -120,7 +120,7 @@ describe("#744 the link check", () => {
   it("fetches the new link and says Working", async () => {
     renderSection();
     fireEvent.click(screen.getByRole("button", { name: "Set up my calendar" }));
-    await waitFor(() => expect(screen.getByText("Working")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Working")).toBeInstanceOf(Element));
     expect(mocks.check).toHaveBeenCalledWith(mocks.createUrl);
   });
 
@@ -128,11 +128,11 @@ describe("#744 the link check", () => {
     mocks.check.mockResolvedValueOnce({ state: "error", status: 404 });
     renderSection();
     fireEvent.click(screen.getByRole("button", { name: "Set up my calendar" }));
-    await waitFor(() => expect(screen.getByText(/did not work \(error 404\)/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/did not work \(error 404\)/)).toBeInstanceOf(Element));
     expect(screen.queryByText("Working")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-    await waitFor(() => expect(screen.getByText("Working")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Working")).toBeInstanceOf(Element));
     expect(mocks.check).toHaveBeenCalledTimes(2);
   });
 
@@ -140,6 +140,6 @@ describe("#744 the link check", () => {
     mocks.check.mockResolvedValueOnce({ state: "unreachable" });
     renderSection();
     fireEvent.click(screen.getByRole("button", { name: "Set up my calendar" }));
-    await waitFor(() => expect(screen.getByText(/Could not reach this link/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Could not reach this link/)).toBeInstanceOf(Element));
   });
 });

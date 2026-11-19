@@ -26,10 +26,6 @@ vi.mock("@/lib/api/client", () => ({
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
 
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 type Item = { id: string; variant: AttachmentVariant };
 
 // Never reset: the loaded-thumbnail memory outlives a test, so every URL is new.
@@ -43,18 +39,22 @@ beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockImplementation(async (path: string, options: RequestOptions = {}) => {
     if (path !== "/v1/attachments/urls") throw new Error(`unexpected ${path}`);
-    const items = (options.body as { items: Item[] }).items;
+    const { items } = (options.body as { items: Item[] });
     return {
       data: items
         .filter((item) => !refuse.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          requested_variant: item.variant,
-          variant: served(item.variant),
-          url: `https://storage.test/${item.id}-${item.variant}-${++serial}`,
-          expires_at: "2026-11-13T12:00:00.000Z",
-          ttl_seconds: 3600,
-        })),
+        .map(({ id, variant: requestedVariant }) => {
+          const variant = served(requestedVariant);
+          serial += 1;
+          return {
+            id,
+            requested_variant: requestedVariant,
+            variant,
+            url: `https://storage.test/${id}-${requestedVariant}-${serial}`,
+            expires_at: "2026-11-13T12:00:00.000Z",
+            ttl_seconds: 3600,
+          };
+        }),
       errors: items
         .filter((item) => refuse.has(item.id))
         .map((item) => ({
@@ -66,6 +66,9 @@ beforeEach(() => {
     };
   });
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 const batches = () =>
   apiFetch.mock.calls.map(([, options]) => (options as RequestOptions).body);
@@ -85,7 +88,7 @@ const PHOTO: AttachmentSummary = { id: "img", content_type: "image/jpeg", size_b
 const PDF: AttachmentSummary = { id: "pdf", content_type: "application/pdf", size_bytes: 2048 };
 const CLIP: AttachmentSummary = { id: "clip", content_type: "audio/mpeg", size_bytes: 2048 };
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
+const tick = () => new Promise((resolve) => { setTimeout(resolve, 40); });
 
 /** Whether a click got past the page's own handlers, without letting happy-dom navigate. */
 function clickPassedThrough(target: Element): boolean {
@@ -112,7 +115,7 @@ describe("thread media share one batched mint", () => {
       </>,
     );
 
-    await waitFor(() => expect(screen.getByRole("link", { name: "Open pdf" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open pdf" })).toBeInstanceOf(Element));
     await tick();
     expect(batches()).toEqual([
       {
@@ -126,7 +129,7 @@ describe("thread media share one batched mint", () => {
   });
 });
 
-describe("AttachmentImage", () => {
+describe(AttachmentImage, () => {
   it("shows a remounted thumbnail at once, without the pulse and blur-in", async () => {
     const queryClient = client();
     const first = renderWith(<AttachmentImage attachment={PHOTO} alt="Site photo" />, queryClient);
@@ -170,7 +173,7 @@ describe("AttachmentImage", () => {
     fireEvent.load(container.querySelector("img")!);
 
     fireEvent.click(screen.getByRole("button", { name: "Open photo: Site photo" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInstanceOf(Element));
     await tick();
 
     expect(batches()).toHaveLength(1);
@@ -188,7 +191,7 @@ describe("AttachmentImage", () => {
   });
 });
 
-describe("AttachmentFileChip", () => {
+describe(AttachmentFileChip, () => {
   function fakeTab() {
     return { opener: window as unknown, location: { href: "" }, close: vi.fn() };
   }
@@ -209,7 +212,7 @@ describe("AttachmentFileChip", () => {
     const stale = link.getAttribute("href");
     const tab = fakeTab();
     const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3600_000 - 50_000);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000 - 50_000);
 
     expect(clickPassedThrough(link)).toBe(false);
 
@@ -225,18 +228,20 @@ describe("AttachmentFileChip", () => {
     const link = await screen.findByRole("link", { name: "Open pdf" });
     const tab = fakeTab();
     vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3600_000 - 50_000);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000 - 50_000);
     refuse.add("pdf");
 
     expect(clickPassedThrough(link)).toBe(false);
 
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
     expect(tab.location.href).toBe("");
-    expect(await screen.findByRole("button", { name: "Didn't load. Retry" })).toBeTruthy();
+    await expect(
+      screen.findByRole("button", { name: "Didn't load. Retry" }),
+    ).resolves.toBeInstanceOf(Element);
   });
 });
 
-describe("AttachmentAudio", () => {
+describe(AttachmentAudio, () => {
   it("applies a refreshed URL only once the clip is paused", async () => {
     const { container, queryClient } = renderWith(
       <AttachmentAudio attachment={CLIP} fromLabel="Dana" />,

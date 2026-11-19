@@ -24,7 +24,7 @@ const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  role: { current: "owner" as string },
+  role: { current: "owner" },
 }));
 
 vi.mock("@/lib/api/exports", () => ({
@@ -47,8 +47,6 @@ vi.mock("sonner", () => ({
 const say = sayEnglish;
 
 
-afterEach(cleanup);
-
 beforeEach(() => {
   role.current = "owner";
   requestExport.mockReset();
@@ -56,6 +54,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 describe("#304 exporting a period's usage", () => {
   it("EU-1: is absent for somebody who does not handle billing", () => {
@@ -75,7 +75,7 @@ describe("#304 exporting a period's usage", () => {
     // they do not hold — would hide it from them.
     role.current = "bookkeeper";
     render(<ExportUsage />);
-    expect(screen.getByText(say(EXPORT_USAGE_ACTION))).toBeTruthy();
+    expect(screen.getByText(say(EXPORT_USAGE_ACTION))).toBeInstanceOf(Element);
   });
 
   it("EU-3: opens with last month filled in, not empty", () => {
@@ -84,8 +84,8 @@ describe("#304 exporting a period's usage", () => {
     render(<ExportUsage />);
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
 
-    const from = screen.getByLabelText("From") as HTMLInputElement;
-    const to = screen.getByLabelText("To") as HTMLInputElement;
+    const from = screen.getByLabelText<HTMLInputElement>("From");
+    const to = screen.getByLabelText<HTMLInputElement>("To");
     expect(from.value).not.toBe("");
     expect(to.value).not.toBe("");
     const today = new Date();
@@ -135,7 +135,7 @@ describe("#304 exporting a period's usage", () => {
     });
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(requestExport).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(requestExport).toHaveBeenCalledOnce());
     const sent = requestExport.mock.calls[0][0] as { from: string; to: string };
     expect(new Date(sent.to).getHours()).toBe(23);
     expect(new Date(sent.from).getHours()).toBe(0);
@@ -148,7 +148,7 @@ describe("#304 exporting a period's usage", () => {
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
     expect(toastSuccess.mock.calls[0][0]).toContain("Data export");
   });
 
@@ -160,7 +160,7 @@ describe("#304 exporting a period's usage", () => {
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("before its start");
   });
 });

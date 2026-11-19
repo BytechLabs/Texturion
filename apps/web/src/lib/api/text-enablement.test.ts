@@ -63,7 +63,7 @@ describe("create — POST /v1/text-enablements", () => {
     });
 
     expect(created).toEqual(ROW);
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/text-enablements");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Company-Id"]).toBe("company-1");
@@ -120,7 +120,7 @@ describe("documents — PUT /v1/text-enablements/:id/documents", () => {
 
     expect(updated.has_loa).toBe(true);
     expect(updated.has_bill).toBe(true);
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/documents`,
     );
@@ -152,7 +152,7 @@ describe("verification — the number-ownership code POSTs", () => {
     });
 
     expect(result).toEqual({ requested: true, verification_method: "call" });
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes`,
     );
@@ -198,7 +198,7 @@ describe("verification — the number-ownership code POSTs", () => {
     );
 
     expect(result).toEqual({ verified: true });
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes/verify`,
     );
@@ -237,7 +237,7 @@ describe("resubmit / cancel — the action POSTs", () => {
     );
 
     expect(reset.status).toBe("pending");
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/resubmit`,
     );
@@ -278,7 +278,7 @@ describe("list — GET /v1/text-enablements", () => {
     expect(page.data).toHaveLength(1);
     expect(page.data[0].phone_e164).toBe("+16135550100");
     expect(page.next_cursor).toBeNull();
-    const [, init] = fetchSpy.mock.calls[0];
+    const [[, init]] = fetchSpy.mock.calls;
     expect(init?.method).toBe("GET");
   });
 });

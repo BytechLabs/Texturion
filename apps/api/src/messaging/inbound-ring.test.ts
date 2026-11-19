@@ -108,15 +108,19 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     const hung: FetchRoute = (url, request) =>
       url.href === WEBHOOK_LINK
         ? new Promise<Response>((_resolve, reject) => {
-            request.signal.addEventListener("abort", () => reject(request.signal.reason));
+            request.signal.addEventListener("abort", () => {
+              const reason: unknown = request.signal.reason;
+              reject(reason instanceof Error ? reason : new Error("Fetch aborted"));
+            });
           })
         : undefined;
     const removal = telnyxDelete();
     stubFetch(hung, listing([{ id: "rec-1" }]).route, removal.route);
 
-    const attempt = expect(store()).rejects.toMatchObject({ name: "TimeoutError" });
-    await vi.advanceTimersByTimeAsync(30_000);
-    await attempt;
+    await Promise.all([
+      expect(store()).rejects.toMatchObject({ name: "TimeoutError" }),
+      vi.advanceTimersByTimeAsync(30_000),
+    ]);
     expect(removal.calls).toHaveLength(0);
   });
 

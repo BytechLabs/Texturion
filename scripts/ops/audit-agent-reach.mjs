@@ -38,7 +38,7 @@
  * wants the last probed against endpoints that must answer 403.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
@@ -159,7 +159,7 @@ function postgresTier(value) {
  * `.dev.vars` source, whose active lines are local by this repo's convention.
  */
 export function classify(name, value, { commented = false, devVars = false, context = {} } = {}) {
-  const raw = typeof value === "string" ? value.trim().replace(/^["']|["']$/g, "") : "";
+  const raw = typeof value === "string" ? value.trim().replaceAll(/^["']|["']$/g, "") : "";
   const localLine = devVars && !commented;
   if (PLACEHOLDER.test(raw)) return { tier: "none", reason: "empty or a placeholder" };
   if (PUBLISHED_LOCAL_KEYS.has(raw)) return { tier: "nonprod", reason: "the Supabase CLI's published local key" };
@@ -169,19 +169,19 @@ export function classify(name, value, { commented = false, devVars = false, cont
 
   if (/^[sr]k_live_/.test(raw)) return { tier: "production-write", reason: "a live Stripe key" };
   if (/^(?:[sr]k|pk)_test_/.test(raw)) return { tier: "nonprod", reason: "a Stripe test-mode key" };
-  if (/^pk_live_/.test(raw)) return { tier: "none", reason: "a Stripe publishable key, public by design" };
+  if (raw.startsWith("pk_live_")) return { tier: "none", reason: "a Stripe publishable key, public by design" };
   if (/^[123]x0{20,40}AA$/.test(raw)) return { tier: "nonprod", reason: "one of Cloudflare's published Turnstile test secrets" };
   if (/^KEY[0-9A-F]{24,}/.test(raw)) {
     return { tier: "production-write", reason: "a Telnyx key: the one Telnyx account is production's" };
   }
-  if (/^sbp_/.test(raw)) return { tier: "production-write", reason: "a Supabase platform token: manages the project" };
-  if (/^sb_publishable_/.test(raw)) return { tier: "none", reason: "a Supabase publishable key, public by design" };
+  if (raw.startsWith("sbp_")) return { tier: "production-write", reason: "a Supabase platform token: manages the project" };
+  if (raw.startsWith("sb_publishable_")) return { tier: "none", reason: "a Supabase publishable key, public by design" };
   const claims = jwtClaims(raw);
   if (claims?.role === "anon") return { tier: "none", reason: "a Supabase anon key, public by design" };
   if (claims?.role === "service_role" && claims.iss === "supabase-demo") {
     return { tier: "nonprod", reason: "the Supabase CLI's published local service_role key" };
   }
-  if (/^sb_secret_/.test(raw) || claims?.role === "service_role" || SUPABASE_SECRET_NAME.test(name)) {
+  if (raw.startsWith("sb_secret_") || claims?.role === "service_role" || SUPABASE_SECRET_NAME.test(name)) {
     if (localSupabaseUrl(context)) return { tier: "nonprod", reason: "a Supabase secret key beside a local SUPABASE_URL" };
     return { tier: "production-write", reason: "a Supabase secret key: bypasses RLS on the project" };
   }
@@ -193,7 +193,7 @@ export function classify(name, value, { commented = false, devVars = false, cont
   }
 
   const alike = LOCAL_ONLY_ON_AN_ACTIVE_DEV_VARS_LINE.find(([pattern]) => pattern.test(name));
-  if (alike || /^whsec_/.test(raw)) {
+  if (alike || raw.startsWith("whsec_")) {
     const what = alike ? alike[1] : "a Stripe signing secret";
     return localLine
       ? { tier: "nonprod", reason: `${what} on an active .dev.vars line, which is local` }
@@ -238,9 +238,9 @@ export function parseEnvText(text) {
   for (const line of text.split(/\r?\n/)) {
     const match = /^\s*(#+\s*)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
     if (!match) continue;
-    let value = match[3];
+    let { 3: value } = match;
     const quoted = /^(["'])(.*)\1$/.exec(value);
-    if (quoted) value = quoted[2];
+    if (quoted) ({ 2: value } = quoted);
     else value = value.replace(/\s+#.*$/, "");
     entries.push({ name: match[2], value, commented: Boolean(match[1]) });
   }
@@ -377,7 +377,7 @@ export function audit({ env = process.env, home = homedir(), root = REPO_ROOT } 
       join(tree, ".claude", "settings.local.json"),
     ]),
   ];
-  for (const path of [...new Set(settingsFiles)]) {
+  for (const path of new Set(settingsFiles)) {
     const document = readJson(path);
     if (!document) continue;
     sources.settings += 1;
@@ -439,7 +439,7 @@ export function audit({ env = process.env, home = homedir(), root = REPO_ROOT } 
 export function fa1Chosen({ env = process.env, home = homedir() } = {}) {
   if (env.LOONEXT_FA1 === "1") return { chosen: true, where: "LOONEXT_FA1=1" };
   const hardening = readJson(join(home, ".loonext", "hardening.json"));
-  if (hardening && hardening.fa1 === true) return { chosen: true, where: "~/.loonext/hardening.json" };
+  if (hardening?.fa1 === true) return { chosen: true, where: "~/.loonext/hardening.json" };
   return { chosen: false, where: null };
 }
 
@@ -474,7 +474,7 @@ function main() {
   const argv = process.argv.slice(2);
   const report = argv.includes("--report");
   const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
+  const root = rootFlag !== -1 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
   const result = audit({ root });
   const fa1 = fa1Chosen();
   const decision = verdict(result, { report, fa1 });

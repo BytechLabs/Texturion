@@ -143,7 +143,7 @@ export function useDeleteSavedView() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: string; surface: SavedViewSurface }) =>
-      apiFetch<void>(`/v1/saved-views/${id}`, { method: "DELETE", companyId }),
+      apiFetch<undefined>(`/v1/saved-views/${id}`, { method: "DELETE", companyId }),
     onSuccess: (_void, input) => {
       void queryClient.invalidateQueries({
         queryKey: keys.savedViews(companyId, input.surface),

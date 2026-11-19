@@ -8,14 +8,8 @@ import { clientEnv } from "@/public-env";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { trackContactSubmitted } from "@/lib/analytics/events";
 
-import {
-  buildMailto,
-  hasFieldErrors,
-  submitContact,
-  validateContactForm,
-  type ContactFieldErrors,
-  type ContactFormValues,
-} from "./contact-form-logic";
+import { buildMailto, hasFieldErrors, submitContact, validateContactForm } from "./contact-form-logic";
+import type { ContactFieldErrors, ContactFormValues } from "./contact-form-logic";
 
 /**
  * The contact work-order form (COPY-DECK v2 /contact): name, email, business,
@@ -59,7 +53,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
     if (status === "success") confirmationRef.current?.focus();
   }, [status]);
 
-  function update<K extends keyof ContactFormValues>(key: K, value: string) {
+  function update(key: keyof ContactFormValues, value: string) {
     setValues((v) => ({ ...v, [key]: value }));
     // Clear this field's inline error as the visitor corrects it.
     setFieldErrors((errs) => {

@@ -32,7 +32,8 @@ import {
   usTextingOff,
 } from "@/components/thread/composer-banner";
 import { Textarea } from "@/components/ui/textarea";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
@@ -98,12 +99,13 @@ function TextBackCard({
       updateMessage.mutateAsync({ mctb_message: next.length > 0 ? next : null }),
   });
   const message = messageField.draft;
-  const messageError =
-    messageField.state !== "error"
-      ? null
-      : messageField.error instanceof ApiError
+  let messageError: string | null = null;
+  if (messageField.state === "error") {
+    messageError =
+      messageField.error instanceof ApiError
         ? messageField.error.message
         : t("appShell.saveFailed");
+  }
 
   // Another admin's toggle flip always reflects.
   useEffect(() => {
@@ -183,11 +185,10 @@ function TextBackCard({
                 <p
                   aria-live="polite"
                   className={
-                    "text-[11px] text-muted-foreground transition-opacity duration-150 " +
-                    (messageField.state === "saving" ||
+                    `text-[11px] text-muted-foreground transition-opacity duration-150 ${messageField.state === "saving" ||
                     messageField.state === "saved"
                       ? "opacity-100"
-                      : "opacity-0")
+                      : "opacity-0"}`
                   }
                 >
                   {messageField.state === "saving"
@@ -466,8 +467,8 @@ function cnamChangePending(submittedAt: string | null): boolean {
 /** Client mirror of the server's company-name sanitizer (telnyx/voice.ts). */
 function cnamFromCompanyName(name: string): string {
   return name
-    .replace(/[^A-Za-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^A-Za-z0-9 ]+/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim()
     .slice(0, 15)
     .trim();

@@ -74,8 +74,14 @@ const pairs: { en: string; fr: string; enMeta: Metadata; frMeta: Metadata }[] = 
 ];
 
 describe("#228 translated legal metadata is canonical and reciprocal", () => {
-  for (const pair of pairs) {
-    it(`${pair.en} and ${pair.fr} publish the same hreflang set`, () => {
+  it.each(
+    pairs.map((pair) => [
+      `${pair.en} and ${pair.fr} publish the same hreflang set`,
+      pair,
+    ] as const),
+  )(
+    "%s",
+    (_name, pair) => {
       const languages = {
         "en-CA": pair.en,
         "fr-CA": pair.fr,
@@ -85,6 +91,6 @@ describe("#228 translated legal metadata is canonical and reciprocal", () => {
       expect(pair.frMeta.alternates?.canonical).toBe(`https://loonext.com${pair.fr}`);
       expect(pair.enMeta.alternates?.languages).toEqual(languages);
       expect(pair.frMeta.alternates?.languages).toEqual(languages);
-    });
-  }
+    },
+  );
 });

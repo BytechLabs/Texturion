@@ -139,7 +139,7 @@ function tree() {
 
 async function registered(count: number): Promise<FakeClient> {
   await vi.waitFor(() => expect(sdk.clients).toHaveLength(count));
-  return sdk.clients[count - 1]!;
+  return sdk.clients[count - 1];
 }
 
 function emit(client: FakeClient, event: string, payload?: unknown) {
@@ -189,26 +189,6 @@ function hangUp(client: FakeClient, call: FakeCall) {
   notify(client, call);
 }
 
-it("answers a ring from a modifier chord while a form field has focus", async () => {
-  render(tree());
-  const client = await registered(1);
-  emit(client, "telnyx.ready");
-  const call = ring(client, "shortcut-ring");
-  const field = document.createElement("input");
-  document.body.append(field);
-  try {
-    field.focus();
-    const chord = new KeyboardEvent("keydown", {
-      code: "KeyA", altKey: true, shiftKey: true, bubbles: true, cancelable: true,
-    });
-    await act(async () => { field.dispatchEvent(chord); });
-    expect(chord.defaultPrevented).toBe(true);
-    expect(call.state).toBe("active");
-  } finally {
-    field.remove();
-  }
-});
-
 /** Whether leaving the page right now would ask the member first. */
 function unloadIsGuarded(): boolean {
   const event = new Event("beforeunload", { cancelable: true });
@@ -252,6 +232,26 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
+it("answers a ring from a modifier chord while a form field has focus", async () => {
+  render(tree());
+  const client = await registered(1);
+  emit(client, "telnyx.ready");
+  const call = ring(client, "shortcut-ring");
+  const field = document.createElement("input");
+  document.body.append(field);
+  try {
+    field.focus();
+    const chord = new KeyboardEvent("keydown", {
+      code: "KeyA", altKey: true, shiftKey: true, bubbles: true, cancelable: true,
+    });
+    await act(async () => { field.dispatchEvent(chord); });
+    expect(chord.defaultPrevented).toBe(true);
+    expect(call.state).toBe("active");
+  } finally {
+    field.remove();
+  }
+});
+
 describe("softphone recovery", () => {
   it("rebuilds the phone after its socket drops, though every render hands it new hook results", async () => {
     render(tree());
@@ -259,7 +259,7 @@ describe("softphone recovery", () => {
     emit(first, "telnyx.ready");
     emit(first, "telnyx.socket.close");
 
-    await act(() => vi.advanceTimersByTimeAsync(4_000));
+    await act(() => vi.advanceTimersByTimeAsync(4000));
 
     await registered(2);
     expect(first.disconnected).toBe(true);
@@ -277,7 +277,7 @@ describe("softphone recovery", () => {
     expect(first.disconnected).toBe(false);
 
     hangUp(first, call);
-    await act(() => vi.advanceTimersByTimeAsync(4_000));
+    await act(() => vi.advanceTimersByTimeAsync(4000));
     await registered(2);
   });
 
@@ -288,7 +288,7 @@ describe("softphone recovery", () => {
 
     foreground();
     view.rerender(tree());
-    await act(() => vi.advanceTimersByTimeAsync(4_000));
+    await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(api.mint).toHaveBeenCalledTimes(2);
   });
 
@@ -296,16 +296,16 @@ describe("softphone recovery", () => {
     api.state.mintError = new ApiError("forbidden", "no", 403);
     const view = render(tree());
     await vi.waitFor(() => expect(phone!.error).toBe("shell.registrationFailed"));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
 
     foreground();
-    await act(() => vi.advanceTimersByTimeAsync(4_000));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(4000));
+    expect(api.mint).toHaveBeenCalledOnce();
 
     company.role = "admin";
     view.rerender(tree());
     foreground();
-    await act(() => vi.advanceTimersByTimeAsync(4_000));
+    await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(api.mint).toHaveBeenCalledTimes(2);
   });
 });
@@ -316,19 +316,19 @@ describe("softphone registration", () => {
     void queryClient
       .fetchQuery({
         queryKey: ["boot"],
-        queryFn: () => new Promise<string>((resolve) => (finish = resolve)),
+        queryFn: () => new Promise<string>((resolve) => { finish = resolve; }),
       })
       .catch(() => {});
     render(tree());
 
-    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(api.mint).not.toHaveBeenCalled();
 
     await act(async () => finish("done"));
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(api.mint).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(100));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 
   it("registers by five seconds even when the app never goes quiet", async () => {
@@ -340,16 +340,16 @@ describe("softphone registration", () => {
       .catch(() => {});
     render(tree());
 
-    await act(() => vi.advanceTimersByTimeAsync(4_900));
+    await act(() => vi.advanceTimersByTimeAsync(4900));
     expect(api.mint).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(100));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 
   it("registers at once when opened to answer a call", () => {
     window.history.replaceState(null, "", "/calls?call=v3:ring-1");
     render(tree());
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 });
 
@@ -363,12 +363,12 @@ describe("softphone entitlement", () => {
     company.subscription = access.subscription;
     const view = render(tree());
 
-    await act(() => vi.advanceTimersByTimeAsync(6_000));
+    await act(() => vi.advanceTimersByTimeAsync(6000));
     foreground();
     act(() => {
       window.dispatchEvent(new Event("online"));
     });
-    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    await act(() => vi.advanceTimersByTimeAsync(5000));
 
     expect(api.mint).not.toHaveBeenCalled();
     expect(view.container.querySelector('[role="status"]')).toBeNull();
@@ -377,7 +377,7 @@ describe("softphone entitlement", () => {
   it("registers once the workspace's subscription becomes active", async () => {
     company.subscription = "past_due";
     const view = render(tree());
-    await act(() => vi.advanceTimersByTimeAsync(6_000));
+    await act(() => vi.advanceTimersByTimeAsync(6000));
     expect(api.mint).not.toHaveBeenCalled();
 
     company.subscription = "active";
@@ -449,19 +449,19 @@ describe("softphone workspace switch", () => {
     let release: () => void = () => {};
     api.mint.mockImplementationOnce(async () => {
       api.state.mints.push(company.id);
-      await new Promise<void>((resolve) => (release = resolve));
+      await new Promise<void>((resolve) => { release = resolve; });
       return { token: "jwt" };
     });
     window.history.replaceState(null, "", "/calls?call=v3:ring-1");
     const view = render(tree());
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
 
     company.id = "company-2";
     view.rerender(tree());
     await act(async () => release());
 
     const second = await registered(2);
-    expect(sdk.clients[0]!.disconnected).toBe(true);
+    expect(sdk.clients[0].disconnected).toBe(true);
     expect(second.disconnected).toBe(false);
     expect(api.state.mints).toEqual(["company-1", "company-2"]);
   });
@@ -476,12 +476,12 @@ describe("placing a call", () => {
     act(() => {
       placed = phone!.placeCall({ to: "+16135550199", contactName: "Ari" });
     });
-    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(api.authorize).not.toHaveBeenCalled();
 
     emit(client, "telnyx.ready");
     await act(() => placed);
-    expect(api.authorize).toHaveBeenCalledTimes(1);
+    expect(api.authorize).toHaveBeenCalledOnce();
   });
 
   it("gives up without dialing when the phone never registers", async () => {
@@ -492,7 +492,7 @@ describe("placing a call", () => {
     act(() => {
       outcome = phone!
         .placeCall({ to: "+16135550199", contactName: "Ari" })
-        .catch((cause: unknown) => cause);
+        .catch((error: unknown) => error);
     });
     await act(() => vi.advanceTimersByTimeAsync(10_000));
 

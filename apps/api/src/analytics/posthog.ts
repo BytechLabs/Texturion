@@ -67,8 +67,8 @@ export async function capture(
     if (!response.ok) {
       throw new Error(`PostHog answered HTTP ${response.status}`);
     }
-  } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     console.error(`posthog capture '${event}' failed:`, detail);
   }
 }

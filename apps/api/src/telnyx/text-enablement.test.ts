@@ -126,7 +126,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("mapHostedStatus", () => {
+describe(mapHostedStatus, () => {
   it("maps the REAL Telnyx hosted-order vocabulary (spec-verified enum)", () => {
     expect(mapHostedStatus("successful", "pending")).toBe("completed");
     expect(mapHostedStatus("pending", "in-progress")).toBe("pending");
@@ -231,9 +231,9 @@ describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
 
     await resumeTextEnablement(env, order);
 
-    const create = telnyx.callsTo("POST", /messaging_hosted_number_orders$/)[0];
+    const [create] = telnyx.callsTo("POST", /messaging_hosted_number_orders$/);
     const sentKey = create.headers.get("Idempotency-Key");
-    expect(sentKey).toBeTruthy();
+    expect(Boolean(sentKey)).toBe(true);
     // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
     expect(sentKey).toBe(
       rest.rows("text_enablement_orders")[0].telnyx_order_idempotency_key,
@@ -287,7 +287,7 @@ describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
     const running = resumeTextEnablement(env, order);
     try {
       await started.promise;
-      expect(await resumeTextEnablement(env, order)).toBe(order);
+      await expect(resumeTextEnablement(env, order)).resolves.toBe(order);
     } finally {
       finish.resolve();
       await running;
@@ -411,7 +411,7 @@ describe("resumeTextEnablement — S2b document attach", () => {
 
     const result = await resumeTextEnablement(env, order);
     expect(result.status).toBe("completed");
-    expect(result.completed_at).toBeTruthy();
+    expect(Boolean(result.completed_at)).toBe(true);
     expect(result.telnyx_hosted_number_id).toBe("hn-1");
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("active");
@@ -448,7 +448,7 @@ describe("resumeTextEnablement — terminal carrier statuses", () => {
 
     const result = await resumeTextEnablement(env, order);
     expect(result.status).toBe("cancelled");
-    expect(result.cancelled_at).toBeTruthy();
+    expect(Boolean(result.cancelled_at)).toBe(true);
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("released");
   });
@@ -559,7 +559,7 @@ describe("resumeTextEnablement — cancel-race + paid-first guards", () => {
   });
 });
 
-describe("cancelTextEnablement", () => {
+describe(cancelTextEnablement, () => {
   it("DELETEs the hosted order (tolerating 404), releases the row, marks cancelled", async () => {
     const { env, rest, telnyx } = setup();
     const { order, phone } = seedHosted(rest, {
@@ -572,7 +572,7 @@ describe("cancelTextEnablement", () => {
 
     const result = await cancelTextEnablement(env, order);
     expect(result.status).toBe("cancelled");
-    expect(result.cancelled_at).toBeTruthy();
+    expect(Boolean(result.cancelled_at)).toBe(true);
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("released");
     expect(
@@ -600,7 +600,7 @@ describe("releaseNumberRow — hosted rows", () => {
       .rows("text_enablement_orders")
       .find((o) => o.id === order.id);
     expect(orderRow?.status).toBe("cancelled");
-    expect(orderRow?.cancelled_at).toBeTruthy();
+    expect(Boolean(orderRow?.cancelled_at)).toBe(true);
     // The hosted number was never Telnyx-owned inventory — no number DELETE.
     expect(telnyx.callsTo("DELETE", /^\/v2\/phone_numbers\//)).toHaveLength(0);
   });

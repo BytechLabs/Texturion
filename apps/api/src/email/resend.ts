@@ -1,4 +1,5 @@
-import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
+import { SUPPORT_EMAIL } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -154,7 +155,7 @@ export async function sendEmail(
       // somebody forgets on the send that matters.
       text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(input.locale),
       reply_to: replyTo,
-      ...(input.headers !== undefined ? { headers: input.headers } : {}),
+      ...(input.headers === undefined ? {} : { headers: input.headers }),
     }),
   }, 10_000);
 
@@ -167,9 +168,9 @@ export async function sendEmail(
     );
   }
 
-  const payload = (await response.json()) as { id?: unknown };
+  const payload = await response.json<{ id?: unknown }>();
   if (typeof payload.id !== "string") {
-    throw new Error("Resend send failed: response carried no email id.");
+    throw new TypeError("Resend send failed: response carried no email id.");
   }
 
   // The denominator for PostHog's bounce and complaint rates: one event per
@@ -201,10 +202,10 @@ async function filterSuppressed(env: Env, to: string[]): Promise<string[]> {
       .in("email", to.map((address) => address.trim().toLowerCase()))
       .is("cleared_at", null);
     if (error) throw new Error(error.message);
-    const blocked = new Set((data ?? []).map((row) => (row as { email: string }).email));
+    const blocked = new Set((data ?? []).map((row) => row.email));
     return to.filter((address) => !blocked.has(address.trim().toLowerCase()));
-  } catch (cause) {
-    console.error(`email suppression lookup failed, sending anyway: ${String(cause)}`);
+  } catch (error) {
+    console.error(`email suppression lookup failed, sending anyway: ${String(error)}`);
     return to;
   }
 }

@@ -70,12 +70,12 @@ describe("GET /v1/api-keys", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { keys: unknown[]; cap: number; live: number };
+    const body = await res.json<{ keys: unknown[]; cap: number; live: number }>();
     expect(body.keys).toHaveLength(1);
     expect(body.cap).toBe(10);
     expect(body.live).toBe(1);
 
-    const call = sb.find("GET", "/rest/v1/api_keys")[0];
+    const [call] = sb.find("GET", "/rest/v1/api_keys");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // The column list is the enforcement. Anything that can read `token_hash`
     // can check a stolen token against it offline.
@@ -93,7 +93,7 @@ describe("GET /v1/api-keys", () => {
     const res = await apiRequest(app, env, await token(), "/v1/api-keys", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { keys: unknown[]; live: number };
+    const body = await res.json<{ keys: unknown[]; live: number }>();
     // Both listed — "what did we turn off, and when" is an incident question.
     expect(body.keys).toHaveLength(2);
     // One live. A cap that counted revoked keys would punish the very thing we
@@ -124,13 +124,13 @@ describe("POST /v1/api-keys", () => {
       body: { name: "Scheduling tool", scopes: ["contacts:read", "contacts:read"] },
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { token_once: string; key: Record<string, unknown> };
+    const body = await res.json<{ token_once: string; key: Record<string, unknown> }>();
 
     expect(body.token_once.startsWith(API_KEY_PREFIX)).toBe(true);
     // 32 bytes of base64url, unpadded.
     expect(body.token_once.length).toBeGreaterThan(40);
 
-    const insert = sb.find("POST", "/rest/v1/api_keys")[0];
+    const [insert] = sb.find("POST", "/rest/v1/api_keys");
     const written = insert.body as {
       token_hash: string;
       token_prefix: string;
@@ -143,7 +143,7 @@ describe("POST /v1/api-keys", () => {
     // The stub is a PREFIX of the real token, which is what makes it useful
     // for telling three keys apart — and short enough to be useless otherwise.
     expect(body.token_once.startsWith(written.token_prefix)).toBe(true);
-    expect(written.token_prefix.length).toBe(12);
+    expect(written.token_prefix).toHaveLength(12);
     // A duplicate scope is a client bug, not twice the permission.
     expect(written.scopes).toEqual(["contacts:read"]);
   });
@@ -164,8 +164,8 @@ describe("POST /v1/api-keys", () => {
       body: { name: "two", scopes: ["contacts:read"] },
     });
 
-    const a = (await first.json()) as { token_once: string };
-    const b = (await second.json()) as { token_once: string };
+    const a = await first.json<{ token_once: string }>();
+    const b = await second.json<{ token_once: string }>();
     expect(a.token_once).not.toBe(b.token_once);
   });
 
@@ -179,7 +179,7 @@ describe("POST /v1/api-keys", () => {
       method: "POST",
       body: { name: "Scheduling tool", scopes: ["tasks:write"] },
     });
-    const body = (await res.json()) as { token_once: string };
+    const body = await res.json<{ token_once: string }>();
 
     const entry = sb.find("POST", "/rest/v1/audit_log")[0].body as {
       action: string;
@@ -212,8 +212,8 @@ describe("POST /v1/api-keys", () => {
       "POST",
       "/rest/v1/api_keys",
       () =>
-        new Response(
-          JSON.stringify({ message: "api key cap reached for company x", code: "23514" }),
+        Response.json(
+          { message: "api key cap reached for company x", code: "23514" },
           { status: 400, headers: { "content-type": "application/json" } },
         ),
     );
@@ -225,7 +225,7 @@ describe("POST /v1/api-keys", () => {
       body: { name: "x", scopes: ["contacts:read"] },
     });
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+    expect((await res.json<{ error: { message: string } }>()).error.message).toContain(
       "10",
     );
   });
@@ -245,10 +245,10 @@ describe("DELETE /v1/api-keys/:id", () => {
     });
     expect(res.status).toBe(204);
 
-    const call = sb.find("PATCH", "/rest/v1/api_keys")[0];
+    const [call] = sb.find("PATCH", "/rest/v1/api_keys");
     const patch = call.body as { revoked_at: string; revoked_by: string };
-    expect(patch.revoked_at).toBeTruthy();
-    expect(patch.revoked_by).toBeTruthy();
+    expect(Boolean(patch.revoked_at)).toBe(true);
+    expect(Boolean(patch.revoked_by)).toBe(true);
     // Only a key that is still live. Revoking twice must not overwrite who did
     // it first — the FIRST revocation is the one an incident review cares
     // about.

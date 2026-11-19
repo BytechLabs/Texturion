@@ -76,11 +76,11 @@ function world(options: WorldOptions = {}) {
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
     emails.push(
-      (await request.clone().json()) as {
+      await request.clone().json<{
         to: string[];
         subject: string;
         text: string;
-      },
+      }>(),
     );
     return Response.json({ id: "email_1" });
   };

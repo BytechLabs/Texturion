@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   const edgeOrigin = store.read("edge-origin").replace(/\/+$/, "");
   const guardToken = store.read("guard-token-robot");
   const partition = await fetchPartition(edgeOrigin, guardToken);
-  const numbers = standingBook(partition.standing ?? store.readJson<unknown>("standing-numbers.json"), partition.owned_e164);
+  const numbers = standingBook(partition.standing ?? store.readJson("standing-numbers.json"), partition.owned_e164);
   for (const role of ROBOT_ROLES) {
     if (!numbers.number(role)) throw new Error(`robotd: ${role} is not an owned number in the partition; refusing to start`);
   }

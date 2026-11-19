@@ -119,7 +119,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
     });
     // #12: the re-mirror scan excludes terminal canceled tenants (which keep
     // their sub id forever → unbounded churn growth) and is bounded per run.
-    const remirrorCall = harness.callsTo("GET", /\/rest\/v1\/companies/)[0];
+    const [remirrorCall] = harness.callsTo("GET", /\/rest\/v1\/companies/);
     expect(
       remirrorCall.url.searchParams.getAll("subscription_status"),
     ).toContain("neq.canceled");
@@ -135,7 +135,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       },
     ]);
     // The update targeted the row by its subscription id.
-    const patch = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[0];
+    const [patch] = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
     expect(patch.url.searchParams.get("stripe_subscription_id")).toBe(
       "eq.sub_1",
     );
@@ -230,8 +230,8 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
         "GET",
         /api\.stripe\.com\/v1\/subscriptions\/sub_broken/,
         () =>
-          new Response(
-            JSON.stringify({ error: { message: "no such subscription" } }),
+          Response.json(
+            { error: { message: "no such subscription" } },
             { status: 500 },
           ),
       ),
@@ -255,7 +255,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       /failed for 1 company/,
     );
     // The healthy tenant was still re-mirrored (to Stripe's past_due truth).
-    const patch = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[0];
+    const [patch] = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
     expect(patch.url.searchParams.get("stripe_subscription_id")).toBe(
       "eq.sub_2",
     );
@@ -378,8 +378,8 @@ describe("orphan-subscription sweep (§11 double-buy safety net)", () => {
       ...baseEndpoints([], 0, [sweepCompany]),
       listEndpoint(subList(sub(STORED, "active"), sub("sub_orphan", "active"))),
       endpoint("DELETE", /\/v1\/subscriptions\/sub_orphan/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "cancel failed" } }),
+        Response.json(
+          { error: { message: "cancel failed" } },
           { status: 500 },
         ),
       ),
@@ -396,8 +396,8 @@ describe("orphan-subscription sweep (§11 double-buy safety net)", () => {
     const harness = makeHarness([
       ...baseEndpoints([], 0, [sweepCompany]),
       endpoint("GET", /\/v1\/subscriptions\?customer=/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "list failed" } }),
+        Response.json(
+          { error: { message: "list failed" } },
           { status: 500 },
         ),
       ),
@@ -470,11 +470,11 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
           // #134/D42: the $8 licensed voice item is retired — swept with
           // credit exactly like mms/extra_storage.
-          env.STRIPE_MODULE_VOICE_PRICE_ID as string,
-          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string, // live module — untouched
+          env.STRIPE_MODULE_VOICE_PRICE_ID!,
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!, // live module — untouched
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_[12]/, (call) => ({
@@ -522,7 +522,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint({
         ...storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
         schedule: "sub_sched_1",
       }),
@@ -572,7 +572,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
     const flat = form.toString();
     expect(flat).toContain(encodeURIComponent(env.STRIPE_STARTER_PRICE_ID));
     expect(flat).not.toContain(
-      encodeURIComponent(env.STRIPE_MODULE_MMS_PRICE_ID as string),
+      encodeURIComponent(env.STRIPE_MODULE_MMS_PRICE_ID!),
     );
   });
 
@@ -583,7 +583,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
           // #134: regions_ca is the one live module left in the catalog.
-          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string,
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!,
         ),
       ),
     ]);
@@ -617,14 +617,14 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
-        new Response(
-          JSON.stringify({
+        Response.json(
+          {
             error: { code: "resource_missing", message: "No such item" },
-          }),
+          },
           { status: 404 },
         ),
       ),
@@ -642,12 +642,12 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "delete failed" } }),
+        Response.json(
+          { error: { message: "delete failed" } },
           { status: 500 },
         ),
       ),

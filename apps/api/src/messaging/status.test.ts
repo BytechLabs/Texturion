@@ -93,7 +93,7 @@ describe("message.sent", () => {
     });
 
     expect(patch.calls).toHaveLength(1);
-    const {url} = patch.calls[0];
+    const [{url}] = patch.calls;
     expect(url.searchParams.get("telnyx_message_id")).toBe(`eq.${TELNYX_ID}`);
     expect(url.searchParams.get("status")).toBe("eq.queued"); // no regressions
     expect(url.searchParams.get("direction")).toBe("eq.outbound");
@@ -248,7 +248,7 @@ describe("message.finalized", () => {
       ]);
       const update = stubRoute(restMatch(env, "PATCH", "messages"), (call) => {
         if (status !== "queued" && status !== "sent") return [];
-        status = (call.body as { status: string }).status;
+        ({ status } = (call.body as { status: string }));
         return [{ id: "m-1" }];
       });
       const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => []);
@@ -472,6 +472,6 @@ describe("message.finalized", () => {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => []);
     stubFetch(lookup.route);
     await handleStatusEvent(env, messageReceivedEvent());
-    // no throw, nothing updated — dispatch guards on event_type anyway
+    expect(lookup.calls).toEqual([]);
   });
 });

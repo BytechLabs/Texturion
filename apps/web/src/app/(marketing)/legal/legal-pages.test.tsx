@@ -1,4 +1,13 @@
-import { SUBPROCESSORS } from "@loonext/shared";
+import {
+  AI_DISCLOSURES,
+  COMPANY_SETTING_DEFAULTS,
+  DELETION_GAPS,
+  DELETION_GRACE_DAYS,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  SUBPROCESSORS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -22,15 +31,6 @@ import { DeleteMyDataPageBody } from "@/components/marketing/legal/delete-my-dat
 import { PrivacyPageBody } from "@/components/marketing/legal/privacy-page";
 import { CATALOGS } from "@/i18n/catalog";
 import { legalDeleteMyDataEn } from "@/i18n/marketing/legal-delete-my-data";
-import {
-  AI_DISCLOSURES,
-  COMPANY_SETTING_DEFAULTS,
-  DELETION_GAPS,
-  DELETION_GRACE_DAYS,
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-} from "@loonext/shared";
 
 // The cookies page mounts the consent preferences control (#124), which reads
 // publicEnv. Mock the env module (hoisted above the page imports) so the
@@ -153,7 +153,7 @@ describe("legal pages — Laws 1 and 6 across all seven", () => {
 });
 
 describe("terms — billing and cancellation facts survive", () => {
-  const {html} = PAGES[0];
+  const [{html}] = PAGES;
 
   it("keeps the plan prices, the one-time fee, and the alert thresholds", () => {
     expect(html).toContain(`${USD.starter}/mo`);
@@ -182,7 +182,7 @@ describe("terms — billing and cancellation facts survive", () => {
 });
 
 describe("privacy — the PIPEDA/Law 25 posture survives", () => {
-  const {html} = PAGES[1];
+  const [, {html}] = PAGES;
 
   it("names US processing plainly (us-east-1) and the never-sold commitment", () => {
     expect(html).toContain("us-east-1");
@@ -205,7 +205,7 @@ describe("privacy — the PIPEDA/Law 25 posture survives", () => {
 });
 
 describe("#330 privacy — what stays on a phone the company does not own", () => {
-  const {html} = PAGES[1];
+  const [, {html}] = PAGES;
 
   it("answers the question at all", () => {
     // Section 5 described our servers and stopped. The app runs on the tech's OWN
@@ -286,16 +286,22 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
     "fr-CA": `${AI_DISCLOSURES.length} fonctions envoient du contenu à un modèle d'IA`,
   } as const;
 
-  for (const locale of ["en", "fr-CA"] as const) {
-    it(`${locale}: counts and names every AI feature the disclosure list holds`, () => {
+  const disclosureLocales = ["en", "fr-CA"] as const;
+
+  it.each(disclosureLocales)(
+    "%s: counts and names every AI feature the disclosure list holds",
+    (locale) => {
       const ai = visibleText(section(PRIVACY[locale], "ai"));
       expect(ai).toContain(counted[locale]);
       for (const row of AI_DISCLOSURES) {
         expect(ai).toContain(say(locale, row.label));
       }
-    });
+    },
+  );
 
-    it(`${locale}: names every vendor on the sub-processors ledger`, () => {
+  it.each(disclosureLocales)(
+    "%s: names every vendor on the sub-processors ledger",
+    (locale) => {
       const vendors = [
         "Telnyx",
         "Stripe",
@@ -305,15 +311,18 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
         "Firebase Cloud Messaging",
         "PostHog",
       ];
-      const ledger = section(PAGES[4].html, "list").match(/<tbody>[\s\S]*?<\/tbody>/)![0];
+      const [ledger] = /<tbody>[\s\S]*?<\/tbody>/.exec(section(PAGES[4].html, "list"))!;
       expect(vendors).toHaveLength(ledger.match(/<tr/g)!.length);
       const sharing = visibleText(section(PRIVACY[locale], "sharing"));
       for (const vendor of vendors) {
         expect(sharing).toContain(vendor);
       }
-    });
+    },
+  );
 
-    it(`${locale}: discloses public geocoding regions and links the map privacy policy`, () => {
+  it.each(disclosureLocales)(
+    "%s: discloses public geocoding regions and links the map privacy policy",
+    (locale) => {
       const where = section(PRIVACY[locale], "where");
       expect(where).toContain("https://osmfoundation.org/wiki/Privacy_Policy");
       expect(visibleText(where)).toContain(
@@ -321,12 +330,12 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
           ? "United Kingdom and the European Union"
           : "Royaume-Uni et dans l’Union européenne",
       );
-    });
-  }
+    },
+  );
 });
 
 describe("aup — the consent rules survive", () => {
-  const {html} = PAGES[2];
+  const { 2: {html} } = PAGES;
 
   it("keeps SHAFT, the list ban, and immediate opt-out", () => {
     expect(html).toContain("SHAFT");
@@ -336,7 +345,7 @@ describe("aup — the consent rules survive", () => {
 });
 
 describe("#303 aup — the enforcement ladder is a promise, not a mood", () => {
-  const {html} = PAGES[2];
+  const { 2: {html} } = PAGES;
 
   it("names all four steps, in order", () => {
     // The section this replaced said we "may suspend or terminate, with or
@@ -393,7 +402,7 @@ describe("#303 aup — the enforcement ladder is a promise, not a mood", () => {
 });
 
 describe("messaging — the SMS program disclosures survive", () => {
-  const {html} = PAGES[3];
+  const { 3: {html} } = PAGES;
 
   it("keeps STOP, HELP, frequency, and rates disclosures", () => {
     expect(html).toContain("STOP");
@@ -408,7 +417,7 @@ describe("messaging — the SMS program disclosures survive", () => {
 });
 
 describe("subprocessors — the vendor ledger survives", () => {
-  const {html} = PAGES[4];
+  const { 4: {html} } = PAGES;
 
   it("lists the current service providers", () => {
     const html = renderToStaticMarkup(<SubprocessorsPage />);
@@ -424,7 +433,7 @@ describe("subprocessors — the vendor ledger survives", () => {
 });
 
 describe("refunds — the guarantee promise survives, word for word where it counts", () => {
-  const {html} = PAGES[5];
+  const { 5: {html} } = PAGES;
 
   it("keeps the full-refund-including-registration-fee language", () => {
     expect(html).toContain("refund your first invoice in full");
@@ -442,7 +451,7 @@ describe("refunds — the guarantee promise survives, word for word where it cou
 });
 
 describe("fair-use — the plain limits survive", () => {
-  const {html} = PAGES[6];
+  const { 6: {html} } = PAGES;
 
   it("discloses the carrier's own daily ceiling (#351)", () => {
     // Every tenant is registered on a 10DLC use case whose throughput the
@@ -540,7 +549,7 @@ describe("#328 — the legal pages quote the reader's own currency", () => {
 });
 
 describe("cookies — essential cookies plus consent-gated GTM (#87, #124)", () => {
-  const {html} = PAGES[7];
+  const { 7: {html} } = PAGES;
 
   it("names the three essential first-party cookies (session + workspace + consent choice)", () => {
     expect(html).toContain("keeps you signed in");
@@ -639,7 +648,7 @@ describe("#357 — the deletion page is bound to the facts, not to prose", () =>
     expect(DELETION_GAPS).toEqual(["contact_form_message"]);
     // A distinctive fragment: the rendered HTML escapes apostrophes, so the
     // whole sentence would never match literally.
-    const fragment = legalDeleteMyDataEn.boundaryItem.split(",")[0];
+    const [fragment] = legalDeleteMyDataEn.boundaryItem.split(",");
     expect(page.html, `missing boundary: ${fragment}`).toContain(fragment);
   });
 

@@ -43,14 +43,14 @@ describe("the marketing footer, in English", () => {
       "Sub-processors",
       "Contact us",
     ]) {
-      expect(screen.getByText(label), `${label} is gone from the footer`).toBeTruthy();
+      expect(screen.getByText(label), `${label} is gone from the footer`).toBeInstanceOf(Element);
     }
   });
 
   it("still says the brand line and the sign-off", () => {
     render(<Footer />);
-    expect(screen.getByText("The shared inbox for your crew.")).toBeTruthy();
-    expect(screen.getByText("Month to month. No sales calls, ever.")).toBeTruthy();
+    expect(screen.getByText("The shared inbox for your crew.")).toBeInstanceOf(Element);
+    expect(screen.getByText("Month to month. No sales calls, ever.")).toBeInstanceOf(Element);
   });
 
   it("substitutes the year rather than printing the placeholder", () => {
@@ -59,7 +59,7 @@ describe("the marketing footer, in English", () => {
     // customer once already.
     render(<Footer />);
     const year = new Date().getFullYear();
-    expect(screen.getByText(`© ${year} Loonext. All rights reserved.`)).toBeTruthy();
+    expect(screen.getByText(`© ${year} Loonext. All rights reserved.`)).toBeInstanceOf(Element);
     expect(document.body.textContent).not.toContain("{year}");
   });
 });
@@ -73,7 +73,7 @@ describe("the marketing footer, in French", () => {
       "Politique de confidentialité",
       "Nous joindre",
     ]) {
-      expect(screen.getByText(label), `${label} is missing`).toBeTruthy();
+      expect(screen.getByText(label), `${label} is missing`).toBeInstanceOf(Element);
     }
   });
 
@@ -96,16 +96,16 @@ describe("the marketing footer, in French", () => {
   it("substitutes the year in French too", () => {
     render(<Footer locale="fr-CA" />);
     const year = new Date().getFullYear();
-    expect(screen.getByText(`© ${year} Loonext. Tous droits réservés.`)).toBeTruthy();
+    expect(screen.getByText(`© ${year} Loonext. Tous droits réservés.`)).toBeInstanceOf(Element);
   });
 
   it("does not translate a name somebody has to type or search for", () => {
     // Loonext, Lou, Heymarket, Quo and HVAC stay. A name that changes with the
     // reader's language is a name that cannot be quoted in a support email.
     render(<Footer locale="fr-CA" />);
-    expect(screen.getByText("Lou, votre adjoint")).toBeTruthy();
-    expect(screen.getByText("Loonext vs Heymarket")).toBeTruthy();
-    expect(screen.getByText("HVAC")).toBeTruthy();
+    expect(screen.getByText("Lou, votre adjoint")).toBeInstanceOf(Element);
+    expect(screen.getByText("Loonext vs Heymarket")).toBeInstanceOf(Element);
+    expect(screen.getByText("HVAC")).toBeInstanceOf(Element);
   });
 });
 

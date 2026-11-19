@@ -15,7 +15,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { readHistory } from "./test-history.mjs";
@@ -71,7 +71,7 @@ for (const pkg of packages) {
       for (const project of ctx.projects) {
         const setup = [project.config.setupFiles, project.config.globalSetup].flat().filter(Boolean);
         for (const file of setup) {
-          const closure = await testDependencies(ctx, { project, moduleId: path.resolve(file) });
+          const closure = await testDependencies(ctx, { project, moduleId: resolve(file) });
           setupTriggers.push({ paths: new Set(closure), reason: `a setup file of ${pkg.dir}` });
         }
       }
@@ -147,7 +147,7 @@ const plan = {
   reasons: Object.fromEntries(reasons),
   shards: shards.map((shard) => ({ files: shard.files, estimateMs: Math.round(shard.weight) })),
 };
-mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
+mkdirSync(dirname(resolve(args.out)), { recursive: true });
 writeFileSync(args.out, JSON.stringify(plan, null, 1));
 
 const lines = [

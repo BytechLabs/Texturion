@@ -181,7 +181,7 @@ export async function dialConsultLeg(
   const { state } = input;
   let ccid: string | undefined;
   try {
-    const response = await telnyxRequest(env, {
+    const response = await telnyxRequest<{ data?: { call_control_id?: string } }>(env, {
       method: "POST",
       path: "/v2/calls",
       body: {
@@ -196,7 +196,7 @@ export async function dialConsultLeg(
           { name: LOONEXT_LEG_HEADER, value: `consult-${state.role}` },
         ],
       },
-    }) as { data?: { call_control_id?: string } };
+    });
     ccid = response.data?.call_control_id;
   } catch (error) {
     if (isDefiniteRefusal(error)) return null;
@@ -703,17 +703,19 @@ export async function handleConsultLegEvent(
 
   if (eventType === "call.hangup") {
     if (stub && state.consultId) {
-      if (state.role === "s") {
-        await stub.endConsultSender({ consultId: state.consultId, userId: state.userId, memberCcid: ccid });
-      } else {
-        await stub.endTransferAttempt({
-          transferId: state.consultId,
-          wakeId: state.wakeId,
-          userId: state.userId,
-          memberCcid: ccid,
-          waitForWake: !explicitlyDeclined,
-        });
-      }
+      await (state.role === "s"
+        ? stub.endConsultSender({
+            consultId: state.consultId,
+            userId: state.userId,
+            memberCcid: ccid,
+          })
+        : stub.endTransferAttempt({
+            transferId: state.consultId,
+            wakeId: state.wakeId,
+            userId: state.userId,
+            memberCcid: ccid,
+            waitForWake: !explicitlyDeclined,
+          }));
     }
     // Only dismiss the sibling if THIS was a live consult leg of the session
     // (the update matched a real ledger row). A FORGED brc tag naming a

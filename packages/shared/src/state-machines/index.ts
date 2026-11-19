@@ -4,19 +4,6 @@
  * Nothing at runtime imports these yet; the tests in this folder prove each
  * definition against the migrations and against production data.
  */
-import {
-  allowedActions,
-  canTransition,
-  capabilityActions,
-  defineMachine,
-  entryEffectsFor,
-  isTerminalState,
-  nextStates,
-  type Authority,
-  type Machine,
-  type MachineDb,
-  type MachineDefinition,
-} from "./define-machine";
 import { callMachine } from "./call";
 import { callLegMachine } from "./call-leg";
 import { scheduledMessageMachine } from "./scheduled-message";
@@ -58,7 +45,7 @@ export {
   type Machine,
   type MachineDb,
   type MachineDefinition,
-};
+} from "./define-machine";
 
 export { callMachine, type CallState } from "./call";
 export { callLegMachine, type CallLegState } from "./call-leg";

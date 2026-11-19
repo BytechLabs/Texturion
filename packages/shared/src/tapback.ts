@@ -57,8 +57,8 @@ function quotedText(value: string): string | null {
 function isEmoji(value: string): boolean {
   const first = value.codePointAt(0) ?? 0;
   return value.length <= 32 &&
-    ((first >= 0x1f000 && first <= 0x1faff) ||
-      (first >= 0x2600 && first <= 0x27bf) ||
+    ((first >= 0x1_F0_00 && first <= 0x1_FA_FF) ||
+      (first >= 0x26_00 && first <= 0x27_BF) ||
       ["❤️", "‼️", "❓", "©️", "®️", "™️"].includes(value) ||
       value.endsWith("⃣")) &&
     Array.from(new Intl.Segmenter("en", { granularity: "grapheme" }).segment(value)).length === 1;
@@ -74,7 +74,7 @@ export function parseTapback(body: string): Tapback | null {
   }
   for (const separator of [" to ", " à "]) {
     const at = folded.indexOf(separator);
-    if (at < 0) continue;
+    if (at === -1) continue;
     const emoji = value.slice(0, at).trim().split(" ").at(-1) ?? "";
     const preamble = folded.slice(0, at).trim();
     if (!isEmoji(emoji) || !["", "reacted", "a réagi"].includes(preamble.slice(0, -emoji.length).trim())) {

@@ -142,9 +142,9 @@ describe("#251 the database refusing is an honest failure", () => {
     // The ray turns "it broke" into one log line. Without it the founder is
     // grepping by timestamp during the incident.
     const res = await callUnderRefusal({ "cf-ray": "abc123-YYZ" });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string; request_id?: string };
-    };
+    }>();
     expect(body.error.code).toBe("service_unavailable");
     expect(body.error.message).toBe(OVERLOADED_MESSAGE);
     expect(body.error.request_id).toBe("abc123-YYZ");
@@ -165,7 +165,7 @@ describe("#251 the database refusing is an honest failure", () => {
     // for its own reasons is a defect somebody has to see.
     const res = await callUnderRefusal({}, { code: "XX000", message: "internal" });
     expect(res.status).toBe(500);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe("Something went wrong.");
   });
 
@@ -208,9 +208,9 @@ describe("#251 the database refusing is an honest failure", () => {
       },
       env,
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { message: string; request_id?: string };
-    };
+    }>();
     expect(body.error.message).toBe("Something went wrong.");
     expect(body.error.request_id).toBe("harness-ray");
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe(env.APP_ORIGIN);

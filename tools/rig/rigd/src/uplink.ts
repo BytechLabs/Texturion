@@ -14,11 +14,12 @@
 import {
   CALL_EVENT_RELAY_TIMEOUT_MS,
   EDGE_PATHS,
-  type EdgeToRig,
-  type RigToEdge,
+  stripTrailingSlashes,
   WEBHOOK_KINDS,
 } from "@loonext/rig-protocol";
-import { systemClock, type Clock } from "@loonext/rig-robot";
+import type { EdgeToRig, RigToEdge } from "@loonext/rig-protocol";
+import { systemClock } from "@loonext/rig-robot";
+import type { Clock } from "@loonext/rig-robot";
 
 export type WebhookFrame = Extract<EdgeToRig, { t: "webhook" }>;
 export type MediaFrame = Extract<EdgeToRig, { t: "media" }>;
@@ -93,7 +94,7 @@ const RPC_DEADLINE_MS = 55_000;
 const REPLACED = 4000;
 
 export function uplinkUrl(edgeOrigin: string): string {
-  return `${edgeOrigin.replace(/\/+$/, "").replace(/^http/, "ws")}${EDGE_PATHS.ctlUplink}`;
+  return `${stripTrailingSlashes(edgeOrigin).replace(/^http/, "ws")}${EDGE_PATHS.ctlUplink}`;
 }
 
 export class Uplink {
@@ -158,10 +159,10 @@ export class Uplink {
   }
 
   #scheduleReconnect(): void {
-    const initial = this.#o.initialBackoffMs ?? 1_000;
+    const initial = this.#o.initialBackoffMs ?? 1000;
     const max = this.#o.maxBackoffMs ?? 60_000;
     const ceiling = Math.min(max, initial * 2 ** this.#attempt);
-    this.#attempt++;
+    this.#attempt += 1;
     // Full jitter, never under the initial delay: a fleet of one still should not hammer.
     const wait = Math.max(initial, Math.round((this.#o.random ?? Math.random)() * ceiling));
     this.#log(`uplink lost; reconnecting in ${wait} ms`);
@@ -177,21 +178,26 @@ export class Uplink {
       return;
     }
     switch (frame.t) {
-      case "ping":
+      case "ping": {
         return;
-      case "webhook":
+      }
+      case "webhook": {
         return frame.kind === "call" || frame.kind === "robot-call"
           ? this.#callEvent(frame)
           : this.#queued(frame.id, () => this.#webhookAck(frame));
-      case "mail":
+      }
+      case "mail": {
         return this.#queued(frame.id, async () => {
           await this.#o.handlers.mail(frame);
           return true;
         });
-      case "media":
+      }
+      case "media": {
         return this.#media(frame);
-      case "rpc":
+      }
+      case "rpc": {
         return this.#rpc(frame);
+      }
     }
   }
 
@@ -226,7 +232,7 @@ export class Uplink {
   }
 
   async #media(frame: MediaFrame): Promise<void> {
-    const result = await this.#o.handlers.media(frame).catch(() => ({ status: 502 }) as MediaResult);
+    const result = await this.#o.handlers.media(frame).catch(() => ({ status: 502 }));
     this.#send({ t: "media-result", id: frame.id, ...result });
   }
 
@@ -268,7 +274,7 @@ export function parseFrame(data: unknown): EdgeToRig | undefined {
   const f = value as Record<string, unknown>;
   const s = (key: string) => typeof f[key] === "string";
   switch (f.t) {
-    case "webhook":
+    case "webhook": {
       return s("id") &&
         typeof f.kind === "string" &&
         (WEBHOOK_KINDS as readonly string[]).includes(f.kind) &&
@@ -278,16 +284,22 @@ export function parseFrame(data: unknown): EdgeToRig | undefined {
         isStringMap(f.headers)
         ? (value as EdgeToRig)
         : undefined;
-    case "media":
+    }
+    case "media": {
       return s("id") && s("path") ? (value as EdgeToRig) : undefined;
-    case "mail":
+    }
+    case "mail": {
       return s("id") && s("to") && s("from") && s("subject") && s("raw") ? (value as EdgeToRig) : undefined;
-    case "rpc":
+    }
+    case "rpc": {
       return s("id") && s("method") ? (value as EdgeToRig) : undefined;
-    case "ping":
+    }
+    case "ping": {
       return s("at") ? (value as EdgeToRig) : undefined;
-    default:
+    }
+    default: {
       return undefined;
+    }
   }
 }
 

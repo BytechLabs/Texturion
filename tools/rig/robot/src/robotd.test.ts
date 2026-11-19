@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { EDGE_PATHS, GUARD_ROUTES, HEADER, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RobotClient } from "./client.ts";
 import { Inbox, WebhookSink } from "./inbox.ts";
 import { numberBook } from "./numbers.ts";
@@ -105,7 +105,7 @@ describe("robotd's HTTP face and its client", () => {
     const inbox = new Inbox(TEST_NUMBERS);
     const sink = new WebhookSink();
     const server = robotServer({ robot, inbox, sink, telnyx, numbers: TEST_NUMBERS, token: "local-token" });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
     close = () => server.close();
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     return { telnyx, robot, base, client: new RobotClient({ base, token: "local-token" }) };
@@ -115,6 +115,24 @@ describe("robotd's HTTP face and its client", () => {
     const { base } = await start();
     expect((await fetch(`${base}/health`)).status).toBe(401);
     await expect(new RobotClient({ base, token: "wrong" }).inbox({})).rejects.toThrow(/401/);
+  });
+
+  it("keeps unexpected failure details in the server log", async () => {
+    const { base, telnyx } = await start();
+    vi.spyOn(telnyx, "sendMessage").mockRejectedValue(new Error("fixture diagnostics"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await fetch(`${base}/sms`, {
+        method: "POST",
+        headers: { "x-robot-token": "local-token" },
+        body: JSON.stringify({ from_role: "ROBOT-1", to_role: "DEV-W1", text: "hello" }),
+      });
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({ error: "internal" });
+      expect(logged).toHaveBeenCalledExactlyOnceWith("robot request failed:", "fixture diagnostics");
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("takes plans, relayed events and texts, and reads them back", async () => {

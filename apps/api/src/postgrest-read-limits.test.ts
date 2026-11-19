@@ -7,7 +7,7 @@ import { expect, it } from "vitest";
 import { productionSources } from "./test/source-tree";
 
 const src = import.meta.dirname;
-const maxRows = 1_000;
+const maxRows = 1000;
 
 function oversizedLimits(path: string) {
   const file = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
@@ -25,12 +25,12 @@ function oversizedLimits(path: string) {
 
   function visit(node: ts.Node) {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "limit") {
-      const argument = node.arguments[0];
+      const [argument] = node.arguments;
       const limit = argument && ts.isNumericLiteral(argument) ? Number(argument.text)
         : argument && ts.isIdentifier(argument) ? constants.get(argument.text) : undefined;
       if (limit !== undefined && limit > maxRows) {
         const { line } = file.getLineAndCharacterOfPosition(node.getStart(file));
-        failures.push(relative(src, path) + ":" + (line + 1) + " requests " + limit + " rows");
+        failures.push(`${relative(src, path)}:${line + 1} requests ${limit} rows`);
       }
     }
     ts.forEachChild(node, visit);

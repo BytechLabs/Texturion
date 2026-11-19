@@ -103,7 +103,7 @@ describe(sweepWebhookEvents, () => {
 
     // ...after an atomic claim (CAS on attempts + claimed_at lease)...
     expect(ledgerPatch.calls).toHaveLength(2);
-    const claim = ledgerPatch.calls[0];
+    const [claim] = ledgerPatch.calls;
     expect(claim.body).toMatchObject({
       attempts: 1,
       claimed_at: expect.any(String),
@@ -507,7 +507,7 @@ describe(reportUnreportedUsage, () => {
     await reportUnreportedUsage(env);
 
     expect(stamp.calls).toHaveLength(1);
-    const update = stamp.calls[0];
+    const [update] = stamp.calls;
     expect(update.url.searchParams.get("company_id")).toBe("eq.c-1");
     expect(update.url.searchParams.get("report_attempts")).toBe("eq.2");
     expect(update.url.searchParams.get("stripe_reported_at")).toBe("is.null");
@@ -517,6 +517,36 @@ describe(reportUnreportedUsage, () => {
     });
     const nextAt = Date.parse((update.body as { report_next_at: string }).report_next_at);
     expect(nextAt).toBeGreaterThanOrEqual(startedAt + 4 * 60 * 60 * 1000);
+  });
+
+  it("retains a scrubbed meter cause when the retry cannot be scheduled", async () => {
+    const usage = stubRoute(restMatch(env, "GET", "usage_events"), () => [
+      {
+        id: "u-3",
+        quantity: 1,
+        meter_identifier: TELNYX_ID,
+        company_id: "c-1",
+        created_at: METER_CREATED_AT,
+        report_attempts: 2,
+        companies: { stripe_customer_id: "cus_123" },
+      },
+    ]);
+    const meter = stubRoute(
+      (url, request) => request.method === "POST" && url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () => Response.json(
+        { error: { type: "api_error", message: "Meter failed for reader@example.test" } },
+        { status: 500 },
+      ),
+    );
+    const retry = stubRoute(restMatch(env, "PATCH", "usage_events"), () =>
+      Response.json({ message: "database unavailable" }, { status: 503 }),
+    );
+    stubFetch(usage.route, meter.route, retry.route);
+
+    await expect(reportUnreportedUsage(env)).rejects.toMatchObject({
+      message: "usage_events meter retry scheduling failed: database unavailable",
+      cause: { message: "Meter failed for [email redacted]" },
+    });
   });
 
   it("finishes the current row and leaves remaining rows for the next run when the budget expires", async () => {

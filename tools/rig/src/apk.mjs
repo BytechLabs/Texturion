@@ -193,8 +193,10 @@ export function toolchainEnv({ env = process.env, home = homedir(), exists = exi
 }
 
 /** The box's JDK, the one Gradle builds with: JAVA_HOME's, else whichever is on the PATH. */
-export function keytoolCommand(env = { ...process.env, ...toolchainEnv() }) {
-  return env.JAVA_HOME ? join(env.JAVA_HOME, "bin", process.platform === "win32" ? "keytool.exe" : "keytool") : "keytool";
+export function keytoolCommand(env) {
+  const javaHome = env === undefined ? toolchainEnv().JAVA_HOME ?? process.env.JAVA_HOME : env.JAVA_HOME;
+  if (!javaHome) return "keytool";
+  return join(javaHome, "bin", process.platform === "win32" ? "keytool.exe" : "keytool");
 }
 
 /**

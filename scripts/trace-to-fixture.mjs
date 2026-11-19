@@ -222,7 +222,7 @@ export function createScrubber() {
     return stand(`id:${key}`, value, (n) =>
       /^\d+$/.test(value)
         ? `9${String(n).padStart(Math.max(value.length - 1, 1), "0")}`
-        : `fixture-${key.replace(/_/g, "-")}-${n}`,
+        : `fixture-${key.replaceAll('_', "-")}-${n}`,
     );
   }
 
@@ -239,8 +239,8 @@ export function createScrubber() {
   /** The renumbering every string gets, whatever field it is in. */
   function scrubString(text) {
     return text
-      .replace(URL_PATTERN, (url) => urlFor(url))
-      .replace(SIP_URI, (whole, user, host) => {
+      .replaceAll(URL_PATTERN, (url) => urlFor(url))
+      .replaceAll(SIP_URI, (whole, user, host) => {
         const scheme = whole.slice(0, whole.indexOf(":"));
         const plus = user.startsWith("+") ? "+" : "";
         const number = renumberBare(user.slice(plus.length));
@@ -248,16 +248,16 @@ export function createScrubber() {
         const nextHost = host.toLowerCase() === TELNYX_SIP_DOMAIN ? host : sipHostFor(host);
         return `${scheme}:${nextUser}@${nextHost}`;
       })
-      .replace(UUID, (uuid) => uuidFor(uuid))
-      .replace(CALL_CONTROL_ID, (id) => callControlIdFor(id))
-      .replace(E164, (whole, prefix, digits, offset, text) =>
+      .replaceAll(UUID, (uuid) => uuidFor(uuid))
+      .replaceAll(CALL_CONTROL_ID, (id) => callControlIdFor(id))
+      .replaceAll(E164, (whole, prefix, digits, offset, text) =>
         standsAlone(text, offset) ? `${prefix}${renumberDigits(digits)}` : whole,
       )
-      .replace(WRITTEN, (whole, area, exchange, line) => {
+      .replaceAll(WRITTEN, (whole, area, exchange, line) => {
         const fictional = renumberDigits(`1${area}${exchange}${line}`).slice(1);
         return `${fictional.slice(0, 3)}-${fictional.slice(3, 6)}-${fictional.slice(6)}`;
       })
-      .replace(IPV4, (ip) => (DOCUMENTATION_IPV4.test(ip) ? ip : ipFor(ip)));
+      .replaceAll(IPV4, (ip) => (DOCUMENTATION_IPV4.test(ip) ? ip : ipFor(ip)));
   }
 
   function scrubClientState(key, value) {
@@ -325,8 +325,8 @@ function survivorsIn(fixture) {
     for (const state of clientStatesIn(event)) {
       const decoded = decodeClientState(state);
       const where = `client_state in event ${index + 1}`;
-      if (!decoded) found.push(`an unreadable ${where}`);
-      else found.push(...realNumbersIn(decoded.text).map(() => `a ${where}`));
+      if (decoded) found.push(...realNumbersIn(decoded.text).map(() => `a ${where}`));
+      else found.push(`an unreadable ${where}`);
     }
   });
   return found;
@@ -359,7 +359,7 @@ export function parseTrace(text) {
   );
   events.forEach((event, index) => {
     if (typeof event?.data?.event_type !== "string") {
-      throw new Error(`entry ${index + 1} is not a Telnyx webhook envelope (no data.event_type)`);
+      throw new TypeError(`entry ${index + 1} is not a Telnyx webhook envelope (no data.event_type)`);
     }
   });
   return events;
@@ -413,12 +413,14 @@ function main(argv) {
     if (out) writeFileSync(out, text);
     else process.stdout.write(text);
     console.error(
-      `trace-to-fixture: ${report.events} events, ${report.numbers} numbers renumbered` +
-        (report.foreignNumbers ? ` (${report.foreignNumbers} outside NANP, now NANP)` : "") +
+      [
+        `trace-to-fixture: ${report.events} events, ${report.numbers} numbers renumbered`,
+        (report.foreignNumbers ? ` (${report.foreignNumbers} outside NANP, now NANP)` : ""),
         `, ${report.ids} identifiers replaced.`,
+      ].join(""),
     );
-  } catch (cause) {
-    console.error(`trace-to-fixture: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.error(`trace-to-fixture: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }

@@ -59,7 +59,7 @@ describe("email link confirmation", () => {
   });
 
   it("does not consume invite tokens with an unrelated destination", async () => {
-    const result = await confirm("invite", "//elsewhere.test" + INVITE_PATH);
+    const result = await confirm("invite", `//elsewhere.test${INVITE_PATH}`);
     expect(result.headers.get("location")).toBe(`${ORIGIN}/login?error=verification`);
     expect(verifyOtp).not.toHaveBeenCalled();
   });

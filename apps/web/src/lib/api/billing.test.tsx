@@ -60,13 +60,13 @@ async function sent(): Promise<{ url: URL; init: RequestInit }> {
   return { url: new URL(url), init };
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   fetchSpy.mockReset();
   // 204 No Content is what the route answers. Nothing reads the result.
   fetchSpy.mockResolvedValue(new Response(null, { status: 204 }));
 });
+
+afterEach(cleanup);
 
 describe("useRecordCancellationReason (POST /v1/billing/cancellation-reason)", () => {
   it("WIRE-1: the method, the path and the body are the ones the route accepts", async () => {

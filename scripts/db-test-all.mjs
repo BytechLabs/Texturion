@@ -26,7 +26,7 @@
  *   node scripts/db-test-all.mjs --only ai_outcomes,marketing_contacts
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CONTAINER = "supabase_db_Loonext";
@@ -241,7 +241,7 @@ function flag(name) {
   const hit = args.find((a) => a.startsWith(`--${name}=`));
   if (hit) return hit.split("=")[1];
   const index = args.indexOf(`--${name}`);
-  return index >= 0 ? args[index + 1] : undefined;
+  return index === -1 ? undefined : args[index + 1];
 }
 
 /**
@@ -278,7 +278,7 @@ const from = flag("from");
 let selected = only ?? SUITES;
 if (from) {
   const index = selected.indexOf(from);
-  if (index < 0) {
+  if (index === -1) {
     console.error(`--from ${from} is not a known suite.`);
     process.exit(2);
   }
@@ -305,12 +305,12 @@ for (const suite of selected) {
     );
     ran += 1;
     process.stdout.write(`  ok  ${suite}\n`);
-  } catch (cause) {
+  } catch (error) {
     // psql already printed the failing assertion to stderr. Name the suite so it
     // is obvious which file to open, then stop — a schema break cascades, and
     // burying the first failure under forty more is how it gets missed.
     console.error(`\n  FAILED  ${suite}  (${path})`);
-    console.error(String(cause.stdout ?? "").split("\n").slice(-12).join("\n"));
+    console.error(String(error.stdout ?? "").split("\n").slice(-12).join("\n"));
     process.exit(1);
   }
 }

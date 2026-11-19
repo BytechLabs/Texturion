@@ -54,7 +54,7 @@ export function stripKotlinComments(text) {
     } else if (c === "/" && next === "*") {
       const end = text.indexOf("*/", i + 2);
       const stop = end === -1 ? text.length : end + 2;
-      out += text.slice(i, stop).replace(/[^\n]/g, " ");
+      out += text.slice(i, stop).replaceAll(/[^\n]/g, " ");
       i = stop - 1;
     } else {
       out += c;
@@ -106,10 +106,10 @@ export const KINDS = {
       const ids = [];
       const problems = [];
       for (const match of text.matchAll(/data-testid=(?:"([^"]*)"|'([^']*)'|\{\s*(["'])([^"']*)\3\s*\}|(\{[^}]*\}))/g)) {
-        if (match[5] !== undefined) {
-          problems.push(`data-testid=${match[5]} is computed, so a driver cannot rely on it; use a literal`);
-        } else {
+        if (match[5] === undefined) {
           ids.push({ id: match[1] ?? match[2] ?? match[4] });
+        } else {
+          problems.push(`data-testid=${match[5]} is computed, so a driver cannot rely on it; use a literal`);
         }
       }
       return { ids, problems };

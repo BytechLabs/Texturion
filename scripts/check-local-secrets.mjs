@@ -29,7 +29,7 @@
  * become the leak.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -95,11 +95,11 @@ export function unescaped(text) {
   let out = text;
   for (let pass = 0; pass < 2; pass += 1) {
     const next = out
-      .replace(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+[nrtbfv0]/g, " ")
-      .replace(/\\+([^A-Za-z0-9\s])/g, (_, char) => char);
+      .replaceAll(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+[nrtbfv0]/g, " ")
+      .replaceAll(/\\+([^A-Za-z0-9\s])/g, (_, char) => char);
     if (next === out) break;
     out = next;
   }
@@ -210,8 +210,8 @@ function fromUtf16(bytes, order) {
  */
 export function readText(path) {
   const bytes = readFileSync(path);
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: fromUtf16(bytes.subarray(2), "le"), encoding: "utf16" };
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { text: fromUtf16(bytes.subarray(2), "be"), encoding: "utf16" };
+  if (bytes[0] === 0xFF && bytes[1] === 0xFE) return { text: fromUtf16(bytes.subarray(2), "le"), encoding: "utf16" };
+  if (bytes[0] === 0xFE && bytes[1] === 0xFF) return { text: fromUtf16(bytes.subarray(2), "be"), encoding: "utf16" };
   const head = bytes.subarray(0, 8000);
   if (!head.includes(0)) return { text: bytes.toString("utf8"), encoding: "utf8" };
   const order = utf16Order(head);
@@ -297,7 +297,7 @@ function main() {
   const argv = process.argv.slice(2);
   const all = argv.includes("--all");
   const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
+  const root = rootFlag !== -1 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
 
   const result = scan(root, { all });
   const { counts, oversized } = result;

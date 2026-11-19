@@ -1,26 +1,31 @@
-import type { BillingCurrency,CallEndReason,CallRouting,DeferralKind,PipelineStage,WorkPhase } from "@loonext/shared";
+/**
+ * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
+ * guessed — SPEC §7 is the contract, the route files are the truth).
+ */
 import {
   OVERAGE_CENTS_PER_SEGMENT,
   PLAN_PRICE_CENTS,
   PLAN_SEATS,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
-
-import { pricingEn } from "@/i18n/marketing/pricing";
-
-/**
- * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
- * guessed — SPEC §7 is the contract, the route files are the truth).
- */
 import type {
+  BillingCurrency,
+  CallEndReason,
+  CallRouting,
   CrewSizeBucket,
+  DeferralKind,
   HoursException,
   Locale,
   MemberRole,
   MmsMediaKind,
   NumberAccessExplanation,
+  PipelineStage,
   VoicemailIntake,
+  VoicemailTaskDraft,
+  WorkPhase,
 } from "@loonext/shared";
+
+import { pricingEn } from "@/i18n/marketing/pricing";
 
 /**
  * #348: GET /v1/numbers/access/explain/:userId — what one member reaches on
@@ -937,8 +942,8 @@ export interface ConversationEvent {
   type: ConversationEventType;
   payload: Record<string, unknown>;
   created_at: string;
-  voicemail_intake?: import("@loonext/shared").VoicemailIntake | null;
-  voicemail_task?: import("@loonext/shared").VoicemailTaskDraft | null;
+  voicemail_intake?: VoicemailIntake | null;
+  voicemail_task?: VoicemailTaskDraft | null;
 }
 
 /** POST /v1/conversations/:id/read response. */
@@ -2120,7 +2125,7 @@ export interface Call {
  */
 export interface CallDetail extends Call {
   ended_at: string | null;
-  voicemail_task?: import("@loonext/shared").VoicemailTaskDraft | null;
+  voicemail_task?: VoicemailTaskDraft | null;
   /**
    * Whether there is a recording to play. The storage path itself never leaves
    * the server; the signed URL is minted on demand by the voicemail endpoint.

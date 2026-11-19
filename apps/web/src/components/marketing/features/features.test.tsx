@@ -160,9 +160,7 @@ function honouredStopKeywords(): string[] {
     join(process.cwd(), "..", "api", "src", "messaging", "keywords.ts"),
     "utf8",
   );
-  const block = source.match(
-    /export const STOP_KEYWORDS = new Set\(\[([\s\S]*?)\]\)/,
-  );
+  const block = /export const STOP_KEYWORDS = new Set\(\[([\s\S]*?)\]\)/.exec(source);
   if (!block) throw new Error("STOP_KEYWORDS is no longer a literal Set");
   return [...block[1].matchAll(/"([A-ZÀ-ſ]+)"/g)].map((m) => m[1]);
 }
@@ -173,16 +171,17 @@ function plain(text: string): string {
 }
 
 describe("laws that hold across every features/canada page (Laws 1, 6)", () => {
-  for (const [name, html] of Object.entries(PAGES)) {
-    it(`${name}: no em-dashes, no artifact talk, no font/framework credits`, () => {
+  it.each(Object.entries(PAGES))(
+    "%s: no em-dashes, no artifact talk, no font/framework credits",
+    (_value1, html) => {
       expect(html).not.toContain("—"); // em-dash
       // En-dash ranges ("3–7", "9–11") converted to "to"/"between" phrasing.
       expect(html).not.toMatch(/\d–\d/);
       expect(html).not.toMatch(
         /real interface|not a screenshot|screenshot|stock photo|fake review|built with next|set in |pending, added before launch/i,
       );
-    });
-  }
+    },
+  );
 
   it("attaches no demo-labeling chip on any page (owner amendment 2026-07-08)", () => {
     for (const html of Object.values(PAGES)) {
@@ -437,15 +436,16 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
 });
 
 describe("product embeds keep APP tokens (Law 2)", () => {
-  for (const [name, html] of Object.entries(EMBEDS)) {
-    it(`${name}: no marketing tokens inside the product surface`, () => {
+  it.each(Object.entries(EMBEDS))(
+    "%s: no marketing tokens inside the product surface",
+    (_value1, html) => {
       expect(html).not.toContain("--fr-olive");
       expect(html).not.toContain("--fr-ink");
       expect(html).not.toContain("--fr-frost");
       expect(html).not.toContain("--petrol"); // dead v3 alias (cobalt now)
       expect(html).not.toContain("—");
-    });
-  }
+    },
+  );
 
   it("the embeds draw with the app's own utility tokens", () => {
     expect(EMBEDS.inbox).toMatch(/bg-primary/); // the unread petrol dot
@@ -568,8 +568,9 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
     canada: [canadaMetadata, "/canada"],
   } as const;
 
-  for (const [name, [meta, path]] of Object.entries(METAS)) {
-    it(`${name}: canonical resolves to loonext.com, strings are dash-free`, () => {
+  it.each(Object.entries(METAS))(
+    "%s: canonical resolves to loonext.com, strings are dash-free",
+    (_value1, [meta, path]) => {
       expect(meta.alternates?.canonical).toBe(`https://loonext.com${path}`);
       const strings = [
         String(meta.title ?? ""),
@@ -578,6 +579,6 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
       expect(strings).not.toContain("—");
       expect(strings).not.toMatch(/\d–\d/);
       expect(strings).not.toContain("loonext.app");
-    });
-  }
+    },
+  );
 });

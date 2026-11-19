@@ -373,19 +373,17 @@ export async function convergeExtraNumberQuantity(args: {
     // company lock — the claim re-counts and its desired is authoritative.
     const claim = await claimExtraLower(args.db, args.companyId, included);
     const quantity = Math.min(stale.quantity ?? 0, claim.desired);
-    if (quantity === 0) {
-      await args.stripe.subscriptionItems.del(
-        stale.id,
-        { proration_behavior: "create_prorations" },
-        { idempotencyKey: key(stale, 0) },
-      );
-    } else {
-      await args.stripe.subscriptionItems.update(
-        stale.id,
-        { price, quantity, proration_behavior: "create_prorations" },
-        { idempotencyKey: key(stale, quantity) },
-      );
-    }
+    await (quantity === 0
+      ? args.stripe.subscriptionItems.del(
+          stale.id,
+          { proration_behavior: "create_prorations" },
+          { idempotencyKey: key(stale, 0) },
+        )
+      : args.stripe.subscriptionItems.update(
+          stale.id,
+          { price, quantity, proration_behavior: "create_prorations" },
+          { idempotencyKey: key(stale, quantity) },
+        ));
     // Capacity mirrors the FINAL billed quantity. Raise-fenced with the
     // CLAIM's epoch (the claim bumped it; nothing else may have since).
     await syncPaidExtraCapacity(args.db, args.companyId, quantity, claim.epoch);
@@ -427,19 +425,17 @@ export async function convergeExtraNumberQuantity(args: {
   if (claim.desired >= billed) {
     return { kind: "noop", quantity: billed };
   }
-  if (claim.desired === 0) {
-    await args.stripe.subscriptionItems.del(
-      item!.id,
-      { proration_behavior: "create_prorations" },
-      { idempotencyKey: key(item!, 0) },
-    );
-  } else {
-    await args.stripe.subscriptionItems.update(
-      item!.id,
-      { quantity: claim.desired, proration_behavior: "create_prorations" },
-      { idempotencyKey: key(item!, claim.desired) },
-    );
-  }
+  await (claim.desired === 0
+    ? args.stripe.subscriptionItems.del(
+        item!.id,
+        { proration_behavior: "create_prorations" },
+        { idempotencyKey: key(item!, 0) },
+      )
+    : args.stripe.subscriptionItems.update(
+        item!.id,
+        { quantity: claim.desired, proration_behavior: "create_prorations" },
+        { idempotencyKey: key(item!, claim.desired) },
+      ));
   return { kind: "lowered", quantity: claim.desired };
 }
 
@@ -462,7 +458,7 @@ export async function readPaidCapacityEpoch(
   }
   const row = (data ?? [])[0] as { paid_capacity_epoch?: number } | undefined;
   if (typeof row?.paid_capacity_epoch !== "number") {
-    throw new Error("paid_capacity_epoch read returned no row");
+    throw new TypeError("paid_capacity_epoch read returned no row");
   }
   return row.paid_capacity_epoch;
 }
@@ -495,7 +491,7 @@ async function claimExtraLower(
     typeof row?.count !== "number" ||
     typeof row?.epoch !== "number"
   ) {
-    throw new Error("claim_extra_lower returned an unexpected shape");
+    throw new TypeError("claim_extra_lower returned an unexpected shape");
   }
   return {
     allowed: row.allowed,
@@ -528,7 +524,7 @@ export async function syncPaidExtraCapacity(
   }
   const row = data as { applied?: boolean };
   if (typeof row?.applied !== "boolean") {
-    throw new Error("sync_paid_extra_capacity returned an unexpected shape");
+    throw new TypeError("sync_paid_extra_capacity returned an unexpected shape");
   }
   return { applied: row.applied };
 }

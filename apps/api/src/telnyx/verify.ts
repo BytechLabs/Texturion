@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import type { TelnyxEvent } from "../messaging/types";
 
 /**
  * Telnyx webhook signature verification (SPEC §7 step 1, §10; cross-track
@@ -56,7 +57,7 @@ async function importPublicKey(base64Key: string): Promise<CryptoKey | null> {
 export async function verifyTelnyxWebhook(
   env: Env,
   request: Request,
-): Promise<object | null> {
+): Promise<TelnyxEvent | null> {
   const signatureHeader = request.headers.get("telnyx-signature-ed25519");
   const timestampHeader = request.headers.get("telnyx-timestamp");
   if (!signatureHeader || !timestampHeader) return null;

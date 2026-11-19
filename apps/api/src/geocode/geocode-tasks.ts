@@ -88,7 +88,7 @@ function whereAddressUnchanged<T>(query: T, task: GeocodableTask): T {
 
 export type Sleeper = (ms: number) => Promise<void>;
 const realSleep: Sleeper = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+  new Promise((resolve) => { setTimeout(resolve, ms); });
 
 /** §11-style scheduled job (env, now); `now` unused (work is state-selected). */
 export async function geocodeTasksJob(

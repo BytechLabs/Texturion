@@ -144,7 +144,7 @@ describe("calendar connection management", () => {
       configured: { google: true, microsoft: true },
     });
 
-    const read = sb.find("GET", "/rest/v1/calendar_connections")[0];
+    const [read] = sb.find("GET", "/rest/v1/calendar_connections");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(read.url.searchParams.get("revoked_at")).toBe("is.null");
@@ -211,7 +211,7 @@ describe("calendar connection management", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(response.status).toBe(503);
-    const error = (await response.json()) as { error: { code: string } };
+    const error = await response.json<{ error: { code: string } }>();
     expect(error.error.code).toBe("service_unavailable");
     expect(sb.find("POST", "/rest/v1/rpc/api_create_calendar_oauth_state")).toHaveLength(0);
   });
@@ -273,7 +273,7 @@ describe("calendar connection management", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { url: string };
+    const body = await response.json<{ url: string }>();
     const authorization = new URL(body.url);
     const state = authorization.searchParams.get("state");
     expect(state).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -312,7 +312,7 @@ describe("calendar connection management", () => {
     );
     expect(response.status).toBe(404);
     expect(sb.find("POST", "/rest/v1/rpc/api_revoke_calendar_connection")).toHaveLength(0);
-    const lookup = sb.find("GET", "/rest/v1/calendar_connections")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/calendar_connections");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${CONNECTION_ID}`);
@@ -488,9 +488,9 @@ describe("calendar connection management", () => {
       { companyId: COMPANY_ID },
     );
     expect(response.status).toBe(200);
-    const body = await response.json() as {
+    const body = await response.json<{
       attention: Record<string, unknown>[];
-    };
+    }>();
     expect(body.attention).toHaveLength(1);
     expect(body.attention[0]).toMatchObject({
       id: LINK_ID,

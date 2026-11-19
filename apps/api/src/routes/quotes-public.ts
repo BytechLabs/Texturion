@@ -94,7 +94,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const row = unwrap<PublicQuoteRow[]>(
+  const [row] = unwrap<PublicQuoteRow[]>(
     await db
       .from("quotes")
       .select(PUBLIC_COLUMNS)
@@ -102,19 +102,19 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
       .eq("id", resolved.subject_id)
       .limit(1),
     "public quote lookup",
-  )[0];
+  );
   // A token that resolves to a row that is gone is the same answer as a token
   // that never existed. Saying otherwise confirms the id was once real.
   if (!row) return publicLinkNotAvailable(c);
 
-  const company = unwrap<{ name: string; locale: string | null }[]>(
+  const [company] = unwrap<{ name: string; locale: string | null }[]>(
     await db
       .from("companies")
       .select("name,locale")
       .eq("id", resolved.company_id)
       .limit(1),
     "public quote company",
-  )[0];
+  );
   if (!company) return publicLinkNotAvailable(c);
 
   const now = new Date();
@@ -234,7 +234,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const row = unwrap<PublicQuoteRow[]>(
+  const [row] = unwrap<PublicQuoteRow[]>(
     await db
       .from("quotes")
       .select(ACCEPT_COLUMNS)
@@ -242,7 +242,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       .eq("id", resolved.subject_id)
       .limit(1),
     "public quote accept lookup",
-  )[0];
+  );
   if (!row) return publicLinkNotAvailable(c);
 
   const now = new Date();

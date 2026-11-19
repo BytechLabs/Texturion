@@ -48,7 +48,7 @@ describe("GET /.well-known/security.txt", () => {
       .split("\n")
       .find((line) => line.startsWith("Policy: "))
       ?.slice("Policy: ".length);
-    expect(policy, "security.txt lost its Policy field").toBeTruthy();
+    expect(Boolean(policy), "security.txt lost its Policy field").toBe(true);
     expect(
       Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${path}`),
     ).toContain(policy);
@@ -65,7 +65,7 @@ describe("GET /.well-known/security.txt", () => {
     const { body } = await fetchSecurityTxt();
     const line = body.split("\n").find((l) => l.startsWith("Expires: "));
     expect(line).toBeDefined();
-    const stamp = (line as string).slice("Expires: ".length);
+    const stamp = line!.slice("Expires: ".length);
     expect(stamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(Date.parse(stamp)).toBe(NOW + 180 * DAY_MS);
 

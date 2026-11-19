@@ -151,7 +151,7 @@ function listRow(overrides: Partial<ConversationListItem> = {}): ConversationLis
     unread: false,
     last_message: null,
     ...overrides,
-  } as ConversationListItem;
+  };
 }
 
 function message(overrides: Partial<Message>): Message {
@@ -252,8 +252,8 @@ describe("while the detail loads", () => {
     cacheRow(listRow());
     const { container } = renderThread();
 
-    expect(screen.getByText("Dana Rivera")).toBeTruthy();
-    expect(screen.getByText("Open")).toBeTruthy();
+    expect(screen.getByText("Dana Rivera")).toBeInstanceOf(Element);
+    expect(screen.getByText("Open")).toBeInstanceOf(Element);
     expect(container.querySelector('[data-initials="SO"]')).not.toBeNull();
     expect(screen.queryByTestId("composer")).toBeNull();
     expect(screen.queryByTestId("message-list")).toBeNull();
@@ -265,7 +265,7 @@ describe("while the detail loads", () => {
     cacheRow(listRow({ contact: { id: "ct-1", name: null, phone_e164: "+12125550123" } }));
     renderThread();
 
-    expect(screen.getByText("(212) 555-0123")).toBeTruthy();
+    expect(screen.getByText("(212) 555-0123")).toBeInstanceOf(Element);
   });
 
   it("falls back to the skeleton when no row is cached", () => {
@@ -303,7 +303,7 @@ describe("a failed read", () => {
     });
     renderThread();
 
-    expect(screen.getByText("We couldn't load this conversation.")).toBeTruthy();
+    expect(screen.getByText("We couldn't load this conversation.")).toBeInstanceOf(Element);
     expect(screen.queryByTestId("thread-header")).toBeNull();
   });
 
@@ -317,7 +317,7 @@ describe("a failed read", () => {
     );
     renderThread();
 
-    expect(screen.getByText("This conversation doesn't exist or was removed.")).toBeTruthy();
+    expect(screen.getByText("This conversation doesn't exist or was removed.")).toBeInstanceOf(Element);
     expect(screen.queryByTestId("thread-header")).toBeNull();
   });
 });

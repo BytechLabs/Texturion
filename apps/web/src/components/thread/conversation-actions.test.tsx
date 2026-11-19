@@ -23,7 +23,7 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ userId: "u-1", role: "owner" }),
 }));
 vi.mock("@loonext/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@loonext/shared")>();
+  const actual = await importOriginal<typeof shared>();
   return {
     ...actual,
     snoozePresets: vi.fn(actual.snoozePresets),
@@ -75,7 +75,7 @@ describe("conversation snooze and follow-up submenus", () => {
       </RecordContextMenu>,
     );
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
     expect(snoozePresets).not.toHaveBeenCalled();
     expect(followUpPresets).not.toHaveBeenCalled();
   });
@@ -84,10 +84,10 @@ describe("conversation snooze and follow-up submenus", () => {
     const actions = build();
     const snooze = submenuItems(actions.find((action) => action.id === "snooze")!);
     const followUp = submenuItems(actions.find((action) => action.id === "follow-up")!);
-    expect(snoozePresets).toHaveBeenCalledTimes(1);
-    expect(followUpPresets).toHaveBeenCalledTimes(1);
+    expect(snoozePresets).toHaveBeenCalledOnce();
+    expect(followUpPresets).toHaveBeenCalledOnce();
 
-    const presets = snoozePresets.mock.results[0]!.value as { id: string; at: number }[];
+    const presets = snoozePresets.mock.results[0].value as { id: string; at: number }[];
     expect(snooze.map((item) => item.id)).toEqual([
       ...presets.map((preset) => preset.id),
       "custom",

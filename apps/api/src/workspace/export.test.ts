@@ -114,7 +114,7 @@ function world(options: WorldOptions = {}): {
     uploaded.push(url.pathname.replace("/storage/v1/object/exports/", ""));
     if (options.onUpload) {
       const object: unknown = (await request.formData()).get("");
-      if (!(object instanceof Blob)) throw new Error("Expected an export file upload");
+      if (!(object instanceof Blob)) throw new TypeError("Expected an export file upload");
       options.onUpload(url.pathname, await object.text());
     }
     return Response.json({ Key: url.pathname });
@@ -191,14 +191,14 @@ describe(buildDataExports, () => {
   });
 
   it("pages tag links by both keys without reading links under deleted contacts", async () => {
-    const tags = Array.from({ length: 1_001 }, (_, index) => ({
+    const tags = Array.from({ length: 1001 }, (_, index) => ({
       contact_id: "same-contact",
       tag_id: String(index + 1).padStart(4, "0"),
     }));
     const { sb, routes, uploaded } = world({
       tablePage: (table, query) => {
         if (table !== "contact_tags") return [];
-        return query.has("or") ? tags.slice(1_000) : tags.slice(0, 1_000);
+        return query.has("or") ? tags.slice(1000) : tags.slice(0, 1000);
       },
     });
     stubFetch(...routes);
@@ -211,7 +211,7 @@ describe(buildDataExports, () => {
     expect(first.get("active_parent.deleted_at")).toBe("is.null");
     expect(next.get("or")).toBe("(contact_id.gt.same-contact,and(contact_id.eq.same-contact,tag_id.gt.1000))");
     expect(checkpointWrites(sb).at(-1)?.body).toMatchObject({
-      row_counts: { contact_tags: 1_001 },
+      row_counts: { contact_tags: 1001 },
     });
   });
 
@@ -244,7 +244,7 @@ describe(buildDataExports, () => {
       tablePage: messagePages,
     });
     stubFetch(...first.routes);
-    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
+    await expect(buildDataExports(env)).resolves.toEqual({ exports: 1, parts: 60, completed: 0 });
     expect(row.completed_tables).toEqual(TABLES.slice(0, TABLES.indexOf("messages")));
     expect(first.uploaded).toHaveLength(60);
     expect(first.uploaded.at(-1)).toMatch(/messages-0060\.jsonl$/);
@@ -255,7 +255,7 @@ describe(buildDataExports, () => {
       tablePage: messagePages,
     });
     stubFetch(...second.routes);
-    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 1, completed: 1 });
+    await expect(buildDataExports(env)).resolves.toEqual({ exports: 1, parts: 1, completed: 1 });
     expect(second.uploaded.map((path) => path.split("/").at(-1))).toEqual([
       "second-lease-messages-0061.jsonl",
       "second-lease-manifest.json",
@@ -347,7 +347,7 @@ describe(buildDataExports, () => {
     const { sb, routes } = world({ leaseLost: true });
     stubFetch(...routes);
 
-    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 0, completed: 0 });
+    await expect(buildDataExports(env)).resolves.toEqual({ exports: 1, parts: 0, completed: 0 });
     expect(sb.find("PATCH", "/rest/v1/data_exports")).toHaveLength(1);
     expect(sb.find("GET", /^\/auth\/v1\/admin\/users\//)).toHaveLength(0);
   });
@@ -357,7 +357,7 @@ describe(buildDataExports, () => {
     const { routes } = world({
       queueFor: () => status === "pending" ? [{}] : [],
       onWrite: (body) => {
-        if (body.status) status = body.status;
+        if (body.status) ({ status } = body);
       },
     });
     const mails: string[] = [];
@@ -396,11 +396,11 @@ describe("pruneExpiredExports (#378)", () => {
     const removed: string[][] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.pathname === "/storage/v1/object/list/exports") {
-        const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+        const { limit, offset } = await request.json<{ limit: number; offset: number }>();
         return Response.json(files.slice(offset, offset + limit).map((name) => ({ id: name, name })));
       }
       if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
-        const body = (await request.clone().json()) as { prefixes: string[] };
+        const body = await request.clone().json<{ prefixes: string[] }>();
         removed.push(body.prefixes);
         return Response.json([]);
       }

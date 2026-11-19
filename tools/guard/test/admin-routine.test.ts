@@ -112,7 +112,7 @@ describe("guard.yml's admin routines", () => {
       expect(sent.body).toHaveProperty("messaging_profile_id");
     }
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
     expect(held.every((item) => typeof item.messaging_profile_id === "string")).toBe(true);
     await expect(h.store.get("orders:first")).resolves.toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0].id });
     assertPublicSafe(outcome.lines);
@@ -125,7 +125,7 @@ describe("guard.yml's admin routines", () => {
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
     await h.store.put(`detached:${held[7].id}`, { at: h.clock.now, reason: "stranger_flood" });
 
     await fileValidation(h);
@@ -223,7 +223,7 @@ describe("guard.yml's admin routines", () => {
         'filed window: {"start_hour":5}',
       ],
     });
-    const health = (await (await h.call("/health", { caller: "admin" })).json()) as GuardHealth;
+    const health = await (await h.call("/health", { caller: "admin" })).json<GuardHealth>();
     expect(health.paid_dials).toMatchObject({
       blockers: [],
       room: 2,
@@ -297,7 +297,9 @@ describe("guard.yml's limit-probe and health routines", () => {
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
     const realHandle = h.telnyx.handle.bind(h.telnyx);
     h.telnyx.handle = async (request) => {
-      const body = request.method === "PATCH" ? ((await request.clone().json()) as { concurrent_call_limit?: number }) : {};
+      const body = request.method === "PATCH"
+        ? await request.clone().json<{ concurrent_call_limit?: number }>()
+        : {};
       if (body.concurrent_call_limit === 4999) {
         return Response.json({ errors: [{ code: "10099", detail: "private words", source: { pointer: "/concurrent_call_limit" } }] }, { status: 429 });
       }
@@ -334,7 +336,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("place the window on the quietest six hours, keeping 04:00 when nothing tells them apart", () => {
-    expect(quietestWindow(new Array(24).fill(0))).toBe(4);
+    expect(quietestWindow(Array.from({ length: 24 }, () => 0))).toBe(4);
     expect(quietestWindow(hourly([6, 7, 8, 9, 10, 11]))).toBe(6);
     expect(quietestWindow(hourly([22, 23, 0, 1, 2, 3]))).toBe(22);
     expect(quietestWindow(hourly([5, 6, 7, 8, 9, 10, 11]))).toBe(5);
@@ -355,7 +357,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     const none = planFiling({ ...read, numbers: 0 }, false);
     expect(none.inputs).toEqual({});
     expect(none.lines[0]).toMatch(/^::warning title=Reserve not filed::/);
-    const quiet = planFiling({ ...read, hourly_calls: new Array(24).fill(0) }, true);
+    const quiet = planFiling({ ...read, hourly_calls: Array.from({ length: 24 }, () => 0) }, true);
     expect(quiet.inputs).toEqual({ reserveLegs: "4" });
   });
 

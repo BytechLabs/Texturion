@@ -106,7 +106,7 @@ export async function startFakeResend(): Promise<FakeResend> {
     })();
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   const {port} = (server.address() as AddressInfo);
 
   return {
@@ -118,8 +118,8 @@ export async function startFakeResend(): Promise<FakeResend> {
       refused.length = 0;
     },
     close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
+      new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      }),
   };
 }

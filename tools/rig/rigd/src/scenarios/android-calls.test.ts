@@ -265,7 +265,7 @@ function ringWorld(scenario: string) {
     row.ended_at = new Date(time.now + 30_000).toISOString();
     return dial(plan);
   };
-  const page = { clearsAfterMs: 400 as number | undefined, onAnswer: () => undefined as void };
+  const page = { clearsAfterMs: 400 as number | undefined, onAnswer: (): void => undefined };
   const open = browser.open.bind(browser);
   browser.open = async (member, surface, path) => {
     const opened = await open(member, surface, path);
@@ -815,12 +815,13 @@ describe("D09, the first-answer race", () => {
 
 const ANSWERED_AT = Date.parse("2026-10-31T15:00:04.000Z");
 
-function d13World(rtp: unknown = { inbound: { packet_count: "1620", skip_packet_count: "180", mos: "4.10" } }) {
+function d13World(rtp?: unknown) {
+  const stats = rtp === undefined ? { inbound: { packet_count: "1620", skip_packet_count: "180", mos: "4.10" } } : rtp;
   const world = fakeContext("D13");
   const { robot, time, devices } = world;
   devices.pixelDevice.onScreen.add("call_hang_up");
   const {network} = devices.pixelDevice;
-  const call = { lastsMs: undefined as number | undefined, rtp };
+  const call = { lastsMs: undefined as number | undefined, rtp: stats };
   network.outage = async (ms) => {
     network.outages.push(ms);
     await time.sleep(ms);

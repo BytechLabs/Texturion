@@ -19,11 +19,8 @@ function json(body: unknown, status = 200, headers?: Record<string, string>): Re
   });
 }
 
-function queuedFetch(...responses: Response[]): {
-  fetcher: CalendarFetch;
-  mock: ReturnType<typeof vi.fn>;
-} {
-  const mock = vi.fn(async () => responses.shift() ?? json({}));
+function queuedFetch(...responses: Response[]) {
+  const mock = vi.fn<CalendarFetch>(async () => responses.shift() ?? json({}));
   return { fetcher: mock, mock };
 }
 
@@ -258,7 +255,7 @@ describe("Google calendar provider", () => {
   });
 
   it("skips id-less rows and advances a page containing malformed unrelated timing", async () => {
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warning = vi.spyOn(console, "warn").mockReturnValue(undefined);
     const { fetcher } = queuedFetch(json({
       items: [
         googleEvent({ id: undefined }),
@@ -355,8 +352,8 @@ describe("Google calendar provider", () => {
       version: '"etag-1"',
     });
 
-    const createInit = mock.mock.calls[0]?.[1] as RequestInit;
-    const patchInit = mock.mock.calls[1]?.[1] as RequestInit;
+    const createInit = mock.mock.calls[0][1]!;
+    const patchInit = mock.mock.calls[1][1]!;
     expect(createInit.method).toBe("POST");
     const createBody = JSON.parse(String(createInit.body)) as Record<
       string,
@@ -386,7 +383,7 @@ describe("Google calendar provider", () => {
       changes: { timing: false, title: false, description: true },
     });
     for (const [, init] of mock.mock.calls) {
-      expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({ description: linked });
+      expect(JSON.parse(String((init!).body))).toMatchObject({ description: linked });
     }
 
     const read = await normalizeGoogleEvent(googleEvent({ description: linked }), "America/Edmonton");
@@ -461,7 +458,7 @@ describe("Google calendar provider", () => {
       note: "Removed",
       calendarTimeZone: "America/Edmonton",
     });
-    const init = mock.mock.calls[0]?.[1] as RequestInit;
+    const init = mock.mock.calls[0][1]!;
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(String(init.body))).toEqual({ description: "Note\n\nRemoved" });
   });
@@ -489,12 +486,12 @@ describe("Google calendar provider", () => {
     await provider.scrubEvent(base);
 
     const deleteUrl = new URL(String(mock.mock.calls[0]?.[0]));
-    const deleteInit = mock.mock.calls[0]?.[1] as RequestInit;
+    const deleteInit = mock.mock.calls[0][1]!;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteUrl.searchParams.get("sendUpdates")).toBe("none");
     expect(new Headers(deleteInit.headers).get("If-Match")).toBe('"etag-1"');
     const scrubUrl = new URL(String(mock.mock.calls[1]?.[0]));
-    const scrubInit = mock.mock.calls[1]?.[1] as RequestInit;
+    const scrubInit = mock.mock.calls[1][1]!;
     expect(scrubInit.method).toBe("PATCH");
     expect(scrubUrl.searchParams.get("sendUpdates")).toBe("none");
     expect(JSON.parse(String(scrubInit.body))).toEqual({
@@ -533,7 +530,7 @@ describe("Google calendar provider", () => {
     await expect(
       refreshGoogleAccessToken(fetcher, client, "r"),
     ).resolves.toMatchObject({ accessToken: "a2", refreshToken: "r" });
-    expect(String((mock.mock.calls[0]?.[1] as RequestInit).body)).toContain(
+    expect(String(mock.mock.calls[0]?.[1]?.body)).toContain(
       "code_verifier=verifier",
     );
   });
@@ -565,10 +562,10 @@ describe("Google calendar provider", () => {
       subscriptionId: "channel-1",
       resourceId: "resource-1",
     });
-    expect((mock.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
-    expect((mock.mock.calls[1]?.[1] as RequestInit).method).toBe("POST");
-    expect((mock.mock.calls[2]?.[1] as RequestInit).method).toBe("POST");
-    expect(JSON.parse(String((mock.mock.calls[2]?.[1] as RequestInit).body))).toEqual({
+    expect(mock.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(mock.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(mock.mock.calls[2]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(mock.mock.calls[2]?.[1]?.body))).toEqual({
       id: "channel-1",
       resourceId: "resource-1",
     });

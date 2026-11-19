@@ -50,7 +50,7 @@ export function SettingsLink({
   fallback?: ReactNode;
 }) {
   const { role } = useActiveCompany();
-  return <>{canSeeSettingsSection(section, role) ? children : fallback}</>;
+  return canSeeSettingsSection(section, role) ? children : fallback;
 }
 
 /**

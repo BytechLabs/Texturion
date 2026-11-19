@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import { join } from "node:path";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -55,7 +55,7 @@ describe("gate layouts mount the shared escape hatch (#207)", () => {
   it.each(GATE_LAYOUTS)(
     "$file imports and mounts the shared gate header",
     ({ file, mounts }) => {
-      const source = readFileSync(path.join(APP_DIR, file), "utf8");
+      const source = readFileSync(join(APP_DIR, file), "utf8");
       expect(source).toContain('from "@/components/shell/gate-header"');
       expect(source).toContain(mounts);
     },
@@ -63,7 +63,7 @@ describe("gate layouts mount the shared escape hatch (#207)", () => {
 
   it("no gate layout hand-rolls its own sign-out control", () => {
     for (const { file } of GATE_LAYOUTS) {
-      const source = readFileSync(path.join(APP_DIR, file), "utf8");
+      const source = readFileSync(join(APP_DIR, file), "utf8");
       // The retired bespoke control (app/onboarding/sign-out.tsx) and any
       // successor must not come back — sign out lives in the shared header.
       expect(source).not.toMatch(/from ["'].*sign-out["']/);
@@ -75,7 +75,7 @@ describe("gate layouts mount the shared escape hatch (#207)", () => {
     // unknowable (no switcher possible) yet sign-out must stay reachable —
     // the last retry-only dead end found by the #207 audit.
     const source = readFileSync(
-      path.join(APP_DIR, "../lib/company/provider.tsx"),
+      join(APP_DIR, "../lib/company/provider.tsx"),
       "utf8",
     );
     // gate-escape, not gate-header: the escape cluster is split from the
@@ -87,7 +87,7 @@ describe("gate layouts mount the shared escape hatch (#207)", () => {
   it("the (app) layout hands CompanyProvider the shell's font scope for its gates", () => {
     // Without it the loading, failed and expired cards draw in Inter, which
     // the app never otherwise requests.
-    const source = readFileSync(path.join(APP_DIR, "(app)/layout.tsx"), "utf8");
+    const source = readFileSync(join(APP_DIR, "(app)/layout.tsx"), "utf8");
     expect(source).toMatch(
       /<CompanyProvider\s+scopeClassName=\{`\$\{golosText\.variable\} app-scope font-sans`\}>/,
     );

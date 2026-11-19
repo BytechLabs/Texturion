@@ -32,9 +32,9 @@ export function useDebouncedAutosave<T>({
   normalize?: (draft: T) => T;
   delayMs?: number;
 }) {
-  const [draft, setDraftState] = useState(value);
+  const [draft, setDraft] = useState(value);
   const [state, setState] = useState<AutosaveState>("idle");
-  const [error, setError] = useState<unknown>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
 
   // Refs, so no effect re-runs when the caller's mutation object changes.
   const draftRef = useRef(value);
@@ -56,12 +56,13 @@ export function useDebouncedAutosave<T>({
     const next = normalizeRef.current(draftRef.current);
     if (Object.is(next, lastSent.current)) return;
     lastSent.current = next;
-    const id = requestId.current += 1;
+    requestId.current += 1;
+    const id = requestId.current;
     clearTimer(savedTimer);
     setState("saving");
-    setError(null);
-    saveRef.current(next).then(
-      () => {
+    setSaveError(null);
+    void saveRef.current(next)
+      .then(() => {
         if (id !== requestId.current) return;
         lastSaved.current = next;
         if (!mounted.current) return;
@@ -70,21 +71,20 @@ export function useDebouncedAutosave<T>({
           savedTimer.current = null;
           setState("idle");
         }, SAVED_FLASH_MS);
-      },
-      (error_: unknown) => {
+      })
+      .catch((error: unknown) => {
         if (id !== requestId.current) return;
         lastSent.current = lastSaved.current;
         if (!mounted.current) return;
         setState("error");
-        setError(error_);
-      },
-    );
+        setSaveError(error);
+      });
   }, []);
 
-  const setDraft = useCallback(
+  const updateDraft = useCallback(
     (next: T) => {
       draftRef.current = next;
-      setDraftState(next);
+      setDraft(next);
       clearTimer(savedTimer);
       setState((current) => (current === "saved" ? "idle" : current));
       clearTimer(timer);
@@ -104,7 +104,7 @@ export function useDebouncedAutosave<T>({
     lastSaved.current = incoming;
     lastSent.current = incoming;
     draftRef.current = value;
-    setDraftState(value);
+    setDraft(value);
   }, [value]);
 
   useEffect(() => {
@@ -118,5 +118,5 @@ export function useDebouncedAutosave<T>({
     };
   }, [flush]);
 
-  return { draft, setDraft, onBlur: flush, state, error };
+  return { draft, setDraft: updateDraft, onBlur: flush, state, error: saveError };
 }

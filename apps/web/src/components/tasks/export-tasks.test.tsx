@@ -32,8 +32,6 @@ vi.mock("sonner", () => ({
 
 
 
-afterEach(cleanup);
-
 beforeEach(() => {
   role.current = "owner";
   download.mockReset();
@@ -41,6 +39,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 describe("#745 exporting the tasks in view", () => {
   it("ET-1: is absent for somebody who cannot take customer data out", () => {

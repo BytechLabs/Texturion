@@ -29,7 +29,7 @@ export const auditLogRoutes = new Hono<AppEnv>();
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
-const EXPORT_PAGE_SIZE = 1_000;
+const EXPORT_PAGE_SIZE = 1000;
 /**
  * Export ceiling. Above this the CSV stops being something a browser downloads
  * and starts being a job; the date filters are how an owner takes a bigger

@@ -39,7 +39,7 @@ function message(over: Partial<Message> = {}): Message {
 
 /** A thread the shared rule offers a catch-up on, by length alone. */
 function longThread(): Message[] {
-  return Array.from({ length: THREAD_SUMMARY_MIN_MESSAGES }, () => message()).reverse();
+  return Array.from({ length: THREAD_SUMMARY_MIN_MESSAGES }, () => message()).toReversed();
 }
 
 function arrives(next: Message) {
@@ -79,13 +79,13 @@ beforeEach(() => {
 describe("useCatchUp — when the hint shows", () => {
   it("shows on a thread the shared rule offers", () => {
     render(<Thread />);
-    expect(hint()).toBeTruthy();
+    expect(hint()).toBeInstanceOf(Element);
     // Announced, not just drawn.
     expect(screen.getByRole("status").textContent).toContain("Catch up on this conversation?");
   });
 
   it("does not show on a thread too short to be worth one", () => {
-    thread = [message(), message()].reverse();
+    thread = [message(), message()].toReversed();
     render(<Thread />);
     expect(screen.getByTestId("offered").textContent).toBe("false");
     expect(hint()).toBeNull();
@@ -109,7 +109,7 @@ describe("useCatchUp — Not now", () => {
 
     arrives(message());
     view.rerender(<Thread />);
-    expect(hint()).toBeTruthy();
+    expect(hint()).toBeInstanceOf(Element);
   });
 
   /** The person's own reply is not news they need a recap of. */
@@ -126,7 +126,7 @@ describe("useCatchUp — Not now", () => {
     const view = render(<Thread conversationId="c-1" />);
     fireEvent.click(screen.getByText("Not now"));
     view.rerender(<Thread conversationId="c-2" />);
-    expect(hint()).toBeTruthy();
+    expect(hint()).toBeInstanceOf(Element);
   });
 
   it("asks nothing", () => {
@@ -163,7 +163,7 @@ describe("useCatchUp — Recap", () => {
 
     // Once the card is dismissed, the newer message is worth offering.
     fireEvent.click(screen.getByTestId("close-recap"));
-    expect(hint()).toBeTruthy();
+    expect(hint()).toBeInstanceOf(Element);
   });
 
   it("does not offer again for the same messages once the card is dismissed", () => {

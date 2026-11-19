@@ -115,9 +115,9 @@ function normalize(body: string): string {
     .normalize("NFKD")
     .toLowerCase()
     .replaceAll(/\p{M}/gu, "")
-    .replace(/[’‘]/g, "'")
-    .replace(/[^\p{L}\p{N}'\s]/gu, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[’‘]/g, "'")
+    .replaceAll(/[^\p{L}\p{N}'\s]/gu, " ")
+    .replaceAll(/\s+/g, " ")
     .trim();
 }
 

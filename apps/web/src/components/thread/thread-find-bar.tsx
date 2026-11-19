@@ -40,7 +40,7 @@ export function ThreadFindBar({
   const count = matches.length;
   function step(direction: number) {
     if (!count) return;
-    const current = index < 0 && direction < 0 ? 0 : index;
+    const current = index === -1 && direction < 0 ? 0 : index;
     const match = matches[(current + direction + count) % count];
     setSelected(match.id);
     onJump(match.id);

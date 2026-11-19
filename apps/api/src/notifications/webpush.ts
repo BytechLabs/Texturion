@@ -37,7 +37,7 @@ import { fetchWithDeadline } from "../http/deadline";
  * because the comparison is against the parsed `URL.hostname`, which ends where
  * the host ends.
  */
-const PUSH_HOSTS: readonly string[] = [
+const PUSH_HOSTS: ReadonlySet<string> = new Set([
   // Chrome, Edge and every Chromium derivative.
   "fcm.googleapis.com",
   "android.googleapis.com",
@@ -45,7 +45,7 @@ const PUSH_HOSTS: readonly string[] = [
   "web.push.apple.com",
   // Firefox.
   "updates.push.services.mozilla.com",
-];
+]);
 
 /** Vendor-sharded suffixes, which an exact host list cannot express. */
 const PUSH_HOST_SUFFIXES: readonly string[] = [
@@ -71,7 +71,7 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   if (url.protocol !== "https:") return false;
   const host = url.hostname.toLowerCase();
   return (
-    PUSH_HOSTS.includes(host) ||
+    PUSH_HOSTS.has(host) ||
     PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
   );
 }
@@ -107,15 +107,15 @@ const RECORD_SIZE = 4096; // single-record payloads are far below this
 const JWT_TTL_SECONDS = 12 * 60 * 60; // RFC 8292 caps `exp` at 24 h
 
 export function decodeBase64Url(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = value.replaceAll('-', "+").replaceAll('_', "/");
   const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
 export function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
+    .replaceAll('+', "-")
+    .replaceAll('/', "_")
     .replace(/[=]+$/, "");
 }
 
@@ -166,7 +166,7 @@ async function hkdf(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, "HKDF", false, [
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, [
     "deriveBits",
   ]);
   const bits = await crypto.subtle.deriveBits(
@@ -192,7 +192,7 @@ export async function encryptPushPayload(
 
   const subscriberKey = await crypto.subtle.importKey(
     "raw",
-    subscriberKeyBytes as BufferSource,
+    subscriberKeyBytes,
     { name: "ECDH", namedCurve: "P-256" },
     false,
     [],
@@ -242,13 +242,13 @@ export async function encryptPushPayload(
   const record = concatBytes(encoder.encode(payload), new Uint8Array([0x02]));
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    contentKey as BufferSource,
+    contentKey,
     "AES-GCM",
     false,
     ["encrypt"],
   );
   const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aesKey, record as BufferSource),
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aesKey, record),
   );
 
   // RFC 8188 header: salt(16) | rs(4, big-endian) | idlen(1) | keyid(65).
@@ -328,7 +328,7 @@ export async function vapidAuthorization(
 export async function pushTopic(collapseKey: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    encoder.encode(collapseKey) as BufferSource,
+    encoder.encode(collapseKey),
   );
   return encodeBase64Url(new Uint8Array(digest)).slice(0, 32);
 }

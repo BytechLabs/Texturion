@@ -528,9 +528,9 @@ function unscopedSites(): Site[] {
     const re = /\.from\(\s*["'`]([a-z_]+)["'`]\s*\)/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(src)) !== null) {
-      const table = match[1];
+      const [, table] = match;
       if (!TENANT_TABLES.has(table)) continue;
-      const statement = statementAt(src, match.index).replace(/\s+/g, " ");
+      const statement = statementAt(src, match.index).replaceAll(/\s+/g, " ");
       if (SCOPING_CALL.test(statement)) continue;
       const applicable = NULLABLE_SCOPE.has(table)
         ? RULES.filter((rule) => rule.name !== "insert-under-a-not-null-scope")
@@ -563,19 +563,23 @@ describe("#347 — a query against a tenant table carries its company scope", ()
       const allowed = ALLOWED[key];
       if (!allowed) {
         problems.push(
-          `NEW unscoped query on a tenant table: ${key}\n` +
-            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n") +
+          [
+            `NEW unscoped query on a tenant table: ${key}\n`,
+            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n"),
             `\n    → add .eq("company_id", …), or list it in ALLOWED with why it is safe.`,
+          ].join(""),
         );
         continue;
       }
       if (sites.length !== allowed.count) {
         problems.push(
-          `${key}: ${sites.length} unscoped site(s), allow-list says ${allowed.count}.\n` +
-            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n") +
+          [
+            `${key}: ${sites.length} unscoped site(s), allow-list says ${allowed.count}.\n`,
+            sites.map((s) => `    ${s.file}:${s.line}  ${s.statement}`).join("\n"),
             (sites.length > allowed.count
               ? "\n    → a NEW unscoped query joined an already-exempt file. Scope it, or raise the count and say why."
               : "\n    → one was removed or scoped. Lower the count so the slot cannot be reused silently."),
+          ].join(""),
         );
       }
     }
@@ -689,8 +693,8 @@ describe("#347 — a query against a tenant table carries its company scope", ()
       "utf8",
     );
     const block = /known text\[\] := array\[([\s\S]*?)\];/.exec(sql)?.[1];
-    expect(block, "could not find the `known` roster in tenant_scope.test.sql")
-      .toBeTruthy();
+    expect(Boolean(block), "could not find the `known` roster in tenant_scope.test.sql")
+      .toBe(true);
     const sqlTables = new Set(
       [...(block ?? "").matchAll(/'([a-z_]+)'/g)].map((match) => match[1]),
     );

@@ -42,11 +42,19 @@ const sayFr = (key: string): string => look(WEB_FR, key);
  * platform's crew a different thing about the same customer.
  */
 describe("#410 the relationship line", () => {
-  for (const [count, first, expected] of CONTACT_RELATIONSHIP_CASES) {
-    it(`${count ?? "null"} / ${first ?? "null"} -> ${expected ?? "nothing"}`, () => {
+  it.each(
+    CONTACT_RELATIONSHIP_CASES.map(([count, first, expected]) => [
+      `${count ?? "null"} / ${first ?? "null"} -> ${expected ?? "nothing"}`,
+      count,
+      first,
+      expected,
+    ] as const),
+  )(
+    "%s",
+    (_name, count, first, expected) => {
       expect(contactRelationshipLine(count, first, sayEn)).toBe(expected);
-    });
-  }
+    },
+  );
 
   it("says nothing rather than guessing when there is no history", () => {
     // A contact with no conversations is one somebody typed in, or one whose

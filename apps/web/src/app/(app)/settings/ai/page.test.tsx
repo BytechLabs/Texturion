@@ -77,7 +77,7 @@ describe("/settings/ai — the call wrap-up toggle", () => {
     render(<AiSettingsPage />);
     fireEvent.click(screen.getByLabelText("Let Lou write down your wrap-up"));
 
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(mutate.mock.calls[0][0]).toEqual({
       ...settings,
       call_wrapup: false,
@@ -98,7 +98,7 @@ describe("/settings/ai — the call wrap-up toggle", () => {
     expect(
       screen.getByLabelText("Let Lou write down your wrap-up"),
     ).toHaveProperty("disabled", true);
-    expect(screen.getByText("Only owners and admins can change these.")).toBeTruthy();
+    expect(screen.getByText("Only owners and admins can change these.")).toBeInstanceOf(Element);
   });
 });
 
@@ -129,7 +129,7 @@ describe("/settings/ai — the thread catch-up toggle", () => {
     render(<AiSettingsPage />);
     fireEvent.click(screen.getByLabelText("Let Lou catch you up"));
 
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(mutate.mock.calls[0][0]).toEqual({
       ...settings,
       summarize_threads: false,
@@ -155,9 +155,9 @@ describe("/settings/ai — the thread catch-up toggle", () => {
    */
   it("promises what the build actually guarantees: cited, private, and no reordering", () => {
     render(<AiSettingsPage />);
-    expect(screen.getByText(/points at the message it came from/)).toBeTruthy();
-    expect(screen.getByText(/internal notes are never read/)).toBeTruthy();
-    expect(screen.getByText(/inbox order never changes/)).toBeTruthy();
+    expect(screen.getByText(/points at the message it came from/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/internal notes are never read/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/inbox order never changes/)).toBeInstanceOf(Element);
   });
 
   /**
@@ -189,20 +189,20 @@ describe("/settings/ai — the thread catch-up toggle", () => {
 describe("/settings/ai — what the wrap-up copy is allowed to claim", () => {
   it("says whose voice it is, and says the call has ended", () => {
     render(<AiSettingsPage />);
-    expect(screen.getByText(/After a call ends/)).toBeTruthy();
+    expect(screen.getByText(/After a call ends/)).toBeInstanceOf(Element);
     expect(
       screen.getByText(/after the call has ended/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     expect(
       screen.getByText(/The call itself is never recorded/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("promises the words back verbatim, not a summary", () => {
     render(<AiSettingsPage />);
     expect(
       screen.getByText(/exactly as you said them/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     // A paraphrase would destroy the only thing the note exists for — settling
     // what was quoted. Nothing here may offer one.
     //

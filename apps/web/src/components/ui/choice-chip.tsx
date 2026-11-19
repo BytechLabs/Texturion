@@ -6,16 +6,20 @@ import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+type ChoiceChipProps = React.ComponentProps<typeof Button> & { chosen: boolean };
+
 /**
  * #726: one option in a row of choices. A chosen chip is filled and carries a
  * check; an unchosen one is a plain outline, so a single option on its own can
  * never be mistaken for the answer.
  */
-export const ChoiceChip = forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<typeof Button> & { chosen: boolean }
->(({ chosen, className, children, ...props }, ref) => 
-  (
+export const ChoiceChip = forwardRef(ChoiceChipView);
+
+function ChoiceChipView(
+  { chosen, className, children, ...props }: ChoiceChipProps,
+  ref: React.ForwardedRef<HTMLButtonElement>,
+) {
+  return (
     <Button
       ref={ref}
       type="button"
@@ -33,5 +37,5 @@ export const ChoiceChip = forwardRef<
       {chosen && <Check className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />}
       {children}
     </Button>
-  )
-);
+  );
+}

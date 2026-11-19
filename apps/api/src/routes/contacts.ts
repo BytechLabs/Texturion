@@ -1006,7 +1006,7 @@ async function mergeImportedContactDetails(
     const contactId = ids.get(phone);
     if (!contactId || skipped.has(phone)) return [];
     const profile = created.has(phone) ? {} : detail.profile;
-    if (!Object.keys(profile).length && !detail.other_phones.length && !detail.tags.length) return [];
+    if (Object.keys(profile).length === 0 && detail.other_phones.length === 0 && detail.tags.length === 0) return [];
     return [{ contact_id: contactId, row: detail.row, profile, other_phones: detail.other_phones, tags: detail.tags }];
   });
   let kept = 0;
@@ -1023,7 +1023,7 @@ async function mergeImportedContactDetails(
       "merge imported contact details",
     );
     for (const result of results) {
-      if (result.kept) kept++;
+      if (result.kept) kept += 1;
       const row = lines.get(result.contact_id)!;
       for (const phone of result.refused_phones) warnings.push({ row, reason: `Could not add other phone ${phone}.` });
       for (const tag of result.refused_tags) warnings.push({ row, reason: `Could not add tag ${tag}.` });
@@ -1043,7 +1043,7 @@ function reportImportNumberSkips(
     if (!entry) continue;
     errors.push({ row: entry.row, reason });
     const refusal = refusals.findIndex((item) => item.row === entry.row && item.reason === contactImportConsentRefusedReason(phone));
-    if (refusal >= 0) refusals.splice(refusal, 1);
+        if (refusal !== -1) refusals.splice(refusal, 1);
   }
 }
 
@@ -1108,7 +1108,7 @@ async function findContact(
       .limit(1),
     "contact lookup",
   );
-  const contact = rows[0];
+  const [contact] = rows;
   return contact && (includeMerged || !contact.merged_into) ? contact : null;
 }
 
@@ -1145,14 +1145,14 @@ async function tagsByContactIds(
   const byContact = new Map<string, ContactTagRef[]>();
   for (let i = 0; i < contactIds.length; i += IMPORT_CHUNK) {
     const chunk = contactIds.slice(i, i + IMPORT_CHUNK);
-    const links = unwrap<{ contact_id: string; tags: ContactTagRef | null }[]>(
+    const links = unwrap<unknown>(
       await db
         .from("contact_tags")
         .select("contact_id,tags(id,name,color)")
         .eq("company_id", companyId)
         .in("contact_id", chunk),
       "contact tags",
-    );
+    ) as { contact_id: string; tags: ContactTagRef | null }[];
     for (const link of links) {
       if (!link.tags) continue;
       const list = byContact.get(link.contact_id) ?? [];
@@ -1286,7 +1286,7 @@ export function contactSearchOr(rawQ: string, t9 = false): string {
     `custom_values.ilike.*${q}*`,
   ];
   if (!t9) terms.push(`address.ilike.*${q}*`, `notes.ilike.*${q}*`);
-  const digits = rawQ.replace(/\D/g, "");
+  const digits = rawQ.replaceAll(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {
     terms.push(`phone_e164.ilike.*${digits}*`);
   }
@@ -1332,7 +1332,7 @@ async function listSortedContacts(
     }
   }
 
-  const rows = unwrap<ContactListRow[]>(
+  const rows = unwrap<unknown>(
     await db.rpc("api_sorted_contacts", {
       p_company: companyId,
       p_sort: sort,
@@ -1344,9 +1344,9 @@ async function listSortedContacts(
       p_after_id: cursor?.id ?? null,
       p_after_name: cursor?.name ?? null,
       p_after_at: cursor?.ts ?? null,
-    }).select(CONTACT_LIST_COLUMNS + ",last_activity_at"),
+    }).select(`${CONTACT_LIST_COLUMNS},last_activity_at`),
     "sorted contacts",
-  );
+  ) as ContactListRow[];
   if (legacyCursor) return buildPage(rows, limit, "created_at");
   const last = rows[limit - 1];
   return {
@@ -1388,13 +1388,13 @@ async function listLegacyContacts(
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
   }
-  const rows = unwrap<ContactListRow[]>(
+  const rows = (unwrap<unknown>(
     await query
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1),
     "contacts list",
-  ).map(({ contact_tags: _join, ...row }) => row as ContactListRow);
+  ) as ContactListRow[]).map(({ contact_tags: _join, ...row }) => row as ContactListRow);
 
   /**
    * #291 — and the same search, run through a customer's OTHER numbers.
@@ -1414,7 +1414,7 @@ async function listLegacyContacts(
    * round trip.
    */
   let merged = rows;
-  const searchDigits = rawQ?.replace(/\D/g, "") ?? "";
+  const searchDigits = rawQ?.replaceAll(/\D/g, "") ?? "";
   if (rawQ && searchDigits.length >= 3) {
     let byOtherNumber = db
       .from("contacts")
@@ -1441,13 +1441,13 @@ async function listLegacyContacts(
     if (cursor) {
       byOtherNumber = byOtherNumber.or(keysetFilter("created_at", cursor));
     }
-    const alsoRows = unwrap<(ContactListRow & { contact_phones?: unknown })[]>(
+    const alsoRows = unwrap<unknown>(
       await byOtherNumber
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(limit + 1),
       "contacts list by other number",
-    );
+    ) as (ContactListRow & { contact_phones?: unknown })[];
 
     const seen = new Set(rows.map((row) => row.id));
     const extra = alsoRows
@@ -1602,7 +1602,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
 
 /** Max contacts a single export streams (bounds Worker memory/CPU). */
 const EXPORT_MAX_ROWS = 50_000;
-const EXPORT_PAGE_SIZE = 1_000;
+const EXPORT_PAGE_SIZE = 1000;
 
 /** Max contacts one bulk action or one explicit export selection names. */
 const BULK_CONTACTS_MAX = 200;
@@ -1717,13 +1717,13 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       query = query.or(keysetFilter("created_at", { ts: last.created_at, id: last.id }));
     }
     const limit = Math.min(EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS - rows.length + 1);
-    const page = unwrap<ExportRow[]>(
+    const page = unwrap<unknown>(
       await query
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(limit),
       "contacts export",
-    );
+    ) as ExportRow[];
     rows.push(...page);
     if (rows.length > EXPORT_MAX_ROWS) {
       rows.pop();
@@ -1748,7 +1748,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   const exportContactIds = rows.map((row) => row.id);
   for (let i = 0; i < exportContactIds.length; i += IMPORT_CHUNK) {
     const chunk = exportContactIds.slice(i, i + IMPORT_CHUNK);
-    const joins = unwrap<TagJoinRow[]>(
+    const joins = unwrap<unknown>(
       await db
         .from("conversations")
         .select("contact_id,conversation_tags(tags(name))")
@@ -1756,7 +1756,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
         .is("deleted_at", null)
         .in("contact_id", chunk),
       "contacts export tags",
-    );
+    ) as TagJoinRow[];
     for (const join of joins) {
       const set = tagsByContact.get(join.contact_id) ?? new Set<string>();
       for (const entry of join.conversation_tags ?? []) {
@@ -1803,7 +1803,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       csvSafeText(row.notes ?? null),
       csvSafeText((row.contact_phones ?? []).map(({ phone_e164 }) => phone_e164).sort().join(";")),
       optedOut.has(row.phone_e164) ? "true" : null,
-      row.custom_fields && Object.keys(row.custom_fields).length ? csvSafeText(JSON.stringify(row.custom_fields)) : null,
+      row.custom_fields && Object.keys(row.custom_fields).length > 0 ? csvSafeText(JSON.stringify(row.custom_fields)) : null,
     ]),
   ];
   // #587: the byte-order mark and the download headers now come from
@@ -1902,7 +1902,7 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
         .select(CONTACT_COLUMNS);
   const collision = contactNumberConflict(write.error);
   if (collision) return contactNumberTaken(c, collision);
-  const rows = unwrap<Record<string, unknown>[]>(write, live ? "contact update" : "contact upsert");
+  const rows = unwrap<unknown>(write, live ? "contact update" : "contact upsert") as Record<string, unknown>[];
   if (live && rows.length === 0) {
     const owner = await contactNumberOwner(db, companyId, phone);
     return owner ? contactNumberTaken(c, owner.id) : errorResponse(c, "not_found", "No such contact.");
@@ -2096,7 +2096,7 @@ async function contactRelationship(
       conversation_count: counted.count ?? 0,
       first_conversation_at: firstRows[0]?.created_at ?? null,
     };
-  } catch (cause) {
+  } catch (error) {
     // A summary is decoration. The contact panel failing to open because a
     // count query failed would be a bad trade, and "no history" reads as a
     // first-time caller — which is the safe direction to be wrong in.
@@ -2106,7 +2106,7 @@ async function contactRelationship(
     // silently includes numbers the member is kept off.
     console.error(
       `contact relationship for ${args.contactId} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return { conversation_count: 0, first_conversation_at: null };
   }
@@ -2275,7 +2275,7 @@ async function validateCustomFields(
   companyId: string,
   values: Record<string, string>,
 ): Promise<Record<string, string>> {
-  if (!Object.keys(values).length) return {};
+  if (Object.keys(values).length === 0) return {};
 
   return checkCustomFields(await contactFieldDefinitions(db, companyId), values);
 }
@@ -2564,18 +2564,18 @@ contactsRoutes.post(
     let parsed: CsvRow[];
     try {
       parsed = parseCsvRows(text);
-    } catch (cause) {
+    } catch (error) {
       // An unterminated quote swallows every following row to EOF, and the
       // import used to answer 200 with ordinary counts and no error row for the
       // contacts it ate. Refused whole, naming the line, because the parser
       // cannot say which rows it lost — see CsvUnterminatedQuoteError.
-      if (cause instanceof CsvUnterminatedQuoteError) {
+      if (error instanceof CsvUnterminatedQuoteError) {
         throw new ApiError(
           "validation_failed",
-          contactImportUnterminatedQuoteMessage(cause.line),
+          contactImportUnterminatedQuoteMessage(error.line),
         );
       }
-      throw cause;
+      throw error;
     }
     const rows = parsed.map((row) => row.cells);
     if (rows.length < 2) {
@@ -2825,7 +2825,7 @@ contactsRoutes.post(
       if (rawCustom) {
         try {
           const custom = importCustomFields(rawCustom, fieldDefinitions);
-          if (Object.keys(custom).length) profile.custom_fields = custom;
+          if (Object.keys(custom).length > 0) profile.custom_fields = custom;
         } catch (error) {
           if (!(error instanceof SyntaxError) && !(error instanceof ApiError)) throw error;
           warnings.push({ row: rowNumber, reason: error instanceof ApiError ? error.message : "Invalid custom fields JSON." });
@@ -2900,7 +2900,7 @@ contactsRoutes.post(
         newlyOptedOut,
         ids,
       );
-    } catch (cause) {
+    } catch (error) {
       // A half-finished import that leaves no trace is the part of #248's D4
       // that a job table would have fixed by accident. This fixes it directly:
       // the audit log carries the attempt, so "where did these 200 contacts
@@ -2929,7 +2929,7 @@ contactsRoutes.post(
           outcome: "failed",
         },
       });
-      throw cause;
+      throw error;
     }
 
     const imported = writtenPhones.filter((p) => !existingPhones.has(p)).length;
@@ -3052,20 +3052,20 @@ contactsRoutes.post(
     let cards;
     try {
       cards = parseVCards(text);
-    } catch (cause) {
+    } catch (error) {
       // #528: a .vcf whose STRUCTURE cannot be read is refused whole, the same
       // way an unterminated CSV quote is. Both alternatives are worse: reading
       // it partially imports contacts assembled from lines nobody looked at,
       // and a 500 tells the operator nothing they can act on.
-      if (cause instanceof VCardMalformedError) {
+      if (error instanceof VCardMalformedError) {
         throw new ApiError(
           "validation_failed",
-          cause.kind === "merged-card"
-            ? contactImportVCardMergedCardMessage(cause.line)
-            : contactImportVCardNamelessPropertyMessage(cause.line),
+          error.kind === "merged-card"
+            ? contactImportVCardMergedCardMessage(error.line)
+            : contactImportVCardNamelessPropertyMessage(error.line),
         );
       }
-      throw cause;
+      throw error;
     }
     if (cards.length === 0) {
       throw new ApiError(
@@ -3245,7 +3245,7 @@ contactsRoutes.post(
         newlyOptedOut,
         ids,
       );
-    } catch (cause) {
+    } catch (error) {
       // Same reason as the CSV route: a partial import that left no audit row
       // is a set of contacts nobody can account for. See there.
       await recordAuditFromRequest(db, c, {
@@ -3262,7 +3262,7 @@ contactsRoutes.post(
           outcome: "failed",
         },
       });
-      throw cause;
+      throw error;
     }
 
     const imported = writtenPhones.filter((p) => !existingPhones.has(p)).length;
@@ -3520,32 +3520,21 @@ contactsRoutes.post(
       return errorResponse(c, "not_found", "No such contact.");
     }
 
-    let tag: ContactTagRef;
-    if (body.tag_id !== undefined) {
-      const rows = unwrap<ContactTagRef[]>(
-        await db
-          .from("tags")
-          .select("id,name,color")
-          .eq("company_id", companyId)
-          .eq("id", body.tag_id)
-          .limit(1),
-        "tag lookup",
-      );
-      if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-      tag = rows[0];
-    } else {
+    let tagRows: ContactTagRef[];
+    if (body.tag_id === undefined) {
       const rows = unwrap<
         (ContactTagRef & { refused: boolean; reason: string | null })[]
       >(
         await db.rpc("api_find_or_create_tag", {
           p_company_id: companyId,
-          p_name: body.name as string,
+          p_name: body.name!,
           p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
         }),
         "tag find-or-create",
       );
-      if (rows[0]?.refused === true) {
-        if (rows[0].reason === "at_ceiling") {
+      const tagRow = rows.at(0);
+      if (tagRow?.refused === true) {
+        if (tagRow.reason === "at_ceiling") {
           return errorResponse(
             c,
             "conflict",
@@ -3561,9 +3550,20 @@ contactsRoutes.post(
         );
       }
       if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-      tag = rows[0];
+      tagRows = rows;
+    } else {
+      tagRows = unwrap<ContactTagRef[]>(
+        await db
+          .from("tags")
+          .select("id,name,color")
+          .eq("company_id", companyId)
+          .eq("id", body.tag_id)
+          .limit(1),
+        "tag lookup",
+      );
+      if (!tagRows[0]) return errorResponse(c, "not_found", "No such tag.");
     }
-
+    const [tag] = tagRows;
     const attached = unwrap<unknown[]>(
       await db
         .from("contact_tags")
@@ -3697,7 +3697,7 @@ contactsRoutes.post(
       return c.json({ action: body.action, matched: ids.length, applied, failed });
     }
 
-    const tagId = body.tag_id as string;
+    const tagId = body.tag_id!;
     const tagRows = unwrap<{ id: string }[]>(
       await db
         .from("tags")

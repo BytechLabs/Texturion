@@ -62,10 +62,10 @@ describe("calendar credential envelope", () => {
 
     await expect(
       openCalendarCredential(refresh, verifierContext, KEYRING),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ name: "OperationError" });
     await expect(
       openCalendarCredential(verifier, CONTEXT, KEYRING),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ name: "OperationError" });
 
   });
 
@@ -77,10 +77,10 @@ describe("calendar credential envelope", () => {
         { ...CONTEXT, userId: "33333333-3333-4333-8333-333333333333" },
         KEYRING,
       ),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ name: "OperationError" });
     await expect(
       openCalendarCredential(sealed, { ...CONTEXT, provider: "microsoft" }, KEYRING),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ name: "OperationError" });
   });
 
   it("fails closed for a missing or malformed key version", async () => {

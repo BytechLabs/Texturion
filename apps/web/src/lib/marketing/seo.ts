@@ -38,7 +38,7 @@ function fitDescription(description: string): string {
   const shortened = description.slice(0, DESCRIPTION_LENGTH - 1);
   const wordEnd = shortened.lastIndexOf(" ");
   const completeWords = wordEnd > 0 ? shortened.slice(0, wordEnd) : shortened;
-  return /[.!?]$/u.test(completeWords) ? completeWords : completeWords + "…";
+  return /[.!?]$/u.test(completeWords) ? completeWords : `${completeWords}…`;
 }
 
 /**

@@ -122,7 +122,7 @@ describe("the D49 ladder", () => {
         phoneE164: phone,
         atUtc: new Date("2026-07-27T01:00:00Z"),
       });
-      expect(clock.timezone).toBeTruthy();
+      expect(Boolean(clock.timezone)).toBe(true);
       expect(clock.localHour).toBeGreaterThanOrEqual(0);
       expect(clock.localHour).toBeLessThanOrEqual(23);
     }
@@ -272,15 +272,13 @@ describe("only the resolver decides quiet hours (#292)", () => {
   const THE_RESOLVER = "messaging/destination-clock.ts";
 
   function productionSources(): string[] {
-    const found: string[] = [];
     /**
      * #492: delegated to the one shared reader — `withFileTypes` instead of a
      * `statSync` per entry, memoised, one definition of "a production source
      * file" instead of ten, and an IO failure that says it is one rather than
      * surfacing as whatever this suite asserts about.
      */
-    found.push(...readProductionSources(SRC));
-    return found;
+    return [...readProductionSources(SRC)];
   }
 
   const repoPath = (file: string) =>
@@ -394,7 +392,7 @@ describe("#225 — a held message is released INTO the window, not at 8am", () =
         timeZone: "America/Chicago",
         hour: "numeric",
         hour12: false,
-      }).format(opens as Date),
+      }).format(opens!),
     ).toBe("12");
   });
 
@@ -409,7 +407,7 @@ describe("#225 — a held message is released INTO the window, not at 8am", () =
         timeZone: "America/Chicago",
         hour: "numeric",
         hour12: false,
-      }).format(opens as Date),
+      }).format(opens!),
     ).toBe("08");
   });
 

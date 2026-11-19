@@ -83,9 +83,9 @@ describe("parseLocalInput (#539)", () => {
 describe("SendLaterDialog clock switch (#539)", () => {
   it("offers the switch when the customer's clock differs from the reader's", () => {
     open(VANCOUVER);
-    expect(screen.getByRole("group", { name: "Which clock" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Your time" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Their time" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Which clock" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Your time" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Their time" })).toBeInstanceOf(Element);
   });
 
   it("starts on the reader's own clock", () => {
@@ -165,8 +165,8 @@ describe("SendLaterDialog clock switch (#539)", () => {
     // Somebody navigating by label must not have to find the segmented control
     // to know which clock they are typing in.
     open(VANCOUVER);
-    expect(screen.getByLabelText("Send date and time, your time")).toBeTruthy();
+    expect(screen.getByLabelText("Send date and time, your time")).toBeInstanceOf(Element);
     fireEvent.click(screen.getByRole("button", { name: "Their time" }));
-    expect(screen.getByLabelText("Send date and time, their time")).toBeTruthy();
+    expect(screen.getByLabelText("Send date and time, their time")).toBeInstanceOf(Element);
   });
 });

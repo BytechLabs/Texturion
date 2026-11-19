@@ -80,7 +80,8 @@ describe("#691 opt-out survives deletion", () => {
     );
     expect(thread.status).toBe(200);
     expect(contact.status).toBe(200);
-    expect(await contact.json()).toEqual({ kind: "contact", id: CONTACT_ID });
+    const responseBody = await contact.json();
+    expect(responseBody).toEqual({ kind: "contact", id: CONTACT_ID });
     expect(sb.calls.filter((call) => call.path.includes("opt_outs"))).toHaveLength(0);
     // The contact is soft-deleted in place, not removed: the PATCH sets a stamp.
     expect(sb.find("DELETE", "/rest/v1/contacts")).toHaveLength(0);

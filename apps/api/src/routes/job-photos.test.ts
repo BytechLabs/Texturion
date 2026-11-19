@@ -55,7 +55,7 @@ function crew(options: { role?: string; line?: NumberAccessLevel } = {}): Supaba
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "admin"),
   );
-  const line = options.line;
+  const { line } = options;
   if (line === undefined) {
     sb.on("GET", "/rest/v1/tasks", () => [{ id: TASK_ID, conversation_id: null }]);
   } else {
@@ -164,7 +164,7 @@ describe("minting a link (#294)", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { url: string; expires_at: string };
+    const body = await res.json<{ url: string; expires_at: string }>();
     expect(body.url).toContain("/photos/");
     expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now());
 
@@ -180,7 +180,7 @@ describe("minting a link (#294)", () => {
     });
     // An expiry is never null. A link nobody remembers is the failure D75 exists
     // to prevent, and it cannot be represented.
-    expect(mint.p_expires_at).toBeTruthy();
+    expect(Boolean(mint.p_expires_at)).toBe(true);
     // #294: the moment a record of the inside of somebody's home became reachable
     // without a login.
     expect(
@@ -310,8 +310,11 @@ describe("who may share a job's photos (#294)", () => {
     );
   }
 
-  for (const method of ["POST", "DELETE"] as const) {
-    it(`${method}: a member who can text on the job's line may`, async () => {
+  const linkMethods = ["POST", "DELETE"] as const;
+
+  it.each(linkMethods)(
+    "%s: a member who can text on the job's line may",
+    async (method) => {
       // The tech standing in front of the customer is the one who shares.
       const sb = crew({ role: "member", line: "text" });
 
@@ -319,50 +322,62 @@ describe("who may share a job's photos (#294)", () => {
 
       expect(res.status).toBe(200);
       expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(1);
-    });
+    },
+  );
 
-    it(`${method}: a read-only observer may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a read-only observer may not",
+    async (method) => {
       const sb = crew({ role: "read_only" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a bookkeeper may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a bookkeeper may not",
+    async (method) => {
       const sb = crew({ role: "bookkeeper" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a member held to notes on the job's line may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a member held to notes on the job's line may not",
+    async (method) => {
       const sb = crew({ role: "member", line: "note" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(NOTE_ONLY_MESSAGE);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a member denied the job's line is told there is no such job`, async () => {
+  it.each(linkMethods)(
+    "%s: a member denied the job's line is told there is no such job",
+    async (method) => {
       // The same answer as a wrong id, so a hidden line cannot be found by probing.
       const sb = crew({ role: "member", line: "none" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(404);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "not_found", message: "No such job." },
       });
       expect(linksTouched(sb)).toBe(0);
-    });
-  }
+    },
+  );
 
   it("a member sharing a job with no conversation is not asked about a line", async () => {
     const sb = crew({ role: "member" });
@@ -385,10 +400,10 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       business_name: string;
       photos: { work_phase: string | null; url: string }[];
-    };
+    }>();
     expect(body.business_name).toBe("Acme Plumbing");
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].work_phase).toBe("after");
@@ -431,7 +446,7 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-clean"]);
   });
 
@@ -493,7 +508,7 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("not_found");
     // Not one word about a plan, an allowance, or a period.
     for (const leak of ["plan", "allowance", "billing", "GB", "period"]) {
@@ -524,10 +539,10 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       photos: unknown[];
       truncated: boolean;
-    };
+    }>();
     expect(body.photos).toHaveLength(200);
     expect(body.truncated).toBe(true);
 
@@ -555,7 +570,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    expect(await res.json()).toMatchObject({ truncated: false });
+    await expect(res.json()).resolves.toMatchObject({ truncated: false });
   });
 
   it("carries the no-index headers on the way out", async () => {
@@ -599,7 +614,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-img"]);
   });
 
@@ -659,7 +674,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-before", "att-after"]);
   });
 });
@@ -673,21 +688,22 @@ describe("a link that does not work (#294)", () => {
     ["never existed", { ok: false, outcome: "not_found" }],
   ] as const;
 
-  for (const [name, resolved] of failures) {
-    it(`says the same thing for a link that ${name}`, async () => {
+  it.each(failures)(
+    "says the same thing for a link that %s",
+    async (_value1, resolved) => {
       // A holder who can tell these apart has been handed an oracle (D75).
-      const sb = visitor({ resolved: resolved as Record<string, unknown> });
+      const sb = visitor({ resolved });
       stubFetch(sb.route);
 
       const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
       expect(res.status).toBe(404);
-      expect(await res.json()).toMatchObject({ error: { code: "not_found" } });
+      await expect(res.json()).resolves.toMatchObject({ error: { code: "not_found" } });
       // And nothing was read about a workspace it could not verify access to.
       expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
       expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
-    });
-  }
+    },
+  );
 
   it("never asks the database about a token of the wrong shape", async () => {
     // Hashing arbitrary input to run a query is free work an attacker controls

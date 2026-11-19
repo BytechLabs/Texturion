@@ -12,7 +12,6 @@ import type { Env } from "../env";
 import { restMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { effectiveCnamDisplayName, enableVoiceOnNumber, reconcileVoiceEnablement, sanitizeCnamDisplayName, syncCallSettingsForCompany } from './voice';
 import type { VoiceNumberRow } from './voice';
 
@@ -71,19 +70,18 @@ function numberUpdate(): Stub {
 
 /** #193: the settings read the post-bind catch-up push performs (its select
  *  names cnam_display_name, which discriminates it from other companies GETs). */
-function companySettingsGet(
-  row: Record<string, unknown> = {
-    name: "Ace Plumbing & Co.",
-    cnam_display_name: null,
-    call_screening: "flag",
-    caller_id_lookup: true,
-  },
-): Stub {
+function companySettingsGet(row?: Record<string, unknown>): Stub {
+  const settings = row ?? {
+        name: "Ace Plumbing & Co.",
+        cnam_display_name: null,
+        call_screening: "flag",
+        caller_id_lookup: true,
+      };
   return stubRoute(
     restMatch(env, "GET", "companies", (url) =>
       (url.searchParams.get("select") ?? "").includes("cnam_display_name"),
     ),
-    () => [row],
+    () => [settings],
   );
 }
 
@@ -98,7 +96,7 @@ function voiceSettingsPatch(): Stub {
 }
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 describe(enableVoiceOnNumber, () => {

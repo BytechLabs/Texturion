@@ -5,7 +5,8 @@
  * (developers.telnyx.com, the spec in telnyx-spec3.json): dial is
  * `POST /v2/calls`, every leg command `POST /v2/calls/<id>/actions/<name>`.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, type GuardRefusal, type LevelEvidence } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, stripTrailingSlashes } from "@loonext/rig-protocol";
+import type { GuardRefusal, LevelEvidence } from "@loonext/rig-protocol";
 
 export interface CallIds {
   call_control_id: string;
@@ -101,7 +102,7 @@ export class TelnyxApiError extends Error {
   /** Telnyx's error codes, never its detail text, which can quote a number back. */
   readonly codes: string[];
   constructor(status: number, path: string, codes: string[]) {
-    super(`Telnyx ${status} on ${path}${codes.length ? ` (${codes.join(", ")})` : ""}`);
+    super(`Telnyx ${status} on ${path}${codes.length > 0 ? ` (${codes.join(", ")})` : ""}`);
     this.name = "TelnyxApiError";
     this.status = status;
     this.codes = codes;
@@ -117,7 +118,7 @@ export interface GuardedTelnyxOptions {
 }
 
 export function telnyxBase(edgeOrigin: string): string {
-  return `${edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}`;
+  return `${stripTrailingSlashes(edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}`;
 }
 
 export class GuardedTelnyx implements CallControlApi {
@@ -129,7 +130,7 @@ export class GuardedTelnyx implements CallControlApi {
 
   constructor(options: GuardedTelnyxOptions) {
     this.#base = telnyxBase(options.edgeOrigin);
-    this.#evidence = `${options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.evidence}/level`;
+    this.#evidence = `${stripTrailingSlashes(options.edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.evidence}/level`;
     this.#token = options.token;
     this.#fetch = options.fetch ?? fetch;
     this.#timeoutMs = options.timeoutMs ?? 10_000;

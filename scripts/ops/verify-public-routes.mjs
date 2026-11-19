@@ -46,7 +46,7 @@ import { join } from "node:path";
 
 const args = process.argv.slice(2);
 const baseArg = args.indexOf("--base");
-const BASE = (baseArg >= 0 ? args[baseArg + 1] : "https://loonext.com").replace(
+const BASE = (baseArg === -1 ? "https://loonext.com" : args[baseArg + 1]).replace(
   /\/$/,
   "",
 );
@@ -72,7 +72,7 @@ function routes(dir, prefix = "", out = []) {
   }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const name = entry.name;
+    const { name } = entry;
     // A parallel/intercepted route or a private folder is not a URL.
     if (name.startsWith("@") || name.startsWith("_")) continue;
     const segment = name.startsWith("(") && name.endsWith(")") ? "" : `/${name}`;
@@ -108,8 +108,8 @@ async function ask(path) {
       headers: { "user-agent": "loonext-release-check" },
     });
     return res.status;
-  } catch (cause) {
-    return `network: ${String(cause?.message ?? cause).slice(0, 80)}`;
+  } catch (error) {
+    return `network: ${String(error?.message ?? error).slice(0, 80)}`;
   }
 }
 
@@ -146,13 +146,15 @@ if (dynamic.length > 0) {
 
 if (broken.length > 0) {
   console.error(
-    `Public routes: ${broken.length} of ${paths.length} do not answer on ${BASE}.\n` +
-      broken.map((b) => `  ${String(b.status).padEnd(8)} ${b.path}`).join("\n") +
-      `\n\nThese are pages a visitor can reach from the site. A 500 here is ` +
-      `invisible to every other gate in this repo — the build is green, the ` +
-      `HTML prerenders, the route tests pass, and the URL is still broken. ` +
-      `That is exactly how three legal pages, including the published ` +
+    [
+      `Public routes: ${broken.length} of ${paths.length} do not answer on ${BASE}.\n`,
+      broken.map((b) => `  ${String(b.status).padEnd(8)} ${b.path}`).join("\n"),
+      `\n\nThese are pages a visitor can reach from the site. A 500 here is `,
+      `invisible to every other gate in this repo — the build is green, the `,
+      `HTML prerenders, the route tests pass, and the URL is still broken. `,
+      `That is exactly how three legal pages, including the published `,
       `accessibility statement, stayed 500 for months.`,
+    ].join(""),
   );
   process.exit(1);
 }

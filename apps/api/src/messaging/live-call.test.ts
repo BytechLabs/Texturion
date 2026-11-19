@@ -14,7 +14,6 @@ import type { Env } from "../env";
 import { restMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { buildConsultState, buildTransferState } from "./live-call";
 import { handleCallEvent } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";
@@ -34,7 +33,7 @@ afterEach(() => {
 });
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 function event(eventType: string, payload: Record<string, unknown>): TelnyxEvent {

@@ -94,9 +94,9 @@ const STATUS_LABEL_KEYS: Record<ConversationStatus, MessageKey> = {
 
 /** The `/inbox/:id` conversation id currently on the stage, or null. */
 function openConversationId(pathname: string): string | null {
-  const match = pathname.match(/^\/inbox\/([^/]+)$/);
+  const match = /^\/inbox\/([^/]+)$/.exec(pathname);
   if (!match) return null;
-  const id = match[1];
+  const [, id] = match;
   return id === "new" ? null : id;
 }
 
@@ -279,8 +279,7 @@ export function CommandPalette() {
   // the first arm lands, "No matches." once every arm is in and empty.
   const results = search.data;
   const noHits =
-    !!results &&
-    results.conversations.length === 0 &&
+    results?.conversations.length === 0 &&
     results.contacts.length === 0 &&
     results.tasks.length === 0 &&
     results.attachments.length === 0 &&

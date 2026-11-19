@@ -67,7 +67,7 @@ describe("#389 the disclosure says what each feature sends", () => {
     // apps/api/src/ai/disclosure.test.ts, which is where the constant the route
     // passes to PostgREST lives. This side checks it SURVIVED the translation.
     const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
-    expect(row, "the catch-up disclosure is missing").toBeTruthy();
+    expect(Boolean(row), "the catch-up disclosure is missing").toBe(true);
     for (const [language, table] of LANGUAGES) {
       expect(look(table, row!.sends), `${language} window`).toContain("40");
     }

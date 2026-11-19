@@ -4,7 +4,7 @@
  * only thing stubbed is the network edge, so "no request left" is a fact about
  * fetch, not a mock.
  */
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
@@ -133,7 +133,7 @@ describe("a simulated incoming call never dials", () => {
       body: JSON.stringify({ caller: "Robot" }),
     });
     expect(simulated.status).toBe(201);
-    const { session_id: sessionId } = (await simulated.json()) as { session_id: string };
+    const { session_id: sessionId } = await simulated.json<{ session_id: string }>();
     expect(sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
     const ringMe = await dispatch(rigEnv(), `/v1/calls/live/${sessionId}/ring-me`, {
@@ -316,7 +316,7 @@ describe("customer webhooks on the rig", () => {
     const result = await deliverWebhookBatch(getDb(env), env);
     expect(posted).toEqual([]);
     expect(result).toMatchObject({ delivered: 0, failed: 1 });
-    const update = sb.find("PATCH", "/rest/v1/webhook_deliveries")[0];
+    const [update] = sb.find("PATCH", "/rest/v1/webhook_deliveries");
     expect(update.body).toMatchObject({ status: "failed" });
   });
 

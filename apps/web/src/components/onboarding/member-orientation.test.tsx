@@ -98,10 +98,6 @@ function render(): string {
   return renderToStaticMarkup(<MemberOrientation />);
 }
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 beforeEach(() => {
   state.role = "member";
   state.firsts = { oriented: false };
@@ -118,6 +114,9 @@ beforeEach(() => {
   subscribe.mockClear();
   noteAsked.mockClear();
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 describe("who it opens for", () => {
   it("opens for a new member, on the first screen", () => {
@@ -224,11 +223,11 @@ describe("the joining note", () => {
   it("shows it once, on the first screen only", () => {
     state.joining = { data: { note: NOTE, from: "Dana" }, isPending: false };
     mount(<MemberOrientation />);
-    expect(screen.getByText(NOTE)).toBeTruthy();
+    expect(screen.getByText(NOTE)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Next"));
 
-    expect(screen.getByText("You answer as the business")).toBeTruthy();
+    expect(screen.getByText("You answer as the business")).toBeInstanceOf(Element);
     expect(screen.queryByText(NOTE)).toBeNull();
   });
 

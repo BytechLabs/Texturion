@@ -55,7 +55,7 @@ const publicOnly = args.includes("--public");
 // `--authed` is the other half, so the heavier job does not repeat cheap work.
 const authedOnly = args.includes("--authed");
 const baseIndex = args.indexOf("--base");
-const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
+const base = baseIndex === -1 ? "http://localhost:3100" : args[baseIndex + 1];
 
 /**
  * The surfaces to audit. Deliberately SMALL — #320's devil's advocate is right
@@ -74,13 +74,13 @@ const AUDIT = () => {
   const parse = (css) => {
     const m = css.match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
-    const [r, g, b, a = "1"] = m[1].split(",").map((s) => parseFloat(s.trim()));
+    const [r, g, b, a = "1"] = m[1].split(",").map((s) => Number.parseFloat(s.trim()));
     return { r, g, b, a };
   };
   const lum = ({ r, g, b }) => {
     const ch = (c) => {
       const v = c / 255;
-      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
   };
@@ -99,7 +99,7 @@ const AUDIT = () => {
 
   /** The colour actually behind `el`, walking up until something paints. */
   const backdrop = (el) => {
-    let layers = [];
+    const layers = [];
     let node = el;
     while (node && node !== document.documentElement.parentNode) {
       const bg = parse(getComputedStyle(node).backgroundColor);
@@ -109,10 +109,10 @@ const AUDIT = () => {
       }
       node = node.parentElement;
     }
-    if (!layers.length) return null;
+    if (layers.length === 0) return null;
     // Bottom-most opaque layer up, compositing each translucent one onto it.
     let result = layers.pop();
-    while (layers.length) result = over(layers.pop(), result);
+    while (layers.length > 0) result = over(layers.pop(), result);
     return result;
   };
 
@@ -168,7 +168,7 @@ const AUDIT = () => {
     const asRgb = (value) => {
       const probe = document.createElement("span");
       probe.style.color = value;
-      document.body.appendChild(probe);
+      document.body.append(probe);
       const out = getComputedStyle(probe).color;
       probe.remove();
       return out;
@@ -237,7 +237,7 @@ const AUDIT = () => {
     if (own.length < 2) continue;
     const style = getComputedStyle(el);
     if (style.visibility === "hidden" || style.display === "none") continue;
-    if (parseFloat(style.opacity) < 0.5) continue;
+    if (Number.parseFloat(style.opacity) < 0.5) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width < 4 || rect.height < 4) continue;
 
@@ -247,8 +247,8 @@ const AUDIT = () => {
     const composited = fg.a < 0.999 ? over(fg, bg) : fg;
 
     // WCAG large text: >=24px, or >=18.66px bold.
-    const size = parseFloat(style.fontSize);
-    const weight = parseInt(style.fontWeight, 10) || 400;
+    const size = Number.parseFloat(style.fontSize);
+    const weight = Number.parseInt(style.fontWeight, 10) || 400;
     const large = size >= 24 || (size >= 18.66 && weight >= 700);
     const floor = large ? 3 : 4.5;
     const r = ratio(composited, bg);
@@ -333,7 +333,7 @@ const A11Y = (checkTapSize) => {
   const visible = (el) => {
     const style = getComputedStyle(el);
     if (style.display === "none" || style.visibility === "hidden") return false;
-    if (parseFloat(style.opacity || "1") === 0) return false;
+    if (Number.parseFloat(style.opacity || "1") === 0) return false;
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0;
   };
@@ -357,7 +357,8 @@ const A11Y = (checkTapSize) => {
     if (labelledby) {
       const text = labelledby
         .split(/\s+/)
-        .map((id) => document.getElementById(id)?.textContent?.trim() ?? "")
+        .filter(Boolean)
+        .map((id) => document.querySelector(`#${CSS.escape(id)}`)?.textContent?.trim() ?? "")
         .join(" ")
         .trim();
       if (text) return text;
@@ -542,7 +543,7 @@ const FOCUS_WALK = (maxStops) => {
   const lum = ({ r, g, b }) => {
     const ch = (c) => {
       const v = c / 255;
-      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
   };
@@ -575,7 +576,7 @@ const FOCUS_WALK = (maxStops) => {
   };
   const describe = (el) => {
     const cls = (el.className || "").toString().split(/\s+/).filter(Boolean).slice(0, 2);
-    return `${el.tagName.toLowerCase()}${cls.length ? "." + cls.join(".") : ""}`;
+    return `${el.tagName.toLowerCase()}${cls.length > 0 ? `.${cls.join(".")}` : ""}`;
   };
 
   const el = document.activeElement;
@@ -614,7 +615,7 @@ const FOCUS_WALK = (maxStops) => {
       .filter((pseudo) => pseudo.content !== "none" && pseudo.content !== "normal"),
   ];
   for (const drawn of drawnStyles) {
-    const outlineWidth = parseFloat(drawn.outlineWidth) || 0;
+    const outlineWidth = Number.parseFloat(drawn.outlineWidth) || 0;
     const hasOutline = drawn.outlineStyle !== "none" && outlineWidth > 0;
     if (hasOutline && !uaRing) {
       const c = parse(drawn.outlineColor);
@@ -643,8 +644,8 @@ const FOCUS_WALK = (maxStops) => {
       for (const layer of layers) {
         // Chrome serialises a layer as `<colour> <x> <y> <blur> <spread>`, so the
         // lengths come off in that order and `spread` may be absent.
-        const lengths = (layer.match(/-?[\d.]+px/g) || []).map(parseFloat);
-        const [, , blur = 0, spread = 0] = lengths;
+        const lengths = (layer.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+        const { 2: blur = 0, 3: spread = 0 } = lengths;
 
         // A RING, not any shadow that happens to be there.
         //
@@ -665,8 +666,8 @@ const FOCUS_WALK = (maxStops) => {
 
         // The colour is whatever is left once the lengths and keywords are gone.
         const colour = layer
-          .replace(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
-          .replace(/\binset\b/g, " ")
+          .replaceAll(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
+          .replaceAll(/\binset\b/g, " ")
           .trim();
         const c = parse(colour);
         if (c && c.a > 0.05) colours.push(c);
@@ -722,8 +723,8 @@ const FOCUS_WALK = (maxStops) => {
     el instanceof HTMLInputElement &&
     ["date", "time", "datetime-local", "month", "week"].includes(el.type);
   const already =
-    el.hasAttribute("data-audit-stop") && !(segmented && window.__auditLastStop === el);
-  el.setAttribute("data-audit-stop", "1");
+    el.dataset.auditStop !== undefined && !(segmented && window.__auditLastStop === el);
+  el.dataset.auditStop = "1";
   window.__auditLastStop = el;
 
   return {
@@ -840,7 +841,7 @@ async function login(context) {
 }
 
 const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
-if (!wanted.length) {
+  if (wanted.length === 0) {
   console.error("theme-audit: no surfaces selected — check the flags.");
   process.exit(1);
 }
@@ -854,7 +855,9 @@ for (const theme of ["light", "dark"]) {
   await context.addInitScript((t) => {
     try {
       window.localStorage.setItem("theme", t);
-    } catch {}
+    } catch {
+      // Initial documents can deny access to storage.
+    }
   }, theme);
   if (needsAuth) await login(context);
 
@@ -885,7 +888,7 @@ for (const theme of ["light", "dark"]) {
           } else {
             const target = page.locator(selector).first();
             if ((await target.count()) === 0) continue;
-            await target.click({ timeout: 5_000 }).catch(() => {});
+            await target.click({ timeout: 5000 }).catch(() => {});
           }
           await page.waitForTimeout(600);
           if ((await page.locator('[role="dialog"],[role="menu"]').count()) > 0) {
@@ -916,7 +919,7 @@ for (const theme of ["light", "dark"]) {
       // and dragged the whole app, sidebar included, up with it.
       if (surface.auth) {
         const overflow = await page.evaluate(() => {
-          const main = document.getElementById("main-content");
+          const main = document.querySelector("#main-content");
           main?.scrollTo(0, main.scrollHeight);
           const doc = document.scrollingElement;
           return doc ? doc.scrollHeight - doc.clientHeight : 0;
@@ -1078,7 +1081,7 @@ if (needsAuth) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle", timeout: 45_000 });
         await page.waitForTimeout(300);
         const overflow = await page.evaluate(() => {
-          const main = document.getElementById("main-content");
+          const main = document.querySelector("#main-content");
           main?.scrollTo(0, main.scrollHeight);
           const doc = document.scrollingElement;
           return doc ? doc.scrollHeight - doc.clientHeight : 0;
@@ -1116,8 +1119,7 @@ if (needsAuth) {
     });
   }
   console.log(
-    `theme-audit: swept ${swept} route/width pairs for document scroll` +
-      (skipped.length ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""),
+    `theme-audit: swept ${swept} route/width pairs for document scroll${skipped.length > 0 ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""}`,
   );
 }
 
@@ -1126,7 +1128,7 @@ await browser.close();
 /* ------------------------------------------------------------------------- */
 
 const audited = wanted.length * 2;
-if (!problems.length) {
+  if (problems.length === 0) {
   console.log(`theme-audit: ${audited} surface/theme combinations, no faults.`);
   process.exit(0);
 }
@@ -1155,7 +1157,7 @@ for (const kind of [
   "FOCUS-LOOP",
 ]) {
   const group = problems.filter((p) => p.kind === kind);
-  if (!group.length) continue;
+    if (group.length === 0) continue;
   console.error(`── ${kind} ─────────────────────────────────────────────`);
   for (const p of group) {
     console.error(`  [${p.theme}] ${p.surface}\n    ${p.what}\n    ${p.detail}`);

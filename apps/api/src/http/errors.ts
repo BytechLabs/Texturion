@@ -120,14 +120,14 @@ export function overloadedResponse(
     // Never throw from an error path; the envelope still ships.
   }
   const rayId = c.req.header("cf-ray") ?? undefined;
-  return new Response(
-    JSON.stringify({
+  return Response.json(
+    {
       error: {
         code: "service_unavailable",
         message: OVERLOADED_MESSAGE,
         ...(rayId ? { request_id: rayId } : {}),
       },
-    }),
+    },
     { status: ERROR_CODE_STATUS.service_unavailable, headers },
   );
 }

@@ -11,14 +11,14 @@ afterEach(cleanup);
 // The button lives inside a Tooltip; the provider is mounted app-wide in
 // AppProviders, so tests supply their own.
 vi.mock("@/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Tooltip: ({ children }: { children: React.ReactNode }) => children,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => children,
   TooltipContent: ({ children }: { children: React.ReactNode }) => (
     <span>{children}</span>
   ),
 }));
 
-describe("formatWrapUpClock", () => {
+describe(formatWrapUpClock, () => {
   it("reads as a recording clock, zero-padded", () => {
     expect(formatWrapUpClock(0)).toBe("0:00");
     expect(formatWrapUpClock(7)).toBe("0:07");
@@ -32,7 +32,7 @@ describe("formatWrapUpClock", () => {
   });
 });
 
-describe("WrapUpButton", () => {
+describe(WrapUpButton, () => {
   const noop = () => {};
 
   it("offers to dictate at rest, and to stop while recording", () => {
@@ -96,7 +96,7 @@ describe("WrapUpButton", () => {
   });
 });
 
-describe("WrapUpStrip", () => {
+describe(WrapUpStrip, () => {
   const noop = () => {};
 
   it("renders nothing at rest, so the composer does not grow a dead region", () => {
@@ -124,9 +124,9 @@ describe("WrapUpStrip", () => {
         onCancel={noop}
       />,
     );
-    expect(screen.getByText("Recording your wrap-up")).toBeTruthy();
-    expect(screen.getByText("0:12 / 2:00")).toBeTruthy();
-    expect(screen.getByText("Cancel")).toBeTruthy();
+    expect(screen.getByText("Recording your wrap-up")).toBeInstanceOf(Element);
+    expect(screen.getByText("0:12 / 2:00")).toBeInstanceOf(Element);
+    expect(screen.getByText("Cancel")).toBeInstanceOf(Element);
   });
 
   it("states the D117 line while the mic is open", () => {

@@ -44,7 +44,7 @@ describe(validateRegistry, () => {
         ]),
       );
     } catch (error) {
-      message = (error as Error).message;
+      ({ message } = (error as Error));
     }
     expect(message).toMatch(/\(s2\): id must be a scenario id/);
     expect(message).toMatch(/\(S03\): dials must be a whole number/);

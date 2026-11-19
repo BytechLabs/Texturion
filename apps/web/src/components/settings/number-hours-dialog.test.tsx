@@ -34,8 +34,6 @@ const WORKSPACE_WEEK = {
   tue: { open: "08:00", close: "17:00" },
 };
 
-afterEach(cleanup);
-
 beforeEach(() => {
   save.mockReset();
   save.mockResolvedValue(undefined);
@@ -45,6 +43,8 @@ beforeEach(() => {
     business_hours_exceptions: { value: [], inherited: true },
   };
 });
+
+afterEach(cleanup);
 
 function open() {
   render(<NumberHoursDialog numberId="n1" open onOpenChange={() => {}} />);
@@ -56,10 +56,10 @@ describe("#307 when this line is open", () => {
     // open today, and showing that before it changes is this dialog's job.
     open();
     expect(
-      (screen.getByLabelText("Monday open time") as HTMLInputElement).value,
+      screen.getByLabelText<HTMLInputElement>("Monday open time").value,
     ).toBe("08:00");
     expect(
-      (screen.getByLabelText("Monday close time") as HTMLInputElement).value,
+      screen.getByLabelText<HTMLInputElement>("Monday close time").value,
     ).toBe("17:00");
   });
 

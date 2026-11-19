@@ -26,11 +26,11 @@ export type BundleOpener = (privateKeyJwk: JsonWebKey, bundle: unknown) => Promi
 
 /** The edge's own opener, loaded where the repository has it. */
 export const edgeOpener: BundleOpener = async (privateKeyJwk, bundle) => {
-  const module = (await import(new URL("../../../edge/scripts/seal-bundle.mjs", import.meta.url).href)) as {
+  const sealer = (await import(new URL("../../../edge/scripts/seal-bundle.mjs", import.meta.url).href)) as {
     importRecipientKey(jwk: JsonWebKey): Promise<CryptoKey>;
     openBundle(key: CryptoKey, bundle: unknown): Promise<OpenedBundle>;
   };
-  return module.openBundle(await module.importRecipientKey(privateKeyJwk), bundle);
+  return sealer.openBundle(await sealer.importRecipientKey(privateKeyJwk), bundle);
 };
 
 export interface DeliveryResult {
@@ -52,7 +52,10 @@ export async function deliverSecrets(options: {
   });
   if (!response.ok) throw new Error(`rigd: /ctl/secrets answered ${response.status}`);
   const bundle: unknown = await response.json();
-  const opened = await (options.open ?? edgeOpener)(options.store.readJson<JsonWebKey>(BUNDLE_KEY_SECRET), bundle);
+  const opened = await (options.open ?? edgeOpener)(
+    options.store.readJson(BUNDLE_KEY_SECRET) as JsonWebKey,
+    bundle,
+  );
   if (!opened || typeof opened.secrets !== "object" || opened.secrets === null) {
     throw new Error("rigd: the bundle holds no secrets");
   }

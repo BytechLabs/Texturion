@@ -12,6 +12,7 @@
  * spread between the first and last subscriber for one event. What does not:
  * the hosted service's connection ceiling or these laptop milliseconds.
  */
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 
 import { createClient } from '@supabase/supabase-js';
@@ -147,7 +148,7 @@ async function completesBefore(
 beforeAll(async () => {
   h = await startHarness();
   const local = resolveLocalSupabasePublic();
-  expect(h.supabaseUrl).toBe(local.apiUrl);
+  assert.equal(h.supabaseUrl, local.apiUrl);
 
   const email = `${h.runId}-realtime@load.test`;
   const created = await h.db.auth.admin.createUser({
@@ -276,7 +277,7 @@ describe("#251 local Realtime fan-out", () => {
     `);
     const completed = await completesBefore(allDelivered, DELIVERY_DEADLINE_MS);
     // Give a duplicate frame a chance to reveal itself after the expected count.
-    if (completed) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (completed) await new Promise((resolve) => { setTimeout(resolve, 100); });
 
     const expectedFrames = SUBSCRIBERS * BROADCASTS;
     const perSubscriber = arrivals.map((received) => received.size);
@@ -300,7 +301,7 @@ describe("#251 local Realtime fan-out", () => {
     expect(missingFrames).toBe(0);
     expect(duplicateFrames).toBe(0);
     expect(invalidFrames).toBe(0);
-    expect(perSubscriber).toEqual(Array(SUBSCRIBERS).fill(BROADCASTS));
+    expect(perSubscriber).toEqual(Array.from({ length: SUBSCRIBERS }, () => BROADCASTS));
 
     // Emit only after every exact-delivery assertion. A failed run must not
     // leave a scrapeable line that claims this bound succeeded.

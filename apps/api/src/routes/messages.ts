@@ -360,7 +360,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   const messageId = pathUuid(c, "id");
   const db = getDb(env);
 
-  const rows = unwrap<MessageRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("messages")
       .select(MESSAGE_COLUMNS)
@@ -370,8 +370,8 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
       .is("deleted_at", null)
       .limit(1),
     "message lookup",
-  );
-  const message = rows[0];
+  ) as MessageRow[];
+  const [message] = rows;
   if (!message) throw new ApiError("not_found", "No such message.");
 
   // §7: retry an API-failure row — failed AND never assigned a Telnyx id
@@ -518,7 +518,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
 
   // Company-scoped fetch (§10): a message outside the caller's company is
   // indistinguishable from a missing one — 404 either way.
-  const rows = unwrap<MessageRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("messages")
       .select(MESSAGE_COLUMNS)
@@ -528,8 +528,8 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       .is("deleted_at", null)
       .limit(1),
     "message lookup",
-  );
-  const message = rows[0];
+  ) as MessageRow[];
+  const [message] = rows;
   if (!message) throw new ApiError("not_found", "No such message.");
 
   // #106: done/pin are workflow actions — any visible level ('note'+) may
@@ -664,7 +664,7 @@ function onPromotedMessageDone(
         .limit(1),
       "rating task lookup",
     );
-    const task = tasks[0];
+    const [task] = tasks;
     if (!task) return;
     await enqueueWebhookEvent(db, {
       companyId: input.companyId,
@@ -773,7 +773,7 @@ messageRoutes.get(
         .order("id", { ascending: false })
         .limit(count + 1);
       if (from) q = q.or(keysetFilter("created_at", from));
-      const rows = unwrap<Row[]>(await q, "messages list");
+      const rows = unwrap<unknown>(await q, "messages list") as Row[];
       return { rows: rows.slice(0, count), more: rows.length > count };
     };
     /** Up to `count` rows strictly newer than `from`, returned newest-first. */
@@ -783,7 +783,7 @@ messageRoutes.get(
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .limit(count + 1);
-      const rows = unwrap<Row[]>(await q, "messages newer list");
+      const rows = unwrap<unknown>(await q, "messages newer list") as Row[];
       return {
         rows: rows.slice(0, count).toReversed(),
         more: rows.length > count,
@@ -804,21 +804,21 @@ messageRoutes.get(
         );
       }
       const page = await newerThan(cursor, limit);
-      rows = page.rows;
+      ({ rows } = page);
       newerCursor = page.more && rows.length > 0 ? cursorOf(rows[0]) : null;
       // Continues downward from this page's oldest row, which is what lets a
       // client refetch a stack of newer pages by following next_cursor alone.
       nextCursor = rows.length > 0 ? cursorOf(rows[rows.length - 1]) : null;
     } else if (around === null) {
       const page = await olderThan(cursor, limit);
-      rows = page.rows;
+      ({ rows } = page);
       nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
     } else {
-      const anchors = unwrap<Row[]>(
+      const anchors = unwrap<unknown>(
         await base().eq("id", around).limit(1),
         "message anchor lookup",
-      );
-      const anchor = anchors[0];
+      ) as Row[];
+      const [anchor] = anchors;
       if (anchor) {
         anchorId = anchor.id;
         const half = Math.floor((limit - 1) / 2);
@@ -835,7 +835,7 @@ messageRoutes.get(
       } else {
         anchorMissing = true;
         const page = await olderThan(cursor, limit);
-        rows = page.rows;
+        ({ rows } = page);
         nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
       }
     }

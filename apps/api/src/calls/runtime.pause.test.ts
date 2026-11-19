@@ -148,7 +148,10 @@ async function inboundContext(world: InboundWorld) {
 /** What the REAL machine does with that context, the moment the caller rings. */
 function effectsFor(ctx: Awaited<ReturnType<typeof inboundContext>>["ctx"]): Effect[] {
   let n = 0;
-  return reduce(null, { type: "initiated", context: ctx }, 1000, () => `k${n += 1}`)
+  return reduce(null, { type: "initiated", context: ctx }, 1000, () => {
+    n += 1;
+    return `k${n}`;
+  })
     .effects;
 }
 

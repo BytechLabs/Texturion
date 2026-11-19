@@ -14,6 +14,7 @@ import { useMembers } from "@/lib/api/team";
 import { useUsage } from "@/lib/api/usage";
 import { useMemberFirsts } from "@/lib/api/me-company";
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
+import { readStorageFlag, useLocalStorageFlag, writeStorageFlag } from "@/lib/hooks/use-local-storage-flag";
 import { cn } from "@/lib/utils";
 
 /**
@@ -97,10 +98,7 @@ export function GettingStartedCard() {
 function MemberStartedCard() {
   const t = useT();
   const companyId = useCompanyId();
-  const [dismissed, setDismissed] = useState<boolean | null>(null);
-  useEffect(() => {
-    setDismissed(readFlag(MEMBER_DISMISS_KEY_PREFIX + companyId));
-  }, [companyId]);
+  const [dismissed, setDismissed] = useLocalStorageFlag(MEMBER_DISMISS_KEY_PREFIX + companyId, null);
   const firsts = useMemberFirsts(dismissed === false);
 
   if (dismissed !== false || !firsts.data) return null;
@@ -134,7 +132,6 @@ function MemberStartedCard() {
   if (items.every((item) => item.done)) return null;
 
   function dismiss() {
-    writeFlag(MEMBER_DISMISS_KEY_PREFIX + companyId);
     setDismissed(true);
   }
 
@@ -170,8 +167,8 @@ function OwnerStartedCard() {
   useEffect(() => {
     setRemembered({
       companyId,
-      dismissed: readFlag(DISMISS_KEY_PREFIX + companyId),
-      replied: readFlag(REPLIED_KEY_PREFIX + companyId),
+      dismissed: readStorageFlag(DISMISS_KEY_PREFIX + companyId),
+      replied: readStorageFlag(REPLIED_KEY_PREFIX + companyId),
     });
   }, [companyId]);
 
@@ -188,11 +185,11 @@ function OwnerStartedCard() {
     <OwnerChecklist
       replied={remembered.replied}
       onReplied={() => {
-        writeFlag(REPLIED_KEY_PREFIX + companyId);
+        writeStorageFlag(REPLIED_KEY_PREFIX + companyId);
         setRemembered({ ...remembered, replied: true });
       }}
       onDismiss={() => {
-        writeFlag(DISMISS_KEY_PREFIX + companyId);
+        writeStorageFlag(DISMISS_KEY_PREFIX + companyId);
         setRemembered({ ...remembered, dismissed: true });
       }}
     />
@@ -299,22 +296,6 @@ function OwnerChecklist({
       onDismiss={onDismiss}
     />
   );
-}
-
-function readFlag(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeFlag(key: string) {
-  try {
-    window.localStorage.setItem(key, "1");
-  } catch {
-    // Storage blocked: the answer holds for this visit only.
-  }
 }
 
 /**

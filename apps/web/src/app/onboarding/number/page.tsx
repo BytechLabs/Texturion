@@ -11,7 +11,7 @@ import {
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
 
-import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
+import { isFullNumber, NumberPicker } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ChoiceCards } from "@/components/ui/choice-cards";
@@ -36,12 +36,8 @@ import { cn } from "@/lib/utils";
 
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import {
-  draftOwesUsRegistration,
-  previousStepHref,
-  stepProgress,
-  type NumberMode,
-} from "../steps";
+import { draftOwesUsRegistration, previousStepHref, stepProgress } from "../steps";
+import type { NumberMode } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
 /**
@@ -171,8 +167,8 @@ export default function NumberStepPage() {
         });
         trackOnboardingStepCompleted("number");
         router.push(nextStep);
-      } catch (cause) {
-        onError(cause);
+      } catch (error) {
+        onError(error);
       }
       return;
     }
@@ -215,8 +211,8 @@ export default function NumberStepPage() {
       clearOnboardingDraft();
       trackOnboardingStepCompleted("number");
       router.push(nextStep);
-    } catch (cause) {
-      onError(cause);
+    } catch (error) {
+      onError(error);
     }
   }
 

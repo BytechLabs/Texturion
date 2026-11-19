@@ -100,10 +100,10 @@ describe("GET /v1/{contacts,conversations,calls}/:id/activity", () => {
       ],
     }));
     const response = await get(sb, `/v1/contacts/${RECORD_ID}/activity?limit=2`);
-    const json = (await response.json()) as {
+    const json = await response.json<{
       data: Record<string, unknown>[];
       next_cursor: string | null;
-    };
+    }>();
     expect(json.data).toHaveLength(2);
     expect(json.data[0]).toMatchObject({
       kind: "text_out",

@@ -92,7 +92,7 @@ describe("api client request building (G12)", () => {
       idempotencyKey: "key-123",
       body: { conversation_id: "c1", body: "hi" },
     });
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/messages/send");
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-token");
@@ -178,7 +178,7 @@ describe("api client request building (G12)", () => {
       companyId: "company-1",
       formData,
     });
-    const init = fetchSpy.mock.calls[0][1];
+    const [[, init]] = fetchSpy.mock.calls;
     const headers = init?.headers as Record<string, string>;
     expect(headers["Content-Type"]).toBeUndefined();
     expect(init?.body).toBe(formData);

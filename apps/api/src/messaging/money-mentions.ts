@@ -8,7 +8,7 @@ export function moneyAmounts(text: string): Set<string> {
       ? french.replaceAll(/[ \u00A0\u202F]/gu, "").replace(",", ".")
       : (groups?.prefixed ?? groups?.english ?? "").replaceAll(",", "");
     const [units, fraction = ""] = amount.split(".");
-    found.add(`${units!.replace(/^0+(?=\d)/u, "")}.${fraction.padEnd(2, "0")}`);
+    found.add(`${units.replace(/^0+(?=\d)/u, "")}.${fraction.padEnd(2, "0")}`);
   }
   return found;
 }

@@ -41,9 +41,9 @@ describe("#321 the entries report what shipped", () => {
 
   it("carries no future dates", () => {
     // Dating an entry ahead is the other way a roadmap gets in.
-    const today = new Date().toISOString().slice(0, 10);
+    const now = Date.now();
     for (const entry of WHATS_NEW) {
-      expect(entry.date <= today, `${entry.title} is dated ${entry.date}`).toBe(true);
+      expect(Date.parse(entry.date), `${entry.title} is dated ${entry.date}`).toBeLessThanOrEqual(now);
     }
   });
 

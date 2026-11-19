@@ -18,7 +18,6 @@ import type { Env } from "../env";
 import { messageReceivedEvent, restMatch, rpcMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
 import type { Stub, StubCall } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { handleInboundMessage } from "./inbound";
 import type { TelnyxEvent } from "./types";
 
@@ -95,7 +94,7 @@ function spamDefaults(): Stub[] {
 
 function serve(...stubs: Stub[]) {
   stubFetch(
-    ...([...stubs, ...spamDefaults()].map((s) => s.route) as FetchRoute[]),
+    ...[...stubs, ...spamDefaults()].map((s) => s.route),
   );
 }
 
@@ -442,7 +441,7 @@ describe("handleInboundMessage — #294/D128 the sender's own location", () => {
 
     expect(upload.calls, "the photo must still be stored").toHaveLength(1);
     expect(stored, "no bytes reached the bucket").toHaveLength(1);
-    const bytes = stored[0];
+    const [bytes] = stored;
     const latitude = bytes.slice(jpeg.latAt, jpeg.latAt + jpeg.latLength);
     expect(
       latitude.every((byte) => byte === 0),
@@ -748,7 +747,7 @@ describe("handleInboundMessage — notify runs before media download", () => {
           media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 4 }],
         }),
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("media download failed (HTTP 500)");
 
     // The §8 pipeline read the conversation → it ran BEFORE the media failure.
     expect(conversations.calls).toHaveLength(1);
@@ -918,12 +917,12 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     { status: 404, permanent: true },
     { status: 503, permanent: false },
   ])("keeps other attachments when a download returns $status", async ({ status, permanent }) => {
-    const mediaUrls = [MEDIA_URL + "0", MEDIA_URL + "1", MEDIA_URL + "2"];
+    const mediaUrls = [`${MEDIA_URL}0`, `${MEDIA_URL}1`, `${MEDIA_URL}2`];
     const downloads = stubRoute(
       (url, request) => request.method === "GET" && mediaUrls.includes(url.href),
       ({ url }) => url.href === mediaUrls[1]
         ? new Response(null, { status })
-        : new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+        : new Response(new Uint8Array([0xFF, 0xD8, 0xFF, 0xD9]), {
             headers: { "content-type": "image/jpeg" },
           }),
     );

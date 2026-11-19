@@ -70,8 +70,8 @@ export type HandoverPromptKind =
 export function viewerHandoverPrompt(
   state: HandoverViewer,
 ): HandoverPromptKind | null {
-  const pending = state.pending;
-  if (pending && pending.mine) {
+  const { pending } = state;
+  if (pending?.mine) {
     if (!pending.ready) {
       // Only a claim can be theirs and unripe: an offer ripens the moment it
       // is made (api_offer_ownership sets ripens_at = now()), so a pending
@@ -115,14 +115,18 @@ export function handoverPromptHeadline(
   say: SayHandover,
 ): string {
   switch (kind) {
-    case "accept_offer":
+    case "accept_offer": {
       return say("settings.handoverPromptOffered");
-    case "complete_claim":
+    }
+    case "complete_claim": {
       return say("settings.handoverPromptReady");
-    case "claim_waiting":
+    }
+    case "claim_waiting": {
       return say("settings.handoverPromptAsked");
-    case "backup_standing":
+    }
+    case "backup_standing": {
       return say("settings.handoverPromptBackup");
+    }
   }
 }
 
@@ -140,13 +144,16 @@ export function handoverPromptCancelLabel(
   say: SayHandover,
 ): string | null {
   switch (kind) {
-    case "accept_offer":
+    case "accept_offer": {
       return say("settingsMore.ownershipDecline");
+    }
     case "complete_claim":
-    case "claim_waiting":
+    case "claim_waiting": {
       return say("settings.handoverWithdraw");
-    case "backup_standing":
+    }
+    case "backup_standing": {
       return null;
+    }
   }
 }
 

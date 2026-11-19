@@ -18,10 +18,6 @@ vi.mock("@/lib/api/client", () => ({
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
 
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 type Item = { id: string; variant: AttachmentVariant };
 
 // Never reset: the loaded-thumbnail memory outlives a test, so every URL is new.
@@ -35,18 +31,22 @@ beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockImplementation(async (path: string, options: RequestOptions = {}) => {
     if (path !== "/v1/attachments/urls") throw new Error(`unexpected ${path}`);
-    const items = (options.body as { items: Item[] }).items;
+    const { items } = (options.body as { items: Item[] });
     return {
       data: items
         .filter((item) => !refuse.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          requested_variant: item.variant,
-          variant: served(item.variant),
-          url: `https://storage.test/${item.id}-${item.variant}-${++serial}`,
-          expires_at: "2026-11-13T12:00:00.000Z",
-          ttl_seconds: 300,
-        })),
+        .map(({ id, variant: requestedVariant }) => {
+          const variant = served(requestedVariant);
+          serial += 1;
+          return {
+            id,
+            requested_variant: requestedVariant,
+            variant,
+            url: `https://storage.test/${id}-${requestedVariant}-${serial}`,
+            expires_at: "2026-11-13T12:00:00.000Z",
+            ttl_seconds: 300,
+          };
+        }),
       errors: items
         .filter((item) => refuse.has(item.id))
         .map((item) => ({
@@ -58,6 +58,9 @@ beforeEach(() => {
     };
   });
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 const batches = () =>
   apiFetch.mock.calls.map(([, options]) => (options as RequestOptions).body);
@@ -109,8 +112,8 @@ describe("AttachmentItem image row", () => {
     fireEvent.load(container.querySelector("img")!);
 
     fireEvent.click(screen.getByRole("button", { name: "Open site.jpg" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInstanceOf(Element));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
 
     expect(batches()).toHaveLength(1);
   });
@@ -149,7 +152,9 @@ describe("AttachmentItem file row", () => {
 
     expect(prevented).toBe(true);
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
-    expect(await screen.findByText("This file was reported and is on hold.")).toBeTruthy();
+    await expect(
+      screen.findByText("This file was reported and is on hold."),
+    ).resolves.toBeInstanceOf(Element);
     expect(batches()).toEqual([
       { items: [{ id: "quote", variant: "original" }] },
       { items: [{ id: "quote", variant: "original" }] },

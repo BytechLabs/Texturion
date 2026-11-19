@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { apiFetch } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/error";
@@ -277,10 +278,10 @@ export default function BusinessIdentityPage() {
       await saveRegistration.mutateAsync({ companyId, brand });
       trackOnboardingStepCompleted("business");
       router.replace("/onboarding/setting-up");
-    } catch (cause) {
+    } catch (error) {
       setFormError(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("onboarding.genericError"),
       );
     }

@@ -39,7 +39,11 @@ export function judgePosture(postures, expectedEndpoints) {
   return null;
 }
 
-export class PostureMissing extends Error {}
+class PostureMissingError extends Error {
+  name = "PostureMissingError";
+}
+
+export { PostureMissingError as PostureMissing };
 
 async function readPosture(apiUrl, secretKey) {
   const response = await fetch(`${apiUrl}/rest/v1/rpc/rig_database_posture`, {
@@ -51,7 +55,7 @@ async function readPosture(apiUrl, secretKey) {
     },
     body: "{}",
   });
-  if (response.status === 404) throw new PostureMissing("this schema has no rig_database_posture()");
+  if (response.status === 404) throw new PostureMissingError("this schema has no rig_database_posture()");
   if (!response.ok) throw new Error(`rig_database_posture answered ${response.status}`);
   return response.json();
 }
@@ -66,7 +70,7 @@ async function waitForPostgrest(apiUrl, secretKey, timeoutMs = 90_000) {
       // still starting
     }
     if (Date.now() > deadline) throw new Error("rig bootstrap-db: PostgREST did not come back");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => { setTimeout(resolve, 1000); });
   }
 }
 
@@ -102,7 +106,7 @@ export async function bootstrapDb({ projectId, status, endpoints, preSeam = fals
   try {
     postures = await Promise.all(Array.from({ length: 8 }, () => readPosture(status.apiUrl, status.secretKey)));
   } catch (error) {
-    if (!(error instanceof PostureMissing) || !preSeam) throw error;
+    if (!(error instanceof PostureMissingError) || !preSeam) throw error;
     log("pre-seam ref: no rig_database_posture() to read; the database has no destination gate, the guard is the only one");
     return;
   }

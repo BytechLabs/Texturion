@@ -304,7 +304,7 @@ export function healthChecks(context) {
       const mismatches = tzMismatches(rows);
       context.published.node_tz = process.versions.tz ?? null;
       if (mismatches.length === 0) return null;
-      const first = mismatches[0];
+      const [first] = mismatches;
       return `Node (tz ${process.versions.tz}) and Postgres disagree at ${mismatches.length} probe(s), first ${first.zone} ${first.at}: ${first.node} vs ${first.postgres} minutes`;
     },
 

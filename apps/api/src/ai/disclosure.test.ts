@@ -53,10 +53,10 @@ function catalogueSentences(key: string): string[] {
     join(import.meta.dirname, "../../../../apps/web/src/i18n/sections/misc.ts"),
     "utf8",
   );
-  const name = key.split(".")[1];
+  const [, name] = key.split(".");
   const matches = [...file.matchAll(new RegExp(`^  ${name}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "gm"))];
   if (matches.length !== 2) throw new Error(`expected both catalogue entries for ${key}`);
-  return matches.map((match) => JSON.parse(match[1]) as string);
+  return matches.map(([, sentence]) => JSON.parse(sentence) as string);
 }
 
 
@@ -89,7 +89,7 @@ describe("every AI feature is publicly disclosed", () => {
 
   it("#247 — the catch-up's disclosure states the window it actually sends", () => {
     const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
-    expect(row, "the catch-up disclosure is missing").toBeTruthy();
+    expect(Boolean(row), "the catch-up disclosure is missing").toBe(true);
     const [sends] = catalogueSentences(row!.sends);
     expect(sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
     // And it must say what does NOT leave. Notes are excluded by the route's

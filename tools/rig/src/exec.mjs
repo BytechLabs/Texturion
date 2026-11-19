@@ -31,12 +31,15 @@ function childEnv(env) {
   return merged;
 }
 
-export class CommandFailed extends Error {
+class CommandFailedError extends Error {
   constructor(command, status, stderr) {
     super(`${command} exited with ${status}${stderr ? `: ${stderr.trim().split("\n").slice(-5).join(" | ")}` : ""}`);
+    this.name = "CommandFailedError";
     this.status = status;
   }
 }
+
+export { CommandFailedError as CommandFailed };
 
 /**
  * Runs to completion. Output is captured and returned unless `inherit` is
@@ -53,9 +56,9 @@ export function run(command, args = [], { cwd, env, input, inherit = false, allo
     stdio: inherit ? ["ignore", "inherit", "inherit"] : ["pipe", "pipe", "pipe"],
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (result.error) throw new CommandFailed(command, result.error.code ?? "error", "");
+  if (result.error) throw new CommandFailedError(command, result.error.code ?? "error", "");
   if (result.status !== 0 && !allowFailure) {
-    throw new CommandFailed(command, result.status, result.stderr ?? "");
+    throw new CommandFailedError(command, result.status, result.stderr ?? "");
   }
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }

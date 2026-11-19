@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -19,10 +19,10 @@ import { settingsSectionOf } from "@/components/settings/settings-nav";
  *   - a titled card has no id, or has an id the index does not list.
  */
 
-const SRC = path.resolve(__dirname, "../..");
+const SRC = resolve(__dirname, "../..");
 const ROOTS = [
-  path.join(SRC, "app", "(app)", "settings"),
-  path.join(SRC, "components", "settings"),
+  join(SRC, "app", "(app)", "settings"),
+  join(SRC, "components", "settings"),
 ];
 
 /**
@@ -37,7 +37,7 @@ const CONTENT_FILES = new Set([
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
-    const full = path.join(dir, name);
+    const full = join(dir, name);
     if (statSync(full).isDirectory()) return sourceFiles(full);
     return name.endsWith('.tsx') && !name.endsWith('.test.tsx') ? [full] : [];
   });
@@ -74,14 +74,14 @@ function scan() {
   const cards: Card[] = [];
   const ids = new Set<string>();
   for (const file of ROOTS.flatMap(sourceFiles)) {
-    const rel = path.relative(SRC, file).split(path.sep).join("/");
+    const rel = relative(SRC, file).split(sep).join("/");
     const source = readFileSync(file, "utf8");
     for (const match of source.matchAll(/\bid="([A-Za-z][\w-]*)"/g)) ids.add(match[1]);
     for (const match of source.matchAll(/<SettingsCard(?=[\s>])/g)) {
       const tag = openingTag(source, match.index + match[0].length);
       cards.push({
         file: rel,
-        id: tag.match(/\bid="([^"]+)"/)?.[1] ?? null,
+        id: /\bid="([^"]+)"/.exec(tag)?.[1] ?? null,
         titled: /\btitle=/.test(tag),
       });
     }

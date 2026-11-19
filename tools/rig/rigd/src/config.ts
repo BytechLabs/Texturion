@@ -116,13 +116,13 @@ export function parseCaps(text: string): DialCaps {
  * report, or no room in it, is 0: no paid call runs until the guard has said.
  */
 export function readRoom(config: Pick<RigdConfig, "home">): number {
-  const room = readState<{ room?: unknown }>(config.home, "health.json")?.room;
+  const room = (readState(config.home, "health.json") as { room?: unknown } | undefined)?.room;
   return typeof room === "number" && Number.isInteger(room) && room >= 0 ? room : 0;
 }
 
 /** The SHA `rig deploy` recorded in `state/deployed.json`; a verdict without one is refused. */
 export function readDeployedSha(config: Pick<RigdConfig, "home">): string {
-  const sha = readState<{ sha?: unknown }>(config.home, "deployed.json")?.sha;
+  const sha = (readState(config.home, "deployed.json") as { sha?: unknown } | undefined)?.sha;
   if (typeof sha !== "string" || sha === "") throw new Error("rigd: state/deployed.json names no sha; run rig deploy first");
   return sha;
 }

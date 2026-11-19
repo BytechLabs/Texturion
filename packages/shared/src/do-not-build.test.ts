@@ -37,13 +37,13 @@ describe("#323 the do-not-build table parses", () => {
     // A refusal with no decision behind it is an opinion, and somebody will
     // rightly overrule it.
     for (const { phrase, decidedBy } of refusals) {
-      expect(decidedBy, `"${phrase}" names no decision`).toBeTruthy();
+      expect(Boolean(decidedBy), `"${phrase}" names no decision`).toBe(true);
     }
   });
 
   it("throws rather than returning nothing when the heading moves", () => {
     // The whole failure mode: a guard that matches nothing reports success.
-    expect(() => parseRefusals("# Just a doc\n\nNo table here.\n")).toThrow();
+    expect(() => parseRefusals("# Just a doc\n\nNo table here.\n")).toThrow(/has no .* section/);
   });
 });
 

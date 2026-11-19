@@ -12,6 +12,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VoiceGreetingCard } from "./voice-greeting-card";
+import type * as VoicemailGreetings from "@/lib/api/voicemail-greetings";
 
 const {
   recordMutate,
@@ -31,7 +32,7 @@ const {
 
 vi.mock("@/lib/api/voicemail-greetings", async () => {
   const actual = await vi.importActual<
-    typeof import("@/lib/api/voicemail-greetings")
+    typeof VoicemailGreetings
   >("@/lib/api/voicemail-greetings");
   return {
     ...actual,
@@ -49,8 +50,6 @@ vi.mock("sonner", () => ({
 }));
 
 
-afterEach(cleanup);
-
 beforeEach(() => {
   recordMutate.mockReset().mockResolvedValue({});
   deleteMutate.mockReset().mockResolvedValue(undefined);
@@ -63,6 +62,8 @@ beforeEach(() => {
   toastError.mockReset();
   rows.current = [];
 });
+
+afterEach(cleanup);
 
 const GREETING = {
   id: "g1",
@@ -78,7 +79,7 @@ describe("#309 your own voice", () => {
     // A screen full of controls that never states the current position cannot
     // tell an owner whether they have already done this.
     render(<VoiceGreetingCard canEdit />);
-    expect(screen.getByText(/callers hear the written greeting/i)).toBeTruthy();
+    expect(screen.getByText(/callers hear the written greeting/i)).toBeInstanceOf(Element);
   });
 
   it("VC-2: there is no way to save a take nobody has heard", () => {
@@ -87,7 +88,7 @@ describe("#309 your own voice", () => {
     // thing people redo; saving the first take unheard assumes it was good.
     render(<VoiceGreetingCard canEdit />);
     expect(screen.queryByRole("button", { name: /save greeting/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /record/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /record/i })).toBeInstanceOf(Element);
   });
 
   it("VC-3: deleting asks first, and says what it costs", async () => {
@@ -100,7 +101,7 @@ describe("#309 your own voice", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete After hours" }));
 
     await waitFor(() =>
-      expect(screen.getByText(/back to the written words/i)).toBeTruthy(),
+      expect(screen.getByText(/back to the written words/i)).toBeInstanceOf(Element),
     );
     // Nothing has happened yet — the click opened a question, not a delete.
     expect(deleteMutate).not.toHaveBeenCalled();
@@ -124,7 +125,7 @@ describe("#309 your own voice", () => {
   it("VC-5: a member who cannot edit gets no controls, only the list", () => {
     rows.current = [GREETING];
     render(<VoiceGreetingCard canEdit={false} />);
-    expect(screen.getByText("After hours")).toBeTruthy();
+    expect(screen.getByText("After hours")).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: /record/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Delete/ })).toBeNull();
   });
@@ -155,11 +156,11 @@ describe("#309 your own voice", () => {
       value: { getUserMedia: () => Promise.reject(new Error("denied")) },
     });
     render(<VoiceGreetingCard canEdit />);
-    expect(screen.getByRole("button", { name: /rather do it on the phone/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /rather do it on the phone/i })).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByRole("button", { name: /record/i }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /have us call you/i })).toBeTruthy(),
+      expect(screen.getByRole("button", { name: /have us call you/i })).toBeInstanceOf(Element),
     );
   });
 
@@ -171,16 +172,16 @@ describe("#309 your own voice", () => {
     fireEvent.click(screen.getByRole("button", { name: /rather do it on the phone/i }));
 
     const name = await waitFor(() =>
-      screen.getByLabelText("Name it") as HTMLInputElement,
+      screen.getByLabelText<HTMLInputElement>("Name it"),
     );
     expect(name.value).toBe("After hours");
 
-    const to = screen.getByLabelText("Your number") as HTMLInputElement;
+    const to = screen.getByLabelText<HTMLInputElement>("Your number");
     // Typed, so the browser offers the number it already knows.
     expect(to.type).toBe("tel");
     // And there is nothing to call until they say where.
     expect(
-      (screen.getByRole("button", { name: /call me/i }) as HTMLButtonElement).disabled,
+      screen.getByRole<HTMLButtonElement>("button", { name: /call me/i }).disabled,
     ).toBe(true);
 
     fireEvent.change(to, { target: { value: "613 555 0199" } });
@@ -204,8 +205,8 @@ describe("#309 your own voice", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /call me/i }));
 
-    await waitFor(() => expect(screen.getByText(/wait for the beep/i)).toBeTruthy());
-    expect(screen.getByText(/hang up. it saves itself/i)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/wait for the beep/i)).toBeInstanceOf(Element));
+    expect(screen.getByText(/hang up. it saves itself/i)).toBeInstanceOf(Element);
     // Nothing was written by the call starting — the greeting arrives later.
     expect(recordMutate).not.toHaveBeenCalled();
   });
@@ -222,6 +223,6 @@ describe("#309 your own voice", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     // And the form is still there, with what they typed, rather than a
     // "waiting for your call" screen for a call nobody placed.
-    expect(screen.getByRole("button", { name: /call me/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /call me/i })).toBeInstanceOf(Element);
   });
 });

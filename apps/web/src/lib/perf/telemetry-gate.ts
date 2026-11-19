@@ -3,7 +3,7 @@ import { isAppSurfacePath } from "@/lib/app-surface";
 import { whenPageSettles } from "./after-lcp-and-load";
 
 /** The longest the app waits for an idle moment once the page has loaded. */
-const APP_IDLE_TIMEOUT_MS = 5_000;
+const APP_IDLE_TIMEOUT_MS = 5000;
 
 /**
  * When the browser telemetry SDKs may start downloading.

@@ -116,7 +116,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as { p_paths: string[] };
+        const body = await request.clone().json<{ p_paths: string[] }>();
         captured.inUseChecks.push(body);
         if (opts.inUseCheckFails) {
           return Response.json({ message: "boom" }, { status: 500 });
@@ -131,7 +131,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        const body = await request.clone().json<Captured["orphanScans"][0]>();
         captured.orphanScans.push(body);
         if (opts.orphanScanFails) {
           return Response.json({ message: "boom" }, {
@@ -148,7 +148,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["ghostScans"][0];
+        const body = await request.clone().json<Captured["ghostScans"][0]>();
         captured.ghostScans.push(body);
         return Response.json(opts.ghostIds ?? []);
       })();
@@ -163,7 +163,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        const body = await request.clone().json<Captured["orphanScans"][0]>();
         captured.mmsOrphanScans.push(body);
         return Response.json(opts.mmsOrphanPaths ?? []);
       })();
@@ -175,7 +175,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["ghostScans"][0];
+        const body = await request.clone().json<Captured["ghostScans"][0]>();
         captured.mmsGhostScans.push(body);
         return Response.json(opts.mmsGhostIds ?? []);
       })();
@@ -192,7 +192,7 @@ function stubSweepWorld(
       request.method === "DELETE"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as { prefixes: string[] };
+        const body = await request.clone().json<{ prefixes: string[] }>();
         captured.removes.push({ bucket: MMS_BUCKET, paths: body.prefixes });
         if (opts.removeFails) {
           return Response.json({ error: "boom", message: "boom" }, {
@@ -212,7 +212,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        const body = await request.clone().json<Captured["orphanScans"][0]>();
         captured.vmOrphanScans.push(body);
         return Response.json(opts.voicemailOrphanPaths ?? []);
       })();
@@ -224,7 +224,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["ghostScans"][0];
+        const body = await request.clone().json<Captured["ghostScans"][0]>();
         captured.vmGhostScans.push(body);
         return Response.json(opts.voicemailGhostIds ?? []);
       })();
@@ -236,7 +236,7 @@ function stubSweepWorld(
       request.method === "POST"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        const body = await request.clone().json<Captured["orphanScans"][0]>();
         captured.exportOrphanScans.push(body);
         return Response.json(opts.exportOrphanPaths ?? []);
       })();
@@ -246,7 +246,7 @@ function stubSweepWorld(
       request.method === "PATCH"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as Record<string, unknown>;
+        const body = await request.clone().json<Record<string, unknown>>();
         captured.callPatches.push({ url, body });
         return Response.json([]);
       })();
@@ -257,7 +257,7 @@ function stubSweepWorld(
       request.method === "DELETE"
     ) {
       return (async () => {
-        const body = (await request.clone().json()) as { prefixes: string[] };
+        const body = await request.clone().json<{ prefixes: string[] }>();
         const bucket = url.href.includes(VOICEMAILS_BUCKET)
           ? VOICEMAILS_BUCKET
           : EXPORTS_BUCKET;
@@ -280,7 +280,7 @@ function stubSweepWorld(
     // Supabase Storage remove() is a DELETE to /storage/v1/object/{bucket}.
     if (url.href.includes(removePath) && request.method === "DELETE") {
       return (async () => {
-        const body = (await request.clone().json()) as { prefixes: string[] };
+        const body = await request.clone().json<{ prefixes: string[] }>();
         captured.removes.push({ bucket: ATTACHMENTS_BUCKET, paths: body.prefixes });
         if (opts.removeFails) {
           return Response.json({ error: "boom", message: "boom" }, {
@@ -307,7 +307,7 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
 
     // Scan selects only soft-deleted rows older than the grace window: two
     // deleted_at predicates (not-null AND < cutoff) go on the URL.
-    const scan = captured.scans[0];
+    const [scan] = captured.scans;
     expect(scan.searchParams.getAll("deleted_at")).toEqual([
       "not.is.null",
       expect.stringMatching(/^lt\./),
@@ -428,7 +428,7 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
       );
       stubFetch(route);
 
-      await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+      await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
       expect(captured.removes).toHaveLength(0);
       expect(captured.deletes).toHaveLength(0);
     });
@@ -601,7 +601,7 @@ describe("#263 — the mms-media bucket gets both anti-joins too", () => {
     });
     stubFetch(route);
 
-    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
     expect(captured.mmsOrphanScans).toHaveLength(1);
     expect(captured.mmsRowDeletes).toHaveLength(1);
   });
@@ -682,7 +682,7 @@ describe("#479 — the two buckets nothing ever reclaimed", () => {
     });
     stubFetch(route);
 
-    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
 
     expect(captured.vmOrphanScans).toHaveLength(1);
     expect(captured.exportOrphanScans).toHaveLength(1);

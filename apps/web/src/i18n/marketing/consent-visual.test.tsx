@@ -20,14 +20,14 @@ afterEach(cleanup);
 describe("the consent records", () => {
   it("read as they always did in English", () => {
     render(<ConsentVisual />);
-    expect(screen.getByText(consentVisualEn.firstRecordLine)).toBeTruthy();
-    expect(screen.getByText(consentVisualEn.secondRecordDetail)).toBeTruthy();
+    expect(screen.getByText(consentVisualEn.firstRecordLine)).toBeInstanceOf(Element);
+    expect(screen.getByText(consentVisualEn.secondRecordDetail)).toBeInstanceOf(Element);
   });
 
   it("read in French when the route is French", () => {
     render(<ConsentVisual locale="fr-CA" />);
-    expect(screen.getByText(consentVisualFr.firstRecordLine)).toBeTruthy();
-    expect(screen.getByText(consentVisualFr.secondRecordDetail)).toBeTruthy();
+    expect(screen.getByText(consentVisualFr.firstRecordLine)).toBeInstanceOf(Element);
+    expect(screen.getByText(consentVisualFr.secondRecordDetail)).toBeInstanceOf(Element);
   });
 
   it("writes the dates the way French Canadian writes them", () => {
@@ -49,9 +49,9 @@ describe("the consent records", () => {
     for (const locale of ["en", "fr-CA"] as const) {
       cleanup();
       render(<ConsentVisual locale={locale} />);
-      expect(screen.getByText("Karen M")).toBeTruthy();
-      expect(screen.getByText("Nguyen family")).toBeTruthy();
-      expect(screen.getByText("(416) 555-0187")).toBeTruthy();
+      expect(screen.getByText("Karen M")).toBeInstanceOf(Element);
+      expect(screen.getByText("Nguyen family")).toBeInstanceOf(Element);
+      expect(screen.getByText("(416) 555-0187")).toBeInstanceOf(Element);
     }
   });
 

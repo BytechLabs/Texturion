@@ -110,7 +110,7 @@ describe("#228 the warning in French", () => {
     // have put the English word between the first two items and the French
     // one between the last two — in the same sentence.
     const warning = selfDowngradeWarning("owner", "member", sayFr);
-    expect(warning).toBeTruthy();
+    expect(Boolean(warning)).toBe(true);
     expect(warning).toContain(" et ");
     expect(warning).not.toMatch(/\band\b/);
     expect(warning, "a variable survived the fill").not.toMatch(/\{/);

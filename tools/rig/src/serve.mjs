@@ -144,5 +144,5 @@ export function serve(service, { root, layout, settings, store }) {
     child = start(bin, args, { cwd, env });
   }
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
-  return new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));
+  return new Promise((resolve) => { child.on("exit", (code) => resolve(code ?? 1)); });
 }

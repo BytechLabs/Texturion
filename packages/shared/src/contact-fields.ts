@@ -64,10 +64,10 @@ export function contactFieldKey(label: string): string | null {
   const key = label
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replaceAll(/[^a-z0-9]+/g, "_")
+    .replaceAll(/^_|_$/g, "")
     .slice(0, 40)
-    .replace(/_+$/g, "");
+    .replace(/_$/, "");
   // Must start with a letter: a key beginning with a digit is legal JSON and
   // an awkward column head, and the database refuses it anyway.
   if (!/^[a-z][a-z0-9_]*$/.test(key)) return null;
@@ -93,26 +93,31 @@ export function contactFieldValueError(
   }
 
   switch (def.kind) {
-    case "number":
+    case "number": {
       return Number.isFinite(Number(value))
         ? null
         : `${def.label} should be a number`;
-    case "date":
+    }
+    case "date": {
       // ISO date only. A crew typing "next Tuesday" into a date field is a
       // value nothing downstream can sort, filter or remind on.
       return /^\d{4}-\d{2}-\d{2}$/.test(value)
         ? null
         : `${def.label} should be a date`;
-    case "select":
+    }
+    case "select": {
       return (def.options ?? []).includes(value)
         ? null
         : `${def.label} is not one of the choices`;
-    case "checkbox":
+    }
+    case "checkbox": {
       return value === "yes" || value === "no"
         ? null
         : `${def.label} should be yes or no`;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 

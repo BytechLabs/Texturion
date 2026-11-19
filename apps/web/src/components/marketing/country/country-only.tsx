@@ -36,11 +36,11 @@ export function CountryOnly({
   children: ReactNode;
 }) {
   const { country: active } = useCountry();
-  return active === country ? <>{children}</> : null;
+  return active === country ? children : null;
 }
 
 /** Inline swap: render the `us` variant or the `ca` variant for the active country. */
 export function CountryText({ us, ca }: { us: ReactNode; ca: ReactNode }) {
   const { country } = useCountry();
-  return <>{country === "ca" ? ca : us}</>;
+  return country === "ca" ? ca : us;
 }

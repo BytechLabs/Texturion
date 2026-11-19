@@ -109,7 +109,7 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
   // credential row (the loser's freshly-minted Telnyx credential is deleted
   // best-effort — orphaned credentials cost nothing but hygiene matters).
   const existing = unwrap<CredentialRow[]>(credentialRes, "credential lookup");
-  let credential = existing[0];
+  let [credential] = existing;
 
   if (!credential) {
     const created = await telnyxRequest<{
@@ -145,7 +145,7 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
       "credential insert",
     );
     if (inserted.length > 0) {
-      credential = inserted[0];
+      ([credential] = inserted);
     } else {
       // Lost the race — another request created the row first. Use theirs,
       // delete ours (best-effort).
@@ -158,7 +158,7 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
           .limit(1),
         "credential re-read",
       );
-      credential = winner[0];
+      ([credential] = winner);
       try {
         await telnyxRequest(env, {
           method: "DELETE",

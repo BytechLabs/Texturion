@@ -115,7 +115,7 @@ calendarRoutes.get(
       "calendar feed status",
     );
 
-    const row = rows[0];
+    const [row] = rows;
     if (!row) return c.json({ active: false });
     return c.json({
       active: true,

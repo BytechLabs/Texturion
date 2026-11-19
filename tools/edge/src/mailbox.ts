@@ -98,7 +98,7 @@ export class RobotMailbox extends DurableObject<Env> {
   }
 
   private get(key: string): number | null {
-    const row = this.sql.exec<{ value: number }>("SELECT value FROM meta WHERE key = ?", key).toArray()[0];
+    const [row] = this.sql.exec<{ value: number }>("SELECT value FROM meta WHERE key = ?", key).toArray();
     return row ? row.value : null;
   }
 

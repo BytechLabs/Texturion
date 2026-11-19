@@ -102,7 +102,7 @@ function world(options: WorldOptions = {}): {
     if (url.pathname.startsWith("/storage/v1/object/list/")) {
       return Response.json((options.exportFiles ?? []).map((name) => ({ name })));
     }
-    const body = (await request.clone().json()) as { prefixes: string[] };
+    const body = await request.clone().json<{ prefixes: string[] }>();
     removed.push(...body.prefixes);
     return Response.json(body.prefixes.map((name) => ({ name })));
   };
@@ -115,11 +115,11 @@ function world(options: WorldOptions = {}): {
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
     emails.push(
-      (await request.clone().json()) as {
+      await request.clone().json<{
         to: string[];
         subject: string;
         text: string;
-      },
+      }>(),
     );
     return options.mailFails
       ? Response.json({ message: "boom" }, { status: 500 })
@@ -457,7 +457,7 @@ describe("purgeClosedWorkspaces — the export blob (#378)", () => {
 
     await purgeClosedWorkspaces(env);
 
-    const query = w.sb.find("GET", "/rest/v1/data_exports")[0];
+    const [query] = w.sb.find("GET", "/rest/v1/data_exports");
     expect(query?.url.href).not.toContain("expires_at");
     expect(w.removed).toContain(`${COMPANY_ID}/old/messages.csv`);
   });

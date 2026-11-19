@@ -18,7 +18,9 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
 }));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => null,
-  MicPermissionError: class MicPermissionError extends Error {},
+  MicPermissionError: class MicPermissionError extends Error {
+    override name = "MicPermissionError";
+  },
 }));
 vi.mock("@/components/calls/voicemail-player", () => ({
   screeningLabel: () => null,
@@ -58,8 +60,8 @@ const call = {
 } as unknown as Call;
 
 function listed(): string[] {
-  return Array.from(document.querySelectorAll('[role="menu"] [data-action]')).map(
-    (el) => el.getAttribute("data-action") ?? "",
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menu"] [data-action]')).map(
+    (el) => el.dataset.action ?? "",
   );
 }
 

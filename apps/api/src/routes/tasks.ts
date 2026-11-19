@@ -312,7 +312,7 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
       { referencedTable: "record_references" },
     );
   }
-  return q as never as T;
+  return q as never;
 }
 
 /**
@@ -341,7 +341,7 @@ function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
     .eq("calendar_hold.company_id", companyId)
     .in("calendar_hold.link_state", CALENDAR_HOLD_STATES)
     .is("calendar_hold", null);
-  return q as never as T;
+  return q as never;
 }
 
 /** The #690 filters as a list request or a bulk filter spells them. */
@@ -762,7 +762,7 @@ async function findTask(
   id: string,
   withDoneState = false,
 ): Promise<Record<string, unknown> | null> {
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("tasks")
       .select(withDoneState ? `${TASK_COLUMNS},${TASK_DONE_SELECT}` : TASK_COLUMNS)
@@ -771,7 +771,7 @@ async function findTask(
       .is("deleted_at", null)
       .limit(1),
     "task lookup",
-  );
+  ) as Record<string, unknown>[];
   return rows[0] ? withSource(rows[0]) : null;
 }
 
@@ -820,8 +820,17 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       }
     } else if (access.hiddenNumberIds !== null) {
       const sourceRows =
-        body.message_id !== undefined
+        body.message_id === undefined
           ? unwrap<{ conversation_id: string | null }[]>(
+              await db
+                .from("calls")
+                .select("conversation_id")
+                .eq("company_id", companyId)
+                .eq("id", body.source_call_id)
+                .limit(1),
+              "task call source lookup",
+            )
+          : unwrap<{ conversation_id: string | null }[]>(
               await db
                 .from("messages")
                 .select("conversation_id")
@@ -829,15 +838,6 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
                 .eq("id", body.message_id)
                 .limit(1),
               "task source lookup",
-            )
-          : unwrap<{ conversation_id: string | null }[]>(
-              await db
-                .from("calls")
-                .select("conversation_id")
-                .eq("company_id", companyId)
-                .eq("id", body.source_call_id as string)
-                .limit(1),
-              "task call source lookup",
             );
       if (sourceRows[0]?.conversation_id) {
         await requireConversationAccess(db, {
@@ -963,9 +963,9 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   if (result.outcome === "conflict") {
     throw new ApiError(
       "conflict",
-      body.message_id !== undefined
-        ? "This message is already a task."
-        : "This call is already a task.",
+      body.message_id === undefined
+        ? "This call is already a task."
+        : "This message is already a task.",
     );
   }
   if (!result.task) throw new Error("create_task returned no row");
@@ -1223,7 +1223,7 @@ function syncRemindersAfterWrite(
 const enrichSchema = z.union([
   z.strictObject({ source_call_id: z.uuid() }),
   z.object({
-    text: z.string().trim().min(1).max(20000),
+    text: z.string().trim().min(1).max(20_000),
     message_id: z.uuid().optional(),
     conversation_id: z.uuid().optional(),
   }),
@@ -1256,7 +1256,7 @@ async function loadEnrichmentContext(
       .limit(1),
     "enrichment company lookup",
   );
-  const company = companyRows[0];
+  const [company] = companyRows;
 
   let conversationId = opts.conversationId ?? null;
   if (!conversationId && opts.messageId) {
@@ -1319,7 +1319,7 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
 
   let source: { text: string; conversationId?: string; messageId?: string };
   if (fromVoicemail) {
-    const calls = unwrap<{
+    const [call] = unwrap<{
       conversation_id: string;
       phone_number_id: string | null;
       voicemail_intake: { address?: string | null } | null;
@@ -1335,7 +1335,6 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
       .not("voicemail_path", "is", null)
       .not("conversation_id", "is", null)
       .limit(1), "voicemail task source");
-    const call = calls[0];
     if (!call) return c.json(EMPTY_ENRICHMENT);
     await assertNumberLevel(db, {
       companyId,
@@ -1478,8 +1477,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     throw new ApiError("validation_failed", parsed.error.issues[0]?.message ?? "Check the task filters.");
   }
   const filters = parsed.data;
-  const sort = query.sort;
-  if (sort !== undefined && !["created", "due", "priority", "updated"].includes(sort)) {
+  if (query.sort !== undefined && !["created", "due", "priority", "updated"].includes(query.sort)) {
     throw new ApiError("validation_failed", "sort must be created, due, priority or updated.");
   }
 
@@ -1497,7 +1495,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     search: filters.q,
     priorities: filters.priority,
     tagId: filters.tag_id,
-    sort,
+    sort: query.sort,
     extraInput: filters,
     effectiveStatus: filters.status ?? (anyFilter ? undefined : "open"),
     assignee,
@@ -1672,10 +1670,10 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     contact_lng?: number | null;
     [key: string]: unknown;
   }
-  const rows = unwrap<TaskListRow[]>(
+  const rows = unwrap<unknown>(
     await query.limit(limit + 1),
     "tasks list",
-  );
+  ) as TaskListRow[];
 
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
@@ -1693,14 +1691,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       // it no pin could render), and strip the view-only columns from the row.
       const done = (row.done_at ?? null) !== null;
       const contact =
-        row.contact_id != null
-          ? {
+        row.contact_id == null
+          ? null
+          : {
               id: row.contact_id,
               name: row.contact_name ?? null,
               lat: row.contact_lat ?? null,
               lng: row.contact_lng ?? null,
-            }
-          : null;
+            };
       delete rest.done_at;
       delete rest.contact_id;
       delete rest.contact_name;
@@ -1779,11 +1777,12 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
   const db = getDb(getEnv(c.env));
   const q = parseTaskListQuery(c, userId);
   const extra = await resolveExtraTaskFilters(c, db, q.extraInput);
-  const embeds =
-    (q.tagId === undefined ? "" : ",task_tags!inner(tag_id)") +
-    (q.assignee === undefined ? "" : ",task_assignees!inner(user_id)") +
-    (extra.referencedHidden === undefined ? "" : REFERENCE_EMBED) +
-    `,${CALENDAR_HOLD_EMBED}`;
+  const embeds = [
+    q.tagId === undefined ? "" : ",task_tags!inner(tag_id)",
+    q.assignee === undefined ? "" : ",task_assignees!inner(user_id)",
+    extra.referencedHidden === undefined ? "" : REFERENCE_EMBED,
+    `,${CALENDAR_HOLD_EMBED}`,
+  ].join("");
 
   const { entries, withheld, capped } = await readTaskEntries(db, {
     companyId,
@@ -1959,7 +1958,7 @@ tasksRoutes.post(
     const userId = c.get("userId");
     const accessScope = { companyId, userId, role: c.get("role") };
     let access: Awaited<ReturnType<typeof resolveNumberAccess>> | undefined;
-    let ids = body.ids;
+    let { ids } = body;
     if (ids === undefined) {
       // Filter mode. The SAME builder the list uses, so what gets acted on is
       // what was on screen.
@@ -2003,10 +2002,10 @@ tasksRoutes.post(
         },
       );
       // The RPC applies at most 500 tasks and reports whether more matched.
-      const rows = unwrap<{ id: string }[]>(
+      const rows = unwrap<unknown>(
         await query.limit(1000),
         "tasks bulk filter",
-      );
+      ) as { id: string }[];
       ids = rows.map((row) => row.id);
       if (ids.length === 0) {
         // Nothing matched. Answered here rather than by the RPC, which requires
@@ -2104,7 +2103,7 @@ tasksRoutes.get(
       source_call: SourceCallRow | null;
       [key: string]: unknown;
     }
-    const rows = unwrap<ChecklistRow[]>(
+    const rows = unwrap<unknown>(
       await db
         .from("tasks")
         .select(`${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED}`)
@@ -2114,7 +2113,7 @@ tasksRoutes.get(
         .order("created_at", { ascending: true })
         .order("id", { ascending: true }),
       "conversation tasks",
-    );
+    ) as ChecklistRow[];
 
     // attachment_count: the size of the D28 derived union (source-message MMS
     // + linked-note files + legacy task rows) — the SAME loader the detail's
@@ -2369,7 +2368,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     messages: { id: string; body: string; done_at: string | null } | null;
     [key: string]: unknown;
   }
-  const rows = unwrap<DetailRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("tasks")
       .select(
@@ -2381,8 +2380,8 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
       .is("deleted_at", null)
       .limit(1),
     "task detail",
-  );
-  const row = rows[0];
+  ) as DetailRow[];
+  const [row] = rows;
   if (!row) {
     return errorResponse(c, "not_found", "No such task.");
   }
@@ -3033,32 +3032,21 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
     return errorResponse(c, "not_found", "No such task.");
   }
 
-  let tag: { id: string; name: string; color: string | null };
-  if (body.tag_id !== undefined) {
-    const rows = unwrap<{ id: string; name: string; color: string | null }[]>(
-      await db
-        .from("tags")
-        .select("id,name,color")
-        .eq("company_id", companyId)
-        .eq("id", body.tag_id)
-        .limit(1),
-      "tag lookup",
-    );
-    if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-    tag = rows[0];
-  } else {
+  let tagRows: { id: string; name: string; color: string | null }[];
+  if (body.tag_id === undefined) {
     const rows = unwrap<
       { id: string; name: string; color: string | null; refused: boolean; reason: string | null }[]
     >(
       await db.rpc("api_find_or_create_tag", {
         p_company_id: companyId,
-        p_name: body.name as string,
+        p_name: body.name!,
         p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
       }),
       "tag find-or-create",
     );
-    if (rows[0]?.refused === true) {
-      if (rows[0].reason === "at_ceiling") {
+    const tagRow = rows.at(0);
+    if (tagRow?.refused === true) {
+      if (tagRow.reason === "at_ceiling") {
         return errorResponse(
           c,
           "conflict",
@@ -3072,9 +3060,20 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
       );
     }
     if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-    tag = rows[0];
+    tagRows = rows;
+  } else {
+    tagRows = unwrap<{ id: string; name: string; color: string | null }[]>(
+      await db
+        .from("tags")
+        .select("id,name,color")
+        .eq("company_id", companyId)
+        .eq("id", body.tag_id)
+        .limit(1),
+      "tag lookup",
+    );
+    if (!tagRows[0]) return errorResponse(c, "not_found", "No such tag.");
   }
-
+  const [tag] = tagRows;
   const labels = await setTaskTags(db, { companyId, taskId: id, userId, add: [tag.id] });
   if (body.scope === "future") {
     await editTaskSeries(db, {

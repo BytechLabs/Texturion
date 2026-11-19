@@ -1,9 +1,5 @@
-import {
-  NANP_AREA_CODES,
-  type Locale,
-  type NanpCountry,
-  type NanpGeographicEntry,
-} from "@loonext/shared";
+import { NANP_AREA_CODES } from "@loonext/shared";
+import type { Locale, NanpCountry, NanpGeographicEntry } from "@loonext/shared";
 
 import {
   areaCodeRegionAliases,
@@ -57,7 +53,7 @@ export interface AreaCodeHint {
 /** "America/New_York" → "new york" (search matching only, never displayed). */
 function timezoneCity(timezone: string): string {
   const city = timezone.split("/").pop() ?? "";
-  return normalizePlaceSearch(city.replace(/_/g, " "));
+  return normalizePlaceSearch(city.replaceAll('_', " "));
 }
 
 function toHint(

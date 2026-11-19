@@ -162,7 +162,7 @@ function NewTaskForm({
     () =>
       parseQuickAdd(title, {
         now: new Date(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timeZone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
         selfUserId: me.data?.user_id ?? "",
         members: (members.data?.data ?? [])
           .filter((m) => m.deactivated_at === null && m.user_id !== null)

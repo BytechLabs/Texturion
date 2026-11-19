@@ -131,7 +131,7 @@ export const THREAD_SUMMARY_CHARS_PER_TOKEN = 4;
 
 /** Forty message bodies, speaker names and citation labels, plus the instructions. */
 export const THREAD_SUMMARY_MAX_PROMPT_CHARS = 19_500;
-export const THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS = 1_200;
+export const THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS = 1200;
 
 /**
  * WHAT ONE CATCH-UP COSTS AT ITS WORST, in cents — the derivation behind

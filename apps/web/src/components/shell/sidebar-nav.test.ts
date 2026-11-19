@@ -13,7 +13,7 @@ import type { MemberRole } from '@loonext/shared';
 
 import { navRowsFor } from "./sidebar";
 
-describe("navRowsFor", () => {
+describe(navRowsFor, () => {
   it("gives every role something to open", () => {
     // The property that matters most: whatever roles exist now or later, none
     // of them lands in an app with no navigation.
@@ -71,7 +71,7 @@ describe("navRowsFor", () => {
     // row added without a capability.
     for (const role of MEMBER_ROLES) {
       for (const row of navRowsFor(role)) {
-        expect(row.needs, `${role} → ${row.href}`).toBeTruthy();
+        expect(Boolean(row.needs), `${role} → ${row.href}`).toBe(true);
       }
     }
   });

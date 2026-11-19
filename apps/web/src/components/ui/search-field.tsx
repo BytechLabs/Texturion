@@ -7,25 +7,26 @@ import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
+type SearchFieldProps = Omit<React.ComponentProps<typeof Input>, "type" | "value" | "onChange"> & {
+  value: string;
+  onValueChange: (value: string) => void;
+  /** Defaults to "Clear search". */
+  clearLabel?: string;
+  containerClassName?: string;
+};
+
 /**
  * #733: the one search box. A search icon inside on the left, a clear button
  * on the right once there is something to clear, and focus kept in the field
  * when it is cleared so a keyboard user is not dropped to the page. Every list
  * and settings search draws this.
  */
-export const SearchField = forwardRef<
-  HTMLInputElement,
-  Omit<React.ComponentProps<typeof Input>, "type" | "value" | "onChange"> & {
-    value: string;
-    onValueChange: (value: string) => void;
-    /** Defaults to "Clear search". */
-    clearLabel?: string;
-    containerClassName?: string;
-  }
->((
-  { value, onValueChange, clearLabel, containerClassName, className, ...input },
-  forwardedRef,
-) => {
+export const SearchField = forwardRef(SearchFieldView);
+
+function SearchFieldView(
+  { value, onValueChange, clearLabel, containerClassName, className, ...input }: SearchFieldProps,
+  forwardedRef: React.ForwardedRef<HTMLInputElement>,
+) {
   const t = useT();
   const ownRef = useRef<HTMLInputElement | null>(null);
   return (
@@ -62,4 +63,4 @@ export const SearchField = forwardRef<
       )}
     </div>
   );
-});
+}

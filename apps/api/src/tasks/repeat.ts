@@ -134,7 +134,7 @@ export async function withLabelsAndRepeat<T extends Record<string, unknown>>(
       .eq("company_id", companyId)
       .in("task_id", taskIds)
       .then((res) =>
-        unwrap<{ task_id: string; tag: TaskLabel | null }[]>(res, "task labels"),
+        unwrap<unknown>(res, "task labels") as { task_id: string; tag: TaskLabel | null }[],
       ),
     seriesIds.length === 0
       ? Promise.resolve([] as SeriesRow[])

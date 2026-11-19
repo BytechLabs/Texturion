@@ -304,7 +304,7 @@ export async function startRigStack(): Promise<RigStack> {
       } catch {
         // already gone
       }
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => { setTimeout(resolve, 1500); });
       try {
         process.kill(-child.pid, "SIGKILL");
       } catch {
@@ -331,7 +331,7 @@ export async function startRigStack(): Promise<RigStack> {
       await stop();
       throw new Error(`the load Worker was not ready in time:\n${tail.slice(-20).join("\n")}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => { setTimeout(resolve, 500); });
   }
 
   const issuer = `${SUPABASE_ORIGIN}/auth/v1`;

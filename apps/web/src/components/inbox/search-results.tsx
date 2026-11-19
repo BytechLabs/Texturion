@@ -114,7 +114,8 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
       })) : [],
     },
   ].filter((group) => scope === "all" || group.scope === scope);
-  const empty = !uniqueConversations.length && !contacts.length && !otherGroups.some((group) => group.hits.length);
+  const empty = uniqueConversations.length === 0 && contacts.length === 0 &&
+    !otherGroups.some((group) => group.hits.length > 0);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -247,7 +248,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
 }
 
 function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[] }) {
-  if (!hits.length) return null;
+  if (hits.length === 0) return null;
   return (
     <section aria-label={heading}>
       <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">{heading}</h3>

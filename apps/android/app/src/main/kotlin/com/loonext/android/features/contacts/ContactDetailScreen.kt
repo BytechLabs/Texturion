@@ -424,9 +424,19 @@ private fun ContactDetailBody(
     // then reads as "Block number", and blocking twice is harmless.
     val messaging = remember(graph) { MessagingRepository(graph.api) }
     var blockedSender by remember(contact.id) { mutableStateOf<BlockedSender?>(null) }
+    var blockedSenderRevision by remember(contact.id) { mutableIntStateOf(0) }
+    fun applyBlockChange(sender: BlockedSender?) {
+        blockedSenderRevision++
+        blockedSender = sender
+    }
     LaunchedEffect(companyId, contact.phone_e164) {
+        val revision = blockedSenderRevision
         runCatching { messaging.blockedSenders(companyId) }
-            .onSuccess { rows -> blockedSender = rows.firstOrNull { it.phone_e164 == contact.phone_e164 } }
+            .onSuccess { rows ->
+                if (revision == blockedSenderRevision) {
+                    blockedSender = rows.firstOrNull { it.phone_e164 == contact.phone_e164 }
+                }
+            }
     }
     var confirmDelete by remember(contact.id) { mutableStateOf(false) }
     var working by remember(contact.id) { mutableStateOf(false) }
@@ -527,7 +537,7 @@ private fun ContactDetailBody(
             ContactActionId.UNBLOCK -> blockedSender?.let { blocked ->
                 runAction {
                     messaging.unblockSender(companyId, blocked.id)
-                    blockedSender = null
+                    applyBlockChange(null)
                 }
             }
             ContactActionId.OPT_OUT -> confirmOptOut = true
@@ -1264,7 +1274,7 @@ private fun ContactDetailBody(
                     if (blocked != null) {
                         runAction {
                             messaging.unblockSender(companyId, blocked.id)
-                            blockedSender = null
+                            applyBlockChange(null)
                         }
                     } else {
                         confirmBlock = true
@@ -1326,7 +1336,7 @@ private fun ContactDetailBody(
                 haptics.reject()
                 confirmBlock = false
                 runAction {
-                    blockedSender = messaging.blockSender(companyId, contact.phone_e164)
+                    applyBlockChange(messaging.blockSender(companyId, contact.phone_e164))
                 }
             },
             onDismiss = {

@@ -66,7 +66,7 @@ it("loads page two into the Inbox and keeps the first twenty conversations", asy
     { ...emptyPage, conversations: [conversation(20), conversation(21)] },
   );
 
-  expect(await screen.findByRole("link", { name: /Customer 20/ })).toBeTruthy();
+  await expect(screen.findByRole("link", { name: /Customer 20/ })).resolves.toBeInstanceOf(Element);
   fireEvent.click(screen.getByRole("button", { name: "More results" }));
   expect((await screen.findByRole("link", { name: /Customer 21/ })).getAttribute("href")).toBe(
     "/inbox/thread-21?q=Maple&message=message-21&find=Maple",
@@ -112,11 +112,11 @@ it("opens a matched contact's thread and shows separate task and voicemail hits"
   );
 
   fireEvent.click(screen.getByRole("radio", { name: "Tasks" }));
-  expect(screen.getByRole("link", { name: "Maple installation" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Maple installation" })).not.toBeNull();
   expect(screen.queryByRole("link", { name: /Pat Rivera|Voicemail/ })).toBeNull();
   fireEvent.click(screen.getByRole("radio", { name: "Texts" }));
-  expect(screen.getByText("No matches for “Maple”.")).toBeTruthy();
+  expect(screen.queryByText("No matches for “Maple”.")).not.toBeNull();
   fireEvent.click(screen.getByRole("radio", { name: "Contacts" }));
-  expect(screen.getByRole("link", { name: /Pat Rivera/ })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: /Pat Rivera/ })).not.toBeNull();
   expect(screen.queryByRole("link", { name: "Maple installation" })).toBeNull();
 });

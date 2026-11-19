@@ -31,7 +31,7 @@ const task = {
 
 function openPicker(): HTMLInputElement {
   fireEvent.click(screen.getByRole("button", { name: EN.tasks.setDueAria }));
-  return screen.getByLabelText(EN.tasks.dueDateTimeAria) as HTMLInputElement;
+  return screen.getByLabelText<HTMLInputElement>(EN.tasks.dueDateTimeAria);
 }
 
 function type(input: HTMLInputElement, value: string) {

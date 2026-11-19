@@ -23,7 +23,7 @@ const PHOTO = {
   id: PHOTO_ID,
   file_name: "job-site.jpg",
   content_type: "image/jpeg",
-  size_bytes: 2_048,
+  size_bytes: 2048,
   storage_path: `${COMPANY_ID}/job-site.jpg`,
 };
 
@@ -97,14 +97,14 @@ function world(
   const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (url.pathname.includes("/list/")) {
-      const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+      const { limit, offset } = await request.json<{ limit: number; offset: number }>();
       const files = options.files ?? [
         { id: "part", name: "messages-0001.jsonl" },
         { id: "manifest", name: "manifest.json" },
       ];
       return Response.json(files.slice(offset, offset + limit));
     }
-    const { paths } = (await request.json()) as { paths: string[] };
+    const { paths } = await request.json<{ paths: string[] }>();
     return Response.json(paths.map((path) => ({
       path, signedURL: `/object/sign/exports/${path}?token=sig`, error: null,
     })));
@@ -124,8 +124,8 @@ describe("workspace export media", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      data: [{ id: PHOTO_ID, file_name: "job-site.jpg", content_type: "image/jpeg", size_bytes: 2_048 }],
+    await expect(res.json()).resolves.toEqual({
+      data: [{ id: PHOTO_ID, file_name: "job-site.jpg", content_type: "image/jpeg", size_bytes: 2048 }],
       next_cursor: PHOTO_ID,
     });
     expect(sb.find("POST", "/rest/v1/rpc/api_workspace_export_media")[0].body)
@@ -141,7 +141,7 @@ describe("workspace export media", () => {
     sb.on("GET", "/rest/v1/companies", () => [{ plan: "starter", current_period_start: null }]);
     sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", () => {
       claimed = true;
-      return { allowed, used_bytes: 2_048, claimed_bytes: allowed ? 2_048 : 0 };
+      return { allowed, used_bytes: 2048, claimed_bytes: allowed ? 2048 : 0 };
     });
     stubFetch(jwksRoute(auth), (url) => {
       if (!url.pathname.startsWith("/storage/v1/object/sign/attachments/")) return undefined;
@@ -159,9 +159,9 @@ describe("workspace export media", () => {
     expect(signed).toBe(allowed);
     expect(res.ok).toBe(allowed);
     expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0].body)
-      .toMatchObject({ p_objects: [{ bucket: "attachments", bytes: 2_048 }] });
+      .toMatchObject({ p_objects: [{ bucket: "attachments", bytes: 2048 }] });
     if (allowed) {
-      expect(await res.json()).toEqual({ url: expect.stringContaining("download=job-site.jpg") });
+      await expect(res.json()).resolves.toEqual({ url: expect.stringContaining("download=job-site.jpg") });
     }
   });
 
@@ -261,9 +261,9 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { status: string; files: { name: string }[] }[];
-    };
+    }>();
     expect(body.data[0].status).toBe("ready");
     expect(
       (body.data[0] as unknown as { allowed_actions: string[] }).allowed_actions,
@@ -296,9 +296,9 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; files: { name: string }[] }[];
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].files.length).toBeGreaterThan(0);
   });
@@ -319,7 +319,7 @@ describe("GET /v1/exports", () => {
         companyId: COMPANY_ID,
       });
       expect(list.status, kind).toBe(200);
-      expect((await list.json()) as { data: unknown[] }, kind).toMatchObject({
+      await expect(list.json<{ data: unknown[] }>(), kind).resolves.toMatchObject({
         data: [],
       });
 
@@ -363,9 +363,9 @@ describe("GET /v1/exports", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { files: unknown[]; allowed_actions: string[] }[];
-    };
+    }>();
     expect(body.data[0].files).toEqual([]);
     expect(body.data[0].allowed_actions).toEqual([]);
   });
@@ -381,7 +381,7 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { files: { name: string }[] };
+    const body = await res.json<{ files: { name: string }[] }>();
     expect(body.files.map(({ name }) => name)).toEqual(files.map(({ name }) => name));
   });
 
@@ -417,14 +417,14 @@ describe("GET /v1/exports", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: {
         status: string;
         error: string | null;
         files: unknown[];
         allowed_actions: string[];
       }[];
-    };
+    }>();
     expect(body.data[0].files).toEqual([]);
     expect(body.data.map((row) => row.allowed_actions)).toEqual([[], []]);
     expect(body.data[1].error).toBe("messages read failed");
@@ -548,7 +548,7 @@ describe("POST /v1/exports/usage (#304)", () => {
       body: { from: "2026-06-01T00:00:00Z", to: "2026-06-30T23:59:59Z" },
     });
 
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     const row = (audit.body as Record<string, unknown>[])[0] ??
       (audit.body as Record<string, unknown>);
     expect(JSON.stringify(row)).toContain("usage.exported");
@@ -591,7 +591,7 @@ describe("POST /v1/exports/history (#304)", () => {
     });
     expect(res.status).toBe(202);
 
-    const call = sb.find("POST", "/rest/v1/rpc/request_data_export")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/request_data_export");
     const sent = call.body as Record<string, unknown>;
     expect(sent.p_kind).toBe("conversation_history");
     expect(sent.p_filters).toEqual({
@@ -614,7 +614,7 @@ describe("POST /v1/exports/history (#304)", () => {
       body: { contact_id: CONTACT_ID },
     });
 
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     const row = (audit.body as Record<string, unknown>[])[0] ??
       (audit.body as Record<string, unknown>);
     expect(JSON.stringify(row)).toContain(CONTACT_ID);

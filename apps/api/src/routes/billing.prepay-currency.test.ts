@@ -75,14 +75,11 @@ function canadianCompany(overrides: Record<string, unknown> = {}) {
  * currency against a live price is `stripe:setup`, not a deploy, so the code
  * cannot assume it has happened.
  */
-function endpoints(
-  options: { cadFiled: boolean; company?: Record<string, unknown> } = {
-    cadFiled: true,
-  },
-): StubEndpoint[] {
+function endpoints(options?: { cadFiled: boolean; company?: Record<string, unknown> }): StubEndpoint[] {
+  const settings = options ?? { cadFiled: true };
   return [
     endpoint("GET", /\/rest\/v1\/companies/, () => [
-      options.company ?? canadianCompany(),
+      settings.company ?? canadianCompany(),
     ]),
     // The activation probe: this workspace has sent something.
     endpoint("GET", /\/rest\/v1\/messages/, () => [{ id: "m1" }]),
@@ -99,7 +96,7 @@ function endpoints(
       object: "price",
       currency: "usd",
       unit_amount: 29_000,
-      currency_options: options.cadFiled
+      currency_options: settings.cadFiled
         ? { cad: { unit_amount: 39_000 } }
         : {},
     })),
@@ -125,7 +122,7 @@ describe("#522 GET /v1/billing/prepay", () => {
     stubFetch(harness.route);
 
     const response = await makeApp().request("/v1/billing/prepay", {}, env);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
 
     expect(response.status).toBe(200);
     expect(body.eligible).toBe(true);
@@ -147,7 +144,7 @@ describe("#522 GET /v1/billing/prepay", () => {
     stubFetch(harness.route);
 
     const response = await makeApp().request("/v1/billing/prepay", {}, env);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
 
     expect(body.eligible).toBe(false);
     expect(body.reason).toBe("currency_unavailable");
@@ -168,7 +165,7 @@ describe("#522 GET /v1/billing/prepay", () => {
     stubFetch(harness.route);
 
     const response = await makeApp().request("/v1/billing/prepay", {}, env);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
 
     // Unaffected by the catalog's CAD state, and never paying for the probe:
     // USD is every price's base currency and needs no read.

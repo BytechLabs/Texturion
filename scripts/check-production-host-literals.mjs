@@ -71,7 +71,7 @@ const BINARY =
 export function inScope(file) {
   if (!/^apps\/(?:android|ios)\//.test(file)) return false;
   if (/^apps\/android\/app\/src\/(?:test|androidTest)[A-Za-z]*\//.test(file)) return false;
-  if (/^apps\/android\/mws\//.test(file)) return false;
+  if (file.startsWith("apps/android/mws/")) return false;
   if (/^apps\/ios\/[^/]*Tests\//.test(file)) return false;
   return !/\.md$/i.test(file) && !BINARY.test(file);
 }
@@ -79,7 +79,7 @@ export function inScope(file) {
 /** How a file writes comments, from its extension. */
 export function syntaxOf(file) {
   if (/\.(?:kt|kts|java|gradle)$/.test(file)) return "kotlin";
-  if (/\.swift$/.test(file)) return "swift";
+  if (file.endsWith(".swift")) return "swift";
   if (/\.(?:xml|plist|entitlements|storyboard|xib)$/.test(file)) return "xml";
   if (/\.(?:ya?ml|properties|pro|toml|txt)$/.test(file) || /(?:^|\/)\.gitignore$/.test(file)) {
     return "config";
@@ -232,7 +232,10 @@ function closing(code, open) {
     if (ch === '"') {
       for (i += 1; i < code.length && code[i] !== '"'; i++) if (code[i] === "\\") i += 1;
     } else if (ch === code[open]) depth += 1;
-    else if (ch === pair && --depth === 0) return i;
+    else if (ch === pair) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
   }
   return code.length;
 }
@@ -347,15 +350,19 @@ export function judge(files, { sanctioned = SANCTIONED, legacy = LEGACY } = {}) 
     if (hosts.length > allowed) {
       const where = hosts.map((h) => `${h.line} (${h.host})`).join(", ");
       failures.push(
-        `${file} line ${where}: ${hosts.length} production host(s)` +
-          (allowed ? `, ${allowed} allowed as legacy` : "") +
+        [
+          `${file} line ${where}: ${hosts.length} production host(s)`,
+          (allowed ? `, ${allowed} allowed as legacy` : ""),
           `. A nonprod build still sends this to production; ${fixFor(file)}`,
+        ].join(""),
       );
     } else if (hosts.length < allowed) {
       failures.push(
-        `${file}: legacy count is ${allowed} but ${hosts.length} remain. Lower LEGACY in ` +
-          `scripts/check-production-host-literals.mjs to ${hosts.length}` +
+        [
+          `${file}: legacy count is ${allowed} but ${hosts.length} remain. Lower LEGACY in `,
+          `scripts/check-production-host-literals.mjs to ${hosts.length}`,
           (hosts.length === 0 ? " (delete the entry)" : ""),
+        ].join(""),
       );
     }
   }

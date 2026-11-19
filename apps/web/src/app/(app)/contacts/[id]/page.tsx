@@ -3,7 +3,7 @@
 import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -24,15 +24,17 @@ import { ContactHistory } from "@/components/contacts/contact-history";
 import { CustomerErasureAction, CustomerErasureReceipt } from "@/components/contacts/customer-erasure";
 import {
   CONTACT_PANES,
-  PHONE_ACTIVITY_PANES,
   emptyDetailFields,
   paneOf,
   parseContactTab,
+  PHONE_ACTIVITY_PANES,
   phoneTabOf,
-  type ContactPane,
-  type ContactTab,
-  type DetailField,
-  type PhoneTab,
+} from "@/components/contacts/contact-tabs";
+import type {
+  ContactPane,
+  ContactTab,
+  DetailField,
+  PhoneTab,
 } from "@/components/contacts/contact-tabs";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { MergedFrom } from "@/components/contacts/merged-from";
@@ -57,8 +59,8 @@ import {
   useOptOutContact,
   useRevokeOptOut,
   useUpdateContact,
-  type ContactPatch,
 } from "@/lib/api/contacts";
+import type { ContactPatch } from "@/lib/api/contacts";
 import { useConversations } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { flattenPages } from "@/lib/api/pagination";
@@ -67,10 +69,8 @@ import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
-import {
-  useDebouncedAutosave,
-  type AutosaveState,
-} from "@/lib/hooks/use-debounced-autosave";
+import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
+import type { AutosaveState } from "@/lib/hooks/use-debounced-autosave";
 import { useCanDeleteRecords, useDeletedToast } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
 import { updateSearch } from "@/lib/url/search-state";
@@ -232,7 +232,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
         : t("appShell.contactClockUnknown");
 
   function save(next: string | null) {
-    update.mutate({ timezone: next } as ContactPatch, {
+    update.mutate({ timezone: next }, {
       onSuccess: () => {
         setEditing(false);
         toast.success(
@@ -368,9 +368,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   // #740: fields nobody has filled in sit behind "Add details". Decided when
   // the page opens, so clearing a field you are typing in does not make it
   // vanish under your cursor.
-  const [initiallyEmpty] = useState<DetailField[]>(() =>
-    emptyDetailFields(contact),
-  );
+  const initiallyEmptyRef = useRef<DetailField[] | null>(null);
+  initiallyEmptyRef.current ??= emptyDetailFields(contact);
+  const initiallyEmpty = initiallyEmptyRef.current;
   const [addingDetails, setAddingDetails] = useState(false);
   const emptyNow = emptyDetailFields(contact);
   const hidden = (field: DetailField) =>

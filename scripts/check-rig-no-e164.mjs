@@ -96,7 +96,7 @@ export function findNumbers(text) {
   for (const match of text.matchAll(E164)) {
     const before = text.slice(Math.max(0, match.index - 3), match.index);
     if (TOUCHING.test(before) && !ESCAPE.test(before)) continue;
-    const digits = match[1];
+    const [, digits] = match;
     const fictional = digits.startsWith("1") && isFictionalNanp(digits.slice(1));
     found.push({ line: lineAt(match.index), fictional });
   }
@@ -121,15 +121,19 @@ export function judge(files, legacy = LEGACY) {
     if (bad.length > allowed) {
       const lines = [...new Set(bad.map((n) => n.line))].join(", ");
       failures.push(
-        `${file} (line ${lines}): ${bad.length} phone number(s) outside 555-0100..0199` +
-          (allowed ? `, ${allowed} allowed as legacy` : "") +
+        [
+          `${file} (line ${lines}): ${bad.length} phone number(s) outside 555-0100..0199`,
+          (allowed ? `, ${allowed} allowed as legacy` : ""),
           `. Use the fictional range; the rig names real numbers by role`,
+        ].join(""),
       );
     } else if (bad.length < allowed) {
       failures.push(
-        `${file}: legacy count is ${allowed} but ${bad.length} remain. Lower LEGACY ` +
-          `in scripts/check-rig-no-e164.mjs to ${bad.length}` +
+        [
+          `${file}: legacy count is ${allowed} but ${bad.length} remain. Lower LEGACY `,
+          `in scripts/check-rig-no-e164.mjs to ${bad.length}`,
           (bad.length === 0 ? " (delete the entry)" : ""),
+        ].join(""),
       );
     }
   }

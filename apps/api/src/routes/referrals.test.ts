@@ -68,7 +68,7 @@ async function moment(sb: SupabaseStub) {
   const res = await apiRequest(app, env, await auth.token(), "/v1/moment", {
     companyId: COMPANY_ID,
   });
-  return { res, body: (await res.json()) as Record<string, unknown> };
+  return { res, body: await res.json<Record<string, unknown>>() };
 }
 
 describe("GET /v1/referrals/moment", () => {
@@ -81,7 +81,7 @@ describe("GET /v1/referrals/moment", () => {
   it("passes the clock to the SQL rather than letting it read now()", async () => {
     const sb = stub(facts());
     await moment(sb);
-    const call = sb.find("POST", "/rest/v1/rpc/api_referral_ask_facts")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_referral_ask_facts");
     expect(call.body).toMatchObject({ p_company_id: COMPANY_ID });
     expect((call.body as { p_now: string }).p_now).toBeTypeOf("string");
   });
@@ -157,7 +157,7 @@ describe("POST /v1/referrals/dismiss", () => {
     });
     expect(res.status).toBe(204);
 
-    const patch = sb.find("PATCH", "/rest/v1/companies")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/companies");
     expect(
       (patch.body as { referral_prompt_dismissed_at: string })
         .referral_prompt_dismissed_at,

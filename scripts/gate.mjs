@@ -87,7 +87,7 @@ const only = process.argv.includes("--from")
 let steps = STEPS;
 if (only) {
   const index = STEPS.findIndex(([name]) => name === only);
-  if (index < 0) {
+  if (index === -1) {
     console.error(`--from ${only} is not one of: ${STEPS.map((s) => s[0]).join(", ")}`);
     process.exit(2);
   }

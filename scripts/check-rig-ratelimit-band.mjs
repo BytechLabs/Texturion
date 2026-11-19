@@ -122,7 +122,7 @@ export function derivedProblems(file, config, derived) {
       if (limiter.remote) problems.push(`${file}  derived ${label}${limiter.name} is remote, so its counter is the account's`);
     }
     const keys = kept.map(key).sort();
-    if (keys.join() !== source.join()) {
+    if (keys.join(",") !== source.join(",")) {
       problems.push(
         `${file}  derived ${label || "top-level "}limiters are [${keys.join(", ")}], not the ref's ` +
           `[${source.join(", ")}]; the rig keeps them as they are, emulated by wrangler dev`,
@@ -187,8 +187,8 @@ async function main() {
       const derived = deriveRigConfig(config, DERIVE_OPTIONS[file]);
       derivedCount += limiters({ ...derived, env: undefined }).length;
       problems.push(...derivedProblems(file, config, derived));
-    } catch (cause) {
-      problems.push(`${file}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      problems.push(`${file}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   const layout = rigLayout({ RIG_HOME: "/var/lib/loonext-rig" });

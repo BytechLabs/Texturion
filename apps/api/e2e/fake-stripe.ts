@@ -81,9 +81,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
         },
       };
     }
-    const lineItemsMatch = path.match(
-      /^\/v1\/checkout\/sessions\/([^/]+)\/line_items$/,
-    );
+    const lineItemsMatch = /^\/v1\/checkout\/sessions\/([^/]+)\/line_items$/.exec(path);
     if (method === "GET" && lineItemsMatch) {
       return {
         status: 200,
@@ -119,7 +117,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
       customers.set(id, object);
       return { status: 200, body: object };
     }
-    const customerMatch = path.match(/^\/v1\/customers\/([^/]+)$/);
+    const customerMatch = /^\/v1\/customers\/([^/]+)$/.exec(path);
     if (method === "GET" && customerMatch) {
       return {
         status: 200,
@@ -130,7 +128,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
     }
 
     // --- Subscriptions ---
-    const subMatch = path.match(/^\/v1\/subscriptions\/([^/]+)$/);
+    const subMatch = /^\/v1\/subscriptions\/([^/]+)$/.exec(path);
     if (method === "GET" && subMatch) {
       const object = subscriptions.get(subMatch[1]);
       if (!object) {
@@ -167,7 +165,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
       schedules.set(id, object);
       return { status: 200, body: object };
     }
-    const scheduleMatch = path.match(/^\/v1\/subscription_schedules\/([^/]+)$/);
+    const scheduleMatch = /^\/v1\/subscription_schedules\/([^/]+)$/.exec(path);
     if (scheduleMatch) {
       const object =
         schedules.get(scheduleMatch[1]) ??
@@ -177,7 +175,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
     }
 
     // --- Prices ---
-    const priceMatch = path.match(/^\/v1\/prices\/([^/]+)$/);
+    const priceMatch = /^\/v1\/prices\/([^/]+)$/.exec(path);
     if (method === "GET" && priceMatch) {
       return {
         status: 200,
@@ -239,7 +237,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
     })();
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   const {port} = (server.address() as AddressInfo);
 
   return {
@@ -255,8 +253,8 @@ export async function startFakeStripe(): Promise<FakeStripe> {
       calls.length = 0;
     },
     close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
+      new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      }),
   };
 }

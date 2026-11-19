@@ -38,7 +38,8 @@ import {
   withFollowers,
   withoutMuted,
 } from "./conversation-prefs";
-import { deliverPush, type PushDelivery } from "./deliver";
+import { deliverPush } from "./deliver";
+import type { PushDelivery } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
@@ -154,7 +155,7 @@ export async function notifyInboundMessage(
       .limit(1),
     "conversation lookup",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   if (!conversation) {
     throw new Error(
       `notification pipeline: conversation ${input.conversationId} vanished`,
@@ -233,7 +234,7 @@ export async function notifyInboundMessage(
     ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value)
     : [];
 
-  const beforeSend = input.beforeSend;
+  const { beforeSend } = input;
   let attempt: Promise<boolean> | undefined;
   const startDelivery = beforeSend ? () => (attempt ??= beforeSend()) : undefined;
 

@@ -129,7 +129,7 @@ describe("email()", () => {
     expect(c["mail.misaddressed"]).toBe(1);
     expect((await mailboxStub().status(0)).stored).toBe(0);
     const rig = await connectRig(env);
-    await expect(rig.next((f) => f.t === "mail", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "mail", 200)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 
@@ -138,7 +138,7 @@ describe("email()", () => {
     await worker.email(message().msg, env);
     const rig = await connectRig(env);
     await rig.next((f) => f.t === "mail");
-    await expect(rig.next((f) => f.t === "mail", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "mail", 200)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 });

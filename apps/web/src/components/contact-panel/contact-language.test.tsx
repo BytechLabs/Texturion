@@ -26,11 +26,11 @@ vi.mock("@/lib/api/contacts", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 
-afterEach(cleanup);
 beforeEach(() => {
   updateMutate.mockReset();
   companyData.current = { locale: "en" };
 });
+afterEach(cleanup);
 
 function contact(over: Record<string, unknown> = {}) {
   return { id: "ct1", locale: null, ...over } as never;
@@ -55,7 +55,7 @@ describe("#228 a customer's language", () => {
     render(<ContactLanguage contact={contact()} />);
     expect(
       screen.getByRole("radio", { name: "Workspace default (Francais (Canada))" }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("CL-2b: a contact with no language of their own is on the inherit chip", () => {
@@ -102,7 +102,7 @@ describe("#228 a customer's language", () => {
     // English here would be the exact guess this feature exists to stop.
     companyData.current = undefined;
     render(<ContactLanguage contact={contact()} />);
-    expect(screen.getByRole("radio", { name: "Workspace default" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Workspace default" })).toBeInstanceOf(Element);
     // Nothing is known to duplicate, so every language is offered.
     expect(screen.getAllByRole("radio")).toHaveLength(3);
   });

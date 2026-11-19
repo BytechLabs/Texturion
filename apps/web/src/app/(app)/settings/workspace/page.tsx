@@ -29,7 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -206,7 +207,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
     );
   }
 
-  const brand = registration.data.brand;
+  const { brand } = registration.data;
   if (!brand) {
     return (
       <SettingsCard id="business-identification" title={title} description={description}>
@@ -225,7 +226,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
     );
   }
 
-  const data = brand.data;
+  const { data } = brand;
   const legalName = brand.sole_proprietor
     ? `${field(data, "firstName")} ${field(data, "lastName")}`.trim()
     : field(data, "companyName");
@@ -294,7 +295,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
 
-  const timezone = company.timezone;
+  const { timezone } = company;
   const localTime = new Intl.DateTimeFormat(t.locale, {
     hour: "numeric",
     minute: "2-digit",
@@ -330,12 +331,12 @@ function TimezoneCard({ company }: { company: CompanyView }) {
             disabled={update.isPending}
           />
         ) : (
-          <p className="text-sm">{timezone.replace(/_/g, " ")}</p>
+          <p className="text-sm">{timezone.replaceAll('_', " ")}</p>
         )}
         <p className="text-xs text-muted-foreground">
           {t("appShell.workspaceLocalTimeNote", {
             time: localTime,
-            timezone: timezone.replace(/_/g, " "),
+            timezone: timezone.replaceAll('_', " "),
           })}
         </p>
         {!canEdit && (
@@ -444,11 +445,11 @@ function SignTextsCard({ company }: { company: CompanyView }) {
           </p>
         ) : null}
 
-        {!canEdit ? (
+        {!canEdit && (
           <p className="text-sm text-muted-foreground">
             {t("appShell.workspaceSignOwnersOnly")}
           </p>
-        ) : null}
+        )}
       </div>
     </SettingsCard>
   );
@@ -519,7 +520,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
         {/* The consequence, inline and at the moment of the decision — and the
             second sentence is the one that matters: it forecloses the reading
             that this permits automated night texts. */}
-        {!enabled ? (
+        {!enabled && (
           <div
             aria-live="polite"
             className="space-y-2 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm"
@@ -529,7 +530,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
               {t("appShell.workspaceNightOffBoundary")}
             </p>
           </div>
-        ) : null}
+        )}
 
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -537,11 +538,11 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
           </p>
         ) : null}
 
-        {!canEdit ? (
+        {!canEdit && (
           <p className="text-sm text-muted-foreground">
             {t("appShell.workspaceNightOwnersOnly")}
           </p>
-        ) : null}
+        )}
       </div>
     </SettingsCard>
   );

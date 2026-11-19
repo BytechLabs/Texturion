@@ -108,7 +108,7 @@ function world(
   return sb;
 }
 
-describe("dueNoticeBody", () => {
+describe(dueNoticeBody, () => {
   const at = (minutesFromNow: number) =>
     new Date(NOW.getTime() + minutesFromNow * 60_000);
 
@@ -145,7 +145,7 @@ describe("dueNoticeBody", () => {
   });
 });
 
-describe("dueNoticeLink", () => {
+describe(dueNoticeLink, () => {
   it("opens the job over the customer it belongs to", () => {
     // The drawer is shell-mounted and `?task=` drives it, so one link carries
     // the address and checklist AND the thread they are about.
@@ -171,7 +171,7 @@ describe("dueNoticeLink", () => {
   });
 });
 
-describe("notifyDueTasksJob", () => {
+describe(notifyDueTasksJob, () => {
   it("asks only for work that is due, live, and someone's to do", async () => {
     const sb = world();
     stubFetch(sb.route);
@@ -465,7 +465,7 @@ describe("notifyDueTasksJob", () => {
   });
 });
 
-describe("TASK_DUE_COPY", () => {
+describe("Task due notice copy", () => {
   it("#228/#430: pins the withheld title, which has no test at the wire", () => {
     // The #430 stand-in is chosen inside deliver.ts's withholding path, whose
     // own suite is the only place this English was ever asserted. Pin it here

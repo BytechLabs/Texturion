@@ -22,7 +22,11 @@ vi.mock("@/lib/api/tasks", () => ({
   useTasks,
   useGeocodeProgress: () => ({ data: undefined }),
 }));
-vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("next/dynamic", () => ({
+  default: () => function MapFixture() {
+    return null;
+  },
+}));
 vi.mock("../task-empty", () => ({
   EmptyTasks: () => <p>{EN.tasks.emptyTitle}</p>,
 }));
@@ -54,26 +58,26 @@ describe("Map view empty states (#752)", () => {
   it("says none has an address when tasks exist", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
-    expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeTruthy();
-    expect(screen.getByText(EN.tasks.mapAddAddressHow)).toBeTruthy();
+    expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeInstanceOf(Element);
+    expect(screen.getByText(EN.tasks.mapAddAddressHow)).toBeInstanceOf(Element);
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
   });
 
   it("asks for one row without the location filter, and only once nothing is located", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
-    const [filters, options] = useTasks.mock.calls[0]!;
+    const [[filters, options]] = useTasks.mock.calls;
     expect(filters).toMatchObject({ limit: 1 });
     expect(filters.has_location).toBeUndefined();
     expect(options).toEqual({ enabled: true });
-    expect(useAllTasks.mock.calls[0]![0]).toMatchObject({ has_location: true });
+    expect(useAllTasks.mock.calls[0][0]).toMatchObject({ has_location: true });
   });
 
   it("keeps customer, creator and source filters when opening the map from a filtered list", () => {
     answer(page([]), page([]));
     render(<MapView state={{ ...state, contact: "customer", createdBy: "me", source: "call", files: true, refs: true }} />);
 
-    expect(useAllTasks.mock.calls[0]![0]).toMatchObject({
+    expect(useAllTasks.mock.calls[0][0]).toMatchObject({
       contact_id: "customer", created_by: "me", source: "call",
       has_attachments: undefined, has_references: undefined,
     });
@@ -82,7 +86,7 @@ describe("Map view empty states (#752)", () => {
   it("falls back to the plain empty state only when there are no tasks at all", () => {
     answer(page([]), page([]));
     render(<MapView state={state} />);
-    expect(screen.getByText(EN.tasks.emptyTitle)).toBeTruthy();
+    expect(screen.getByText(EN.tasks.emptyTitle)).toBeInstanceOf(Element);
   });
 
   it("shows no empty state while the probe is still loading", () => {

@@ -80,12 +80,12 @@ for (const probe of PROBES) {
     res = await fetch(`https://api.telnyx.com/v2/${probe.path}`, {
       headers: { authorization: `Bearer ${KEY}` },
     });
-  } catch (cause) {
-    results.push({ ...probe, error: String(cause?.message ?? cause).slice(0, 90) });
+  } catch (error) {
+    results.push({ ...probe, error: String(error?.message ?? error).slice(0, 90) });
     continue;
   }
   const parsed = parseLimit(res.headers.get("ratelimit-limit"));
-  results.push({ ...probe, status: res.status, ...(parsed ?? {}) });
+  results.push({ ...probe, status: res.status, ...parsed });
 }
 
 const measured = results.filter((r) => typeof r.limit === "number");
@@ -102,7 +102,7 @@ for (const r of results) {
   const value = r.error
     ? `network: ${r.error}`
     : typeof r.limit === "number"
-      ? `${r.limit}/${r.window}s`.padEnd(12) + `(HTTP ${r.status})`
+      ? `${`${r.limit}/${r.window}s`.padEnd(12)}(HTTP ${r.status})`
       : `no header (HTTP ${r.status})`;
   console.log(`  ${r.family.padEnd(24)} ${value}`);
   console.log(`  ${" ".repeat(24)} ${r.matters}`);

@@ -136,7 +136,10 @@ export function makeRuntime(config: FakeConfig = {}) {
   };
   const runtime: SessionRuntime = {
     now: () => Date.now(),
-    uuid: () => `uuid-${dialN += 1}`,
+    uuid: () => {
+      dialN += 1;
+      return `uuid-${dialN}`;
+    },
     telnyx: {
       async dial(input) {
         const result = config.dialResult

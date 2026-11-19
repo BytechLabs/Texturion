@@ -9,6 +9,7 @@ import { remindAbandonedCheckout } from "../billing/checkout-recovery";
 import { applyModuleReconcile, planModuleReconcile } from '../billing/company-modules';
 import type { CompanyModuleRow } from '../billing/company-modules';
 import {
+  hasScheduledCancellation,
   isNewCancellation,
   noticeCancellation,
 } from "../billing/cancellation-notice";
@@ -157,8 +158,8 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(`stripe webhook ${event.id} (${event.type}) failed:`, message);
     const { data } = await db
       .from("webhook_events")
@@ -202,36 +203,44 @@ export async function processStripeEvent(
   }
 
   switch (event.type) {
-    case "checkout.session.completed":
+    case "checkout.session.completed": {
       return handleCheckoutCompleted(env, event.data.object);
-    case "checkout.session.expired":
+    }
+    case "checkout.session.expired": {
       return remindAbandonedCheckout(env, event.data.object);
+    }
     case "customer.subscription.created":
     case "customer.subscription.updated": {
       const synced = await syncSubscription(env, event.data.object.id);
       reportSubscriptionMove(env, event, synced);
       return;
     }
-    case "customer.subscription.deleted":
+    case "customer.subscription.deleted": {
       return handleSubscriptionDeleted(env, event.data.object, event.created);
-    case "invoice.paid":
+    }
+    case "invoice.paid": {
       return handleInvoicePaid(env, event.data.object);
-    case "invoice.payment_failed":
+    }
+    case "invoice.payment_failed": {
       return handleInvoicePaymentFailed(env, event.data.object);
-    case "invoice.payment_action_required":
+    }
+    case "invoice.payment_action_required": {
       return handlePaymentActionRequired(env, event.data.object);
+    }
     // #422: a disputed charge was invisible. Stripe leaves the subscription
     // ACTIVE while one of its charges is disputed, so our mirror copied
     // `active` and the service kept running for a customer who had told their
     // bank the charge was wrong. The endpoint was not even subscribed to these.
     case "charge.dispute.created":
     case "charge.dispute.updated":
-    case "charge.dispute.closed":
+    case "charge.dispute.closed": {
       return handleChargeDispute(env, event.data.object, event.type);
-    default:
+    }
+    default: {
       // Only the SPEC §7 event set is configured on the endpoint; anything
       // else is acked as a no-op.
-      return;
+      break;
+    }
   }
 }
 
@@ -360,10 +369,10 @@ async function reconcileModulesFromSubscription(
   if (["active", "past_due", "trialing"].includes(subscription.status)) {
     try {
       await enableVoiceForCompany(env, db, companyId);
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `voice enablement on subscription mirror failed for ${companyId}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -451,11 +460,11 @@ export async function ensureVoiceMeteredItem(
         proration_behavior: "always_invoice",
       });
     }
-  } catch (cause) {
-    void captureException(env, cause, { source: "api", company_id: companyId });
+  } catch (error) {
+    void captureException(env, error, { source: "api", company_id: companyId });
     console.error(
       `voice metered convergence failed for ${companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -690,7 +699,7 @@ export async function handleCheckoutCompleted(
       p_status: status,
       p_period_start: period.start,
       p_period_end: period.end,
-      p_cancel_at_period_end: subscription.cancel_at_period_end === true,
+      p_cancel_at_period_end: hasScheduledCancellation(subscription),
       p_plan: plan ?? null,
     },
   );
@@ -860,8 +869,8 @@ export async function handleCheckoutCompleted(
           held: allowance.held,
           emailKey: `numbers_held:${session.id}`,
         });
-      } catch (cause) {
-        void captureException(env, cause, { source: "api", company_id: companyId });
+      } catch (error) {
+        void captureException(env, error, { source: "api", company_id: companyId });
         void captureException(
           env,
           heldNoticeUnannouncedAlert({
@@ -871,7 +880,7 @@ export async function handleCheckoutCompleted(
           }),
           { source: "api", company_id: companyId },
         );
-        throw cause;
+        throw error;
       }
     }
   }
@@ -1002,7 +1011,7 @@ export async function syncSubscription(
       // row) and is forced off so the UI never announces a pending
       // cancellation on a dead subscription.
       cancel_at_period_end:
-        status !== "canceled" && subscription.cancel_at_period_end === true,
+        status !== "canceled" && hasScheduledCancellation(subscription),
       ...(plan ? { plan } : {}),
     })
     .eq("stripe_subscription_id", subscriptionId)
@@ -1250,7 +1259,7 @@ function reportSubscriptionMove(
   const previous = (event.data as { previous_attributes?: { status?: unknown } })
     .previous_attributes?.status;
   if (typeof previous !== "string") return;
-  const from = mirrorSubscriptionStatus(previous as Stripe.Subscription.Status);
+  const from = mirrorSubscriptionStatus(previous);
   for (const company of synced) {
     if (from === null || from === company.status) continue;
     void capture(
@@ -1323,10 +1332,10 @@ async function confirmCancellationReason(
       .eq("company_id", companyId)
       .is("confirmed_at", null);
     if (error) throw new Error(error.message);
-  } catch (cause) {
+  } catch (error) {
     // Never-silent (D3), non-fatal.
     console.error(
-      `cancellation reason confirm failed (${companyId}): ${String(cause)}`,
+      `cancellation reason confirm failed (${companyId}): ${String(error)}`,
     );
   }
 }
@@ -1445,14 +1454,14 @@ async function handleInvoicePaymentFailed(
     if (invoice.id) {
       try {
         await getStripe(env).invoices.voidInvoice(invoice.id);
-      } catch (cause) {
-        const status = (cause as { statusCode?: number }).statusCode;
+      } catch (error_) {
+        const status = (error_ as { statusCode?: number }).statusCode;
         const refused = typeof status === "number" && status >= 400 && status < 500;
         console.error(
           `us-registration invoice ${invoice.id} could not be voided:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error_ instanceof Error ? error_.message : String(error_),
         );
-        if (!refused) throw cause;
+        if (!refused) throw error_;
       }
     }
   }
@@ -1566,12 +1575,9 @@ async function handlePaymentActionRequired(
   if (to.length === 0) return;
   const link = invoice.hosted_invoice_url;
   const text =
-    `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ` +
-    `${company.name}.\n\n` +
-    (link
+    `Hi,\n\nYour bank needs you to confirm the latest Loonext payment for ${company.name}.\n\n${link
       ? `Confirm it here: ${link}\n\n`
-      : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`) +
-    `Texting continues normally once the payment is confirmed.\n\nLoonext`;
+      : `Open your billing portal to confirm: ${env.APP_ORIGIN}/settings/billing\n\n`}Texting continues normally once the payment is confirmed.\n\nLoonext`;
   await sendEmail(env, {
     to,
     subject: "Action needed: confirm your Loonext payment",

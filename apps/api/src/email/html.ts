@@ -7,7 +7,8 @@
  * company name straight into markup. Every builder now comes through here so
  * escaping cannot drift again.
  */
-import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
+import { SUPPORT_EMAIL } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 const FOOTER_COPY = {
   en: {
@@ -65,7 +66,7 @@ const EMAIL_FONT =
  * Still not an env var, for the original reason: a missing or mistyped variable
  * would silently ship the void this exists to close.
  */
-export { SUPPORT_EMAIL };
+export { SUPPORT_EMAIL } from "@loonext/shared";
 
 /**
  * The footer, as words rather than markup, so the two MIME parts of one email
@@ -99,28 +100,28 @@ export function emailTextFooter(locale: Locale = "en"): string {
  */
 export function emailLayout(bodyHtml: string, locale: Locale = "en"): string {
   const { service, htmlReply, tagline } = FOOTER_COPY[locale];
-  return (
-    `<!DOCTYPE html>` +
-    `<html lang="${locale}"><head>` +
-    `<meta charset="utf-8">` +
-    `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-    `<meta name="color-scheme" content="light">` +
-    `</head>` +
-    `<body style="margin:0;padding:0;background-color:#F3F3EE;">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F3EE;width:100%;">` +
-    `<tr><td align="center" style="padding:24px 12px;">` +
-    `<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#FDFDF9;border:1px solid #E8E8E0;border-radius:12px;">` +
+  return [
+    `<!DOCTYPE html>`,
+    `<html lang="${locale}"><head>`,
+    `<meta charset="utf-8">`,
+    `<meta name="viewport" content="width=device-width,initial-scale=1">`,
+    `<meta name="color-scheme" content="light">`,
+    `</head>`,
+    `<body style="margin:0;padding:0;background-color:#F3F3EE;">`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F3EE;width:100%;">`,
+    `<tr><td align="center" style="padding:24px 12px;">`,
+    `<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#FDFDF9;border:1px solid #E8E8E0;border-radius:12px;">`,
     // Wordmark header: Golos Text SemiBold when available, second o olive (#206).
-    `<tr><td style="padding:28px 32px 4px 32px;font-family:'Golos Text',${EMAIL_FONT};">` +
-    `<span style="font-size:20px;font-weight:600;letter-spacing:-0.02em;color:#191B14;">Lo<span style="color:#66801F;">o</span>next</span>` +
-    `</td></tr>` +
+    `<tr><td style="padding:28px 32px 4px 32px;font-family:'Golos Text',${EMAIL_FONT};">`,
+    `<span style="font-size:20px;font-weight:600;letter-spacing:-0.02em;color:#191B14;">Lo<span style="color:#66801F;">o</span>next</span>`,
+    `</td></tr>`,
     // Body copy.
-    `<tr><td style="padding:4px 32px 8px 32px;font-family:${EMAIL_FONT};font-size:16px;line-height:1.6;color:#191B14;">` +
-    bodyHtml +
-    `</td></tr>` +
+    `<tr><td style="padding:4px 32px 8px 32px;font-family:${EMAIL_FONT};font-size:16px;line-height:1.6;color:#191B14;">`,
+    bodyHtml,
+    `</td></tr>`,
     // Quiet footer.
-    `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">` +
-    `${service}<br>` +
+    `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">`,
+    `${service}<br>`,
     // #252: this line used to say replies were NOT read, and that was written
     // when the routing had not been verified — "does not depend on any inbox
     // routing we would have to verify first", in its own words. The routing is
@@ -134,14 +135,14 @@ export function emailLayout(bodyHtml: string, locale: Locale = "en"): string {
     // reply; two of them are the only stated route to undoing an irreversible
     // workspace deletion. A footer telling that reader their reply goes nowhere
     // does not make them write to support, it makes them give up.
-    `${htmlReply} ` +
-    `<a href="mailto:${SUPPORT_EMAIL}" style="color:#3A430F;">${SUPPORT_EMAIL}</a>` +
-    `.<br>` +
-    tagline +
-    `</td></tr>` +
-    `</table></td></tr></table>` +
-    `</body></html>`
-  );
+    `${htmlReply} `,
+    `<a href="mailto:${SUPPORT_EMAIL}" style="color:#3A430F;">${SUPPORT_EMAIL}</a>`,
+    `.<br>`,
+    tagline,
+    `</td></tr>`,
+    `</table></td></tr></table>`,
+    `</body></html>`,
+  ].join("");
 }
 
 /**
@@ -152,7 +153,7 @@ export function emailLayout(bodyHtml: string, locale: Locale = "en"): string {
  * `&amp;` entities are carried into the href verbatim (a browser decodes them).
  */
 export function linkifyUrls(escapedHtml: string): string {
-  return escapedHtml.replace(
+  return escapedHtml.replaceAll(
     /(https?:\/\/[^\s<]+)/g,
     // #362/#238: #3A430F, not the #66801F wordmark olive. A link is 16px body
     // text, so it needs 4.5:1 — olive is 4.41:1 on this card and fails. The

@@ -55,7 +55,7 @@ import { UsageMeterEmbed } from "@/components/marketing/pricing/usage-meter-embe
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/marketing/seo";
-import { APP_LINKS, LIVE_ROUTES, appLink } from "@/lib/marketing/site";
+import { APP_LINKS, appLink, LIVE_ROUTES } from "@/lib/marketing/site";
 import { LazySegmentCounter } from "@/app/(marketing)/pricing/lazy-segment-counter";
 import {
   elsewhereColumns,

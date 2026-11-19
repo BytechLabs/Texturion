@@ -95,14 +95,14 @@ describe("GET /v1/search", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       conversations: { snippet: string; direction: string }[];
       contacts: unknown[];
       tasks: { id: string; done: boolean }[];
       attachments: { id: string; owner_type: string }[];
       templates: { id: string; snippet: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.conversations[0].snippet).toContain("<b>quote</b>");
     // Note hits are labelable: the matched message's direction passes through.
     expect(body.conversations[0].direction).toBe("note");
@@ -128,7 +128,7 @@ describe("GET /v1/search", () => {
     expect(body.next_cursor).toBeNull();
 
     // Company scoping + per-arm limits happen in the RPC call, verbatim.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_q: "quote",
@@ -166,7 +166,7 @@ describe("GET /v1/search", () => {
       `/v1/search?q=quote&cursor=${cursor}`,
       { companyId: COMPANY_ID },
     );
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect(rpc.body).toMatchObject({
       p_contact_limit: 0,
       p_task_limit: 0,
@@ -197,10 +197,10 @@ describe("GET /v1/search", () => {
       "/v1/search?q=quote&limit=2",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       conversations: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.conversations).toHaveLength(2);
     expect(body.next_cursor).toBe(
       encodeCursor({
@@ -268,7 +268,7 @@ describe("GET /v1/search", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
       HIDDEN_NUM,
     ]);

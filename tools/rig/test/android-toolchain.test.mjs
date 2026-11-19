@@ -19,7 +19,7 @@ test("every download is pinned to an exact URL and a SHA-256", () => {
 });
 
 test("the SDK packages are the platform the app compiles against, pinned to an exact version", () => {
-  const compileSdk = /compileSdk = (\d+)/.exec(gradle)[1];
+  const [, compileSdk] = /compileSdk = (\d+)/.exec(gradle);
   assert.ok(pins.packages.some((name) => name.startsWith(`platforms;android-${compileSdk}.`)), `platforms for ${compileSdk}`);
   assert.ok(pins.packages.some((name) => /^build-tools;\d+\.\d+\.\d+$/.test(name)));
   for (const name of pins.packages) assert.doesNotMatch(name, /latest|-rc|-beta|-alpha/, name);

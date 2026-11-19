@@ -50,7 +50,7 @@ export function inSettingsGroupOrder<T>(
   const rank = (section: T) => {
     const id = idOf(section);
     const group = SETTINGS_GROUPS.findIndex((g) => g.sections.includes(id));
-    return group * 100 + SETTINGS_GROUPS[group]!.sections.indexOf(id);
+    return group * 100 + SETTINGS_GROUPS[group].sections.indexOf(id);
   };
   return sections
     .map((section, index) => ({ section, index }))

@@ -88,7 +88,7 @@ describe("#370 crew size on the name step", () => {
     render(<CompanyNamePage />);
     for (const key of Object.values(CREW_SIZE_LABELS)) {
       const label = say(key);
-      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.getByText(label)).toBeInstanceOf(Element);
     }
   });
 
@@ -100,19 +100,19 @@ describe("#370 crew size on the name step", () => {
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio.getAttribute("aria-checked")).toBe("false");
     }
-    expect(screen.getByText(/skip it/i)).toBeTruthy();
+    expect(screen.getByText(/skip it/i)).toBeInstanceOf(Element);
   });
 
   it("answers back the moment a bucket is picked", () => {
     render(<CompanyNamePage />);
     fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["4_10"])));
-    expect(screen.getByText(/^Pro covers up to/)).toBeTruthy();
+    expect(screen.getByText(/^Pro covers up to/)).toBeInstanceOf(Element);
   });
 
   it("recommends no plan for a crew past ten", () => {
     render(<CompanyNamePage />);
     fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["11_plus"])));
-    expect(screen.getByText(/Our biggest plan covers/)).toBeTruthy();
+    expect(screen.getByText(/Our biggest plan covers/)).toBeInstanceOf(Element);
   });
 
   it("carries the answer into the draft the create call reads", async () => {
@@ -139,7 +139,7 @@ describe("#370 crew size on the name step", () => {
     fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS.solo)));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() =>
-      expect(screen.getByText("Enter your company name.")).toBeTruthy(),
+      expect(screen.getByText("Enter your company name.")).toBeInstanceOf(Element),
     );
     expect(push).not.toHaveBeenCalled();
   });

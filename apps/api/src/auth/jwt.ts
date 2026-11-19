@@ -24,8 +24,8 @@ function remoteJwks(url: string) {
     // prompt refetch — jose's default 30s cooldown would 401 the very first
     // authenticated call after a brand-new signup for up to half a minute.
     resolver = createRemoteJWKSet(new URL(url), {
-      cooldownDuration: 5_000,
-      timeoutDuration: 5_000,
+      cooldownDuration: 5000,
+      timeoutDuration: 5000,
       cacheMaxAge: 600_000,
     });
     jwksResolvers.set(url, resolver);

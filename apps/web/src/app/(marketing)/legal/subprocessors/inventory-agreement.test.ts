@@ -123,10 +123,10 @@ describe("#438 — DATA-INVENTORY.md and the subprocessors page name the same th
         "list. Add it to VENDORS and to the subprocessors page.",
     ).toBe(VENDORS.length);
     expect(
-      VENDOR_LIST.length,
+      VENDOR_LIST,
       "The subprocessors page has an entry the roster above does not list. Add it " +
         "to VENDORS and to DATA-INVENTORY.md.",
-    ).toBe(VENDORS.length);
+    ).toHaveLength(VENDORS.length);
   });
 
   it("discloses Workers AI on BOTH surfaces, which is the #389 divergence itself", () => {

@@ -2,8 +2,6 @@ import {
   isAllowedImageType,
   MAX_PREVIEW_BYTES,
   MAX_PREVIEW_FRACTION,
-  PREVIEW_WORTH_IT_BYTES,
-  previewWorthHaving,
 } from "@loonext/shared";
 
 import { ApiError } from "../http/errors";
@@ -56,7 +54,7 @@ export {
   MAX_PREVIEW_FRACTION,
   PREVIEW_WORTH_IT_BYTES,
   previewWorthHaving,
-};
+} from "@loonext/shared";
 
 /**
  * The preview's object key: the original's, with a marker segment.

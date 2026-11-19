@@ -52,7 +52,7 @@
  * claimed the call log's dial-back control had this bug; it does not, and reading the
  * code is what settled it.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = "apps/android/app/src/main/kotlin";
@@ -85,7 +85,7 @@ function sourceFiles(dir, extension) {
 
 /** Strip comments so prose about a bug is not read as the bug. */
 function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/^[ \t]*\/\/.*$/gm, "");
 }
 
 /** The enclosing `fun` name for a line, so a finding can name the composable. */
@@ -102,7 +102,7 @@ let scanned = 0;
 let sites = 0;
 
 for (const file of sourceFiles(ROOT, ".kt")) {
-  const source = stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   scanned += 1;
   const lines = source.split("\n");
 
@@ -157,7 +157,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
 // the one function every caller now trusts — which is exactly what happened when an
 // earlier version simply exempted it by name.
 {
-  const component = readFileSync(COMPONENT, "utf8").replace(/\r\n/g, "\n");
+  const component = readFileSync(COMPONENT, "utf8").replaceAll('\r\n', "\n");
 
   const helper = /fun boundedGlyph\(([\s\S]*?)\n}/.exec(component);
   if (helper === null) {
@@ -165,7 +165,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
       "cannot find boundedGlyph in ui/common/Ui.kt — this guard has lost the rule it " +
         "exists to enforce, and every check above would pass vacuously.",
     );
-  } else if (!/minOf\(/.test(helper[1])) {
+  } else if (!helper[1].includes("minOf(")) {
     problems.push(
       "boundedGlyph no longer takes the SMALLER of what the caller wanted and what " +
         "the box can hold (#569). Without a `minOf` it is not a bound, and every " +
@@ -180,7 +180,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
         "component it exists to protect.",
     );
   } else {
-    if (!/boundedGlyph\(/.test(avatar[1])) {
+    if (!avatar[1].includes("boundedGlyph(")) {
       problems.push(
         "InitialsAvatar no longer bounds its glyph (#569). It is the badge every " +
           "surface in the app now renders through, so an unbounded glyph here is the " +
@@ -214,7 +214,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
 // parameterised-wrapper shape that hid three on Android.
 let iosSites = 0;
 for (const file of sourceFiles(IOS_ROOT, ".swift")) {
-  const source = stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   const lines = source.split("\n");
   for (let i = 0; i < lines.length; i += 1) {
     // A BADGE, not the string helper. `initialsOf` on its own is a pure function and

@@ -102,9 +102,9 @@ describe("ConversationRow delivery state", () => {
         </QueryClientProvider>
       );
       const { rerender } = render(row(timestamp));
-      expect(screen.getByText(label)).toBeTruthy();
-      expect(screen.getByRole("link", { name: new RegExp(label) })).toBeTruthy();
-      expect(screen.getByText("Did you get my text?")).toBeTruthy();
+      expect(screen.getByText(label)).toBeInstanceOf(Element);
+      expect(screen.getByRole("link", { name: new RegExp(label) })).toBeInstanceOf(Element);
+      expect(screen.getByText("Did you get my text?")).toBeInstanceOf(Element);
 
       rerender(row(null));
       expect(screen.queryByText(label)).toBeNull();

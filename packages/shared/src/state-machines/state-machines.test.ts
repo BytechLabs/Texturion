@@ -146,13 +146,13 @@ describe("every machine", () => {
       });
 
       it("treats a terminal state as one with no way out", () => {
-        for (const state of machine.states) {
-          if (isTerminalState(machine, state)) {
-            for (const other of machine.states) {
-              if (other !== state) expect(canTransition(machine, state, other)).toBe(false);
-            }
-          }
-        }
+        const terminalStates = machine.states.filter((state) => isTerminalState(machine, state));
+        const departures = terminalStates.flatMap((state) =>
+          machine.states
+            .filter((other) => other !== state && canTransition(machine, state, other))
+            .map((other) => [state, other]),
+        );
+        expect(departures).toEqual([]);
       });
     },
   );
@@ -160,42 +160,39 @@ describe("every machine", () => {
 
 describe("the database agrees with every definition", () => {
   const vocabulary = readDbVocabulary();
+  const machines = ALL_MACHINES.map((machine) => machine as Machine<string>);
 
-  describe.each(ALL_MACHINES.map((machine) => [machine.id, machine as Machine<string>] as const))(
-    "%s",
-    (_id, machine) => {
-      if (machine.db.kind === "check") {
-        it.each(machine.db.columns.map((c) => [`${c.table}.${c.column}`] as const))(
-          "%s: the check constraint lists exactly the machine's states",
-          (key) => {
-            const check = vocabulary.checks.get(key);
-            expect(check, `no check constraint found for ${key}`).toBeDefined();
-            expect(asSet(check?.values ?? [])).toEqual(asSet(machine.states));
-            expect(check?.nullable ?? false).toBe(machine.db.nullable ?? false);
-          },
-        );
-      }
+  describe.each(machines.filter(({ db }) => db.kind === "check"))("$id", (machine) => {
+    it.each(machine.db.columns)(
+      "$table.$column: the check constraint lists exactly the machine's states",
+      ({ table, column }) => {
+        const key = `${table}.${column}`;
+        const check = vocabulary.checks.get(key);
+        expect(check, `no check constraint found for ${key}`).toBeDefined();
+        expect(asSet(check?.values ?? [])).toEqual(asSet(machine.states));
+        expect(check?.nullable ?? false).toBe(machine.db.nullable ?? false);
+      },
+    );
+  });
 
-      if (machine.db.kind === "enum") {
-        it(`the enum ${machine.db.enumType} lists exactly the machine's states`, () => {
-          const values = vocabulary.enums.get(machine.db.enumType ?? "");
-          expect(values, `no enum ${machine.db.enumType} found`).toBeDefined();
-          expect(asSet(values ?? [])).toEqual(asSet(machine.states));
-        });
-      }
+  describe.each(machines.filter(({ db }) => db.kind === "enum"))("$id", (machine) => {
+    it(`the enum ${machine.db.enumType} lists exactly the machine's states`, () => {
+      const values = vocabulary.enums.get(machine.db.enumType ?? "");
+      expect(values, `no enum ${machine.db.enumType} found`).toBeDefined();
+      expect(asSet(values ?? [])).toEqual(asSet(machine.states));
+    });
+  });
 
-      if (machine.db.kind === "none") {
-        it.each(machine.db.columns.map((c) => [`${c.table}.${c.column}`] as const))(
-          "%s: has no value-list constraint, as the definition says",
-          (key) => {
-            // If this fails the database has started pinning the vocabulary.
-            // Change `db.kind` on the definition and the doc, then compare.
-            expect(vocabulary.checks.get(key)).toBeUndefined();
-          },
-        );
-      }
-    },
-  );
+  describe.each(machines.filter(({ db }) => db.kind === "none"))("$id", (machine) => {
+    it.each(machine.db.columns)(
+      "$table.$column: has no value-list constraint, as the definition says",
+      ({ table, column }) => {
+        // If this fails the database has started pinning the vocabulary.
+        // Change `db.kind` on the definition and the doc, then compare.
+        expect(vocabulary.checks.get(`${table}.${column}`)).toBeUndefined();
+      },
+    );
+  });
 });
 
 describe("production data fits the definitions (snapshot 2026-11-10)", () => {

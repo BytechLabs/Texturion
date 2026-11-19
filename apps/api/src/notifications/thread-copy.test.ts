@@ -78,7 +78,7 @@ describe("the French half", () => {
     expect(keys).toHaveLength(14);
     for (const key of keys) {
       expect(fr[key], `${key} was never translated`).not.toBe(en[key]);
-      expect(fr[key]?.trim(), `${key} is empty in French`).toBeTruthy();
+      expect(Boolean(fr[key]?.trim()), `${key} is empty in French`).toBe(true);
     }
   });
 

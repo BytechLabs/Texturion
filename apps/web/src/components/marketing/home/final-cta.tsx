@@ -1,5 +1,4 @@
 import { navCopy } from "@/i18n/marketing/nav";
-import { appLink } from "@/lib/marketing/site";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 import { homeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
@@ -8,7 +7,7 @@ import Link from "next/link";
 import { ConvergedField, CtaButton, FrSection } from "@/components/marketing/fr";
 import { SIGNUP_HREF } from "@/components/marketing/nav-links";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
-import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { appLink, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * S12 · FINAL CTA (COPY-DECK v2): the ONE cobalt band on the site (Law 3 /

@@ -37,7 +37,7 @@ const VERSION_PATTERN = /^[0-9]{1,4}(\.[0-9]{1,4}){0,3}$/;
  */
 export function versionKey(version: string | null | undefined): number[] | null {
   if (!version || !VERSION_PATTERN.test(version)) return null;
-  const parts = version.split(".").map((segment) => Number(segment));
+  const parts = version.split(".").map(Number);
   return [0, 1, 2, 3].map((index) => parts[index] ?? 0);
 }
 

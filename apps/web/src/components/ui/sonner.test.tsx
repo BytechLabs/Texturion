@@ -40,7 +40,7 @@ it("keeps an Undo available past five seconds while its button has focus", async
   expect(document.activeElement).toBe(list);
   act(() => { undo.focus(); });
   fireEvent.mouseLeave(list, { relatedTarget: screen.getByRole("button", { name: "Continue" }) });
-  await act(() => vi.advanceTimersByTimeAsync(UNDO_DURATION_MS + 1_000));
+  await act(() => vi.advanceTimersByTimeAsync(UNDO_DURATION_MS + 1000));
 
   expect(undo.isConnected).toBe(true);
   expect(document.activeElement).toBe(undo);
@@ -66,16 +66,16 @@ it("resumes the unused Undo time when focus leaves the toast", async () => {
   });
   const undo = screen.getByRole("button", { name: "Undo" });
 
-  await act(() => vi.advanceTimersByTimeAsync(1_000));
+  await act(() => vi.advanceTimersByTimeAsync(1000));
   act(() => { undo.focus(); });
   await act(() => vi.advanceTimersByTimeAsync(UNDO_DURATION_MS));
   expect(onCommit).not.toHaveBeenCalled();
 
   fireEvent.keyDown(undo, { key: "Escape", code: "Escape" });
   expect(document.activeElement).toBe(prior);
-  await act(() => vi.advanceTimersByTimeAsync(3_500));
+  await act(() => vi.advanceTimersByTimeAsync(3500));
   expect(onCommit).not.toHaveBeenCalled();
-  await act(() => vi.advanceTimersByTimeAsync(1_000));
+  await act(() => vi.advanceTimersByTimeAsync(1000));
   expect(onCommit).toHaveBeenCalledOnce();
   expect(undo.isConnected).toBe(false);
 });
@@ -100,7 +100,7 @@ it("resumes the other notices when the focused Undo disappears", async () => {
   const undo = screen.getByRole("button", { name: "Undo archive" });
   act(() => { undo.focus(); });
   fireEvent.click(undo);
-  await act(() => vi.advanceTimersByTimeAsync(1_000));
+  await act(() => vi.advanceTimersByTimeAsync(1000));
   expect(undo.isConnected).toBe(false);
   expect(document.activeElement).toBe(prior);
   await act(() => vi.advanceTimersByTimeAsync(UNDO_DURATION_MS));

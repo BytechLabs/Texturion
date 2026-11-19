@@ -21,9 +21,11 @@ import type { SessionStatus } from "@/lib/auth/use-session-ready";
 import { CompanyProvider, LANDED_KEY, useActiveCompany } from "./provider";
 import { COMPANY_COOKIE } from "./cookie";
 
-const { api, session, nav } = vi.hoisted(() => ({
+const session = vi.hoisted<{ current: SessionStatus }>(() => ({
+  current: { state: "ready", userId: "user-1" },
+}));
+const { api, nav } = vi.hoisted(() => ({
   api: vi.fn<(path: string, options?: { companyId?: string }) => Promise<unknown>>(),
-  session: { current: { state: "ready", userId: "user-1" } as SessionStatus },
   nav: { pathname: "/inbox", replace: vi.fn() },
 }));
 
@@ -57,7 +59,7 @@ const me: Me = {
       name: "Rivera Plumbing",
       role: "member",
       subscription_status: "active",
-    } as Me["memberships"][number],
+    },
   ],
 };
 
@@ -70,6 +72,10 @@ function deferred<T>() {
     fail = reject;
   });
   return { promise, resolve: fulfill, reject: fail };
+}
+
+function pendingRequest(): Promise<never> {
+  return new Promise(() => {});
 }
 
 function Shell() {
@@ -149,13 +155,13 @@ describe("CompanyProvider boot reads", () => {
       expect(calls()).toEqual(["/v1/me", `/v1/me@${COMPANY}`]),
     );
     // Neither has answered: the two are in flight together.
-    expect(screen.getByText("Loading your workspace…")).toBeTruthy();
+    expect(screen.getByText("Loading your workspace…")).toBeInstanceOf(Element);
 
     await act(async () => {
       plain.resolve(me);
       hydrated.resolve({ ...me, company });
     });
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeTruthy();
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
   });
 
   it("with no workspace remembered, starts the hydrated read once /v1/me names one", async () => {
@@ -181,7 +187,7 @@ describe("CompanyProvider boot reads", () => {
       return me;
     });
     mount();
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeTruthy();
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
     // Asked once: a refusal is not retried.
     expect(calls().filter((c) => c === `/v1/me@${COMPANY}`)).toHaveLength(1);
     expect(screen.queryByText(/couldn't load your workspace/i)).toBeNull();
@@ -234,7 +240,7 @@ describe("CompanyProvider boot reads", () => {
   });
 
   it("opens the connection to the API origin before the first read", () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
     mount();
     const link = document.head.querySelector(
       'link[rel="preconnect"][href="https://api.test"]',
@@ -255,15 +261,15 @@ describe("CompanyProvider failure states", () => {
       return options?.companyId ? { ...me, company } : me;
     });
     const queryClient = mount();
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeTruthy();
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
 
     failNext = true;
     await act(async () => {
       await queryClient.refetchQueries({ queryKey: keys.me, exact: true });
     });
     // Rendered by the shell itself, so the failure has reached the tree.
-    expect(await screen.findByText("shell saw the refetch fail")).toBeTruthy();
-    expect(screen.getByText(`shell for ${COMPANY}`)).toBeTruthy();
+    await expect(screen.findByText("shell saw the refetch fail")).resolves.toBeInstanceOf(Element);
+    expect(screen.getByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
     expect(screen.queryByText(/couldn't load your workspace/i)).toBeNull();
   });
 
@@ -275,11 +281,11 @@ describe("CompanyProvider failure states", () => {
     const sentence = await screen.findByText(/couldn't load your workspace/i);
     expect(sentence.parentElement?.className).toContain("app-scope");
     expect(sentence.parentElement?.className).toContain("font-golos");
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInstanceOf(Element);
   });
 
   it("draws the loading card in the app's face", () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
     mount();
     const sentence = screen.getByText("Loading your workspace…");
     expect(sentence.parentElement?.className).toContain("app-scope");
@@ -298,7 +304,7 @@ describe("CompanyProvider failure states", () => {
         </CompanyProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeTruthy();
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
 
     session.current = { state: "signed-out", userId: null };
     rerender(
@@ -318,7 +324,7 @@ describe("a member's launch (D23)", () => {
   const hint = `loonext:landing-role:user-1:${COMPANY}`;
 
   it("sends only a remembered member's first /inbox to For you, before /v1/me answers", async () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
 
     localStorage.setItem(hint, "owner");
     mount();
@@ -339,6 +345,6 @@ describe("a member's launch (D23)", () => {
     nav.pathname = "/inbox";
     mount();
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/for-you"));
-    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledOnce();
   });
 });

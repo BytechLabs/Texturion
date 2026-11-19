@@ -52,7 +52,7 @@ async function offRampAllowed(env: Env, companyId: string): Promise<boolean> {
     .eq("id", companyId)
     .limit(1);
   if (error || !data?.length) return false;
-  const row = data[0];
+  const [row] = data;
   if (!row.offramp_opted_in_at || !row.offramp_message?.trim()) return false;
   // No cancellation means the number is not on its way out, so there is
   // nothing to point anybody at — and a workspace that is merely past due must
@@ -578,9 +578,9 @@ async function telnyxCreateMessage(
     let errorCode: string | null = null;
     let errorDetail = `Telnyx API error (HTTP ${response.status})`;
     try {
-      const body = (await response.json()) as {
+      const body = await response.json<{
         errors?: { code?: string; title?: string; detail?: string }[];
-      };
+      }>();
       const first = body.errors?.[0];
       if (first) {
         errorCode = typeof first.code === "string" ? first.code : null;
@@ -592,7 +592,7 @@ async function telnyxCreateMessage(
     return { ok: false, errorCode, errorDetail };
   }
 
-  const body = (await response.json()) as { data?: { id?: string } };
+  const body = await response.json<{ data?: { id?: string } }>();
   const telnyxMessageId = body.data?.id;
   if (typeof telnyxMessageId !== "string" || telnyxMessageId.length === 0) {
     return {

@@ -78,7 +78,7 @@
  * Runs over `supabase/tests/*.sql` only. A migration is product code, where
  * three-valued logic is often exactly what is wanted.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -144,7 +144,7 @@ function blankFunctionBodies(sql) {
   let match;
   while ((match = tag.exec(out)) !== null) {
     const open = match.index;
-    const delimiter = match[0];
+    const [delimiter] = match;
     const close = out.indexOf(delimiter, open + delimiter.length);
     if (close === -1) break;
     // What introduced this block? The nearest of `function` / `do` behind it.
@@ -155,7 +155,7 @@ function blankFunctionBodies(sql) {
       const body = out.slice(open + delimiter.length, close);
       out =
         out.slice(0, open + delimiter.length) +
-        body.replace(/[^\n]/g, " ") +
+        body.replaceAll(/[^\n]/g, " ") +
         out.slice(close);
     }
     tag.lastIndex = close + delimiter.length;
@@ -372,7 +372,7 @@ export function nullBlindOffences(sql) {
 }
 
 // Skip the scan when imported by its own test.
-if (process.argv[1] && process.argv[1].endsWith("check-sql-null-blind.mjs")) {
+if (process.argv[1]?.endsWith("check-sql-null-blind.mjs")) {
   const offences = [];
   const files = readdirSync(DIR).filter((file) => file.endsWith(".sql"));
   for (const name of files) {

@@ -163,7 +163,7 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
       "high",
     );
 
-    const {message} = service.sends[0];
+    const [{message}] = service.sends;
     expect(message).toEqual({
       token: "android-tok",
       data: {
@@ -301,7 +301,7 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
       "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
     );
 
-    const {message} = service.sends[0];
+    const [{message}] = service.sends;
     expect(message).not.toHaveProperty("apns");
     expect(message).not.toHaveProperty("notification");
     expect(JSON.stringify(message)).not.toContain("collapse");

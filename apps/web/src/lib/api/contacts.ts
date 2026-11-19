@@ -743,7 +743,7 @@ export function useRemoveContactTag(contactId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (tagId: string) =>
-      apiFetch<void>(`/v1/contacts/${contactId}/tags/${tagId}`, {
+      apiFetch<undefined>(`/v1/contacts/${contactId}/tags/${tagId}`, {
         method: "DELETE",
         companyId,
       }),

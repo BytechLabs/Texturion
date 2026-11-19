@@ -29,7 +29,7 @@ export type ContactImportField =
 
 /** Case, spaces, and punctuation are noise: "Phone Number" → "phonenumber". */
 export function normalizeContactHeader(header: string): string {
-  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return header.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
 /**
@@ -345,19 +345,19 @@ export function contactImportAllColumnValues(
     for (let index = 0; index < columnCount; index += 1) {
       const value = (row[index] ?? "").trim();
       if (value === "") continue;
-      const distinct = seen[index]!;
+      const distinct = seen[index];
       const before = distinct.size;
       distinct.add(value.toLowerCase());
       if (distinct.size === before) continue;
       // The set counts, the array shows. Only the second one is bounded, and the
       // value kept is the file's own spelling rather than the lowercased key.
-      const shown = kept[index]!;
+      const shown = kept[index];
       if (shown.length < CONTACT_IMPORT_COLUMN_VALUE_CEILING) shown.push(value);
     }
   }
   return kept.map((values, index) => ({
     values,
-    total: seen[index]!.size,
+    total: seen[index].size,
   }));
 }
 
@@ -409,5 +409,5 @@ export function joinContactName(parts: {
   const joined = [clean(parts.first), clean(parts.last)]
     .filter((part) => part !== "")
     .join(" ");
-  return joined !== "" ? joined : clean(parts.full) || null;
+  return joined || clean(parts.full) || null;
 }

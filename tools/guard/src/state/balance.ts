@@ -48,12 +48,17 @@ export function floorFor(samples: readonly Sample[]): number {
  * answers. The edge corroborates a notice by this, so the route passes it on
  * as Telnyx's answer rather than as a guard refusal.
  */
-export class AccountRefused extends Error {
-  constructor(readonly reply: TelnyxReply) {
+class AccountRefusedError extends Error {
+  readonly reply: TelnyxReply;
+
+  constructor(reply: TelnyxReply) {
     super(`Telnyx refused the balance read with ${reply.status}`);
-    this.name = "AccountRefused";
+    this.reply = reply;
+    this.name = "AccountRefusedError";
   }
 }
+
+export { AccountRefusedError as AccountRefused };
 
 /** The balance as a number, at most {@link BALANCE_CACHE_MS} old. */
 export async function readBalance(ctx: Ctx, options: { fresh?: boolean } = {}): Promise<number> {
@@ -61,7 +66,7 @@ export async function readBalance(ctx: Ctx, options: { fresh?: boolean } = {}): 
   if (!options.fresh && cached && ctx.now() - cached.read_at < BALANCE_CACHE_MS) return cached.usd;
   if (!ctx.telnyx) throw new Refusal("telnyx.key_missing");
   const reply = await ctx.telnyx.send("GET", "/v2/balance");
-  if (reply.status === 401 || reply.status === 403) throw new AccountRefused(reply);
+  if (reply.status === 401 || reply.status === 403) throw new AccountRefusedError(reply);
   const raw = (reply.body as { data?: { balance?: unknown } } | undefined)?.data?.balance;
   const value = typeof raw === "number" ? raw : (typeof raw === "string" ? Number(raw) : Number.NaN);
   if (reply.status !== 200 || !Number.isFinite(value)) throw new Refusal("budget.balance_unknown");
@@ -86,7 +91,7 @@ export async function requireAboveFloor(ctx: Ctx): Promise<void> {
   try {
     balance = await readBalance(ctx);
   } catch (error) {
-    if (error instanceof AccountRefused) throw new Refusal("budget.balance_unknown");
+    if (error instanceof AccountRefusedError) throw new Refusal("budget.balance_unknown");
     throw error;
   }
   if (balance < (await balanceFloor(ctx))) throw new Refusal("budget.balance_floor");

@@ -36,9 +36,9 @@ export const SCHEMA = "loonext.rig-scenarios.v2";
 
 const COUNT_FIELDS = ["dials", "far_end_legs", "peak_concurrent_outbound_legs", "min_room"];
 const JOURNEY_FIELDS = ["dials", "far_end_legs", "peak_concurrent_legs", "peak_concurrent_outbound_legs"];
-const SCENARIO_KEYS = ["id", "name", "lane", "far_end", "runs_on", "runs", ...COUNT_FIELDS, "peak_concurrent_legs", "journey", "note"];
-const RUN_KEYS = ["label"];
-const CAPS_KEYS = ["daily_cap", "hourly_cap", "window_utc", "source"];
+const SCENARIO_KEYS = new Set(["id", "name", "lane", "far_end", "runs_on", "runs", ...COUNT_FIELDS, "peak_concurrent_legs", "journey", "note"]);
+const RUN_KEYS = new Set(["label"]);
+const CAPS_KEYS = new Set(["daily_cap", "hourly_cap", "window_utc", "source"]);
 /** Scheduling fields: the rig runs nothing on a timer, so none belongs in the catalogue. */
 const SCHEDULING_KEYS = [
   "cadence",
@@ -72,7 +72,7 @@ export function expandIds(text) {
 
 /** The lines of one `### <number>` section of a Markdown document. */
 export function sectionLines(markdown, number) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const lines = markdown.replaceAll('\r\n', "\n").split("\n");
   const start = lines.findIndex((line) => line.startsWith(`### ${number} `));
   if (start === -1) return null;
   const rest = lines.slice(start + 1);
@@ -118,7 +118,7 @@ export function readDoc(markdown) {
     if (rooms.length === 0) problems.push(`${DOC_FILE} 4.1: no room table found`);
   }
 
-  const named = s42 === null ? [] : [...new Set(s42.join("\n").match(/\bX\d{1,3}\b/g) ?? [])];
+  const named = s42 === null ? [] : [...new Set(s42.join("\n").match(/\bX\d{1,3}\b/g))];
   const s43 = sectionLines(markdown, "4.3");
   const known = s43 === null ? [] : tableRows(s43).map((cells) => cells[0]);
   const { caps, problems: capsProblems } = capsFromDoc(markdown, s41);
@@ -135,15 +135,15 @@ export function capsFromDoc(markdown, s41) {
   const windows = [...markdown.matchAll(/the window is (\d{2}):00-(\d{2}):00 UTC/g)];
   if (cap === null) problems.push(`${DOC_FILE} 4.1: cannot read the guard's cap ("N dials a day and N an hour")`);
   else Object.assign(caps, { daily_cap: Number(cap[1]), hourly_cap: Number(cap[2]) });
-  if (windows.length !== 1) {
-    problems.push(`${DOC_FILE}: expected one "the window is HH:00-HH:00 UTC", found ${windows.length}`);
-  } else {
+  if (windows.length === 1) {
     caps.window_utc = [Number(windows[0][1]), Number(windows[0][2])];
+  } else {
+    problems.push(`${DOC_FILE}: expected one "the window is HH:00-HH:00 UTC", found ${windows.length}`);
   }
   return { caps, problems };
 }
 
-export const normalLabel = (text) => text.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
+export const normalLabel = (text) => text.toLowerCase().replaceAll('-', " ").replaceAll(/\s+/g, " ").trim();
 
 /**
  * The variants a row names, when it names them: a "; ... variants" tail in the
@@ -200,7 +200,7 @@ function checkCapsBlock(c, problems) {
   }
   for (const key of Object.keys(c)) {
     if (SCHEDULING_KEYS.includes(key)) problems.push(`${at}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-    else if (!CAPS_KEYS.includes(key)) problems.push(`${at}: "${key}" is not a caps field`);
+    else if (!CAPS_KEYS.has(key)) problems.push(`${at}: "${key}" is not a caps field`);
   }
   for (const key of ["daily_cap", "hourly_cap"]) {
     if (!isCount(c[key]) || c[key] === 0) problems.push(`${at}: ${key} must be a positive integer`);
@@ -220,7 +220,7 @@ function checkScenario(s, lanes, caps, problems) {
   }
   for (const key of Object.keys(s)) {
     if (SCHEDULING_KEYS.includes(key)) problems.push(`${at}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-    else if (!SCENARIO_KEYS.includes(key)) problems.push(`${at}: "${key}" is not a scenario field`);
+    else if (!SCENARIO_KEYS.has(key)) problems.push(`${at}: "${key}" is not a scenario field`);
   }
   let ok = true;
   for (const key of ["id", "name", "far_end"]) {
@@ -252,7 +252,7 @@ function checkScenario(s, lanes, caps, problems) {
     const where = `${at} runs[${i}]`;
     for (const key of Object.keys(run ?? {})) {
       if (SCHEDULING_KEYS.includes(key)) problems.push(`${where}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-      else if (!RUN_KEYS.includes(key)) problems.push(`${where}: "${key}" is not a run field`);
+      else if (!RUN_KEYS.has(key)) problems.push(`${where}: "${key}" is not a run field`);
     }
     if (run?.label !== undefined && (typeof run.label !== "string" || run.label.trim() === "")) {
       problems.push(`${where}: label must be a non-empty string`);
@@ -279,13 +279,14 @@ function checkScenario(s, lanes, caps, problems) {
   if (s.dials > 0 && s.peak_concurrent_outbound_legs === 0) {
     problems.push(`${at}: dials ${s.dials} but peaks at 0 outbound legs; each dial holds a leg`);
   }
-  if (s.peak_concurrent_legs !== undefined && isCount(s.peak_concurrent_legs)) {
-    if (s.peak_concurrent_legs < s.peak_concurrent_outbound_legs || s.peak_concurrent_legs > rigDials(s)) {
-      problems.push(
-        `${at}: peak_concurrent_legs ${s.peak_concurrent_legs} must be between its outbound peak ` +
-          `(${s.peak_concurrent_outbound_legs}) and its rig dials (${rigDials(s)})`,
-      );
-    }
+  if (
+    s.peak_concurrent_legs !== undefined && isCount(s.peak_concurrent_legs) &&
+    (s.peak_concurrent_legs < s.peak_concurrent_outbound_legs || s.peak_concurrent_legs > rigDials(s))
+  ) {
+    problems.push(
+      `${at}: peak_concurrent_legs ${s.peak_concurrent_legs} must be between its outbound peak ` +
+        `(${s.peak_concurrent_outbound_legs}) and its rig dials (${rigDials(s)})`,
+    );
   }
   if (paid && s.peak_concurrent_outbound_legs > s.min_room) {
     problems.push(
@@ -385,10 +386,10 @@ export function judge({ registry, markdown, journeys }) {
     const expected = rigDials(s) > 0 ? runsAt.get(s.id) : 0;
     if (expected === undefined) {
       problems.push(`${s.id}: 4.1's room table runs it at no room`);
-    } else if (s.min_room !== expected) {
-      problems.push(`${s.id}: min_room is ${s.min_room} but 4.1's room table runs it from room ${expected}`);
-    } else {
+    } else if (s.min_room === expected) {
       roomsMatched += 1;
+    } else {
+      problems.push(`${s.id}: min_room is ${s.min_room} but 4.1's room table runs it from room ${expected}`);
     }
   }
 

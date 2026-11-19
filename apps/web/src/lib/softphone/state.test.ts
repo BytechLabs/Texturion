@@ -105,7 +105,7 @@ describe("#213 placement reconcile (server-dialed outbound)", () => {
       { type: "sdk_state", id: "sdk-op-1", state: "active", now: 2000 },
     ]);
     expect(state.calls).toHaveLength(1);
-    const call = state.calls[0];
+    const [call] = state.calls;
     expect(call.id).toBe("sdk-op-1"); // rekeyed
     expect(call.sessionId).toBe(S);
     expect(call.direction).toBe("outbound");

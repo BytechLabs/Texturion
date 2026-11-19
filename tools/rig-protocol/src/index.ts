@@ -146,6 +146,12 @@ export interface MailStatus {
 }
 
 export const LEASE_MAX_MS = 15 * 60 * 1000;
+
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charAt(end - 1) === "/") end -= 1;
+  return value.slice(0, end);
+}
 export const LEG_REGISTRY_TTL_MS = 6 * 60 * 60 * 1000;
 export const PARTITION_CACHE_MS = 5 * 60 * 1000;
 

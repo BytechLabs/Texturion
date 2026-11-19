@@ -146,7 +146,7 @@ describe("loadOutboundInitiatedContext — #211 call-hijack fix", () => {
     // Exactly one stamp, scoped by session id AND company AND number, carrying
     // the fresh leg's control id.
     expect(stamp.calls).toHaveLength(1);
-    const write = stamp.calls[0];
+    const [write] = stamp.calls;
     expect(write.url.searchParams.get("call_session_id")).toBe(`eq.${S}`);
     expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY}`);
     expect(write.url.searchParams.get("phone_number_id")).toBe(`eq.${NUMBER}`);

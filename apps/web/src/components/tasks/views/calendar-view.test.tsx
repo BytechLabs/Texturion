@@ -121,7 +121,7 @@ describe("Calendar reads", () => {
     rerender();
     await waitFor(() => expect(tasksRequests()).toHaveLength(1));
     // Midnight on Sunday 1 November in Toronto.
-    expect(tasksRequests()[0]!.due_after).toBe("2026-11-01T04:00:00.000Z");
+    expect(tasksRequests()[0].due_after).toBe("2026-11-01T04:00:00.000Z");
   });
 
   it("does not say the next month is empty while it loads", async () => {
@@ -134,7 +134,7 @@ describe("Calendar reads", () => {
     await screen.findByText(EN.tasks.calendarEmptyDueDate);
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
     await waitFor(() => expect(tasksRequests()).toHaveLength(2));
     expect(screen.queryByText(EN.tasks.calendarEmptyDueDate)).toBeNull();
@@ -150,14 +150,14 @@ describe("Calendar reads", () => {
     expect(onChipClick).toHaveBeenCalledWith("t-dec");
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
     await waitFor(() => expect(tasksRequests()).toHaveLength(2));
-    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeInstanceOf(Element);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     release();
     await waitFor(() => expect(container.querySelector('[aria-busy="true"]')).toBeNull());
-    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeInstanceOf(Element);
   });
 });

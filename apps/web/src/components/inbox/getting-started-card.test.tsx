@@ -79,8 +79,6 @@ function setUpOwnerData(usedSegments: number) {
   });
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   window.localStorage.clear();
   for (const query of queries) {
@@ -88,6 +86,8 @@ beforeEach(() => {
     query.mockImplementation(none);
   }
 });
+
+afterEach(cleanup);
 
 describe("GettingStartedCard audience (#504)", () => {
   it("gives a read_only observer no card at all", () => {

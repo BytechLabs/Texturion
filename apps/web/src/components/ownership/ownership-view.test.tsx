@@ -211,7 +211,6 @@ function acceptTheOffer() {
   fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
 }
 
-afterEach(cleanup);
 beforeEach(() => {
   state = OFFERED_TO_ME;
   mutate.mockReset();
@@ -221,6 +220,7 @@ beforeEach(() => {
     .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
   challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
 });
+afterEach(cleanup);
 
 describe("accepting a workspace when the server asks who is asking", () => {
   it("spends a stale-proof code on SUPABASE and retries with NO code", async () => {
@@ -336,11 +336,9 @@ describe("accepting a workspace when the server asks who is asking", () => {
     // at both ends, and rewording the dialog's `"Confirming…"` reddened this line —
     // a failure with no customer behind it, in a test about a double submit.
     expect(
-      (
-        screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
           name: HANDOVER_CONFIRM_SUBMITTING,
-        }) as HTMLButtonElement
-      ).disabled,
+        }).disabled,
     ).toBe(true);
 
     await act(async () => settle({ data: {}, error: null }));

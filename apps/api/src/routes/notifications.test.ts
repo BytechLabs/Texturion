@@ -109,7 +109,7 @@ describe("GET /v1/notification-prefs", () => {
       vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
 
-    const call = sb.find("GET", "/rest/v1/notification_prefs")[0];
+    const [call] = sb.find("GET", "/rest/v1/notification_prefs");
     expect(call.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -186,7 +186,7 @@ describe("#552 PUT accepts the clock GET just served", () => {
 
     // And the seconds are dropped on the way in, so the column stores the wall
     // clock the client meant rather than two shapes of the same time.
-    const upsert = sb.find("POST", "/rest/v1/notification_prefs")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/notification_prefs");
     expect(upsert.body).toMatchObject({
       quiet_from: "21:30",
       quiet_to: "07:00",
@@ -300,7 +300,7 @@ describe("PUT /v1/notification-prefs", () => {
       vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
 
-    const upsert = sb.find("POST", "/rest/v1/notification_prefs")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/notification_prefs");
     expect(upsert.url.searchParams.get("on_conflict")).toBe(
       "user_id,company_id",
     );
@@ -376,7 +376,7 @@ describe("POST /v1/push-subscriptions", () => {
       created_at: "2026-07-01T12:00:00+00:00",
     });
 
-    const upsert = sb.find("POST", "/rest/v1/push_subscriptions")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/push_subscriptions");
     expect(upsert.url.searchParams.get("on_conflict")).toBe("user_id,endpoint");
     expect(upsert.body).toMatchObject({
       user_id: auth.subject,
@@ -426,14 +426,14 @@ describe("POST /v1/push-subscriptions", () => {
     expect(res.status).toBe(201);
 
     // Cap lookup: caller-scoped, newest-first, limited to the cap.
-    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/push_subscriptions");
     expect(lookup.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
     expect(lookup.url.searchParams.get("limit")).toBe("10");
 
     // Eviction: caller-scoped delete of everything OLDER than the 10th-newest
     // row (oldest first goes; the newest 10 survive).
-    const del = sb.find("DELETE", "/rest/v1/push_subscriptions")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/push_subscriptions");
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(del.url.searchParams.get("created_at")).toBe(
       "lt.2026-07-07T14:00:00+00:00",
@@ -535,7 +535,7 @@ describe("DELETE /v1/push-subscriptions/:id", () => {
     );
     expect(res.status).toBe(204);
 
-    const del = sb.find("DELETE", "/rest/v1/push_subscriptions")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/push_subscriptions");
     expect(del.url.searchParams.get("id")).toBe(`eq.${SUB_ID}`);
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
   });
@@ -604,7 +604,7 @@ describe("GET /v1/notifications", () => {
       next_cursor: null,
     });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_notifications");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -638,7 +638,7 @@ describe("GET /v1/notifications", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_notifications");
     expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
       HIDDEN,
     ]);
@@ -658,10 +658,10 @@ describe("GET /v1/notifications", () => {
       "/v1/notifications?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toEqual([NOTIF_A]);
     expect(body.next_cursor).not.toBeNull();
 
@@ -674,7 +674,7 @@ describe("GET /v1/notifications", () => {
       { companyId: COMPANY_ID },
     );
     expect(follow.status).toBe(200);
-    const followRpc = sb.find("POST", "/rest/v1/rpc/api_notifications")[1];
+    const [, followRpc] = sb.find("POST", "/rest/v1/rpc/api_notifications");
     expect(followRpc.body).toMatchObject({
       p_before_ts: NOTIF_A.created_at,
       p_before_id: NOTIF_A.id,
@@ -694,7 +694,7 @@ describe("GET /v1/notifications", () => {
       "/v1/notifications",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { unread: boolean }[] };
+    const body = await res.json<{ data: { unread: boolean }[] }>();
     expect(body.data.map((n) => n.unread)).toEqual([true, false]);
   });
 
@@ -729,10 +729,10 @@ describe("GET /v1/notifications/unread-count", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ count: 4, unread_conversations: 13, alert_pause: NOT_PAUSED });
 
-    const rpc = sb.find(
+    const [rpc] = sb.find(
       "POST",
       "/rest/v1/rpc/api_notifications_unread_count",
-    )[0];
+    );
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -779,7 +779,7 @@ describe("POST /v1/notifications/mark-all-read", () => {
       last_seen_at: "2026-07-02T13:00:00+00:00",
     });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read");
     // #188: p_now is NULL — the RPC stamps the DB's own now(). Item
     // created_at values are DB-stamped; a Worker-clock watermark could land
     // BEFORE the newest item and the badge would never zero. The DB-suite
@@ -808,7 +808,7 @@ describe("POST /v1/notifications/:id/read", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ newly_read: true });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notification_read")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_mark_notification_read");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -895,7 +895,7 @@ describe("POST /v1/notifications/mark-read", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ last_seen_at: NOTIF_A.created_at });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -1138,7 +1138,7 @@ describe("#581 the missed-call push audience", () => {
     // Observed where the fan-out reads its targets (D45: there is no email leg
     // for a miss). This list IS the set of lock screens the title `Missed call
     // from Dana Smith` reaches.
-    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/push_subscriptions");
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${TECH})`);
   });
 
@@ -1148,7 +1148,7 @@ describe("#581 the missed-call push audience", () => {
 
     await notifyMissedCall(env, INPUT);
 
-    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/push_subscriptions");
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${TECH})`);
     // And access resolution never ran, which is what made this path the wider
     // hole of the two.

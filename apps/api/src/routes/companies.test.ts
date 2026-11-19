@@ -53,7 +53,7 @@ const validBody = {
 };
 
 async function errorCodeOf(response: Response): Promise<string> {
-  const body = (await response.json()) as { error: { code: string } };
+  const body = await response.json<{ error: { code: string } }>();
   return body.error.code;
 }
 
@@ -87,7 +87,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       },
     ]);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_create_company");
     expect(rpc.body).toEqual({
       p_owner_user_id: auth.subject,
       p_name: "Acme Plumbing",
@@ -113,7 +113,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       },
     });
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_create_company");
     expect(rpc.body).toMatchObject({
       p_country: "CA",
       p_us_texting_enabled: false,
@@ -599,7 +599,7 @@ describe("GET /v1/company", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { numbers: { id: string }[] };
+    const body = await res.json<{ numbers: { id: string }[] }>();
     expect(body.numbers.map((n) => n.id)).toEqual([VISIBLE]);
   });
 
@@ -776,7 +776,7 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
       companyId: COMPANY_ID,
     });
     expect(res.status, role).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     vi.unstubAllGlobals();
     return body;
   }
@@ -899,7 +899,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { name: "New Name" },
     });
     expect(rename.status).toBe(200);
-    const patchCall = sb.find("PATCH", "/rest/v1/companies")[0];
+    const [patchCall] = sb.find("PATCH", "/rest/v1/companies");
     expect(patchCall.body).toEqual({ name: "New Name" });
 
     const cap = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -972,7 +972,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "New Name" } },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { billing_writes_enabled: boolean };
+    const body = await res.json<{ billing_writes_enabled: boolean }>();
     expect(body.billing_writes_enabled).toBe(false);
   });
 

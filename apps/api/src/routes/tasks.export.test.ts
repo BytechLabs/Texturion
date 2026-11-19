@@ -120,7 +120,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
     expect(res.headers.get("content-disposition")).toBe('attachment; filename="tasks.csv"');
     expect(res.headers.get("cache-control")).toBe("no-store");
     const bytes = new Uint8Array(await res.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xEF, 0xBB, 0xBF]);
     const body = new TextDecoder().decode(bytes.slice(3));
     expect(body.split("\r\n")[0]).toBe("raised,customer,task,detail,due,assigned to,state");
     expect(body).toContain("Dana Reed");
@@ -164,7 +164,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
       `/v1/tasks/export.csv?status=done&assigned_user_id=me&due_before=2026-12-01T00:00:00Z&priority=high,urgent&tag_id=${TAG_ID}&q=flue`,
     );
     expect(res.status).toBe(200);
-    const url = w.tasks.calls[0].url;
+    const [{ url }] = w.tasks.calls;
     expect(url.searchParams.get("task_done_at")).toBe("not.is.null");
     expect(url.searchParams.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
     expect(url.searchParams.get("due_at")).toBe("lte.2026-12-01T00:00:00Z");
@@ -178,7 +178,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
     const w = world();
     stubFetch(...w.routes);
     await get("/v1/tasks/export.csv");
-    const url = w.tasks.calls[0].url;
+    const [{ url }] = w.tasks.calls;
     expect(url.searchParams.get("task_done_at")).toBe("is.null");
     expect(url.searchParams.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
   });

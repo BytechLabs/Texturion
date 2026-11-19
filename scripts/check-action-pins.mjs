@@ -73,7 +73,7 @@
  * is asked here rather than left to a guard nobody wrote. It would read better as
  * its own `check-workflow-trust.mjs`; splitting it is a rename, not a rethink.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 const WORKFLOW_DIR = ".github/workflows";
@@ -114,13 +114,6 @@ function isAlwaysStrict(_file) {
  * against a threat whose worst outcome is a false alert.
  */
 const NOT_REPO_WRITE = new Set(["security-events"]);
-
-/**
- * Local composite actions (`./.github/actions/x`) and reusable workflows
- * (`./.github/workflows/y.yml`) are IN this repository — they already cannot
- * change without a commit here, which is the whole property being enforced.
- */
-const LOCAL = /^\.\//;
 
 /** A SHA is 40 hex characters; anything else upstream can move. */
 const SHA = /^[0-9a-f]{40}$/;
@@ -234,7 +227,8 @@ function checkRefs(file, source, strict) {
     const [, ref, comment] = match;
     const where = `${file}:${index + 1}`;
 
-    if (LOCAL.test(ref)) return;
+    // Local actions and workflows are pinned by this repository's commit.
+    if (ref.startsWith("./")) return;
     refs += 1;
 
     const at = ref.lastIndexOf("@");
@@ -304,7 +298,7 @@ function checkTrust(file, source) {
 
 // Overridable so the failure paths can be exercised against a fixture. A guard
 // whose red branch has never run once is a guess about what it would do.
-const only = process.argv[2];
+const { 2: only } = process.argv;
 const files = only
   ? [only]
   : readdirSync(WORKFLOW_DIR)

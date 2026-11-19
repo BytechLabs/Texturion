@@ -75,11 +75,11 @@ describe("PostgREST request shape", () => {
     expect((await run("api_authorize_request", { p_user_id: "user" })).status).toBe(404);
     const unknown = await run("api_does_not_exist", valid);
     expect(unknown.status).toBe(404);
-    expect(await unknown.json()).toMatchObject({ code: "PGRST202" });
+    await expect(unknown.json()).resolves.toMatchObject({ code: "PGRST202" });
     const trigger = await run("broadcast_conversation_change", {});
     expect(trigger.status).toBe(404);
-    expect(await trigger.json()).toMatchObject({ code: "PGRST202" });
-    expect(responder).toHaveBeenCalledTimes(1);
+    await expect(trigger.json()).resolves.toMatchObject({ code: "PGRST202" });
+    expect(responder).toHaveBeenCalledOnce();
   });
 
   it("rejects an upsert target with existing columns but no matching unique key", async () => {
@@ -96,6 +96,6 @@ describe("PostgREST request shape", () => {
     expect((await upsert("provisioning_key")).status).toBe(200);
     const invalid = await upsert("id,provisioning_key");
     expect(invalid.status).toBe(400);
-    expect(await invalid.json()).toMatchObject({ code: "42P10" });
+    await expect(invalid.json()).resolves.toMatchObject({ code: "42P10" });
   });
 });

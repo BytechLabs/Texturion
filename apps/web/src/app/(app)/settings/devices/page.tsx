@@ -291,7 +291,7 @@ function CrewDevices() {
                       size="sm"
                       disabled={revoke.isPending}
                       onClick={() =>
-                        setTarget({ id: row.member_id as string, name })
+                        setTarget({ id: row.member_id!, name })
                       }
                     >
                       {t("appShell.devicesSignOut")}

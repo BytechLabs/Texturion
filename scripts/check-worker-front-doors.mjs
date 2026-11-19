@@ -102,10 +102,9 @@ export function frontDoorProblems(workers, read) {
     let config;
     try {
       config = JSON.parse(stripJsonc(read(worker.file)));
-    } catch (cause) {
+    } catch (error) {
       problems.push(
-        `${worker.file} did not parse after comment stripping: ` +
-          (cause instanceof Error ? cause.message : String(cause)),
+        `${worker.file} did not parse after comment stripping: ${error instanceof Error ? error.message : String(error)}`,
       );
       continue;
     }

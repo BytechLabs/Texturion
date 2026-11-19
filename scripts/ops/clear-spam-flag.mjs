@@ -29,9 +29,9 @@ await runScript("clear-spam-flag", async ({ args, apply, db, script }) => {
   const rows = await db.select(
     "conversations",
     "id,company_id,contact_id,is_spam,spam_reviewed_at,status",
-    { id: "eq." + conversationId, company_id: "eq." + companyId },
+    { id: `eq.${conversationId}`, company_id: `eq.${companyId}` },
   );
-  const conversation = rows[0];
+  const [conversation] = rows;
   if (!conversation) {
     fail(
       `no conversation ${conversationId} in company ${companyId}. ` +
@@ -50,7 +50,7 @@ await runScript("clear-spam-flag", async ({ args, apply, db, script }) => {
 
   await db.patch(
     "conversations",
-    { id: "eq." + conversationId, company_id: "eq." + companyId },
+    { id: `eq.${conversationId}`, company_id: `eq.${companyId}` },
     { is_spam: false, spam_reviewed_at: new Date().toISOString() },
   );
 

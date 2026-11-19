@@ -30,11 +30,11 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 
 
-afterEach(cleanup);
 beforeEach(() => {
   rows.current = [];
   useSavedViewCounts.mockClear();
 });
+afterEach(cleanup);
 
 function mountMenu(props: { current?: string; hasFilters?: boolean; onApply?: () => void } = {}) {
   render(
@@ -62,7 +62,7 @@ const countsWanted = () => useSavedViewCounts.mock.lastCall?.[2];
 describe("#711 SavedViewsMenu", () => {
   it("SV-1: filters that match no view can be saved", () => {
     open();
-    expect(screen.getByRole("menuitem", { name: "Save these filters as a view…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Save these filters as a view…" })).toBeInstanceOf(Element);
   });
 
   it("associates the share checkbox with its label and note", async () => {
@@ -84,7 +84,7 @@ describe("#711 SavedViewsMenu", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     open({ current: "v1" });
     expect(screen.queryByRole("menuitem", { name: "Save these filters as a view…" })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Manage views" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Manage views" })).toBeInstanceOf(Element);
   });
 
   it("SV-3: nothing filtered means nothing to save", () => {
@@ -104,7 +104,9 @@ describe("#711 SavedViewsMenu", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     mountMenu();
     expect(useSavedViewCounts).toHaveBeenCalled();
-    expect(useSavedViewCounts.mock.calls.every((call) => call[2] === false)).toBe(true);
+    for (const { 2: enabled } of useSavedViewCounts.mock.calls) {
+      expect(enabled).toBe(false);
+    }
   });
 
   it("SV-6: pointing at the trigger asks for the badges, leaving stops asking", () => {
@@ -127,7 +129,7 @@ describe("#711 SavedViewsMenu", () => {
   it("SV-8: an open menu asks for the badges", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     open();
-    expect(screen.getByRole("menuitem", { name: /Quote sent/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Quote sent/ })).toBeInstanceOf(Element);
     expect(countsWanted()).toBe(true);
   });
 });

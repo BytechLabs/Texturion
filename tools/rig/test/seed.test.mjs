@@ -252,7 +252,7 @@ test("the grace workspace holds no standing number, has its own messaging profil
   assert.deepEqual(grace.numbers, []);
   const anchor = standing.get(grace.anchor);
   const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
-  const values = sql.slice(sql.indexOf(`('${ids["qa-g"].company_id}', 'QA-G'`)).split("on conflict")[0];
+  const [values] = sql.slice(sql.indexOf(`('${ids["qa-g"].company_id}', 'QA-G'`)).split("on conflict");
   assert.ok(values.startsWith(`('${ids["qa-g"].company_id}', 'QA-G', '${userIds["qa-g"].owner}', 'CA', '${anchor.e164.slice(2, 5)}',`));
   assert.equal(grace.messagingProfile, "qa-g");
   assert.ok(values.includes(`'${STUB_PROFILES["qa-g"]}', false)`), "QA-G is on its own messaging profile");
@@ -285,12 +285,12 @@ test("no two tenants are seeded onto one messaging profile, since a company's pr
 
 test("every tenant's messaging profile is a distinct profile the guard's spec creates", () => {
   const spec = JSON.parse(readFileSync(new URL("../../guard/telnyx-spec.json", import.meta.url), "utf8"));
-  const specKeys = spec.messaging_profiles.profiles.map((profile) => profile.key);
+  const specKeys = new Set(spec.messaging_profiles.profiles.map((profile) => profile.key));
   const keyOfRole = new Map(spec.numbers.standing.map((entry) => [entry.role, entry.messaging_profile]));
   const keys = TENANTS.map((tenant) => tenant.messagingProfile ?? keyOfRole.get(tenant.numbers[0]?.role));
-  assert.ok(keys.every((key) => specKeys.includes(key)), `every tenant's profile is in the spec: ${keys}`);
+  assert.ok(keys.every((key) => specKeys.has(key)), `every tenant's profile is in the spec: ${keys}`);
   assert.equal(new Set(keys).size, keys.length, "no two tenants share a profile");
-  assert.ok(specKeys.includes("qa-g"), "the spec creates QA-G's profile");
+  assert.ok(specKeys.has("qa-g"), "the spec creates QA-G's profile");
 });
 
 test("the grace workspace is refused when the guard sends no profile for it", () => {
@@ -305,11 +305,12 @@ function stripeFake({ deleted = [] } = {}) {
   let n = 0;
   const fetchImpl = async (url, init = {}) => {
     calls.push({ method: init.method ?? "GET", url: String(url), body: init.body ? String(init.body) : undefined });
-    const id = String(url).split("/v1/customers/")[1];
+    const [, id] = String(url).split("/v1/customers/");
     if (id !== undefined) {
       return deleted.includes(id) ? new Response("{}", { status: 404 }) : Response.json({ id }, { status: 200 });
     }
-    return Response.json({ id: `cus_new${n += 1}` }, { status: 200 });
+    n += 1;
+    return Response.json({ id: `cus_new${n}` }, { status: 200 });
   };
   return { fetchImpl, calls };
 }

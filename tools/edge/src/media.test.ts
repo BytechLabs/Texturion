@@ -109,7 +109,7 @@ describe("the media relay", () => {
     const rig = await connectRig(env);
     const response = await call(new Request(`${ORIGIN}/m/object/public/mms-media/a.jpg`), env);
     expect(response.status).toBe(404);
-    await expect(rig.next((f) => f.t === "media", 150)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "media", 150)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 });

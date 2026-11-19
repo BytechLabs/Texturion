@@ -61,13 +61,13 @@ function stubs(options: { role?: string | null } = {}): void {
 
 async function post(
   body: unknown,
-  headers: Record<string, string> = { "X-Client": "android", "X-App-Version": "0.18.2" },
+  headers?: Record<string, string>,
   bindings: Env = env,
 ): Promise<Response> {
   return apiRequest(app, bindings, await auth.token(), "/v1/ring-beacons", {
     method: "POST",
     companyId: COMPANY_ID,
-    headers,
+    headers: headers ?? { "X-Client": "android", "X-App-Version": "0.18.2" },
     body,
   });
 }
@@ -304,14 +304,15 @@ describe("the clients send this server's vocabulary", () => {
       ),
   };
 
-  for (const [client, words] of Object.entries(clients)) {
-    it(`${client} spells exactly the stages this server accepts`, () => {
+  it.each(Object.entries(clients))(
+    "%s spells exactly the stages this server accepts",
+    (_value1, words) => {
       const found = words();
       // An empty read is a moved marker, not agreement.
       expect(found.length).toBeGreaterThan(0);
       expect([...new Set(found)].toSorted()).toEqual([...RING_BEACON_STAGES].toSorted());
-    });
-  }
+    },
+  );
 
   /**
    * A browser never handles a push or reports a call to an OS; both phones
@@ -360,12 +361,13 @@ describe("the clients send this server's vocabulary", () => {
     },
   };
 
-  for (const [client, sites] of Object.entries(emitted)) {
-    it(`${client} still sends every stage it is meant to, and only those`, () => {
+  it.each(Object.entries(emitted))(
+    "%s still sends every stage it is meant to, and only those",
+    (client, sites) => {
       const found = [...new Set(sites())].toSorted();
       expect([...found]).toEqual([...SENT_BY[client]].toSorted());
-    });
-  }
+    },
+  );
 
   it("android reports only permissions and buckets this server keeps", () => {
     const source = read(

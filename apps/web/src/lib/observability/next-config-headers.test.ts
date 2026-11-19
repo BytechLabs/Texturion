@@ -23,7 +23,7 @@ import { TOKEN_PATH_PREFIXES } from "./scrub";
 const CONFIG = readFileSync(
   join(__dirname, "../../../next.config.ts"),
   "utf8",
-).replace(/\r\n/g, "\n");
+).replaceAll('\r\n', "\n");
 
 /** The declared list, parsed out of the config source. */
 function declaredUncacheablePrefixes(): string[] {
@@ -32,7 +32,7 @@ function declaredUncacheablePrefixes(): string[] {
     .not.toBeNull();
   return (match?.[1] ?? "")
     .split(",")
-    .map((raw) => raw.trim().replace(/^"|"$/g, ""))
+    .map((raw) => raw.trim().replaceAll(/^"|"$/g, ""))
     .filter((raw) => raw !== "");
 }
 
@@ -92,9 +92,9 @@ describe("#559 a revocable link is never shared-cached", () => {
     // `^…$` is right under both matchers.
     expect(CONFIG).toMatch(/value: String\.raw`\^loonext\\\.com\$`/);
     expect(
-      /has: \[\{ type: "host", value: "loonext\.com" \}\]/.test(CONFIG),
+      CONFIG,
       "the unanchored host predicate is back — under OpenNext it also matches app.loonext.com",
-    ).toBe(false);
+    ).not.toContain('has: [{ type: "host", value: "loonext.com" }]');
   });
 });
 

@@ -286,7 +286,7 @@ export function useMmsAdmission(
       const count = attachmentsRef.current.length;
       setResizing(count < MMS_MAX_MEDIA_ITEMS && files.some(needsMmsImageResize));
       const result = await admitFiles(count, files, say);
-      const current = attachmentsRef.current;
+      const { current } = attachmentsRef;
       const slots = mounted.current ? Math.max(0, MMS_MAX_MEDIA_ITEMS - current.length) : 0;
       for (const attachment of result.attachments.slice(slots)) {
         if (attachment.previewUrl !== null) URL.revokeObjectURL(attachment.previewUrl);
@@ -380,7 +380,7 @@ export function UnsentNotice({
       <p className={sending ? "text-xs text-muted-foreground" : "text-xs text-app-amber-ink"}>
         {t(sending ? "thread.deliverySending" : "thread.unsentNotice")}
       </p>
-      {!sending && (onRetry || onEdit) && (
+      {!sending && (onRetry ?? onEdit) && (
         <span className="flex gap-3">
           {onRetry && (
             <button type="button" className="tap-target text-xs underline" onClick={onRetry}>
@@ -904,7 +904,7 @@ export function Composer({
    * crew member wanted to say something more personal — which is the product
    * working as intended. Only separate counters keep that readable.
    */
-  const reportSuggestionOutcome = (sentText: string) => {
+  const reportSuggestionOutcome = useCallback((sentText: string) => {
     const outcome = draftOutcome({
       shown: pickedSuggestion.current !== null || suggestionsWereShown.current,
       picked: pickedSuggestion.current,
@@ -914,7 +914,7 @@ export function Composer({
     pickedSuggestion.current = null;
     suggestionsWereShown.current = false;
     if (outcome) reportAiOutcome(companyId, "suggest_reply", outcome);
-  };
+  }, [companyId]);
   /**
    * #475: which saved reply is in the box, and what it said when it arrived.
    *
@@ -1222,12 +1222,15 @@ export function Composer({
     canSend,
     text,
     attachments,
+    conversationId,
+    picked,
     send,
     textareaRef,
     isNote,
     createNote,
     noteStage,
     uploadNoteFiles,
+    reportSuggestionOutcome,
     t,
     // #507: the wrap-up outcome is reported against this company.
     companyId,

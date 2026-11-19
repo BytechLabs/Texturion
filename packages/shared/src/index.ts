@@ -838,6 +838,7 @@ export {
   type ReminderCopyKey,
   type SayReminder,
 } from "./appointment-reminders";
+export { trimTrailingCharacters } from "./trim-trailing-characters";
 export {
   SCHEDULED_BODY_MAX,
   SCHEDULED_HOLD_REASONS,

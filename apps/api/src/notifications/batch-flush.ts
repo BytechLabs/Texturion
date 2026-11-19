@@ -39,7 +39,7 @@ export async function runBatchFlush(
   for (const batch of (data ?? []) as NotificationBatch[]) {
     try {
       let consumed = false;
-      async function consumeBatch(): Promise<boolean> {
+      const consumeBatch = async (): Promise<boolean> => {
         const { data, error } = await db.rpc("api_consume_notification_batch", {
           p_company_id: batch.company_id,
           p_user_id: batch.user_id,
@@ -48,7 +48,7 @@ export async function runBatchFlush(
         if (error) throw new Error(error.message);
         consumed = data === true;
         return consumed;
-      }
+      };
 
       if (batch.notifications === 0) {
         await consumeBatch();

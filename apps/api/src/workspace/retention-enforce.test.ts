@@ -393,7 +393,7 @@ describe("the two voicemail pointers are cleared together, everywhere", () => {
       const body = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
       // Every `.update({ … })` object that mentions nulling either pointer.
       for (const match of body.matchAll(/\.update\(\{[^}]*voicemail_(?:path|seconds)[^}]*\}/g)) {
-        const object = match[0];
+        const [object] = match;
         if (!/voicemail_path:\s*null/.test(object)) continue;
         clears += 1;
         if (!/voicemail_seconds:\s*null/.test(object)) {

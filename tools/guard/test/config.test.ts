@@ -67,8 +67,8 @@ describe("wrangler.jsonc", () => {
     const bare = JSON.parse(stripJsonc(withoutEdgeBinding(source))) as Record<string, unknown>;
     const { services: _services, ...rest } = wrangler;
     expect(bare).toEqual(rest);
-    expect(() => withoutEdgeBinding(source.replace('"services"', '"services_moved"'))).toThrow();
-    expect(() => withoutEdgeBinding(`${source}\n  "services": [{ "binding": "EDGE" }],`)).toThrow();
+    expect(() => withoutEdgeBinding(source.replace('"services"', '"services_moved"'))).toThrow(/expected one single-line EDGE "services" entry/);
+    expect(() => withoutEdgeBinding(`${source}\n  "services": [{ "binding": "EDGE" }],`)).toThrow(/expected one single-line EDGE "services" entry/);
   });
 
   it("keeps its own log lines only, never a request URL", () => {
@@ -97,7 +97,7 @@ describe("wrangler.jsonc", () => {
     const source = readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8");
     expect(source).toContain("support.telnyx.com/en/articles/1130717, fetched 2026-10-31");
     expect(source).toMatch(/Raising the floor needs dated\s+(?:\/\/\s+)?evidence in a reviewed commit/);
-    expect(vars.SIGNAL_LATCH_RESET).toBeTruthy();
+    expect(Boolean(vars.SIGNAL_LATCH_RESET)).toBe(true);
   });
 
   it("commits no secret, edge origin or mailbox", () => {

@@ -10,7 +10,7 @@
  * `a.test.ts`. A listed file vitest does not know is an error.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { openVitest, REPO_ROOT, testDependencies, toRepoPath } from "./test-suites.mjs";
@@ -38,17 +38,17 @@ try {
 
   const run = await ctx.runTestSpecifications(specs, false);
   if (run.unhandledErrors.length > 0) exitCode = 1;
-  for (const module of run.testModules) {
-    const file = toRepoPath(module.moduleId);
-    const d = module.diagnostic();
+  for (const testModule of run.testModules) {
+    const file = toRepoPath(testModule.moduleId);
+    const d = testModule.diagnostic();
     const ms = d.environmentSetupDuration + d.prepareDuration + d.collectDuration + d.setupDuration + d.duration;
-    const state = module.state();
+    const state = testModule.state();
     if (state !== "passed" && state !== "skipped") exitCode = 1;
     const previous = results[file];
     results[file] = {
       state: previous && previous.state !== "passed" ? previous.state : state,
       ms: (previous?.ms ?? 0) + ms,
-      imports: [...new Set([...(previous?.imports ?? []), ...(await importsOf(module))])],
+      imports: [...new Set([...(previous?.imports ?? []), ...(await importsOf(testModule))])],
     };
   }
   const ran = new Set(Object.keys(results));
@@ -65,7 +65,7 @@ try {
   await ctx.close();
 }
 
-writeFileSync(path.resolve(REPO_ROOT, args.out), JSON.stringify({ package: args.package, results }));
+writeFileSync(resolve(REPO_ROOT, args.out), JSON.stringify({ package: args.package, results }));
 process.exit(exitCode);
 
 async function importsOf(module) {

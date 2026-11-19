@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -65,14 +65,14 @@ describe("BLOG_POSTS registry invariants (#127)", () => {
 describe("blog routes match the registry (zero dead links, both ways)", () => {
   it("every registry post has a page.tsx on disk", () => {
     for (const post of BLOG_POSTS) {
-      const pagePath = path.join(BLOG_DIR, post.slug, "page.tsx");
+      const pagePath = join(BLOG_DIR, post.slug, "page.tsx");
       expect(existsSync(pagePath), `missing route for ${post.slug}`).toBe(true);
     }
   });
 
   it("every post authors its prose in content.mdx (#130)", () => {
     for (const post of BLOG_POSTS) {
-      const mdxPath = path.join(BLOG_DIR, post.slug, "content.mdx");
+      const mdxPath = join(BLOG_DIR, post.slug, "content.mdx");
       expect(existsSync(mdxPath), `missing content.mdx for ${post.slug}`).toBe(
         true,
       );
@@ -82,7 +82,7 @@ describe("blog routes match the registry (zero dead links, both ways)", () => {
   it("no post prose uses em-dashes or en-dashes (house voice rule)", () => {
     for (const post of BLOG_POSTS) {
       const prose = readFileSync(
-        path.join(BLOG_DIR, post.slug, "content.mdx"),
+        join(BLOG_DIR, post.slug, "content.mdx"),
         "utf8",
       );
       expect(prose, `em/en-dash in ${post.slug}/content.mdx`).not.toMatch(

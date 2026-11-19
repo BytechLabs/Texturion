@@ -1,6 +1,11 @@
-declare namespace Cloudflare {
-  interface Env {
-    UPLINK: DurableObjectNamespace<import("../uplink").RigUplink>;
-    MAILBOX: DurableObjectNamespace<import("../mailbox").RobotMailbox>;
+import type { RobotMailbox } from "../mailbox";
+import type { RigUplink } from "../uplink";
+
+declare global {
+  namespace Cloudflare {
+    interface Env {
+      UPLINK: DurableObjectNamespace<RigUplink>;
+      MAILBOX: DurableObjectNamespace<RobotMailbox>;
+    }
   }
 }

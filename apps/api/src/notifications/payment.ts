@@ -203,7 +203,7 @@ export async function notifyPayment(
       .limit(1),
     "conversation lookup",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   // Gone between the payment and this running. Nothing to link to, so nothing
   // to say — and not an error: the money is recorded either way.
   if (!conversation) return;

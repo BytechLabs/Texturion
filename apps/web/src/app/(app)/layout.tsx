@@ -16,7 +16,7 @@ import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
 
 import { AppProviders } from "../app-providers";
-import { metadata as rootMetadata, RootDocument } from "../root-document";
+import { RootDocument, metadata as rootMetadata } from "../root-document";
 
 export { viewport } from "../root-document";
 

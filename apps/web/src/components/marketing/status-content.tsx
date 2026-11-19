@@ -159,11 +159,7 @@ export function StatusContent({
                   </time>
                   .
                 </>
-              ) : (
-                <>
-                  {copy.stale}
-                </>
-              )}
+              ) : copy.stale}
             </p>
           </FrCard>
 

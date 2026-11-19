@@ -76,7 +76,7 @@ function buildWorld(
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
     const index = resendCalls.length;
-    resendCalls.push((await request.clone().json()) as Record<string, unknown>);
+    resendCalls.push(await request.clone().json<Record<string, unknown>>());
     const status = options.resendStatuses?.[index] ?? 200;
     return status >= 400
       ? Response.json({ message: "boom" }, { status })
@@ -154,7 +154,7 @@ describe("POST /contact — happy path", () => {
 
     // Two sends: support forward (reply_to = submitter), then the ack.
     expect(world.resend.calls).toHaveLength(2);
-    const support = world.resend.calls[0];
+    const [support] = world.resend.calls;
     expect(support.to).toEqual([CONTACT_INBOX]);
     expect(support.reply_to).toBe("dana@example.com");
     expect(support.subject).toBe("Contact form: Dana Smith");
@@ -162,7 +162,7 @@ describe("POST /contact — happy path", () => {
       "Do you support teams of five sending from one number?",
     );
 
-    const ack = world.resend.calls[1];
+    const [, ack] = world.resend.calls;
     expect(ack.to).toEqual(["dana@example.com"]);
     expect(ack.subject).toBe("We received your message");
     expect(ack.text).toContain("will reply to this address.");
@@ -195,10 +195,10 @@ describe("POST /contact — happy path", () => {
     stubFetch(...world.routes);
 
     await post(buildApp(), env, { ...validBody(), company: "Acme Plumbing" });
-    const claim = world.sb.find(
+    const [claim] = world.sb.find(
       "POST",
       "/rest/v1/rpc/api_claim_contact_message",
-    )[0];
+    );
     expect((claim.body as { p_company: string }).p_company).toBe(
       "Acme Plumbing",
     );
@@ -371,7 +371,7 @@ describe("POST /contact — Turnstile (only when TURNSTILE_SECRET_KEY is set)", 
     });
     expect(res.status).toBe(201);
     expect(world.turnstile.calls).toHaveLength(1);
-    const form = world.turnstile.calls[0];
+    const [form] = world.turnstile.calls;
     expect(form.get("secret")).toBe(SECRET);
     expect(form.get("response")).toBe("tok_human");
     expect(form.get("remoteip")).toBe(IP);
@@ -466,7 +466,7 @@ describe("POST /contact — abuse reports (#303)", () => {
     });
     expect(res.status).toBe(201);
 
-    const claim = world.sb.find("POST", "/rest/v1/rpc/api_claim_contact_message")[0];
+    const [claim] = world.sb.find("POST", "/rest/v1/rpc/api_claim_contact_message");
     expect((claim.body as Record<string, unknown>).p_kind).toBe("abuse");
     expect((claim.body as Record<string, unknown>).p_cap).toBe(ABUSE_DAILY_CAP);
   });

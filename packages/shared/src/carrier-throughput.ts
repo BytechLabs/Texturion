@@ -106,7 +106,7 @@ export const TEN_DLC_CEILINGS: Record<TenDlcUseCase, TierCeiling> = {
     carriers: [
       {
         carrier: "T-Mobile",
-        perDay: 2_000,
+        perDay: 2000,
         perMinute: null,
         noteKey: "tMobileLowVolumeNote",
       },
@@ -117,7 +117,7 @@ export const TEN_DLC_CEILINGS: Record<TenDlcUseCase, TierCeiling> = {
         noteKey: "attLowVolumeNote",
       },
     ],
-    bindingDailyMessages: 2_000,
+    bindingDailyMessages: 2000,
     // The trade-off that makes this tier the right default for D12's ICP: no
     // secondary vetting to get in, and no vetting to get out either. A customer
     // who outgrows it re-registers rather than appealing.
@@ -129,12 +129,12 @@ export const TEN_DLC_CEILINGS: Record<TenDlcUseCase, TierCeiling> = {
     carriers: [
       {
         carrier: "T-Mobile",
-        perDay: 1_000,
+        perDay: 1000,
         perMinute: null,
         noteKey: "tMobileSoleProprietorNote",
       },
     ],
-    bindingDailyMessages: 1_000,
+    bindingDailyMessages: 1000,
     vettingCanRaise: false,
   },
 };

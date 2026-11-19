@@ -33,7 +33,7 @@ await runScript("reset-registration", async ({ args, apply, db, script }) => {
   const registrations = await db.select(
     "messaging_registrations",
     "id,kind,status,rejection_reason,submission_count,rejected_at",
-    { company_id: "eq." + companyId },
+    { company_id: `eq.${companyId}` },
   );
   showRows("registrations", registrations);
 
@@ -63,8 +63,8 @@ await runScript("reset-registration", async ({ args, apply, db, script }) => {
     await db.patch(
       "messaging_registrations",
       {
-        id: "eq." + row.id,
-        company_id: "eq." + companyId,
+        id: `eq.${row.id}`,
+        company_id: `eq.${companyId}`,
         status: "eq.rejected",
       },
       { status: "draft", rejected_at: null },

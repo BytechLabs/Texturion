@@ -198,7 +198,7 @@ describe(buildSuggestionMessages, () => {
       messages: [inbound("x".repeat(5000))],
     });
     // The system prompt is fixed overhead; what matters is the message turn.
-    const turn = msgs.slice(2, -1)[0];
+    const [turn] = msgs.slice(2, -1);
     expect(turn.content.length).toBeLessThanOrEqual(600);
   });
 

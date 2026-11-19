@@ -37,15 +37,22 @@ describe("#250 real customers are never suspected", () => {
     ["+14165550192", "Is this you? 'Your package is on hold, verify your identity now'"],
   ];
 
-  for (const [from, body] of REAL_LEADS) {
-    it(`lets through: "${body.slice(0, 44)}${body.length > 44 ? "…" : ""}"`, () => {
+  it.each(
+    REAL_LEADS.map(([from, body]) => [
+      `lets through: "${body.slice(0, 44)}${body.length > 44 ? "…" : ""}"`,
+      from,
+      body,
+    ] as const),
+  )(
+    "%s",
+    (_name, from, body) => {
       const verdict = score(from, body);
       expect(
         verdict.suspected,
         `scored ${verdict.score} on ${verdict.signals.map((s) => s.key).join(", ")}`,
       ).toBe(false);
-    });
-  }
+    },
+  );
 
   it("says nothing at all about somebody we already know", () => {
     // A regular customer forwarding a marketing text is not a spammer, and a

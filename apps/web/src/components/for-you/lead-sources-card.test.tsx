@@ -22,7 +22,7 @@ import {
 import { makeTranslate } from "@/i18n/translate";
 
 const { reportRef } = vi.hoisted(() => ({
-  reportRef: { current: null as unknown },
+  reportRef: { current: null },
 }));
 
 vi.mock("@/lib/api/reports", () => ({
@@ -36,10 +36,10 @@ vi.mock("@/lib/api/reports", () => ({
  */
 const t = makeTranslate("en");
 
-afterEach(cleanup);
 beforeEach(() => {
   reportRef.current = null;
 });
+afterEach(cleanup);
 
 function source(name: string, total: number) {
   return {
@@ -81,7 +81,7 @@ describe("#301 where your customers come from", () => {
     reportRef.current = report();
     render(<LeadSourcesCard />);
     const unknown = screen.getByText("Don't know");
-    expect(unknown).toBeTruthy();
+    expect(unknown).toBeInstanceOf(Element);
     // In the list, with the sources.
     expect(unknown.closest("ul")).toBe(screen.getByText("Truck").closest("ul"));
   });
@@ -110,8 +110,8 @@ describe("#301 where your customers come from", () => {
     // about the fix, and a link to it.
     reportRef.current = report({ sources: [], unknown: 40, total: 40, coverage: 0 });
     render(<LeadSourcesCard />);
-    expect(screen.getByText(/haven't told us yet/i)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /set one up/i })).toBeTruthy();
+    expect(screen.getByText(/haven't told us yet/i)).toBeInstanceOf(Element);
+    expect(screen.getByRole("link", { name: /set one up/i })).toBeInstanceOf(Element);
     // And no bar chart of a single bleak row.
     expect(screen.queryByText("Don't know")).toBeNull();
   });
@@ -152,7 +152,7 @@ describe("#301 where your customers come from", () => {
     });
     render(<LeadSourcesCard />);
     expect(screen.queryByText(/haven't told us yet/i)).toBeNull();
-    expect(screen.getByText("Your website")).toBeTruthy();
+    expect(screen.getByText("Your website")).toBeInstanceOf(Element);
   });
 
   it("LC-10: an API without #232 yet draws no broken row", () => {

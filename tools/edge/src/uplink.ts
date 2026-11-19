@@ -280,7 +280,7 @@ export class RigUplink extends DurableObject<Env> {
   }
 
   private failPending(): void {
-    for (const id of [...this.pending.keys()]) this.settle(id, null);
+    for (const id of Array.from(this.pending.keys())) this.settle(id, null);
   }
 
   // ---------------------------------------------------------------------------
@@ -331,7 +331,7 @@ export class RigUplink extends DurableObject<Env> {
 
   /** True when `id` was a call relay that had timed out; a 2xx then marks its event seen. */
   private lateCallAnswer(id: string, status: number): boolean {
-    const row = this.sql.exec<{ key: string }>("SELECT key FROM late_calls WHERE id = ?", id).toArray()[0];
+    const [row] = this.sql.exec<{ key: string }>("SELECT key FROM late_calls WHERE id = ?", id).toArray();
     if (!row) return false;
     this.sql.exec("DELETE FROM late_calls WHERE id = ?", id);
     this.count("call.late_answer");
@@ -511,12 +511,12 @@ export class RigUplink extends DurableObject<Env> {
     this.count(`stranger.${input.kind}`);
     if (!input.ours) return { detach: false, strangers: 0 };
 
-    const row = this.sql
+    const [row] = this.sql
       .exec<{ window_start: number; n: number; detach_at: number | null }>(
         "SELECT window_start, n, detach_at FROM strangers WHERE e164 = ?",
         input.ours,
       )
-      .toArray()[0];
+      .toArray();
     const fresh = !row || now - row.window_start >= STRANGER_WINDOW_MS;
     const strangers = fresh ? 1 : row.n + 1;
     const lastDetach = fresh ? null : row.detach_at;

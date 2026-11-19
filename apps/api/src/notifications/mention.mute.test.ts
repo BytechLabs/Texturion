@@ -50,7 +50,7 @@ describe("notifyNoteMention, #694", () => {
       body: "@you take a look",
     });
 
-    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/push_subscriptions");
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${MUTED})`);
     const delivery = push.mock.calls[0]?.[2];
     expect(delivery?.web("en").url).toBe(

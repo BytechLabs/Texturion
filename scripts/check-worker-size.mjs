@@ -26,7 +26,7 @@ const UPLOAD_LINE = /Total Upload:\s*([\d.]+)\s*KiB\s*\/\s*gzip:\s*([\d.]+)\s*Ki
 
 /** Raw and gzip KiB from wrangler's output, or null when it reports neither. */
 export function uploadSize(output) {
-  const match = UPLOAD_LINE.exec(String(output ?? "").replace(ANSI, ""));
+  const match = UPLOAD_LINE.exec(String(output ?? "").replaceAll(ANSI, ""));
   if (!match) return null;
   const rawKiB = Number(match[1]);
   const gzipKiB = Number(match[2]);

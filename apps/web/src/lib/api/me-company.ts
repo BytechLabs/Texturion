@@ -1,52 +1,13 @@
 import { normaliseDashboardLayout, normaliseHiddenPanels } from '@loonext/shared';
 import type { DashboardLayout, DashboardPanelId } from '@loonext/shared';
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { QueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from "react";
 
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
-import { keys } from "./keys";
-import { fetchMeWithCompany } from "./me";
-import type { CompanyView, Me } from "./types";
-
-/**
- * GET /v1/me WITH the X-Company-Id hydration (routes/me.ts): the response
- * embeds the active company view — subscription, numbers, registration — in
- * one round trip. The G4 activation empty state reads the company number from
- * here; realtime `number.updated` invalidates `["me"]`-prefixed keys, so the
- * number appears the moment provisioning completes.
- *
- * The embedded view is the object GET /v1/company serves, so it is written to
- * `keys.company` as well and `useCompany` has nothing to ask on boot. It is
- * absent at aal1 (#581), and then nothing is written: MfaGate draws its wall
- * from GET /v1/company's refusal.
- */
-export function meCompanyQueryOptions(
-  queryClient: QueryClient,
-  companyId: string,
-) {
-  return queryOptions({
-    queryKey: ["me", "company", companyId] as const,
-    queryFn: async () => {
-      const startedAt = Date.now();
-      const me = await fetchMeWithCompany(companyId);
-      if (me.company) {
-        const current = queryClient.getQueryState(keys.company(companyId));
-        // A settings save that landed while this was in flight is newer.
-        if (!current || current.dataUpdatedAt <= startedAt) {
-          queryClient.setQueryData<CompanyView>(
-            keys.company(companyId),
-            me.company,
-          );
-        }
-      }
-      return me;
-    },
-    staleTime: 60_000,
-  });
-}
+import { meCompanyQueryOptions } from "./me";
+import type { Me } from "./types";
 
 export function useMeCompany() {
   const companyId = useCompanyId();

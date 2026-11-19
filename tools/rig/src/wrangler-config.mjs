@@ -64,10 +64,14 @@ const DROPPED = new Set([
 
 const REWRITTEN = new Set(["triggers", "unsafe", "ai", "services", "kv_namespaces"]);
 
-export class DeriveRefusal extends Error {}
+class DeriveRefusalError extends Error {
+  name = "DeriveRefusalError";
+}
+
+export { DeriveRefusalError as DeriveRefusal };
 
 function refuse(message) {
-  throw new DeriveRefusal(`rig derive: ${message}`);
+  throw new DeriveRefusalError(`rig derive: ${message}`);
 }
 
 function refuseRemote(where, entries) {

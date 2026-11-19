@@ -106,7 +106,7 @@ function routeOf(code: string, at: number): Route {
   for (const match of code.slice(0, at).matchAll(OPENER)) {
     const open = (match.index ?? 0) + match[0].length - 1;
     if (!stillOpen(code, open, at)) continue;
-    const name = match[1];
+    const [, name] = match;
     route = name === "fetch" || name === "fetchWithDeadline" ? "direct" : (name === "telnyxUpload" ? "upload" : "client");
   }
   return route;

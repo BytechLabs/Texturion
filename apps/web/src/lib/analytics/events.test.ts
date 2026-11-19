@@ -45,9 +45,7 @@ beforeEach(() => {
   vi.resetModules();
   captureSpy.mockClear();
   initPostHogMock.mockClear();
-  initPostHogMock.mockImplementation(() =>
-    Promise.resolve({ capture: captureSpy }),
-  );
+  initPostHogMock.mockResolvedValue({ capture: captureSpy });
   vi.stubGlobal("window", {
     localStorage: makeStorage(),
     sessionStorage: makeStorage(),
@@ -140,7 +138,7 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
   });
 
   it("every helper is a silent no-op when analytics is off (initPostHog → null)", async () => {
-    initPostHogMock.mockImplementation(() => Promise.resolve(null));
+    initPostHogMock.mockResolvedValue(null);
     const events = await importEvents();
     expect(() => {
       events.trackSignupStarted("email", { plan: "pro", modules: [] });
@@ -185,7 +183,7 @@ describe("#312 — trackContactSubmitted", () => {
     const { trackContactSubmitted } = await importEvents();
     trackContactSubmitted();
     await flush();
-    const [, properties] = captureSpy.mock.calls[0];
+    const [[, properties]] = captureSpy.mock.calls;
     expect(properties).toBeUndefined();
   });
 

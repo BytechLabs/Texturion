@@ -29,7 +29,7 @@
  * inclusive: a false positive costs one line of reading, a miss costs a refund
  * request. #334's asymmetry, applied to its own audit.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { argv } from "node:process";
 import { join, relative } from "node:path";
 
@@ -61,7 +61,7 @@ function claimsIn(source) {
     // Strip JSX and quoting noise so the claim itself is readable.
     const cleaned = line
       .replace(/^[a-zA-Z_]+:\s*/, "")
-      .replace(/^["'`]|["'`],?$/g, "")
+      .replaceAll(/^["'`]|["'`],?$/g, "")
       .trim();
     if (cleaned.length > 12) found.push(cleaned);
   }

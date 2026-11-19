@@ -91,7 +91,12 @@ interface ExportProgressUpdate {
   releaseLease?: boolean;
 }
 
-class ExportLeaseLost extends Error {}
+class ExportLeaseLostError extends Error {
+  constructor() {
+    super();
+    this.name = "ExportLeaseLostError";
+  }
+}
 
 async function updateClaimedExport(
   db: SupabaseClient,
@@ -112,7 +117,7 @@ async function updateClaimedExport(
     .eq("company_id", row.company_id).eq("id", row.id).eq("lease_token", row.lease_token)
     .select("id").maybeSingle();
   if (error) throw new Error(`export progress update failed: ${error.message}`);
-  if (!data) throw new ExportLeaseLost();
+  if (!data) throw new ExportLeaseLostError();
 }
 
 function exportPartName(table: string, number: number) {
@@ -176,7 +181,7 @@ export async function buildDataExports(
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (error_) {
-      if (error_ instanceof ExportLeaseLost) continue;
+      if (error_ instanceof ExportLeaseLostError) continue;
       const message = error_ instanceof Error ? error_.message : String(error_);
       // Told, not silently stuck. An export nobody hears about again is worse
       // than one that failed — the customer is waiting on a legal right.

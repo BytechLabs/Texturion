@@ -19,16 +19,14 @@
  * across every section in a test without rendering anything.
  */
 
-import {
-  canSeeSettingsSection,
-  type MemberRole,
-  type SettingsSectionId,
+import { canSeeSettingsSection } from "@loonext/shared";
+import type {
+  MemberRole,
+  SettingsSectionId,
 } from "@loonext/shared";
 
-import {
-  SETTINGS_SECTIONS,
-  type SettingsSection,
-} from "@/components/settings/settings-nav";
+import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
+import type { SettingsSection } from "@/components/settings/settings-nav";
 
 /**
  * Every canonical section id, and whether THIS app has a route for it.
@@ -90,7 +88,7 @@ export function settingsSectionForPath(
   pathname: string,
 ): SettingsSection | null {
   const rest = pathname.replace(/^\/settings\/?/, "");
-  const slug = rest.split("/")[0];
+  const [slug] = rest.split("/");
   if (!slug) return null;
   return (
     SETTINGS_SECTIONS.find(

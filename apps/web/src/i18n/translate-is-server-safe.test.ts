@@ -17,7 +17,7 @@ import { sourceFiles, sourceText, stripComments } from "@/test/source-tree";
 const SRC = join(process.cwd(), "src");
 
 /** The provider exports that are plain functions, callable outside React. */
-const PLAIN = ["makeTranslate", "forwardTranslate", "sayWith", "sayEnglish"];
+const PLAIN = new Set(["makeTranslate", "forwardTranslate", "sayWith", "sayEnglish"]);
 
 const PROVIDER = /import\s+(?!type\b)\{([^}]*)\}\s+from\s+["'](?:@\/i18n\/provider|(?:\.{1,2}\/)+(?:[\w-]+\/)*provider)["']/g;
 
@@ -33,7 +33,7 @@ function plainFromProvider(text: string): string[] {
       const name = part.trim();
       if (name.startsWith("type ")) continue;
       const imported = name.split(/\s+as\s+/)[0].trim();
-      if (PLAIN.includes(imported)) names.push(imported);
+      if (PLAIN.has(imported)) names.push(imported);
     }
   }
   return names;

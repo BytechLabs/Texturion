@@ -34,25 +34,25 @@ const MAX_ITEMS = 500;
 
 class Waitable<T> {
   readonly items: T[] = [];
-  readonly #waiters: { match: (item: T) => boolean; resolve: (item: T) => void }[] = [];
+  readonly #waiters: { matches: (item: T) => boolean; resolve: (item: T) => void }[] = [];
 
   push(item: T): void {
     this.items.push(item);
     if (this.items.length > MAX_ITEMS) this.items.splice(0, this.items.length - MAX_ITEMS);
-    for (const waiter of [...this.#waiters]) {
-      if (waiter.match(item)) {
+    for (const waiter of this.#waiters.slice()) {
+      if (waiter.matches(item)) {
         this.#waiters.splice(this.#waiters.indexOf(waiter), 1);
         waiter.resolve(item);
       }
     }
   }
 
-  waitFor(match: (item: T) => boolean, timeoutMs: number): Promise<T | undefined> {
-    const existing = this.items.find(match);
+  waitFor(matches: (item: T) => boolean, timeoutMs: number): Promise<T | undefined> {
+    const existing = this.items.find(matches);
     if (existing) return Promise.resolve(existing);
     return new Promise((resolve) => {
       const waiter = {
-        match,
+        matches,
         resolve(item: T) {
           clearTimeout(timer);
           resolve(item);
@@ -137,7 +137,7 @@ export class WebhookSink {
     let type: string | undefined;
     try {
       const parsed = JSON.parse(body) as { type?: unknown };
-      if (typeof parsed.type === "string") type = parsed.type;
+      if (typeof parsed.type === "string") ({ type } = parsed);
     } catch {
       // A webhook with a non-JSON body is still a delivery.
     }

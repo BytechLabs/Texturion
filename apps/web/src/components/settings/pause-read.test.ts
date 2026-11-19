@@ -133,7 +133,7 @@ describe("#277 what the billing screen has actually read about the pause", () =>
     // a reader who never asked. The failure is the one state where silence would
     // leave a card that has quietly dropped half its content with no reason.
     const note = planStateUnknownNote({ state: "failed" });
-    expect(note).toBeTruthy();
+    expect(Boolean(note)).toBe(true);
     // The reader's next thought after "couldn't check" is "did something happen
     // to my plan", so the sentence answers it rather than apologising.
     expect(note).toContain("untouched");

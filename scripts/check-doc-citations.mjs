@@ -35,7 +35,7 @@
  * Usage: node scripts/check-doc-citations.mjs
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 
 /** Roots to scan. PRODUCTION.md and the deploy set are the operator-facing ones. */
@@ -106,7 +106,7 @@ for (const root of ROOTS) {
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const match of line.matchAll(CITATION)) {
-        const cited = match[1];
+        const [, cited] = match;
         if (isGlob(cited)) continue;
         checked += 1;
         if (!existsSync(cited.split("/").join(sep))) {
@@ -137,9 +137,9 @@ function ignoredByGit(paths) {
       encoding: "utf8",
     });
     return new Set(out.split(/\r?\n/).filter(Boolean));
-  } catch (cause) {
+  } catch (error) {
     // `git check-ignore` exits 1 when NOTHING matched, which is not an error.
-    const out = String(cause.stdout ?? "");
+    const out = String(error.stdout ?? "");
     return new Set(out.split(/\r?\n/).filter(Boolean));
   }
 }
@@ -165,11 +165,9 @@ if (real.length > 0) {
 }
 
 console.log(
-  `Document citations: ${checked} cited path(s) all resolve` +
-    (ignored.size > 0
+  `Document citations: ${checked} cited path(s) all resolve${ignored.size > 0
       ? `, ${ignored.size} gitignored path(s) the docs tell you to create`
-      : "") +
-    (skipped.length > 0
+      : ""}${skipped.length > 0
       ? `, and ${skipped.length} historical document(s) skipped.`
-      : "."),
+      : "."}`,
 );

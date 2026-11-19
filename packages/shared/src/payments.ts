@@ -78,18 +78,24 @@ export type PaymentStateKey =
  */
 export function paymentRequestLabel(state: PaymentRequestState): PaymentStateKey {
   switch (state) {
-    case "requested":
+    case "requested": {
       return "payments.stateWaiting";
-    case "paid":
+    }
+    case "paid": {
       return "payments.statePaid";
-    case "refunded":
+    }
+    case "refunded": {
       return "payments.stateRefunded";
-    case "disputed":
+    }
+    case "disputed": {
       return "payments.stateDisputed";
-    case "cancelled":
+    }
+    case "cancelled": {
       return "payments.stateCancelled";
-    case "expired":
+    }
+    case "expired": {
       return "payments.stateExpired";
+    }
   }
 }
 
@@ -208,19 +214,21 @@ export function payoutReadinessKeys(readiness: PayoutReadiness): {
   actionKey: PayoutReadinessKey | null;
 } {
   switch (readiness) {
-    case "not_connected":
+    case "not_connected": {
       return {
         titleKey: "payments.payoutNotConnectedTitle",
         detailKey: "payments.payoutNotConnectedDetail",
         actionKey: "payments.payoutActionSetUp",
       };
-    case "onboarding_incomplete":
+    }
+    case "onboarding_incomplete": {
       return {
         titleKey: "payments.payoutIncompleteTitle",
         detailKey: "payments.payoutIncompleteDetail",
         actionKey: "payments.payoutActionFinish",
       };
-    case "pending_verification":
+    }
+    case "pending_verification": {
       // Null on purpose, and it is the honest answer: there is nothing to press
       // while Stripe checks. A button here would be one that does nothing.
       return {
@@ -228,18 +236,21 @@ export function payoutReadinessKeys(readiness: PayoutReadiness): {
         detailKey: "payments.payoutPendingDetail",
         actionKey: null,
       };
-    case "restricted":
+    }
+    case "restricted": {
       return {
         titleKey: "payments.payoutRestrictedTitle",
         detailKey: "payments.payoutRestrictedDetail",
         actionKey: "payments.payoutActionOpenStripe",
       };
-    case "ready":
+    }
+    case "ready": {
       return {
         titleKey: "payments.payoutReadyTitle",
         detailKey: "payments.payoutReadyDetail",
         actionKey: "payments.payoutActionOpenStripe",
       };
+    }
   }
 }
 
@@ -272,7 +283,7 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
   action: string | null;
 } {
   switch (readiness) {
-    case "not_connected":
+    case "not_connected": {
       return {
         title: "Not set up yet",
         detail:
@@ -281,7 +292,8 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
           "bank account — we never hold it, and we take nothing on top.",
         action: "Set up payments",
       };
-    case "onboarding_incomplete":
+    }
+    case "onboarding_incomplete": {
       return {
         title: "Nearly there",
         detail:
@@ -289,7 +301,8 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
           "take a payment. Picking up where you left off takes a couple of minutes.",
         action: "Finish setting up",
       };
-    case "pending_verification":
+    }
+    case "pending_verification": {
       return {
         title: "Stripe is checking your details",
         detail:
@@ -298,7 +311,8 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
           "requests on the moment it clears — nothing for you to do.",
         action: null,
       };
-    case "restricted":
+    }
+    case "restricted": {
       return {
         title: "Payments are paused",
         detail:
@@ -306,7 +320,8 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
           "you before it can take another one. Your Stripe dashboard says what.",
         action: "Open Stripe",
       };
-    case "ready":
+    }
+    case "ready": {
       return {
         title: "Ready to take payments",
         detail:
@@ -314,6 +329,7 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
           "an ordinary text with a link, and the money goes to your bank account.",
         action: "Open Stripe",
       };
+    }
   }
 }
 
@@ -367,6 +383,6 @@ export function payoutRequirementCopy(requirement: string): PayoutRequirementCop
   const known = PAYOUT_REQUIREMENT_KEYS[requirement as keyof typeof PAYOUT_REQUIREMENT_KEYS];
   if (known) return { key: known, literal: null };
   const cleaned = requirement.replace(/^(individual|company|representative)\./, "");
-  const words = cleaned.replace(/[._]/g, " ").trim();
+  const words = cleaned.replaceAll(/[._]/g, " ").trim();
   return { key: null, literal: words.charAt(0).toUpperCase() + words.slice(1) };
 }

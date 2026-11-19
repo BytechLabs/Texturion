@@ -46,25 +46,30 @@ export async function processConnectEvent(
   env: Env,
   event: Stripe.Event,
 ): Promise<void> {
-  const account = event.account;
+  const { account } = event;
   if (!account) return;
 
   switch (event.type) {
-    case "account.updated":
-      return handleAccountUpdated(env, event.data.object as Stripe.Account, account);
+    case "account.updated": {
+      return handleAccountUpdated(env, event.data.object, account);
+    }
     case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded":
+    case "checkout.session.async_payment_succeeded": {
       return handleConnectCheckout(
         env,
-        event.data.object as Stripe.Checkout.Session,
+        event.data.object,
         account,
       );
-    case "charge.refunded":
-      return handleChargeRefunded(env, event.data.object as Stripe.Charge, account);
-    case "charge.dispute.created":
-      return handleConnectDispute(env, event.data.object as Stripe.Dispute, account);
-    default:
-      return;
+    }
+    case "charge.refunded": {
+      return handleChargeRefunded(env, event.data.object, account);
+    }
+    case "charge.dispute.created": {
+      return handleConnectDispute(env, event.data.object, account);
+    }
+    default: {
+      break;
+    }
   }
 }
 
@@ -319,8 +324,8 @@ async function alertTheCrew(
       },
       db,
     );
-  } catch (cause) {
-    console.error(`payment alert failed for ${payment_request_id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`payment alert failed for ${payment_request_id}: ${String(error)}`);
   }
 }
 
@@ -340,10 +345,10 @@ async function latestChargeFor(
       .latest_charge;
     if (!latest) return null;
     return typeof latest === "string" ? latest : latest.id;
-  } catch (cause) {
+  } catch (error) {
     // Not fatal. Without the charge id a later refund cannot be matched, which
     // costs a timeline row — not the payment, which is already recorded.
-    console.warn(`payment intent retrieve failed: ${String(cause)}`);
+    console.warn(`payment intent retrieve failed: ${String(error)}`);
     return null;
   }
 }

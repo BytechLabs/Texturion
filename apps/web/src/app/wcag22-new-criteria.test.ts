@@ -197,7 +197,7 @@ describe("#238 WCAG 2.2 criteria beyond the named three", () => {
     // `autoComplete="firstname"` is a typo the browser ignores in silence, so
     // the field looks handled and a password manager still cannot fill it.
     const unknown = identityFields.filter((field) => {
-      const literal = field.tag.match(/\bautoComplete="([^"]*)"/);
+      const literal = /\bautoComplete="([^"]*)"/.exec(field.tag);
       return literal !== null && !TOKENS.has(literal[1]);
     });
     expect(unknown.map(where)).toEqual([]);

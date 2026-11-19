@@ -26,7 +26,7 @@ function accessToken(
     iss: issuer,
     sub: subject,
     role: "authenticated",
-    exp: NOW_SECONDS + 3_600,
+    exp: NOW_SECONDS + 3600,
   });
 }
 
@@ -43,8 +43,8 @@ function input(overrides: Partial<HostedCapacityInput> = {}): HostedCapacityInpu
     apiRamp: [2, 4],
     realtimeRamp: [2, 4],
     apiRounds: 1,
-    deadlineMs: 1_000,
-    dwellMs: 1_000,
+    deadlineMs: 1000,
+    dwellMs: 1000,
     ...overrides,
   };
   merged.confirmation =
@@ -87,7 +87,7 @@ function connection(
   return { joinedMs, snapshot, close } satisfies RealtimeConnection;
 }
 
-function realtimeInput(deadlineMs = 1_000): OpenRealtimeInput {
+function realtimeInput(deadlineMs = 1000): OpenRealtimeInput {
   return {
     supabaseOrigin: SUPABASE_ORIGIN,
     publishableKey: PUBLISHABLE_KEY,
@@ -179,7 +179,7 @@ describe("deployed capacity target safety", () => {
       iss: `${SUPABASE_ORIGIN}/auth/v1`,
       sub: "51000000-0000-4000-8000-00000000025a",
       role: "authenticated",
-      exp: NOW_SECONDS + 3_600,
+      exp: NOW_SECONDS + 3600,
     });
     expect(() =>
       config({
@@ -195,7 +195,7 @@ describe("deployed capacity target safety", () => {
       iss: `${SUPABASE_ORIGIN}/auth/v1`,
       sub: "51000000-0000-4000-8000-00000000025a",
       role: "authenticated",
-      exp: NOW_SECONDS + 9_000,
+      exp: NOW_SECONDS + 9000,
     });
     expect(() =>
       config({
@@ -224,10 +224,10 @@ describe("deployed capacity target safety", () => {
       dwellMs: 30_000,
     };
     expect(() =>
-      config({ ...apiConfirmationConfig, accessToken: tokenExpiringIn(1_100) }),
+      config({ ...apiConfirmationConfig, accessToken: tokenExpiringIn(1100) }),
     ).toThrow(/selected ramp/);
     expect(() =>
-      config({ ...apiConfirmationConfig, accessToken: tokenExpiringIn(1_300) }),
+      config({ ...apiConfirmationConfig, accessToken: tokenExpiringIn(1300) }),
     ).not.toThrow();
 
     const realtimeConfirmationConfig = {
@@ -237,10 +237,10 @@ describe("deployed capacity target safety", () => {
       dwellMs: 30_000,
     };
     expect(() =>
-      config({ ...realtimeConfirmationConfig, accessToken: tokenExpiringIn(1_800) }),
+      config({ ...realtimeConfirmationConfig, accessToken: tokenExpiringIn(1800) }),
     ).toThrow(/selected ramp/);
     expect(() =>
-      config({ ...realtimeConfirmationConfig, accessToken: tokenExpiringIn(2_000) }),
+      config({ ...realtimeConfirmationConfig, accessToken: tokenExpiringIn(2000) }),
     ).not.toThrow();
   });
 
@@ -285,7 +285,7 @@ describe("bounded API ramp", () => {
         `${API_ORIGIN}/v1/for-you`,
         accessToken(),
         COMPANY_ID,
-        1_000,
+        1000,
       ),
     ).resolves.toMatchObject({ status: 200 });
   });
@@ -317,10 +317,13 @@ describe("bounded API ramp", () => {
       }
       return response(statuses.shift() ?? 500);
     }) as unknown as typeof fetch;
-    let tick = 0;
+    let tick = -1;
     const evidence = await runHostedCapacity(config({ scenario: "api" }), {
       fetch: fetcher,
-      nowMs: () => tick++,
+      nowMs: () => {
+        tick += 1;
+        return tick;
+      },
       sleep: vi.fn(async () => undefined),
     });
 
@@ -368,7 +371,7 @@ describe("bounded API ramp", () => {
 
   it("records but exits inconclusive for repeated network-only failures", async () => {
     const emitted: CapacityEvidence[] = [];
-    const sequence: Array<number | "network"> = [200, 200, "network", 200, "network"];
+    const sequence: (number | "network")[] = [200, 200, "network", 200, "network"];
     const fetcher = vi.fn(async () => {
       const next = sequence.shift();
       if (next === "network") throw new TypeError("unreviewed network detail");
@@ -410,7 +413,7 @@ describe("bounded API ramp", () => {
   });
 
   it("can confirm a repeated server signal while preserving mixed network counts", async () => {
-    const sequence: Array<number | "network"> = [
+    const sequence: (number | "network")[] = [
       200,
       200,
       503,
@@ -456,7 +459,7 @@ describe("bounded API ramp", () => {
     await expect(
       runHostedCapacity(config({ scenario: "api" }), { fetch: unhealthy }),
     ).rejects.toThrow(/health preflight failed/);
-    expect(unhealthy).toHaveBeenCalledTimes(1);
+    expect(unhealthy).toHaveBeenCalledOnce();
 
     const unauthorized = vi
       .fn()
@@ -542,11 +545,12 @@ describe("hosted Realtime connection ramp", () => {
 
   it("opens cumulative independent connections, dwells, reports, and closes every handle", async () => {
     const handles: RealtimeConnection[] = [];
-    let joinedMs = 1;
+    let joinedMs = 0;
     const openRealtime = vi.fn(async (openInput) => {
       expect(openInput.accessToken).toBe(accessToken());
       expect(openInput.topic).toBe(`company:${COMPANY_ID}`);
-      const handle = connection(joinedMs++);
+      joinedMs += 1;
+      const handle = connection(joinedMs);
       handles.push(handle);
       return handle;
     });
@@ -690,7 +694,7 @@ describe("hosted Realtime connection ramp", () => {
     const hangingProbe: RealtimeConnection = {
       joinedMs: 1,
       snapshot: () => subscribedSnapshot(),
-      close: neverSettles<void>,
+      close: neverSettles<undefined>,
     };
     await expect(
       runHostedCapacity(cfg, {
@@ -743,12 +747,11 @@ describe("hosted Realtime connection ramp", () => {
         settled = true;
       },
     );
-    const rejection = expect(run).rejects.toBeInstanceOf(RealtimeCleanupFailure);
     await vi.waitFor(() => expect(openRealtime).toHaveBeenCalledTimes(3));
     expect(settled).toBe(false);
     expect(sibling.close).not.toHaveBeenCalled();
     releaseSibling.resolve();
-    await rejection;
+    await expect(run).rejects.toBeInstanceOf(RealtimeCleanupFailure);
     expect(sibling.close).toHaveBeenCalledOnce();
     expect(emitted).toEqual([]);
   });
@@ -768,7 +771,7 @@ describe("hosted Realtime connection ramp", () => {
           return {
             joinedMs: 1,
             snapshot: () => subscribedSnapshot(),
-            close: neverSettles<void>,
+            close: neverSettles<undefined>,
           };
         },
         onEvidence: (record) => emitted.push(record),
@@ -874,7 +877,7 @@ describe("Supabase Realtime adapter lifecycle", () => {
   it("orders and bounds both cleanup phases when provider promises hang", async () => {
     let subscriber: ((status: string) => void) | undefined;
     const events: string[] = [];
-    const never = new Promise<void>(() => undefined);
+    const never = new Promise<void>(() => {});
     const channel = {
       subscribe: vi.fn((callback: (status: string) => void) => {
         subscriber = callback;
@@ -1045,8 +1048,8 @@ describe("CAPACITY_RESULT privacy", () => {
         input({ accessToken: secret, confirmation: "wrong" }),
         NOW_SECONDS,
       );
-    } catch (cause) {
-      thrown = cause;
+    } catch (error) {
+      thrown = error;
     }
     expect(thrown).toBeInstanceOf(CapacityConfigError);
     expect((thrown as Error).message).not.toContain(secret);
@@ -1071,8 +1074,8 @@ describe("the rig target kind", () => {
       apiRamp: [2, 4],
       realtimeRamp: [2, 4],
       apiRounds: 1,
-      deadlineMs: 1_000,
-      dwellMs: 1_000,
+      deadlineMs: 1000,
+      dwellMs: 1000,
       targetKind: "rig",
       ...overrides,
     };
@@ -1156,7 +1159,7 @@ describe("the rig target kind", () => {
 
   it("puts the fixture's size into every record's tested bound", async () => {
     const validated = validateHostedCapacityInput(
-      rigInput({ fixture: { workspace_conversations: 5000, workspace_messages: 20000 } }),
+      rigInput({ fixture: { workspace_conversations: 5000, workspace_messages: 20_000 } }),
       NOW_SECONDS,
     );
     const emitted: CapacityEvidence[] = [];
@@ -1169,7 +1172,7 @@ describe("the rig target kind", () => {
     );
     expect(emitted[0].tested_bound).toMatchObject({
       workspace_conversations: 5000,
-      workspace_messages: 20000,
+      workspace_messages: 20_000,
     });
   });
 });

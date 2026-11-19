@@ -54,10 +54,10 @@ describe("#245 calendar connection client contract", () => {
       companyId: "company-245",
     });
     expect(
-      client
+      Boolean(client
         .getQueryCache()
-        .find({ queryKey: ["company-245", "calendar-connections"] }),
-    ).toBeTruthy();
+        .find({ queryKey: ["company-245", "calendar-connections"] })),
+    ).toBe(true);
   });
 
   it("starts Google authorization without inventing a calendar choice", async () => {
@@ -116,10 +116,10 @@ describe("#245 calendar connection client contract", () => {
       companyId: "company-245",
     });
     expect(
-      client
+      Boolean(client
         .getQueryCache()
-        .find({ queryKey: ["company-245", "calendar-attention"] }),
-    ).toBeTruthy();
+        .find({ queryKey: ["company-245", "calendar-attention"] })),
+    ).toBe(true);
   });
 
   it("resolves one decision and invalidates every affected product view", async () => {

@@ -505,7 +505,7 @@ describe("#399 rewardQualifiedReferral", () => {
         },
       };
       const stub = stripeStub(live);
-      stub.api.subscriptions.update = vi.fn(
+      stub.api.subscriptions.update.mockImplementation(
         async (id: string, params: Record<string, unknown>) => {
           stub.updates.push({ id, params });
           applied.push({ id: "di_1", coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } });

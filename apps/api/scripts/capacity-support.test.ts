@@ -49,7 +49,7 @@ describe("capacity-support", () => {
   });
 });
 
-describe("assertHostedTarget", () => {
+describe(assertHostedTarget, () => {
   const base = {
     targetId: "capacity-251",
     apiOrigin: "https://loonext-api-capacity-251.example.workers.dev",

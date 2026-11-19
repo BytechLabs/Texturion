@@ -178,7 +178,7 @@ describe("independent reads are issued together", () => {
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", { companyId: COMPANY_ID });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { company?: unknown; flags?: unknown };
+    const body = await res.json<{ company?: unknown; flags?: unknown }>();
     expect(body.company).toBeDefined();
     expect(body.flags).toEqual({ "kill:realtime": true });
     expectTogether(probe);
@@ -445,7 +445,7 @@ describe("independent reads are issued together", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { source: unknown; labels: unknown }[] };
+    const body = await res.json<{ data: { source: unknown; labels: unknown }[] }>();
     // Both decorations land on the same row.
     expect(body.data[0]).toMatchObject({
       source: { kind: "message", id: MESSAGE_ID, direction: "note" },

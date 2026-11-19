@@ -34,9 +34,16 @@
  *      made it, the whole crew sees it — a leaderboard nobody may look at is not
  *      a leaderboard, and the opt-in IS the control.
  */
-import { companySettingDefault, pipelineInsight, pipelineInsightKeys, pipelineWinRate, SATISFACTION_MIN_SAMPLE, SATISFACTION_POOR_AT_OR_BELOW } from '@loonext/shared';
+import {
+  companySettingDefault,
+  isAfterHours,
+  pipelineInsight,
+  pipelineInsightKeys,
+  pipelineWinRate,
+  SATISFACTION_MIN_SAMPLE,
+  SATISFACTION_POOR_AT_OR_BELOW,
+} from "@loonext/shared";
 import type { BusinessHours,HoursException,PipelineReport } from '@loonext/shared';
-import { isAfterHours } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";
@@ -65,7 +72,7 @@ const BASELINE_DAYS = 14;
 
 /** Rows the RPC returns for the hours split. Reported when it truncates. */
 const MAX_ROWS = 5000;
-const RATINGS_PAGE_SIZE = 1_000;
+const RATINGS_PAGE_SIZE = 1000;
 
 interface LeadRow {
   conversation_id: string;
@@ -255,8 +262,8 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
       .eq("id", companyId)
       .limit(1),
   ]);
-  const companies = unwrap<CompanyRow[]>(companiesRes, "response-time company lookup");
-  const company = companies[0];
+  const companies = unwrap<unknown>(companiesRes, "response-time company lookup") as CompanyRow[];
+  const [company] = companies;
   if (!company) {
     // Not a client error: authorization already proved this member belongs to
     // this workspace, so a missing row is our bug. A 404 here would tell the
@@ -619,7 +626,7 @@ reportsRoutes.get(
         .limit(1),
       "satisfaction company lookup",
     );
-    const company = companies[0];
+    const [company] = companies;
     if (!company) {
       throw new Error(`satisfaction: company ${companyId} has no row`);
     }

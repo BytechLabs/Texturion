@@ -241,7 +241,7 @@ function subscriptionAllows(
   return stateMachines
     .allowedActions(
       stateMachines.subscriptionMachine,
-      company.subscription_status as stateMachines.SubscriptionState,
+      company.subscription_status,
       role,
     )
     .includes(action);
@@ -312,7 +312,7 @@ billingRoutes.post("/checkout", async (c) => {
   // stale bundle's intent means "check out without it". Ids that were NEVER
   // modules are a 422 (typo/abuse protection).
   const RETIRED_MODULE_IDS = new Set(["voice", "mms", "extra_storage"]);
-  const requestedModules = [...new Set(parsed.data.modules ?? [])];
+  const requestedModules = [...new Set(parsed.data.modules)];
   const unknownModules = requestedModules.filter(
     (id) => !isPlanModule(id) && !RETIRED_MODULE_IDS.has(id),
   );
@@ -393,7 +393,7 @@ billingRoutes.post("/checkout", async (c) => {
    * route that needs no deactivation rather than leaving the reader stuck.
    */
   const memberCount = await countActiveMembers(db, company.id);
-  const seats = PLAN_LIMITS[plan].seats;
+  const { seats } = PLAN_LIMITS[plan];
   if (memberCount > seats) {
     const over = memberCount - seats;
     const alternative =
@@ -434,13 +434,13 @@ billingRoutes.post("/checkout", async (c) => {
   // whose Stripe price isn't provisioned in this environment is rejected
   // rather than silently dropped (the customer would be under-charged and
   // think they bought it). Enablement is written on checkout.completed.
-  for (const module of selectedModules) {
-    const price = modulePrice(env, module);
-    if (!isSellableModule(module) || !price) {
+  for (const moduleKey of selectedModules) {
+    const price = modulePrice(env, moduleKey);
+    if (!isSellableModule(moduleKey) || !price) {
       return errorResponse(
         c,
         "validation_failed",
-        `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+        `The ${MODULE_CATALOG[moduleKey].label} add-on isn't available yet.`,
       );
     }
     lineItems.push({ price, quantity: 1 });
@@ -495,8 +495,7 @@ billingRoutes.post("/checkout", async (c) => {
     // refusing to sell is worse.
     if (currencyError) {
       console.error(
-        `[billing] could not record the checkout currency for ${company.id}: ` +
-          currencyError.message,
+        `[billing] could not record the checkout currency for ${company.id}: ${currencyError.message}`,
       );
     }
   }
@@ -752,13 +751,17 @@ billingRoutes.post("/dismiss-winback", async (c) => {
   return c.body(null, 204);
 });
 
+function explicitlyDisabled(enabled: unknown): boolean {
+  return enabled === false;
+}
+
 async function portalConfiguration(env: Env, isOwner: boolean): Promise<string | null> {
   const id = isOwner
     ? env.STRIPE_OWNER_PORTAL_CONFIG_ID
     : env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
   if (!id && !isOwner) return null;
 
-  const configurations = getStripe(env).billingPortal.configurations;
+  const { configurations } = getStripe(env).billingPortal;
   const configuration = id
     ? await configurations.retrieve(id)
     : (await configurations.list({ active: true, is_default: true, limit: 1 })).data[0];
@@ -770,17 +773,17 @@ async function portalConfiguration(env: Env, isOwner: boolean): Promise<string |
     return null;
   }
 
-  const features = configuration.features;
+  const { features } = configuration;
   if (isOwner) {
     return features.subscription_cancel.enabled && features.subscription_cancel.mode === "at_period_end"
       ? configuration.id
       : null;
   }
 
-  return features.subscription_cancel.enabled === false &&
-    features.subscription_update.enabled === false &&
+  return explicitlyDisabled(features.subscription_cancel.enabled) &&
+    explicitlyDisabled(features.subscription_update.enabled) &&
     !features.subscription_pause?.enabled &&
-    features.customer_update.enabled === false
+    explicitlyDisabled(features.customer_update.enabled)
     ? configuration.id
     : null;
 }
@@ -989,12 +992,10 @@ billingRoutes.post("/change-plan", async (c) => {
       return errorResponse(
         c,
         "conflict",
-        `You have already paid for a year of ${openPrepaid.plan}, and it runs until ` +
-          `${openPrepaid.granted_through.slice(0, 10)}. Switching to ${target} ends ` +
-          (credit
+        `You have already paid for a year of ${openPrepaid.plan}, and it runs until ${openPrepaid.granted_through.slice(0, 10)}. Switching to ${target} ends ${credit
             ? `that year and puts ${credit} of it back on your account as credit, ` +
               `which comes off your next invoices. Confirm and we'll switch you over.`
-            : `that year. Confirm and we'll switch you over.`),
+            : `that year. Confirm and we'll switch you over.`}`,
       );
     }
     // A credit is held per currency in Stripe, so one issued in a currency this
@@ -1226,7 +1227,7 @@ billingRoutes.post("/change-plan", async (c) => {
           // by treating minutes up to 6,000 as included. Unprovisioned →
           // dropped at rollover (unbilled, never mis-billed).
           ...(voiceMeteredItem && voiceOveragePrice(env, "starter")
-            ? [{ price: voiceOveragePrice(env, "starter") as string }]
+            ? [{ price: voiceOveragePrice(env, "starter")! }]
             : []),
         ],
       },
@@ -1418,9 +1419,7 @@ billingRoutes.post("/prepay", async (c) => {
           : eligibility.reason === "no_subscription"
             ? "Subscribe first — a year up front pays for a plan you already have."
             : eligibility.reason === "already_prepaid"
-              ? "You have already paid for a year. It runs until " +
-                new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
-                "."
+              ? `You have already paid for a year. It runs until ${new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10)}.`
               : eligibility.reason === "plan_change_pending"
                 ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
                 : eligibility.reason === "referral_month_pending"
@@ -1442,7 +1441,7 @@ billingRoutes.post("/prepay", async (c) => {
     return errorResponse(c, "conflict", message);
   }
 
-  const plan = company.plan as PlanId;
+  const plan = company.plan!;
   const price = prepayYearPrice(env, plan);
   if (!price || !company.stripe_customer_id) {
     return errorResponse(
@@ -1504,21 +1503,23 @@ billingRoutes.post("/prepay", async (c) => {
  */
 function pauseRefusal(eligibility: PauseEligibility): string {
   switch (eligibility.reason) {
-    case "no_subscription":
+    case "no_subscription": {
       return "Subscribe first — pausing holds a plan you already have.";
-    case "already_paused":
+    }
+    case "already_paused": {
       return "Your plan is already paused.";
-    case "subscription_unhealthy":
+    }
+    case "subscription_unhealthy": {
       return "Sort out your payment method first, then you can pause.";
-    case "plan_change_pending":
+    }
+    case "plan_change_pending": {
       return "You have a plan change waiting to take effect. Once it lands you can pause.";
-    case "already_prepaid":
-      return (
-        "You have already paid for a year, and it runs until " +
-        new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
-        ". Pausing would spend those months on a hold instead of on the plan you bought."
-      );
-    case "prepaid_coupon_orphaned":
+    }
+    case "already_prepaid": {
+      const grantedThrough = new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10);
+      return `You have already paid for a year, and it runs until ${grantedThrough}. Pausing would spend those months on a hold instead of on the plan you bought.`;
+    }
+    case "prepaid_coupon_orphaned": {
       // The `prepayments` row is missing but the year is plainly running, so we
       // cannot name a date the way `already_prepaid` does. Say the true thing:
       // a pause would spend the year on a hold, and support can see the coupon.
@@ -1526,7 +1527,8 @@ function pauseRefusal(eligibility: PauseEligibility): string {
         "Your prepaid year is still running on this plan, so pausing would " +
         "spend those months on a hold instead. Get in touch and we'll sort it out."
       );
-    case "referral_month_pending":
+    }
+    case "referral_month_pending": {
       // Same harm as `already_prepaid`, said the same way: the free month rides
       // the line a pause would swap, so pausing spends a $29/$79 credit on a
       // holding fee. Naming the bill it lands on is what makes waiting obvious.
@@ -1535,8 +1537,10 @@ function pauseRefusal(eligibility: PauseEligibility): string {
         "Pausing would spend it on the hold instead of on your plan — let it " +
         "land first, then pause."
       );
-    default:
+    }
+    default: {
       return "Pausing isn't available right now.";
+    }
   }
 }
 
@@ -1569,13 +1573,13 @@ async function mirrorAfterSwap(
 ): Promise<void> {
   try {
     await syncSubscription(env, subscriptionId, db);
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `pause mirror via syncSubscription failed for ${subscriptionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
     const { error } = await fallback();
-    if (error) throw cause;
+    if (error) throw error_;
   }
 }
 
@@ -1648,7 +1652,7 @@ billingRoutes.get("/pause", async (c) => {
     reason: eligibility.reason ?? (offer === null ? "not_provisioned" : null),
     paused_at: company.paused_at,
     monthly_cents:
-      company.paused_at !== null ? company.paused_price_cents : (offer?.cents ?? null),
+      company.paused_at === null ? (offer?.cents ?? null) : company.paused_price_cents,
     // What they come back to. The pause never touches `plan` — that is the
     // whole reason it is not a third plan_id — so this is a real answer even
     // months in.
@@ -2050,7 +2054,7 @@ billingRoutes.get("/held-numbers", async (c) => {
     suspended_at: string | null;
   }[];
 
-  const plan = company.plan;
+  const { plan } = company;
   const included = plan === null ? null : PLAN_LIMITS[plan].numbers;
   const allowance = included === null ? null : included + company.paid_extra_numbers;
 
@@ -2300,7 +2304,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
         parsedKey.data,
       ),
     });
-  } catch (cause) {
+  } catch (error_) {
     const settled = await undoUnpaidReinstate(env, db, {
       stripe,
       subscriptionId: company.stripe_subscription_id,
@@ -2309,10 +2313,10 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       row,
       billed,
       quantity,
-      cause,
+      cause: error_,
     });
     if (!settled) {
-      const message = cause instanceof Error ? cause.message : String(cause);
+      const message = error_ instanceof Error ? error_.message : String(error_);
       if (/same price|duplicate/i.test(message)) {
         // A raced concurrent buy: the loser's item CREATE hits Stripe's
         // one-item-per-price rule. A clean conflict, not a 500 — a retry sees the
@@ -2323,7 +2327,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
           "Another change to your numbers is in flight. Try again in a moment.",
         );
       }
-      throw cause;
+      throw error_;
     }
     // Stripe had the change after all — the error was on the way back, not on
     // the way in. This is also how two simultaneous presses settle: the loser's
@@ -2474,7 +2478,6 @@ billingRoutes.post("/modules", async (c) => {
       "Calling is included on every plan now — there's nothing to turn on or pay for. Reload the app to see the current plan.",
     );
   }
-  const module = requestedModule;
 
   const company = await fetchCompany(db, companyId);
   if (!company.stripe_subscription_id || company.plan === null) {
@@ -2494,14 +2497,14 @@ billingRoutes.post("/modules", async (c) => {
       "Your subscription is canceled — resubscribe to change add-ons.",
     );
   }
-  const price = modulePrice(env, module);
+  const price = modulePrice(env, requestedModule);
   // #41: refuse to sell what we can't deliver (regions_ca until multi-region
   // ships), and refuse a module with no provisioned price in this environment.
-  if (!isSellableModule(module) || !price) {
+  if (!isSellableModule(requestedModule) || !price) {
     return errorResponse(
       c,
       "validation_failed",
-      `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+      `The ${MODULE_CATALOG[requestedModule].label} add-on isn't available yet.`,
     );
   }
   /**
@@ -2544,7 +2547,7 @@ billingRoutes.post("/modules", async (c) => {
     return errorResponse(
       c,
       "conflict",
-      `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[module].label} — ` +
+      `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[requestedModule].label} — ` +
         "that way you start paying for it on the day you can use it.",
     );
   }
@@ -2575,19 +2578,17 @@ billingRoutes.post("/modules", async (c) => {
   if (enabled) {
     if (scheduleId) {
       await applyPriceToSchedulePhases(stripe, scheduleId, price, true);
-    } else {
-      if (!existingItem) {
-        await stripe.subscriptionItems.create({
-          subscription: subscription.id,
-          price,
-          proration_behavior: "always_invoice",
-        });
-      }
+    } else if (!existingItem) {
+      await stripe.subscriptionItems.create({
+        subscription: subscription.id,
+        price,
+        proration_behavior: "always_invoice",
+      });
     }
     const { error } = await db.from("company_modules").upsert(
       {
         company_id: companyId,
-        module,
+        module: requestedModule,
         enabled_at: new Date().toISOString(),
         disabled_at: null,
         // An explicit purchase — from here on the subscription is the truth
@@ -2603,9 +2604,9 @@ billingRoutes.post("/modules", async (c) => {
       action: "billing.module_changed",
       targetType: "company",
       targetId: companyId,
-      after: { module, enabled: true },
+      after: { module: requestedModule, enabled: true },
     });
-    return c.json({ module, enabled: true });
+    return c.json({ module: requestedModule, enabled: true });
   }
 
   // Disable: drop the line item, mark disabled, and clear the gated
@@ -2613,18 +2614,16 @@ billingRoutes.post("/modules", async (c) => {
   // never rides a module toggle.)
   if (scheduleId) {
     await applyPriceToSchedulePhases(stripe, scheduleId, price, false);
-  } else {
-    if (existingItem) {
-      await stripe.subscriptionItems.del(existingItem.id, {
-        proration_behavior: "always_invoice",
-      });
-    }
+  } else if (existingItem) {
+    await stripe.subscriptionItems.del(existingItem.id, {
+      proration_behavior: "always_invoice",
+    });
   }
   const { error } = await db
     .from("company_modules")
     .update({ disabled_at: new Date().toISOString() })
     .eq("company_id", companyId)
-    .eq("module", module)
+    .eq("module", requestedModule)
     .is("disabled_at", null);
   if (error) throw new Error(`module disable failed: ${error.message}`);
   // #134: no voice arm — forwarding/MCTB are plan features now, never
@@ -2636,7 +2635,7 @@ billingRoutes.post("/modules", async (c) => {
     action: "billing.module_changed",
     targetType: "company",
     targetId: companyId,
-    after: { module, enabled: false },
+    after: { module: requestedModule, enabled: false },
   });
-  return c.json({ module, enabled: false });
+  return c.json({ module: requestedModule, enabled: false });
 });

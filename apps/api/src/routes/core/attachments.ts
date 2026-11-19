@@ -114,8 +114,8 @@ export function safeFilename(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? name; // drop any directory parts
   const cleaned = base
     .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replaceAll(/[^A-Za-z0-9._-]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
     .slice(0, 120);
   return cleaned === "" ? "file" : cleaned;
 }
@@ -141,13 +141,13 @@ export const EXECUTABLE_SNIFF = "application/x-executable";
  */
 function isExecutableSignature(startsWith: (sig: number[], offset?: number) => boolean): boolean {
   return (
-    startsWith([0x4d, 0x5a]) || // MZ — PE/DOS executable
-    startsWith([0x7f, 0x45, 0x4c, 0x46]) || // \x7F E L F
-    startsWith([0xfe, 0xed, 0xfa, 0xce]) || // Mach-O 32 BE / CA FE BA BE handled below
-    startsWith([0xfe, 0xed, 0xfa, 0xcf]) || // Mach-O 64 BE
-    startsWith([0xce, 0xfa, 0xed, 0xfe]) || // Mach-O 32 LE
-    startsWith([0xcf, 0xfa, 0xed, 0xfe]) || // Mach-O 64 LE
-    startsWith([0xca, 0xfe, 0xba, 0xbe]) || // Mach-O fat / Java class
+    startsWith([0x4D, 0x5A]) || // MZ — PE/DOS executable
+    startsWith([0x7F, 0x45, 0x4C, 0x46]) || // \x7F E L F
+    startsWith([0xFE, 0xED, 0xFA, 0xCE]) || // Mach-O 32 BE / CA FE BA BE handled below
+    startsWith([0xFE, 0xED, 0xFA, 0xCF]) || // Mach-O 64 BE
+    startsWith([0xCE, 0xFA, 0xED, 0xFE]) || // Mach-O 32 LE
+    startsWith([0xCF, 0xFA, 0xED, 0xFE]) || // Mach-O 64 LE
+    startsWith([0xCA, 0xFE, 0xBA, 0xBE]) || // Mach-O fat / Java class
     startsWith([0x23, 0x21]) // #! shebang script
   );
 }
@@ -212,8 +212,8 @@ export function sniffContentType(bytes: Uint8Array): string | null {
   if (isExecutableSignature(startsWith)) return EXECUTABLE_SNIFF;
 
   // Images
-  if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
-  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  if (startsWith([0xFF, 0xD8, 0xFF])) return "image/jpeg";
+  if (startsWith([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
     {return "image/png";}
   if (startsWith([0x47, 0x49, 0x46, 0x38])) return "image/gif"; // GIF8
   if (
@@ -226,9 +226,9 @@ export function sniffContentType(bytes: Uint8Array): string | null {
   // ZIP container (PK\x03\x04) — covers application/zip AND every OpenXML/ODF
   // office doc (all ZIP-based). We can't disambiguate the office subtype from
   // magic alone, so this is reported as the generic zip signature.
-  if (startsWith([0x50, 0x4b, 0x03, 0x04])) return "application/zip";
+  if (startsWith([0x50, 0x4B, 0x03, 0x04])) return "application/zip";
   // Legacy MS Office (OLE compound: D0 CF 11 E0 A1 B1 1A E1)
-  if (startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))
+  if (startsWith([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]))
     {return "application/x-ole-storage";}
   return null;
 }

@@ -30,13 +30,13 @@ async function submit(locale: "en" | "fr-CA") {
         ? /Envoyez-moi cette comparaison/
         : /Email me this comparison/,
     ),
-  ).toBeTruthy();
+  ).toBeInstanceOf(Element);
   fireEvent.change(screen.getByRole("textbox"), {
     target: { value: "dana@example.com" },
   });
   fireEvent.click(screen.getByRole("checkbox"));
   fireEvent.click(screen.getByRole("button"));
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 
   expect(submitted).not.toBeNull();
   return submitted ?? {};
@@ -44,7 +44,7 @@ async function submit(locale: "en" | "fr-CA") {
 
 describe("comparison request locale", () => {
   it("submits fr-CA from the French comparison route", async () => {
-    expect(await submit("fr-CA")).toMatchObject({
+    await expect(submit("fr-CA")).resolves.toMatchObject({
       email: "dana@example.com",
       source: "compare_page",
       locale: "fr-CA",
@@ -52,6 +52,6 @@ describe("comparison request locale", () => {
   });
 
   it("keeps the English request explicit", async () => {
-    expect(await submit("en")).toMatchObject({ locale: "en" });
+    await expect(submit("en")).resolves.toMatchObject({ locale: "en" });
   });
 });

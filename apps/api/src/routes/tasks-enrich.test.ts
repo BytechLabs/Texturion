@@ -141,13 +141,14 @@ describe("POST /v1/tasks/enrich", () => {
 
     const response = await enrich({ source_call_id: callId }, env);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ address: { street: "42 Elm St" }, due_at: null });
+    await expect(response.json()).resolves.toMatchObject({ address: { street: "42 Elm St" }, due_at: null });
     expect(run).toHaveBeenCalledOnce();
     expect(calls.calls[0].url.searchParams.get("voicemail_deleted_at")).toBe("is.null");
     expect(calls.calls[0].url.searchParams.get("voicemail_path")).toBe("not.is.null");
 
     live = false;
-    expect(await (await enrich({ source_call_id: callId }, env)).json()).toEqual({
+    const missingSource = await enrich({ source_call_id: callId }, env);
+    await expect(missingSource.json()).resolves.toEqual({
       address: null, address_provenance: null, due_at: null,
     });
     expect(run).toHaveBeenCalledOnce();
@@ -165,7 +166,7 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix the sink" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = await res.json<Record<string, unknown>>();
     expect(json.enrichment_disabled).toBe(true);
     expect(json.address).toBeNull();
     expect(run).not.toHaveBeenCalled();
@@ -187,11 +188,11 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix sink at 5 King St W tomorrow 2pm" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: { street: string } | null;
       address_provenance: string | null;
       due_at: string | null;
-    };
+    }>();
     expect(run).toHaveBeenCalledOnce();
     expect(json.address?.street).toBe("5 King St W");
     expect(json.address_provenance).toBe("message");
@@ -238,7 +239,7 @@ describe("POST /v1/tasks/enrich", () => {
     // Signal-bearing text so it reaches the cap (a no-signal task skips earlier).
     const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { address: unknown };
+    const json = await res.json<{ address: unknown }>();
     expect(json.address).toBeNull();
     expect(run).not.toHaveBeenCalled();
   });
@@ -256,10 +257,10 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: unknown;
       due_at: unknown;
-    };
+    }>();
     expect(json.address).toBeNull();
     expect(json.due_at).toBeNull();
   });
@@ -302,7 +303,7 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "call the customer back" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { address: unknown; due_at: unknown };
+    const json = await res.json<{ address: unknown; due_at: unknown }>();
     expect(json.address).toBeNull();
     expect(json.due_at).toBeNull();
     expect(run).not.toHaveBeenCalled();
@@ -336,10 +337,10 @@ describe("POST /v1/tasks/enrich", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: { street: string } | null;
       address_provenance: string | null;
-    };
+    }>();
     expect(json.address?.street).toBe("88 Bay St, Toronto");
     expect(json.address_provenance).toBe("contact");
     expect(run).not.toHaveBeenCalled();
@@ -575,10 +576,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     expect(res.status).toBe(200);
     // Passed through as null, which the RPC reads as "keep what is stored" —
     // a toggle save must never clear the owner's own words as a side effect.
-    expect(
-      (upsert.calls[0]?.body as { p_business_description: string | null })
-        .p_business_description,
-    ).toBeNull();
+    expect(upsert.calls[0]?.body).toMatchObject({ p_business_description: null });
   });
 
   it("#420: a stored description survives a toggle-only save", async () => {

@@ -163,14 +163,14 @@ export function runPsql(sql, connectionEnv, { args = [], container } = {}) {
     maxBuffer: 64 * 1024 * 1024,
   });
   const local = spawnSync("psql", psqlArgs, options(connectionEnv));
-  if (!local.error || local.error.code !== "ENOENT") return { ...local, via: "psql" };
+  if (local.error?.code !== "ENOENT") return { ...local, via: "psql" };
 
   let name = container ?? DEFAULT_PSQL_CONTAINER;
   let inside = connectionEnv;
   if (LOOPBACK.test(connectionEnv.PGHOST ?? "")) {
     const behind = containerBehind(connectionEnv.PGPORT ?? "5432", container);
     if (behind.error) return { error: new Error(behind.error), status: null, stdout: "", stderr: "", via: "docker" };
-    name = behind.name;
+    ({ name } = behind);
     inside = { ...connectionEnv, PGHOST: behind.host, PGPORT: behind.port };
   }
   const names = Object.keys(inside).flatMap((variable) => ["-e", variable]);
@@ -277,16 +277,14 @@ function runAsAgentDiag(sql, connection, container) {
   }
   let warned = false;
   for (const line of (result.stderr ?? "").split(/\r?\n/)) {
-    if (!/WARNING:/.test(line)) continue;
+    if (!line.includes("WARNING:")) continue;
     warned = true;
     console.error(`  ! ${line.replace(/^.*?WARNING:\s*/, "")}`);
   }
   if (result.status !== 0) {
     // psql's own error names the view, the permission or the hazard, never row data.
-    fail(
-      `${result.via} exited ${result.status}: ` +
-        (result.stderr ?? "").trim().split("\n").slice(-3).join(" | "),
-    );
+    const detail = (result.stderr ?? "").trim().split("\n").slice(-3).join(" | ");
+    fail(`${result.via} exited ${result.status}: ${detail}`);
   }
   return { stdout: result.stdout ?? "", warned };
 }

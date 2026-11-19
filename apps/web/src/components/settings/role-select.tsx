@@ -1,6 +1,7 @@
 "use client";
 
-import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
+import { ASSIGNABLE_ROLES } from "@loonext/shared";
+import type { AssignableRole } from "@loonext/shared";
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import type { Translate } from '@/i18n/provider';

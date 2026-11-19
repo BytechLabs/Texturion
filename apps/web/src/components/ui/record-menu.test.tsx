@@ -34,8 +34,8 @@ function actions(overrides: Partial<Record<string, boolean>> = {}): RecordAction
 
 function menuIds(): string[] {
   return Array.from(
-    document.querySelectorAll('[role="menu"] [data-action]'),
-  ).map((el) => el.getAttribute("data-action") ?? "");
+    document.querySelectorAll<HTMLElement>('[role="menu"] [data-action]'),
+  ).map((el) => el.dataset.action ?? "");
 }
 
 function Row({ list }: { list: RecordAction[] }) {
@@ -54,8 +54,8 @@ describe("#712 RecordContextMenu", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
     expect(menuIds()).toEqual(["open", "copy", "pin", "delete"]);
-    const last = document.querySelector('[data-action="delete"]');
-    expect(last?.getAttribute("data-variant")).toBe("destructive");
+    const last = document.querySelector<HTMLElement>('[data-action="delete"]');
+    expect(last?.dataset.variant).toBe("destructive");
   });
 
   it("draws a toggle as a checkbox item that carries its state", () => {
@@ -68,7 +68,7 @@ describe("#712 RecordContextMenu", () => {
   it("separates the groups with exactly one rule between each", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(document.querySelectorAll('[role="menu"] [role="separator"]').length).toBe(2);
+    expect(document.querySelectorAll('[role="menu"] [role="separator"]')).toHaveLength(2);
   });
 
   it("runs the action and closes", async () => {
@@ -76,7 +76,7 @@ describe("#712 RecordContextMenu", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Copy" }));
-    expect(onCopy).toHaveBeenCalledTimes(1);
+    expect(onCopy).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
@@ -123,7 +123,7 @@ describe("#712 RecordContextMenu", () => {
       getRangeAt: () => ({ commonAncestorContainer: elsewhere }),
     } as unknown as Selection);
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
   });
 
   it("opens from the menu key on a focused control inside the row and gives focus back on Escape", async () => {
@@ -133,7 +133,7 @@ describe("#712 RecordContextMenu", () => {
     // The menu key and Shift+F10 both make the browser dispatch `contextmenu`
     // at the focused element, which bubbles to the row.
     fireEvent.contextMenu(inside);
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(inside));
@@ -171,7 +171,7 @@ describe("a submenu built on open", () => {
     fireEvent.keyDown(document.querySelector('[data-action="snooze"]')!, { key: "ArrowRight" });
     expect(build).toHaveBeenCalled();
     fireEvent.click(document.querySelector('[data-action="snooze.later"]')!);
-    expect(onLater).toHaveBeenCalledTimes(1);
+    expect(onLater).toHaveBeenCalledOnce();
   });
 
   it("is never built for a row whose only action is not allowed", () => {

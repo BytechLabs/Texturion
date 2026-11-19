@@ -75,7 +75,7 @@ describe("#233 how far apart the two clocks are", () => {
     ]) {
       const line = hoursApart(zone);
       const magnitude = /(\d+) hours/.exec(line);
-      if (magnitude) expect(Number(magnitude[1])).toBeLessThanOrEqual(12);
+      expect(Number(magnitude?.[1] ?? 0), zone).toBeLessThanOrEqual(12);
     }
   });
 

@@ -49,7 +49,7 @@ beforeEach(() => {
 describe("/settings/blocked-numbers", () => {
   it("says so when nothing is blocked", () => {
     render(<BlockedNumbersPage />);
-    expect(screen.getByText("No blocked numbers.")).toBeTruthy();
+    expect(screen.getByText("No blocked numbers.")).toBeInstanceOf(Element);
   });
 
   it("lists the number formatted, who blocked it, and the reason", () => {
@@ -63,9 +63,9 @@ describe("/settings/blocked-numbers", () => {
       },
     ];
     render(<BlockedNumbersPage />);
-    expect(screen.getByText("(416) 555-0182")).toBeTruthy();
-    expect(screen.getByText(/Blocked by Priya Natarajan/)).toBeTruthy();
-    expect(screen.getByText("Reason: Keeps calling at night")).toBeTruthy();
+    expect(screen.getByText("(416) 555-0182")).toBeInstanceOf(Element);
+    expect(screen.getByText(/Blocked by Priya Natarajan/)).toBeInstanceOf(Element);
+    expect(screen.getByText("Reason: Keeps calling at night")).toBeInstanceOf(Element);
   });
 
   it("unblocks the row's id", () => {

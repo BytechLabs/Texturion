@@ -9,7 +9,7 @@ describe("the run lease", () => {
     const h = await ready();
     const first = await h.call("/lease", { caller: "robot", body: { scenario: "S02" } });
     expect(first.status).toBe(201);
-    const grant = (await first.json()) as { lease_id: string; scenario: string; expires_at: string };
+    const grant = await first.json<{ lease_id: string; scenario: string; expires_at: string }>();
     expect(grant.scenario).toBe("S02");
     expect(Date.parse(grant.expires_at) - h.clock.now).toBe(LEASE_MAX_MS);
     await expect(ruleOf(await h.call("/lease", { caller: "rig-api", body: { scenario: "S01" } }))).resolves.toBe("lease.busy");
@@ -215,10 +215,10 @@ describe("account signals", () => {
 describe("the lease's activity record", () => {
   const DIAL = { connection_id: "conn-robot", from: N.robot1, to: N.devW1, timeout_secs: 30 };
   const activityOf = async (h: Awaited<ReturnType<typeof ready>>, id: string) =>
-    (await (await h.call(`/lease/${id}/activity`, { caller: "robot" })).json()) as {
+    (await h.call(`/lease/${id}/activity`, { caller: "robot" })).json<{
       live: boolean;
       activity: Record<string, number>;
-    };
+    }>();
 
   it("counts each Telnyx request by caller, endpoint and outcome, refusals included", async () => {
     const h = await ready();

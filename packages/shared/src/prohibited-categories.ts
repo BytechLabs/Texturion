@@ -98,7 +98,7 @@ export function allTerms(): string[] {
  * both rather than whichever the loop reached first.
  */
 export function screenBusinessName(name: string): CategoryMatch[] {
-  const haystack = ` ${name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const haystack = ` ${name.toLowerCase().replaceAll(/[^a-z0-9]+/g, " ").trim()} `;
   const matches: CategoryMatch[] = [];
 
   for (const [category, terms] of Object.entries(TERMS) as [
@@ -110,7 +110,7 @@ export function screenBusinessName(name: string): CategoryMatch[] {
       // multi-word term matches as its own words rather than as a substring —
       // which is what keeps "cash advance" from matching "Cashmere Advanced
       // Cleaning".
-      const needle = ` ${term.replace(/[^a-z0-9]+/g, " ")} `;
+      const needle = ` ${term.replaceAll(/[^a-z0-9]+/g, " ")} `;
       if (haystack.includes(needle)) {
         matches.push({ category, term });
         break;
@@ -133,7 +133,7 @@ export function screenBusinessName(name: string): CategoryMatch[] {
  */
 export function screeningSummary(matches: CategoryMatch[]): string {
   if (matches.length === 0) return "The name matched nothing.";
-  const parts = matches.map((m) => `${m.category.replace(/_/g, " ")} ("${m.term}")`);
+  const parts = matches.map((m) => `${m.category.replaceAll('_', " ")} ("${m.term}")`);
   return (
     `The name looks like it could be in a category the AUP prohibits: ` +
     `${parts.join(", ")}. This is a keyword match on the name they typed, not ` +

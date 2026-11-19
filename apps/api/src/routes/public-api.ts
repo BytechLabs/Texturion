@@ -521,13 +521,13 @@ publicApiRoutes.get(
       }
     }
     if (cursor) query = query.or(keysetFilter("created_at", cursor));
-    const rows = unwrap<PublicListRow[]>(
+    const rows = unwrap<unknown>(
       await query
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(limit + 1),
       "public tasks list",
-    );
+    ) as PublicListRow[];
     const page = buildPage(rows, limit, "created_at");
     const decorated = await withLabelsAndRepeat(db, companyId, page.data);
     return c.json({ data: decorated.map(publicTask), limit, next_cursor: page.next_cursor });
@@ -775,7 +775,7 @@ publicApiRoutes.post(
       throw new Error(`public webhook subscribe failed: ${error.message}`);
     }
 
-    const row = (data as unknown as Record<string, unknown>[])[0];
+    const [row] = (data as unknown as Record<string, unknown>[]);
     return c.json({ ...row, secret_once: secret }, 201);
   },
 );

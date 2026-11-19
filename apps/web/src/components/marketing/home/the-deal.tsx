@@ -20,7 +20,7 @@ import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-s
 import { signupHref } from "@/components/marketing/pricing/plan-math";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 import type { PlanId } from "@/lib/api/types";
-import { LIVE_ROUTES, appLink } from "@/lib/marketing/site";
+import { appLink, LIVE_ROUTES } from "@/lib/marketing/site";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { TruthStrip } from "./truth-strip";

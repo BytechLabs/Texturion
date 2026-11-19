@@ -22,7 +22,7 @@
  * guard that silently stopped seeing a call site is worse than one that refuses
  * to guess.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative, resolve } from "node:path";
 
@@ -66,7 +66,9 @@ function sourceFiles() {
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 
-class Unfollowable extends Error {}
+class UnfollowableError extends Error {
+  name = "UnfollowableError";
+}
 
 /** The client's request functions; a call to either is a Telnyx request. */
 const REQUESTERS = new Set(["telnyxRequest", "telnyxUpload"]);
@@ -248,35 +250,35 @@ export function scanFile(ts, file, text) {
     if (ts.isIdentifier(expr)) {
       const decl = declarationOf(expr);
       if (decl && seen.has(decl)) {
-        throw new Unfollowable(`${where(expr)}: cannot list the values of "${expr.text}"`);
+        throw new UnfollowableError(`${where(expr)}: cannot list the values of "${expr.text}"`);
       }
       if (decl && ts.isParameter(decl)) {
         const param = parameterOf(decl);
         if (!param) {
-          throw new Unfollowable(`${where(expr)}: cannot list the values of "${expr.text}"`);
+          throw new UnfollowableError(`${where(expr)}: cannot list the values of "${expr.text}"`);
         }
         if (escapesFile(param.fn)) {
-          throw new Unfollowable(
+          throw new UnfollowableError(
             `${where(expr)}: "${param.name}" is exported or passed around, so callers this ` +
               `check cannot see may hand it any "${expr.text}". Keep it private to this file`,
           );
         }
         const callers = callersOf(param.fn);
         if (callers.length === 0) {
-          throw new Unfollowable(
+          throw new UnfollowableError(
             `${where(expr)}: "${param.name}" is never called in this file, so "${expr.text}" has no known value`,
           );
         }
         const next = new Set([...seen, decl]);
         return callers.flatMap((call) => {
           const arg = call.arguments[param.index];
-          if (!arg) throw new Unfollowable(`${where(call)}: "${param.name}" is called without "${expr.text}"`);
+          if (!arg) throw new UnfollowableError(`${where(call)}: "${param.name}" is called without "${expr.text}"`);
           return literalValues(arg, next);
         });
       }
       if (decl && ts.isVariableDeclaration(decl) && decl.initializer) {
         if (!(ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const)) {
-          throw new Unfollowable(
+          throw new UnfollowableError(
             `${where(expr)}: "${expr.text}" is not a const, so a later assignment can change ` +
               `it unseen. Make it a const`,
           );
@@ -284,7 +286,7 @@ export function scanFile(ts, file, text) {
         return literalValues(decl.initializer, new Set([...seen, decl]));
       }
     }
-    throw new Unfollowable(`${where(expr)}: "${expr.getText(sf)}" is not a literal this check can read`);
+    throw new UnfollowableError(`${where(expr)}: "${expr.getText(sf)}" is not a literal this check can read`);
   };
 
   const any = (results) =>
@@ -390,13 +392,13 @@ export function scanFile(ts, file, text) {
       const marker = MARKER.exec(segment);
       if (!marker) {
         if (segment.includes("\u0000")) {
-          throw new Unfollowable(`${where(node)}: an interpolation shares a path segment with text; give it a segment of its own`);
+          throw new UnfollowableError(`${where(node)}: an interpolation shares a path segment with text; give it a segment of its own`);
         }
         templates = templates.map((t) => [...t, segment]);
         return;
       }
       if (i <= 1) {
-        throw new Unfollowable(`${where(node)}: the collection after /v2/ is interpolated, so the endpoint is unknowable`);
+        throw new UnfollowableError(`${where(node)}: the collection after /v2/ is interpolated, so the endpoint is unknowable`);
       }
       // An id follows a collection name. After an action, or after another
       // interpolation, the segment names what is done, and that must be known.
@@ -417,7 +419,7 @@ export function scanFile(ts, file, text) {
   const methodsOf = (object, fallback) => {
     for (const prop of object.properties) {
       if (ts.isSpreadAssignment(prop)) {
-        throw new Unfollowable(`${where(prop)}: a spread in the request options can set the method unseen`);
+        throw new UnfollowableError(`${where(prop)}: a spread in the request options can set the method unseen`);
       }
     }
     for (const prop of object.properties) {
@@ -434,22 +436,22 @@ export function scanFile(ts, file, text) {
   const requestSink = (object, origin) => {
     const call = object.parent;
     if (!ts.isCallExpression(call) || !call.arguments.includes(object)) {
-      throw new Unfollowable(`${where(origin)}: this path is set on an object that is not a request`);
+      throw new UnfollowableError(`${where(origin)}: this path is set on an object that is not a request`);
     }
     const name = calleeName(call) ?? "";
     const methods = methodsOf(object, name === "telnyxUpload" ? "POST" : null);
-    if (methods.length === 0) throw new Unfollowable(`${where(origin)}: the request names no method`);
+    if (methods.length === 0) throw new UnfollowableError(`${where(origin)}: the request names no method`);
     fed.add(call);
     const telnyx = REQUESTERS.has(name) || /telnyx/i.test(name);
     return methods.map((method) => ({ method, telnyx }));
   };
 
   const fetchSink = (call) => {
-    const init = call.arguments[1];
+    const [, init] = call.arguments;
     let methods = ["GET"];
     if (init) {
       if (!ts.isObjectLiteralExpression(init)) {
-        throw new Unfollowable(`${where(call)}: the fetch options are not written inline`);
+        throw new UnfollowableError(`${where(call)}: the fetch options are not written inline`);
       }
       methods = methodsOf(init, "GET");
     }
@@ -465,7 +467,7 @@ export function scanFile(ts, file, text) {
       const p = cur.parent;
       if (!p) break;
       if (ts.isNewExpression(p) && p.expression.getText(sf) === "Request") {
-        throw new Unfollowable(
+        throw new UnfollowableError(
           `${where(start)}: a Request object carries its method where this check cannot ` +
             `see it. Pass the URL and an inline options object to fetch`,
         );
@@ -510,7 +512,7 @@ export function scanFile(ts, file, text) {
       }
       break;
     }
-    throw new Unfollowable(
+    throw new UnfollowableError(
       `${where(start)}: cannot see which request sends this path. Write it beside ` +
         `its method in a telnyxRequest call, in a local the call reads, or as an ` +
         `argument to a wrapper declared in the same file`,
@@ -520,7 +522,7 @@ export function scanFile(ts, file, text) {
   const throughParameter = (fn, index, start, seen) => {
     const param = fn.parameters[index];
     if (!param || !ts.isIdentifier(param.name) || seen.has(param) || !fn.body) {
-      throw new Unfollowable(`${where(start)}: cannot follow this path into "${functionName(fn)}"`);
+      throw new UnfollowableError(`${where(start)}: cannot follow this path into "${functionName(fn)}"`);
     }
     return throughReferences(
       references(fn.body, symbolOf(param.name)),
@@ -538,12 +540,12 @@ export function scanFile(ts, file, text) {
       try {
         sinks.push(...follow(ref, seen));
       } catch (error) {
-        if (!(error instanceof Unfollowable)) throw error;
+        if (!(error instanceof UnfollowableError)) throw error;
         first ??= error;
       }
     }
     if (sinks.length === 0) {
-      throw first ?? new Unfollowable(`${where(start)}: this path is never sent`);
+      throw first ?? new UnfollowableError(`${where(start)}: this path is never sent`);
     }
     return sinks;
   };
@@ -573,7 +575,7 @@ export function scanFile(ts, file, text) {
         for (const { method } of ours) requests.push({ method, path, where: where(literal) });
       }
     } catch (error) {
-      if (!(error instanceof Unfollowable)) throw error;
+      if (!(error instanceof UnfollowableError)) throw error;
       problems.push(error.message);
     }
   }
@@ -643,7 +645,7 @@ export function readRegistry(ts, text, file = REGISTRY_FILE) {
         init &&
         (ts.isAsExpression(init) ||
           ts.isParenthesizedExpression(init) ||
-          (ts.isSatisfiesExpression && ts.isSatisfiesExpression(init)))
+          ts.isSatisfiesExpression?.(init))
       ) {
         init = init.expression;
       }

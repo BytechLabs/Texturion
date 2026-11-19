@@ -15,7 +15,7 @@ import { SECURITY_HEADERS } from "./src/lib/observability/security-headers";
  */
 const APP_VERSION: string = (
   JSON.parse(
-    readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+    readFileSync(new URL("package.json", import.meta.url), "utf8"),
   ) as { version: string }
 ).version;
 
@@ -112,7 +112,7 @@ const nextConfig: NextConfig = {
    */
   turbopack: {
     rules: {
-      "*.md": { loaders: ["./loaders/markdown-source-loader.cjs"], as: "*.js" },
+      "*.md": { loaders: ["./loaders/markdown-source-loader.mjs"], as: "*.js" },
     },
   },
   // Hide the `next dev` indicator (the floating "N" badge). It's dev-only, but

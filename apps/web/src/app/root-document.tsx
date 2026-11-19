@@ -131,6 +131,6 @@ export function RootDocument({
   );
 }
 
-export default function EnglishRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export function EnglishRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <RootDocument>{children}</RootDocument>;
 }

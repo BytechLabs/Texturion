@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { keys } from "@/lib/api/keys";
 import { TaskDetailPanel } from "./task-detail-panel";
+import type * as TasksApi from "@/lib/api/tasks";
 
 const { apiFetch, rowLookups } = vi.hoisted(() => ({
   apiFetch: vi.fn<(path: string) => Promise<unknown>>(),
@@ -25,7 +26,7 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 // Counts the panel's own renders while the detail is pending.
 vi.mock("@/lib/api/tasks", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/tasks")>();
+  const actual = await importOriginal<typeof TasksApi>();
   return {
     ...actual,
     findCachedTaskRow: (...args: Parameters<typeof actual.findCachedTaskRow>) => {
@@ -62,7 +63,7 @@ function renderPanel(seed?: (client: QueryClient) => void) {
 beforeEach(() => {
   apiFetch.mockReset();
   // Nothing answers, so the panel stays where a slow detail leaves it.
-  apiFetch.mockImplementation(() => new Promise(() => {}));
+  apiFetch.mockReturnValue(new Promise(() => {}));
 });
 afterEach(cleanup);
 
@@ -99,7 +100,7 @@ describe("TaskDetailPanel while the detail loads", () => {
     await waitFor(() =>
       expect(client.getQueryState(keys.tasks.activity("c-1", "t1"))?.status).toBe("success"),
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
     expect(rowLookups.count).toBe(before);
   });
 
@@ -110,7 +111,7 @@ describe("TaskDetailPanel while the detail loads", () => {
         pageParams: [undefined],
       }),
     );
-    expect(screen.getByText("Fix the kitchen sink")).toBeTruthy();
+    expect(screen.getByText("Fix the kitchen sink")).toBeInstanceOf(Element);
     expect(container.querySelector("textarea, input, button, a")).toBeNull();
   });
 

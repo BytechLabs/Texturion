@@ -218,5 +218,3 @@ export function ThreadDeepDive({
     </div>
   );
 }
-
-export default ThreadDeepDive;

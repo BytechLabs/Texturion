@@ -75,7 +75,7 @@ describe(runDailySummary, () => {
       p_now: QUARTER_TO_EIGHT.toISOString(),
       p_limit: 50,
     });
-    const claim = sb.find("PATCH", "/rest/v1/notification_prefs")[0];
+    const [claim] = sb.find("PATCH", "/rest/v1/notification_prefs");
     expect(claim?.body).toEqual({ summary_sent_on: "2026-08-05" });
     expect(claim?.url.searchParams.get("or")).toContain("summary_sent_on.lt.2026-08-05");
     expect(
@@ -86,7 +86,7 @@ describe(runDailySummary, () => {
   it("sends nothing when the database returns no due summary", async () => {
     const sb = world({ due: false });
 
-    expect(await runDailySummary(env, MIDDLE_OF_THE_NIGHT)).toEqual({ considered: 0, sent: 0 });
+    await expect(runDailySummary(env, MIDDLE_OF_THE_NIGHT)).resolves.toEqual({ considered: 0, sent: 0 });
     expect(sb.calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 

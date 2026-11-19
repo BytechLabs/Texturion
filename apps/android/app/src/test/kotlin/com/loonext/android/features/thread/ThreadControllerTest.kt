@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -121,6 +123,10 @@ class ThreadControllerTest {
     /** #696: what GET /v1/blocked-senders answers with, as the raw `data` array. */
     @Volatile
     private var blockedRows = "[]"
+    private val blockedReadStarted = CountDownLatch(1)
+    private val blockedReadPhoneDigits = AtomicReference<String?>(null)
+    @Volatile
+    private var releaseBlockedRead: CountDownLatch? = null
 
     /** #696: the body of the last POST /v1/blocked-senders, and the last DELETE path. */
     private val blockPosted = AtomicReference<String?>(null)
@@ -189,19 +195,24 @@ class ThreadControllerTest {
                                 """"created_by_user_id":"u1","created_at":"$T1","updated_at":"$T1"}""",
                         )
 
-                    request.method == "GET" && path == "/v1/blocked-senders" ->
-                        MockResponse(code = 200, body = """{"data":$blockedRows}""")
+                    request.method == "GET" && path == "/v1/blocked-senders" -> {
+                        val rows = blockedRows
+                        blockedReadPhoneDigits.set(url.queryParameter("phone_digits"))
+                        blockedReadStarted.countDown()
+                        releaseBlockedRead?.await(30, TimeUnit.SECONDS)
+                        MockResponse(code = 200, body = """{"data":$rows}""")
+                    }
 
                     request.method == "POST" && path == "/v1/blocked-senders" -> {
                         blockPosted.set(request.body?.utf8())
-                        MockResponse(
-                            code = 201,
-                            body = """{"id":"b1","phone_e164":"+15555550100","created_at":"2026-07-15T10:00:00Z"}""",
-                        )
+                        val sender = """{"id":"b1","phone_e164":"+15555550100","created_at":"2026-07-15T10:00:00Z"}"""
+                        blockedRows = "[$sender]"
+                        MockResponse(code = 201, body = sender)
                     }
 
                     request.method == "DELETE" && path.startsWith("/v1/blocked-senders/") -> {
                         unblockedPath.set(path)
+                        blockedRows = "[]"
                         MockResponse(code = 204)
                     }
 
@@ -500,17 +511,27 @@ class ThreadControllerTest {
      */
     @Test
     fun `blocking posts the thread's number and unblocking deletes the row`() {
+        val release = CountDownLatch(1)
+        releaseBlockedRead = release
         val controller = controller()
         controller.start()
-        awaitUntil { controller.load is LoadState.Ready }
-        assertEquals(null, controller.blockedSender)
+        try {
+            assertTrue(blockedReadStarted.await(30, TimeUnit.SECONDS))
+            assertEquals("15555550100", blockedReadPhoneDigits.get())
+            assertEquals(null, controller.blockedSender)
 
-        controller.blockNumber()
-        awaitUntil { controller.blockedSender != null }
-        assertEquals("""{"phone_e164":"+15555550100"}""", blockPosted.get())
+            controller.blockNumber()
+            awaitUntil { controller.blockedSender != null }
+            assertEquals("""{"phone_e164":"+15555550100"}""", blockPosted.get())
+        } finally {
+            release.countDown()
+        }
+        awaitUntil { scope.coroutineContext[Job]?.children?.none() == true }
+        assertEquals("b1", controller.blockedSender?.id)
+        assertEquals(false, controller.canLinkMessagePhones)
 
         controller.unblockNumber()
-        awaitUntil { controller.blockedSender == null }
+        awaitUntil { controller.blockedSender == null && controller.canLinkMessagePhones }
         assertEquals("/v1/blocked-senders/b1", unblockedPath.get())
     }
 

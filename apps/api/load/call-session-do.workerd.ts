@@ -323,7 +323,7 @@ describe("#251 CallSessionDO ring fan-out, on workerd", () => {
     const expectedDials = HOT_OBJECTS * MAX_LEGS_PER_SESSION;
 
     expect(perObjectDials).toEqual(
-      Array(HOT_OBJECTS).fill(MAX_LEGS_PER_SESSION),
+      Array.from({ length: HOT_OBJECTS }, () => MAX_LEGS_PER_SESSION),
     );
     for (const peak of perObjectPeaks) {
       expect(peak).toBeGreaterThan(1);

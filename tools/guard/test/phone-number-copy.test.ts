@@ -83,7 +83,7 @@ it("requires a copy action for directly rendered phone numbers on all clients", 
     for (const file of readSources(resolve(root, directory), extension)) {
       const source = readFileSync(file, "utf8");
       for (const match of source.matchAll(text)) {
-        const number = match[1];
+        const [, number] = match;
         const index = match.index ?? 0;
         checked += 1;
         if (!hasCopyAction(source, number)) {

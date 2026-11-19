@@ -50,7 +50,7 @@
  */
 import { AUTOMATIC_TEXT_KEYS, estimateSegments, resolveAutomaticTextSettings, SCHEDULED_HOLD_REASON_KEYS, SCHEDULED_HOLD_REASONS, scheduledReasonRecovers } from '@loonext/shared';
 import type { AutomaticTextSettings, ScheduledHoldReason } from '@loonext/shared';
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
 import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "../calendar/liveness";
@@ -129,11 +129,11 @@ export interface ScheduledSendSummary {
 }
 
 function unwrap<T>(
-  result: { data: unknown; error: { message: string } | null },
+  result: PostgrestSingleResponse<T>,
   what: string,
 ): T {
   if (result.error) throw new Error(`${what} failed: ${result.error.message}`);
-  return result.data as T;
+  return result.data;
 }
 
 function isScheduledReason(reason: string): reason is ScheduledHoldReason {
@@ -313,8 +313,7 @@ async function reminderSchedule(
   // a transient PostgREST error must not silently cancel somebody's reminder.
   if (error) return noDueTime;
   if (
-    !data ||
-    data.deleted_at !== null ||
+    data?.deleted_at !== null ||
     data.reminders_off ||
     data.due_at === null ||
     data.done_state != null
@@ -596,10 +595,8 @@ export async function runScheduledSendJob(
     sent: 0,
     held: 0,
     failed: 0,
-    expired: 0,
+    expired: await expireStale(env, db, now),
   };
-
-  summary.expired = await expireStale(env, db, now);
 
   const due = unwrap<ScheduledRow[]>(
     await db.rpc("api_claim_due_scheduled_messages", {

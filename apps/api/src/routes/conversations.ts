@@ -44,8 +44,8 @@
 import type { BusinessHours, HoursException, VoicemailIntake } from "@loonext/shared";
 import {
   companySettingDefault,
-  resolveLocale,
   hasBusinessHours,
+  resolveLocale,
   roleHasCapability,
   shouldOfferThreadSummary,
   stateMachines,
@@ -310,7 +310,7 @@ async function findConversation(
   companyId: string,
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -320,7 +320,7 @@ async function findConversation(
       .is("deleted_at", null)
       .limit(1),
     "conversation lookup",
-  );
+  ) as Record<string, unknown>[];
   return rows[0] ?? null;
 }
 
@@ -692,9 +692,7 @@ conversationsRoutes.get(
     // leaked the internal columns the thread list deliberately omits
     // (provider_cost COGS, company_id, idempotency_key). Naming the columns
     // fixes both and makes the pinned message shape identical to the thread's.
-    const rows = unwrap<
-      (Record<string, unknown> & { id: string; message_attachments: unknown[] })[]
-    >(
+    const rows = unwrap<unknown>(
       await db
         .from("messages")
         .select(MESSAGE_COLUMNS)
@@ -704,7 +702,7 @@ conversationsRoutes.get(
         .not("pinned_at", "is", null)
         .order("pinned_at", { ascending: false }),
       "pinned messages",
-    );
+    ) as (Record<string, unknown> & { id: string; message_attachments: unknown[] })[];
     return c.json({
       data: rows.map(({ message_attachments, ...message }) => ({
         ...message,
@@ -721,7 +719,7 @@ conversationsRoutes.get(
     const conversationId = pathUuid(c, "id");
     const companyId = c.get("companyId");
     const query = c.req.query("q")?.trim() ?? "";
-    if (query.length < 1 || query.length > 200) {
+    if (query.length === 0 || query.length > 200) {
       throw new ApiError("validation_failed", "Enter 1 to 200 characters to search this conversation.");
     }
     const db = getDb(getEnv(c.env));
@@ -845,10 +843,10 @@ conversationsRoutes.get(
         .limit(1),
       resolveNumberAccess(db, { companyId, userId, role: c.get("role") }),
     ]);
-    const row = unwrap<ConversationDetailRow[]>(
+    const [row] = unwrap<unknown>(
       conversationRows,
       "conversation lookup",
-    )[0];
+    ) as ConversationDetailRow[];
     if (!row) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -861,17 +859,17 @@ conversationsRoutes.get(
     }
 
     const messagesPage = buildPage(
-      unwrap<MessageRow[]>(messageRows, "messages page"),
+      unwrap<unknown>(messageRows, "messages page") as MessageRow[],
       messageLimit,
       "created_at",
     );
-    const memberPref = unwrap<ConversationMemberPref[]>(
+    const [memberPref] = unwrap<ConversationMemberPref[]>(
       memberPrefRows,
       "conversation member prefs lookup",
-    )[0];
-    const snooze = unwrap<
+    );
+    const [snooze] = unwrap<
       { until: string; note: string | null; kind: string }[]
-    >(snoozeRows, "conversation snooze lookup")[0];
+    >(snoozeRows, "conversation snooze lookup");
     const openAlerts = unwrap<
       { id: string; kind: string; on_call_user_id: string | null; created_at: string }[]
     >(alertRows, "open alert lookup");
@@ -1167,7 +1165,7 @@ conversationsRoutes.patch(
         .select(CONVERSATION_COLUMNS),
       "conversation update",
     );
-    const updated = updatedRows[0];
+    const [updated] = updatedRows;
     if (!updated) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -1358,7 +1356,7 @@ conversationsRoutes.post(
         ),
       "note insert",
     );
-    const note = inserted[0];
+    const [note] = inserted;
     if (!note) throw new Error("note insert returned no row");
 
     // Mentions are a child table of the note, written after it because the
@@ -1626,7 +1624,7 @@ conversationsRoutes.post(
     // context — but NOT silent. A discarded error here degrades every draft
     // quietly, with nothing anywhere to say why.
     const firstRowOrNull = <T>(label: string) =>
-      (r: { data: unknown[] | null; error: { message: string } | null }): T | null => {
+      function readFirstRow(r: { data: unknown[] | null; error: { message: string } | null }): T | null {
         if (r.error) {
           console.error(`reply-suggestions ${label} lookup failed:`, r.error.message);
           return null;
@@ -2820,8 +2818,7 @@ async function withLiveCallEvents<T extends { id: string; created_at: string }>(
   >(
     await db
       .from("calls")
-      .select("id,call_session_id,deleted_at,voicemail_deleted_at,purged_at," +
-        "voicemail_path,voicemail_transcript,voicemail_intake,outcome")
+      .select("id,call_session_id,deleted_at,voicemail_deleted_at,purged_at,voicemail_path,voicemail_transcript,voicemail_intake,outcome")
       .eq("company_id", companyId)
       .eq("conversation_id", conversationId)
       .in("call_session_id", sessionIds),
@@ -2912,13 +2909,13 @@ async function changeConversationOptOut(c: Context<AppEnv>) {
 conversationsRoutes.post(
   "/conversations/:id/opt-out",
   requireCapability("conversations.note"),
-  changeConversationOptOut,
+  (c) => changeConversationOptOut(c),
 );
 
 conversationsRoutes.delete(
   "/conversations/:id/opt-out",
   requireCapability("conversations.note"),
-  changeConversationOptOut,
+  (c) => changeConversationOptOut(c),
 );
 
 conversationsRoutes.post(
@@ -2985,7 +2982,7 @@ conversationsRoutes.post(
       name: string;
       color: string | null;
     }
-    let tag: TagRow;
+    let tagRows: TagRow[];
 
     if (body.tag_id === undefined) {
       // Create-on-attach (SPEC §7): reuse the company's tag with this name
@@ -3038,9 +3035,9 @@ conversationsRoutes.post(
       if (!rows[0]) {
         throw new Error("tag find-or-create: no row returned");
       }
-      tag = rows[0];
+      tagRows = rows;
     } else {
-      const rows = unwrap<TagRow[]>(
+      tagRows = unwrap<TagRow[]>(
         await db
           .from("tags")
           .select("id,name,color")
@@ -3049,11 +3046,11 @@ conversationsRoutes.post(
           .limit(1),
         "tag lookup",
       );
-      if (!rows[0]) {
+      if (!tagRows[0]) {
         return errorResponse(c, "not_found", "No such tag.");
       }
-      tag = rows[0];
     }
+    const [tag] = tagRows;
 
     // ignoreDuplicates: attaching an already-attached tag is a no-op (200,
     // no duplicate timeline event); a fresh attach returns the inserted row.
@@ -3290,7 +3287,7 @@ conversationsRoutes.get(
       genericQuery,
       companyPlanRow(db, companyId),
     ]);
-    const mmsRows = unwrap<MmsArmRow[]>(mmsResult, "gallery mms arm");
+    const mmsRows = unwrap<unknown>(mmsResult, "gallery mms arm") as MmsArmRow[];
     const genericRows = unwrap<GenericArmRow[]>(
       genericResult,
       "gallery generic arm",

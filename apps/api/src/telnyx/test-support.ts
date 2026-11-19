@@ -107,11 +107,14 @@ function parsePrefer(request: Request): {
 }
 
 export class FakeRest {
-  private tables = new Map<string, TableSpec>();
-  private rpcs = new Map<string, (args: Record<string, unknown>) => unknown>();
-  private users = new Map<string, { id: string; email: string }>();
+  private readonly env: Env;
+  private readonly tables = new Map<string, TableSpec>();
+  private readonly rpcs = new Map<string, (args: Record<string, unknown>) => unknown>();
+  private readonly users = new Map<string, { id: string; email: string }>();
 
-  constructor(private env: Env) {}
+  constructor(env: Env) {
+    this.env = env;
+  }
 
   /** Register a table with column defaults applied to every insert. */
   table(name: string, defaults: Row = {}, unique: string[][] = []): this {
@@ -199,7 +202,7 @@ export class FakeRest {
     return async (url, request) => {
       if (!url.href.startsWith(this.env.SUPABASE_URL)) return undefined;
 
-      const adminMatch = url.pathname.match(/^\/auth\/v1\/admin\/users\/([^/]+)$/);
+      const adminMatch = /^\/auth\/v1\/admin\/users\/([^/]+)$/.exec(url.pathname);
       if (adminMatch && request.method === "GET") {
         const user = this.users.get(adminMatch[1]);
         return user
@@ -207,7 +210,7 @@ export class FakeRest {
           : Response.json({ message: "user not found" }, { status: 404 });
       }
 
-      const rpcMatch = url.pathname.match(/^\/rest\/v1\/rpc\/([A-Za-z0-9_]+)$/);
+      const rpcMatch = /^\/rest\/v1\/rpc\/([A-Za-z0-9_]+)$/.exec(url.pathname);
       if (rpcMatch && request.method === "POST") {
         const handler = this.rpcs.get(rpcMatch[1]);
         if (!handler) {
@@ -223,7 +226,7 @@ export class FakeRest {
         return Response.json(handler(args) ?? null);
       }
 
-      const tableMatch = url.pathname.match(/^\/rest\/v1\/([A-Za-z0-9_]+)$/);
+      const tableMatch = /^\/rest\/v1\/([A-Za-z0-9_]+)$/.exec(url.pathname);
       if (!tableMatch) return undefined;
       const spec = this.tables.get(tableMatch[1]);
       if (!spec) {
@@ -264,7 +267,7 @@ export class FakeRest {
       }
 
       if (request.method === "POST") {
-        const body = (await request.clone().json()) as Row | Row[];
+        const body = await request.clone().json<Row | Row[]>();
         const incoming = Array.isArray(body) ? body : [body];
         const prefer = parsePrefer(request);
         const conflictColumns = (url.searchParams.get("on_conflict") ?? "")
@@ -319,7 +322,7 @@ export class FakeRest {
       }
 
       if (request.method === "PATCH") {
-        const patch = (await request.clone().json()) as Row;
+        const patch = await request.clone().json<Row>();
         const prefer = parsePrefer(request);
         const matched = spec.rows.filter((row) => rowMatches(row, url));
         for (const row of matched) {
@@ -492,13 +495,13 @@ type TelnyxHandler = (
 
 export class TelnyxMock {
   calls: TelnyxCall[] = [];
-  private handlers: {
+  private readonly handlers: {
     method: string;
     pattern: RegExp;
     handler: TelnyxHandler;
   }[] = [];
 
-  private fallbacks: {
+  private readonly fallbacks: {
     method: string;
     pattern: RegExp;
     handler: TelnyxHandler;
@@ -580,7 +583,7 @@ export interface SentEmailCapture {
 export function resendRoute(sent: SentEmailCapture[]): FetchRoute {
   return async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    const body = (await request.clone().json()) as SentEmailCapture;
+    const body = await request.clone().json<SentEmailCapture>();
     sent.push(body);
     return Response.json({ id: `email_${sent.length}` });
   };

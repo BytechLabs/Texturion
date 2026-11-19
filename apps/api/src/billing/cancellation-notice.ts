@@ -12,7 +12,8 @@
  * everybody needs; it is one person's decision to make and unmake, and paging
  * a crew about their employer's billing would be a different mistake.
  */
-import { numberReleaseAt, type Locale } from "@loonext/shared";
+import { numberReleaseAt } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
@@ -27,6 +28,10 @@ interface CancellingCompany {
   id: string;
   name: string;
   owner_user_id: string;
+}
+
+export function hasScheduledCancellation(subscription: { cancel_at_period_end?: unknown }): boolean {
+  return subscription.cancel_at_period_end === true;
 }
 
 /**
@@ -44,7 +49,7 @@ export async function isNewCancellation(
   subscription: Stripe.Subscription,
   mirroredStatus: string,
 ): Promise<boolean> {
-  if (subscription.cancel_at_period_end !== true) return false;
+  if (!hasScheduledCancellation(subscription)) return false;
   // A subscription already dead is #21's territory, not this one.
   if (mirroredStatus === "canceled") return false;
 
@@ -93,8 +98,8 @@ export async function noticeCancellation(
         current_period_end: subscription.items?.data?.[0]?.current_period_end ?? null,
       },
     });
-  } catch (cause) {
-    console.error(`cancellation audit failed for ${company.id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`cancellation audit failed for ${company.id}: ${String(error)}`);
   }
 
   try {
@@ -169,7 +174,7 @@ export async function noticeCancellation(
       path: "/settings/billing",
       collapseKey: `cancellation:${company.id}`,
     });
-  } catch (cause) {
-    console.error(`cancellation notice failed for ${company.id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`cancellation notice failed for ${company.id}: ${String(error)}`);
   }
 }

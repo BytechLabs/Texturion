@@ -33,7 +33,7 @@ function queryKeys(file: string): Set<string> {
     [...source.matchAll(/c\.req\.query\(\s*"([^"]+)"/g)].map((m) => m[1]),
   );
   if (file === "tasks.ts") {
-    const parser = source.match(/^function parseTaskListQuery\b[\s\S]*?^}/m)?.[0] ?? "";
+    const parser = /^function parseTaskListQuery\b[\s\S]*?^}/m.exec(source)?.[0] ?? "";
     for (const [, key] of parser.matchAll(/\bquery\.(\w+)/g)) keys.add(key);
   }
   return keys;

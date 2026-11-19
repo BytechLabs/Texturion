@@ -16,7 +16,7 @@ import color from "p5/color";
 import math from "p5/math";
 import shape from "p5/shape";
 
-export { default } from "p5/core";
+export { default as p5 } from "p5/core";
 
 shape(p5);
 accessibility(p5);

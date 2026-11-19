@@ -17,10 +17,9 @@ import {
   estimateSegments,
   isUsCaDestination,
   resolveLocale,
+  resolveNumberIdentity,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-import { resolveNumberIdentity } from "@loonext/shared";
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
@@ -28,7 +27,8 @@ import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
 import { autoReplyThrottleSeconds } from "./automatic-text-settings";
 import { applySendMergeFields } from "./merge";
-import { dispatchOutbound, runPreSendGates, type SendClearance } from "./send";
+import { dispatchOutbound, runPreSendGates } from "./send";
+import type { SendClearance } from "./send";
 
 /** Hangup causes that mean the forward leg was NOT answered by a human. */
 const MISSED_HANGUP_CAUSES = new Set([
@@ -300,9 +300,9 @@ export async function sendMissedCallText(
   let clearance: SendClearance;
   try {
     clearance = await runPreSendGates(env, args.companyId, args.callerE164);
-  } catch (cause) {
-    if (cause instanceof ApiError) return NO_TEXT;
-    throw cause;
+  } catch (error) {
+    if (error instanceof ApiError) return NO_TEXT;
+    throw error;
   }
 
   // Merge fields into the booking-forward message — owner-authored or the
@@ -365,10 +365,10 @@ export async function sendMissedCallText(
       },
       db,
     );
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `missed-call alert for conversation ${outcome.conversationId} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
   // `alerted` even when notifyMissedCall threw: the attempt was made and

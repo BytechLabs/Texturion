@@ -36,7 +36,13 @@ export interface RigOpsOptions {
 
 const runNode = (file: string, args: readonly string[]): Promise<void> =>
   new Promise((resolve, reject) => {
-    execFile(file, [...args], { timeout: 5 * 60_000 }, (error) => (error && error.code !== 1 ? reject(error) : resolve()));
+    execFile(file, [...args], { timeout: 5 * 60_000 }, (error) => {
+      if (error && error.code !== 1) {
+        reject(error instanceof Error ? error : new Error("Rig command failed"));
+      } else {
+        resolve();
+      }
+    });
   });
 
 export class RigOps implements RigApi {

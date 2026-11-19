@@ -46,6 +46,7 @@ import { PhonePickerDialog } from "./phone-picker-dialog";
 import { VCardImportDialog } from "./vcard-import-dialog";
 // #228: the attestation sentence moved into the catalogue, keyed by door.
 import { contactsEn } from "@/i18n/sections/contacts";
+import type * as ContactsExport from "@/lib/api/contacts-export";
 
 const { csvMutate, vcardMutate, select, download } = vi.hoisted(() => ({
   csvMutate: vi.fn(),
@@ -75,7 +76,7 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
 // stub would have quietly removed the thing this issue added. The module's
 // only import is `./error`, so pulling the original is free.
 vi.mock("@/lib/api/contacts-export", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/contacts-export")>()),
+  ...(await importOriginal<typeof ContactsExport>()),
   triggerBlobDownload: download,
 }));
 // The wizard lazy-loads papaparse inside handleFile; parsing a real File in a
@@ -105,13 +106,13 @@ const IMPORT_CONSENT_LABEL = {
   picked: contactsEn.consentLabelPicked,
 } as const;
 
-afterEach(cleanup);
 beforeEach(() => {
   csvMutate.mockReset();
   vcardMutate.mockReset();
   select.mockReset();
   download.mockReset();
 });
+afterEach(cleanup);
 
 /** The attestation control, found by the sentence it actually renders. */
 function consentBox(source: keyof typeof IMPORT_CONSENT_LABEL) {
@@ -165,10 +166,10 @@ function answerWith(mutate: typeof csvMutate, result: ImportResult) {
 
 /** What the workspace has to end up reading — the server's own two sentences. */
 function expectRefusalReported() {
-  expect(screen.getByText(CONTACT_IMPORT_CONSENT_REFUSED_NOTE)).toBeTruthy();
+  expect(screen.getByText(CONTACT_IMPORT_CONSENT_REFUSED_NOTE)).toBeInstanceOf(Element);
   expect(
     screen.getByText(contactImportConsentRefusedReason(STOPPED)),
-  ).toBeTruthy();
+  ).toBeInstanceOf(Element);
 }
 
 describe("#248 the CSV wizard can satisfy the #226 gate", () => {
@@ -203,7 +204,7 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
     await waitFor(() => expect(isDisabled(importButton)).toBe(false));
     fireEvent.click(importButton);
 
-    expect(csvMutate).toHaveBeenCalledTimes(1);
+    expect(csvMutate).toHaveBeenCalledOnce();
     expect(csvMutate.mock.calls[0][0]).toMatchObject({ consentAttested: true });
   });
 
@@ -227,7 +228,7 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
         `Up to ${CONTACT_IMPORT_MAX_ROWS.toLocaleString()} rows / ` +
           `${CONTACT_IMPORT_MAX_BYTES / (1024 * 1024)} MB`,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("IC-4: previews the name that will land, not half of it", async () => {
@@ -235,8 +236,8 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
     // split columns were dropped again this cell would read "Sam" or "–".
     await reachPreview();
 
-    expect(screen.getByText("Sam Okafor")).toBeTruthy();
-    expect(screen.getByText("Dana Rivera")).toBeTruthy();
+    expect(screen.getByText("Sam Okafor")).toBeInstanceOf(Element);
+    expect(screen.getByText("Dana Rivera")).toBeInstanceOf(Element);
   });
 });
 
@@ -258,7 +259,7 @@ describe("#248 a .vcf is asked the same question", () => {
       screen.getByText(
         `Up to ${VCARD_IMPORT_MAX_BYTES / (1024 * 1024)} MB`,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("IC-6: sends the attestation with the card file", async () => {
@@ -275,7 +276,7 @@ describe("#248 a .vcf is asked the same question", () => {
     // The dialog reads the card file before posting, to enumerate what these
     // cards carry that the importer does not read (#248 round 3) — so the
     // mutation lands a tick after the choice rather than inside it.
-    await waitFor(() => expect(vcardMutate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(vcardMutate).toHaveBeenCalledOnce());
     expect(vcardMutate.mock.calls[0][0]).toMatchObject({
       consentAttested: true,
     });
@@ -290,7 +291,7 @@ describe("#248 the device address book is asked it too", () => {
       configurable: true,
       value: { select, getProperties: async () => ["name", "tel"] },
     });
-    vi.stubGlobal("ContactsManager", function ContactsManager() {});
+    vi.stubGlobal("ContactsManager", Object);
     select.mockResolvedValue([{ name: ["Sam Okafor"], tel: ["416-555-0199"] }]);
   });
   afterEach(() => {
@@ -316,7 +317,7 @@ describe("#248 the device address book is asked it too", () => {
     await waitFor(() => expect(isDisabled(pickButton)).toBe(false));
     fireEvent.click(pickButton);
 
-    await waitFor(() => expect(csvMutate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(csvMutate).toHaveBeenCalledOnce());
     expect(csvMutate.mock.calls[0][0]).toMatchObject({ consentAttested: true });
   });
 
@@ -448,7 +449,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
     chooseFile("vCard file", "BEGIN:VCARD\r\nEND:VCARD", "phone.vcf");
     await screen.findByText("Import finished");
 
-    expect(screen.getByText("…and 40 more.")).toBeTruthy();
+    expect(screen.getByText("…and 40 more.")).toBeInstanceOf(Element);
     expect(
       screen.queryByRole("button", { name: "Download the refused rows" }),
     ).toBeNull();
@@ -482,7 +483,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
       screen.getByRole("button", { name: "Download the refused rows" }),
     );
 
-    expect(download).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenCalledOnce();
     const [blob, filename] = download.mock.calls[0] as [Blob, string];
     expect(filename).toBe(CONSENT_REFUSALS_FILENAME);
     // #587: the byte-order mark, asserted on the BYTES. `blob.text()` decodes as
@@ -490,7 +491,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
     // is there — and its absence is exactly what makes an accented reason arrive
     // as mojibake in the spreadsheet somebody opens this in.
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xEF, 0xBB, 0xBF]);
 
     const csv = await blob.text();
     expect(csv.split("\r\n")).toHaveLength(61); // header + every refusal

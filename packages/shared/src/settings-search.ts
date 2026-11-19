@@ -377,9 +377,9 @@ export interface SettingsSearchResult {
 export function normalizeSettingsQuery(value: string): string {
   return value
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replaceAll(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replaceAll(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
@@ -389,7 +389,7 @@ function withinOneEdit(a: string, b: string): boolean {
   const gap = a.length - b.length;
   if (Math.abs(gap) > 1) return false;
   let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
   if (gap === 0) {
     if (a.slice(i + 1) === b.slice(i + 1)) return true;
     return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
@@ -417,8 +417,8 @@ function phraseMatches(query: string, phrase: string): boolean {
     return true;
   }
   // "timezone" typed for "time zone", and the other way round.
-  const joined = query.replace(/ /g, "");
-  return joined.length >= 3 && phrase.replace(/ /g, "").startsWith(joined);
+  const joined = query.replaceAll(' ', "");
+  return joined.length >= 3 && phrase.replaceAll(' ', "").startsWith(joined);
 }
 
 /**
@@ -436,7 +436,7 @@ export function searchSettings(
   for (const item of SETTINGS_INDEX) {
     if (!canSee(item.section)) continue;
     const words = locale === "fr" ? item.fr : item.en;
-    const label = words[0];
+    const [label] = words;
     if (label === undefined) continue;
     const labelMatch = phraseMatches(q, normalizeSettingsQuery(label));
     const rank = labelMatch

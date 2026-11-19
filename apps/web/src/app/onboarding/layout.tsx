@@ -7,7 +7,7 @@ import { EN } from "@/i18n/catalog";
 import { LocaleProvider } from "@/i18n/provider";
 
 import { AppProviders } from "../app-providers";
-import { metadata as rootMetadata, RootDocument } from "../root-document";
+import { RootDocument, metadata as rootMetadata } from "../root-document";
 
 import { OnboardingSessionGate } from "./session-gate";
 

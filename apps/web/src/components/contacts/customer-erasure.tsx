@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { LoadError } from "@/components/ui/load-error";
 import { PageHeader } from "@/components/ui/page-header";
 import { useT } from "@/i18n/provider";
-import { useCustomerErasure, useEraseCustomer, type CustomerErasure } from "@/lib/api/contacts";
+import { useCustomerErasure, useEraseCustomer } from "@/lib/api/contacts";
+import type { CustomerErasure } from "@/lib/api/contacts";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 
 export function CustomerErasureAction({ contactId }: { contactId: string }) {

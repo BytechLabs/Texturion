@@ -879,7 +879,7 @@ async function loadIdentity(
     | undefined;
   if (!number) return null;
 
-  const company = (companyRes.data ?? [])[0];
+  const [company] = companyRes.data ?? [];
 
   const identity = resolveNumberIdentity(
     {

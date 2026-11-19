@@ -333,8 +333,8 @@ function scoreCycle(
       onSum += x;
       onCount += 1;
       const b = shape.burst[q]!;
-      burstSums[b] = burstSums[b]! + x;
-      burstCounts[b] = burstCounts[b]! + 1;
+      burstSums[b]! += x;
+      burstCounts[b]! += 1;
     } else {
       offSum += x;
       offCount += 1;

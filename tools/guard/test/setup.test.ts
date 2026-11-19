@@ -11,10 +11,10 @@ import type { Harness } from './support';
 async function setup(h: Harness) {
   const response = await h.call("/admin/setup", { caller: "admin", method: "POST" });
   expect(response.status).toBe(200);
-  return (await response.json()) as {
+  return response.json<{
     steps: { resource: string; name: string; action: string; reason?: string }[];
     safety: { state: string; reasons: string[] };
-  };
+  }>();
 }
 
 function seedNotifications(h: Harness) {
@@ -242,6 +242,6 @@ describe("the committed spec", () => {
       expect(WEBHOOK_PATHS, path).toContain(path);
       expect(edgeUrl(EDGE, path)).toBe(`${EDGE}${EDGE_PATHS[path]}`);
     }
-    expect(() => edgeUrl(EDGE, "ctlRpc" as never)).toThrow();
+    expect(() => edgeUrl(EDGE, "ctlRpc" as never)).toThrow("ctlRpc is not an edge webhook path");
   });
 });

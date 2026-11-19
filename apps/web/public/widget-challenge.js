@@ -9,7 +9,7 @@
     return;
   }
 
-  const container = document.getElementById("challenge");
+  const container = document.querySelector("#challenge");
   const key = container.dataset.sitekey;
   const finish = (token) => window.parent.postMessage({ type: "loonext-widget-captcha", token }, origin);
   const fail = () => finish(null);

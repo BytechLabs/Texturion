@@ -26,7 +26,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
   it("sends the auth + company headers and honors the current search q", async () => {
     const fetchSpy = vi.fn(async () => csvResponse(`${BOM}name,phone\nAda,+14165550100\n`));
     const { blob, filename } = await fetchContactsExport("company-1", "  ada  ", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });
@@ -47,14 +47,14 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     // Excel — asserting at the byte level, since TextDecoder strips a decoded
     // U+FEFF (exactly why the download must carry raw bytes, not a string).
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xEF, 0xBB, 0xBF]);
     expect(filename).toBe("contacts.csv");
   });
 
   it("omits q when the search is empty (exports everything)", async () => {
     const fetchSpy = vi.fn(async () => csvResponse("name,phone\n"));
     await fetchContactsExport("company-1", "   ", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });
@@ -68,7 +68,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
       "company-1",
       "",
       {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => "test-token",
         baseUrl: BASE,
       },
@@ -83,7 +83,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     const fetchSpy = vi.fn(async () => csvResponse("x"));
     await expect(
       fetchContactsExport("company-1", "", {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => null,
         baseUrl: BASE,
       }),
@@ -93,16 +93,16 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
 
   it("parses the SPEC §7 error envelope on a non-2xx", async () => {
     const fetchSpy = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
+      Response.json(
+        {
           error: { code: "forbidden", message: "You can't export here." },
-        }),
+        },
         { status: 403, headers: { "Content-Type": "application/json" } },
       ),
     );
     await expect(
       fetchContactsExport("company-1", "", {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => "test-token",
         baseUrl: BASE,
       }),
@@ -123,7 +123,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
         }),
     );
     const { filename } = await fetchContactsExport("company-1", "", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });
@@ -140,10 +140,10 @@ describe("triggerBlobDownload (browser download side effect)", () => {
     const click = vi.fn();
     const remove = vi.fn();
     const anchor: Record<string, unknown> = { click, remove };
-    const appendChild = vi.fn();
+    const append = vi.fn();
     vi.stubGlobal("document", {
       createElement: vi.fn(() => anchor),
-      body: { appendChild },
+      body: { append },
     });
     const createObjectURL = vi.fn(() => "blob:fake");
     const revokeObjectURL = vi.fn();
@@ -152,13 +152,12 @@ describe("triggerBlobDownload (browser download side effect)", () => {
     const blob = new Blob([`${BOM}name,phone\n`], { type: "text/csv" });
     triggerBlobDownload(blob, "my-contacts.csv");
 
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(blob);
     expect(anchor.download).toBe("my-contacts.csv");
     expect(anchor.href).toBe("blob:fake");
-    expect(appendChild).toHaveBeenCalledWith(anchor);
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith(anchor);
+    expect(click).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:fake");
   });
 

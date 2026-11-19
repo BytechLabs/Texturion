@@ -5,6 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import ContactsPage from "./page";
+import type * as ContactsTableModule from "@/components/contacts/contacts-table";
 
 const url = { search: "" };
 
@@ -26,7 +27,7 @@ vi.mock("@/components/contacts/duplicate-contacts-card", () => ({
   DuplicateContactsCard: () => null,
 }));
 vi.mock("@/components/contacts/contacts-table", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/components/contacts/contacts-table")>()),
+  ...(await importOriginal<typeof ContactsTableModule>()),
   ContactsTable: () => null,
 }));
 

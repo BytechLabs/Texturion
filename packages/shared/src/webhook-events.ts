@@ -69,7 +69,7 @@ export const WEBHOOK_PING_EVENT = "ping";
  * and #548's lesson is that the second copy is the one that goes stale.
  */
 export function webhookEventLabelKey(type: WebhookEventType): string {
-  const camel = type.replace(/\.(\w)/g, (_, c: string) => c.toUpperCase());
+  const camel = type.replaceAll(/\.(\w)/g, (_, c: string) => c.toUpperCase());
   return `webhooks.event.${camel}`;
 }
 
@@ -157,7 +157,7 @@ export function parseWebhookSignatureHeader(
  * enough that the queue does not carry a dead endpoint's backlog for days at
  * our expense.
  */
-export const WEBHOOK_RETRY_SCHEDULE_SECONDS = [30, 120, 600, 3_600, 21_600] as const;
+export const WEBHOOK_RETRY_SCHEDULE_SECONDS = [30, 120, 600, 3600, 21_600] as const;
 
 export const WEBHOOK_MAX_ATTEMPTS = WEBHOOK_RETRY_SCHEDULE_SECONDS.length + 1;
 
@@ -219,7 +219,7 @@ export type WebhookUrlRejection =
  * request, which may emit another event. The loop is cheap to write by
  * accident and expensive to run.
  */
-const OUR_OWN_HOSTS = ["loonext.com", "api.loonext.com", "www.loonext.com"];
+const OUR_OWN_HOSTS = new Set(["loonext.com", "api.loonext.com", "www.loonext.com"]);
 
 /**
  * IPv4 literals that are not routable on the public internet, plus the two
@@ -229,7 +229,7 @@ const OUR_OWN_HOSTS = ["loonext.com", "api.loonext.com", "www.loonext.com"];
 function privateIpv4Reason(host: string): WebhookUrlRejection | null {
   const parts = host.split(".");
   if (parts.length !== 4) return null;
-  const octets = parts.map((p) => Number(p));
+  const octets = parts.map(Number);
   if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
   const [a, b] = octets as [number, number, number, number];
   if (a === 127) return "loopback-host";
@@ -286,9 +286,9 @@ export function webhookUrlRejection(raw: string): WebhookUrlRejection | null {
     // `::ffff:a00:1`. Matching the form somebody TYPES would match nothing.
     const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
     if (mapped) {
-      const high = Number.parseInt(mapped[1]!, 16);
-      const low = Number.parseInt(mapped[2]!, 16);
-      const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
+      const high = Number.parseInt(mapped[1], 16);
+      const low = Number.parseInt(mapped[2], 16);
+      const dotted = [high >> 8, high & 0xFF, low >> 8, low & 0xFF].join(".");
       const inner = privateIpv4Reason(dotted);
       if (inner) return inner;
     }
@@ -297,7 +297,7 @@ export function webhookUrlRejection(raw: string): WebhookUrlRejection | null {
   const ipv4 = privateIpv4Reason(host);
   if (ipv4) return ipv4;
 
-  if (OUR_OWN_HOSTS.includes(host)) return "our-own-host";
+  if (OUR_OWN_HOSTS.has(host)) return "our-own-host";
 
   return null;
 }
@@ -309,7 +309,7 @@ export function isDeliverableWebhookUrl(raw: string): boolean {
 
 /** The catalogue key explaining a rejection to the person who typed it. */
 export function webhookUrlRejectionKey(reason: WebhookUrlRejection): string {
-  const camel = reason.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
+  const camel = reason.replaceAll(/-(\w)/g, (_, c: string) => c.toUpperCase());
   return `webhooks.urlError.${camel}`;
 }
 

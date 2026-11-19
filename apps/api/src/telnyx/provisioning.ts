@@ -631,8 +631,9 @@ async function orderNumberForRow(
   env: Env,
   db: SupabaseClient,
   company: ProvisioningCompany,
-  row: PhoneNumberRow,
+  initialRow: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
+  let row = initialRow;
   const profileId = await ensureMessagingProfile(env, db, company);
 
   // A user-CHOSEN specific number (onboarding pick / remediation) is ordered
@@ -779,21 +780,21 @@ async function recordProvisionFailure(
  */
 export async function resumeProvisioning(
   env: Env,
-  row: PhoneNumberRow,
+  initialRow: PhoneNumberRow,
   now: Date = new Date(),
 ): Promise<PhoneNumberRow> {
   // Belt-and-braces: this saga BUYS inventory, so it must never run on a
   // keep-your-number row. A ported row is fulfilled by the port saga and a
   // hosted row by the text-enablement saga — ordering here would purchase a
   // random new number and overwrite the owner's own number_e164.
-  if (row.source !== "provisioned") {
+  if (initialRow.source !== "provisioned") {
     void captureException(env, "resumeProvisioning called on a keep-your-number row, skipped", {
       source: "api",
       level: "warning",
-      company_id: row.company_id,
-      extra: { source: row.source, phone_number_id: row.id },
+      company_id: initialRow.company_id,
+      extra: { source: initialRow.source, phone_number_id: initialRow.id },
     });
-    return row;
+    return initialRow;
   }
   const db = getDb(env);
 
@@ -806,9 +807,8 @@ export async function resumeProvisioning(
   // row (picks up a remediation's just-written chosen_number/area code). The lease
   // is released on the terminal activate/fail; a crash mid-lease heals by expiry
   // (the next execution recovers from the persisted order id / orphan), not a buy.
-  const leased = await claimProvisioningLease(db, row.id);
-  if (!leased) return row;
-  row = leased;
+  const row = await claimProvisioningLease(db, initialRow.id);
+  if (!row) return initialRow;
 
   // §4.3 double-buy guard: a row already failed AND out of attempts is
   // user-remediation-only (e.g. the stuck-pending 'timeout' flip, or an exhausted
@@ -1209,7 +1209,7 @@ export async function releaseNumberRow(
         `the release of row ${row.id}`,
       );
       // Kept un-released: "released" would claim a number we did not give up.
-      throw new TelnyxPartitionRefusal(row.telnyx_phone_number_id, row.id);
+      throw new TelnyxPartitionRefusalError(row.telnyx_phone_number_id, row.id);
     }
     if (current) {
       try {
@@ -1238,7 +1238,7 @@ export async function releaseNumberRow(
  * number's billing group in the portal. The mismatch alert has already been
  * raised by the time this is thrown.
  */
-export class TelnyxPartitionRefusal extends Error {
+class TelnyxPartitionRefusalError extends Error {
   readonly telnyxPhoneNumberId: string;
   readonly rowId: string;
 
@@ -1247,11 +1247,13 @@ export class TelnyxPartitionRefusal extends Error {
       `release refused: Telnyx number ${telnyxPhoneNumberId} is outside ` +
         `this environment's partition (D142); row ${rowId} stays un-released`,
     );
-    this.name = "TelnyxPartitionRefusal";
+    this.name = "TelnyxPartitionRefusalError";
     this.telnyxPhoneNumberId = telnyxPhoneNumberId;
     this.rowId = rowId;
   }
 }
+
+export { TelnyxPartitionRefusalError as TelnyxPartitionRefusal };
 
 /**
  * One Telnyx phone-number resource by id, or null when Telnyx says it no longer
@@ -1319,7 +1321,7 @@ export async function releaseCompanyNumbers(
     try {
       released.push(await releaseNumberRow(env, row));
     } catch (error_) {
-      if (error_ instanceof TelnyxPartitionRefusal) {
+      if (error_ instanceof TelnyxPartitionRefusalError) {
         console.warn(error_.message);
         continue;
       }

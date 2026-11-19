@@ -179,7 +179,7 @@ describe("#287 POST /quotes/:id/send", () => {
      * the text is not something a stub can dictate — which is the property that
      * makes the link safe in the first place.
      */
-    expect(body).toMatch(new RegExp("/q/[A-Za-z0-9_-]{20,}"));
+    expect(body).toMatch(/\/q\/[A-Za-z0-9_-]{20,}/);
   });
 
   it("hands it to the carrier rather than only writing a row", async () => {
@@ -195,7 +195,7 @@ describe("#287 POST /quotes/:id/send", () => {
     // message the customer received, not the row.
     const harness = buildHarness();
     await harness.send();
-    const quote = harness.rest.rows("quotes")[0];
+    const [quote] = harness.rest.rows("quotes");
     expect(quote.message_id).toBe(MESSAGE_ID);
   });
 
@@ -204,7 +204,7 @@ describe("#287 POST /quotes/:id/send", () => {
     // copy back to the sender is a credential with nothing to do — and it is
     // what made the old shape look finished while nothing was delivered.
     const harness = buildHarness();
-    const body = (await (await harness.send()).json()) as Record<string, unknown>;
+    const body = await (await harness.send()).json<Record<string, unknown>>();
     expect(Object.keys(body)).not.toContain("view_token");
     expect(Object.keys(body)).not.toContain("accept_token");
     expect(body.effective_status).toBe("sent");

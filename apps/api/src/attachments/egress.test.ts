@@ -157,7 +157,7 @@ describe("companyPlanRow (#16 / D30 anchor)", () => {
       plan: "pro",
       currentPeriodStart: "2026-07-01T00:00:00+00:00",
     });
-    const lookup = sb.find("GET", "/rest/v1/companies")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/companies");
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
   });

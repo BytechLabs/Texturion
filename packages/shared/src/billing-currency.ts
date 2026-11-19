@@ -71,7 +71,7 @@ export const DEFAULT_BILLING_CURRENCY: BillingCurrency = "usd";
 export const PLAN_PRICE_CENTS: Record<BillingCurrency, Record<SeatPlan, number>> =
   {
     usd: { starter: 2900, pro: 7900 },
-    cad: { starter: 3900, pro: 10900 },
+    cad: { starter: 3900, pro: 10_900 },
   };
 
 /**
@@ -170,7 +170,7 @@ export function formatMoney(
   if (locale === "fr-CA") {
     const french = amount.replaceAll(/[\u00A0\u202F]/gu, " ");
     const suffix = currency === audience ? "" : currency === "usd" ? " US" : " CA";
-    return french + " $" + suffix;
+    return `${french} $${suffix}`;
   }
   if (currency === audience) return `$${amount}`;
   return currency === "usd" ? `US$${amount}` : `CA$${amount}`;

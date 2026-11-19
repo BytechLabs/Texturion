@@ -13,10 +13,17 @@ describe(prepareMmsImage, () => {
     const close = vi.fn();
     const drawImage = vi.fn();
     const fillRect = vi.fn();
-    const encodings: Array<{ width: number; height: number; quality?: number }> = [];
+    const encodings: { width: number; height: number; quality?: number }[] = [];
     vi.stubGlobal("createImageBitmap", vi.fn(async () => ({ width: 4096, height: 3072, close })));
     vi.stubGlobal("OffscreenCanvas", class {
-      constructor(private width: number, private height: number) {}
+      private readonly width: number;
+      private readonly height: number;
+
+      constructor(width: number, height: number) {
+        this.width = width;
+        this.height = height;
+      }
+
       getContext() { return { fillRect, drawImage }; }
       async convertToBlob({ quality }: ImageEncodeOptions) {
         encodings.push({ width: this.width, height: this.height, quality });

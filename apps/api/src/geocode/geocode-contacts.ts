@@ -104,7 +104,7 @@ interface GeocodableContact {
 export type Sleeper = (ms: number) => Promise<void>;
 
 const realSleep: Sleeper = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+  new Promise((resolve) => { setTimeout(resolve, ms); });
 
 /**
  * §11-style scheduled job signature (env, now) — `now` is unused (work is

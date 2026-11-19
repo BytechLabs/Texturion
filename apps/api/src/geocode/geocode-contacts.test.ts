@@ -46,19 +46,17 @@ function stubGeocodeWorld(
       captured.scans.push(url);
       return (async () => {
         captured.scanBodies.push(
-          (await request.clone().json()) as Record<string, unknown>,
+          await request.clone().json<Record<string, unknown>>(),
         );
         return Response.json(scanRows);
       })();
     }
-    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/contacts`)) {
-      if (request.method === "PATCH") {
-        return (async () => {
-          const body = await request.clone().json();
-          captured.updates.push({ url, body });
-          return Response.json([]);
-        })();
-      }
+    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/contacts`) && request.method === "PATCH") {
+      return (async () => {
+        const body = await request.clone().json();
+        captured.updates.push({ url, body });
+        return Response.json([]);
+      })();
     }
     if (url.href.startsWith(`${NOMINATIM_BASE}/search`)) {
       captured.nominatim.push(url);
@@ -83,7 +81,7 @@ describe(geocodeContactsJob, () => {
 
     expect(captured.nominatim).toHaveLength(1);
     expect(captured.updates).toHaveLength(1);
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.c1");
     expect(write.body).toMatchObject({
       lat: 43.6489,
@@ -104,7 +102,7 @@ describe(geocodeContactsJob, () => {
 
     // The UPDATE is scoped to BOTH the id AND the address we geocoded, so a row
     // whose address changed under us matches zero rows and keeps its coordinate.
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.c1");
     expect(write.url.searchParams.get("address")).toBe("eq.1 King St W, Toronto");
   });

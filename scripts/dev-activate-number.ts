@@ -59,21 +59,18 @@ async function main(): Promise<void> {
   // Newest number row that isn't already active/released — the one the wizard
   // is waiting on. Scope to a company id when one is passed.
   const filter =
-    "status=in.(provisioning,provision_failed)" +
-    (companyId ? `&company_id=eq.${companyId}` : "");
+    `status=in.(provisioning,provision_failed)${companyId ? `&company_id=eq.${companyId}` : ""}`;
   const rows = await rest<NumberRow[]>(
     `phone_numbers?${filter}&order=created_at.desc&limit=1`,
   );
   if (rows.length === 0) {
     console.log(
-      "No provisioning number found." +
-        (companyId ? ` (company ${companyId})` : "") +
-        " Complete a checkout first, then re-run.",
+      `No provisioning number found.${companyId ? ` (company ${companyId})` : ""} Complete a checkout first, then re-run.`,
     );
     return;
   }
 
-  const row = rows[0];
+  const [row] = rows;
   const fakeE164 =
     row.number_e164 ?? `+1512555${String(Math.floor(1000 + Date.now() % 9000))}`;
   await rest(`phone_numbers?id=eq.${row.id}`, {

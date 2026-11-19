@@ -124,7 +124,7 @@ const PLACEMENT_TIMEOUT_MS = 48_000;
 /** The app's own requests must be quiet this long before the phone registers. */
 const REGISTER_QUIET_MS = 400;
 /** The longest registration waits after mount, so a tab never quiet still rings. */
-const REGISTER_CEILING_MS = 5_000;
+const REGISTER_CEILING_MS = 5000;
 /** How long a placed call waits for registration before giving up without a dial. */
 const READY_WAIT_MS = 10_000;
 const CONSULT_INVITE_TIMEOUT_MS = 28_000;
@@ -146,7 +146,9 @@ const LASTING_REFUSALS: ReadonlySet<string> = new Set([
  * with no prompt) always rendered the generic "Couldn't start the call. Try
  * again.", which tells the user to do the one thing that cannot work.
  */
-export class MicPermissionError extends Error {}
+export class MicPermissionError extends Error {
+  override name = "MicPermissionError";
+}
 
 /**
  * Prove we can capture the microphone BEFORE any server-side effect (the line
@@ -166,8 +168,8 @@ async function acquireMicOrThrow(t: Translate): Promise<void> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (cause) {
-    const name = cause instanceof DOMException ? cause.name : "";
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
     throw new MicPermissionError(
       name === "NotFoundError" || name === "DevicesNotFoundError"
         ? t("shell.micNotFound")
@@ -192,12 +194,7 @@ function showRingNotification(
   number: string,
   t: Translate,
 ): void {
-  if (
-    typeof Notification === "undefined" ||
-    Notification.permission !== "granted"
-  ) {
-    return;
-  }
+  if (globalThis.Notification?.permission !== "granted") return;
   try {
     const note = new Notification(t("shell.incomingCall"), {
       body: number && number !== name ? `${name} · ${number}` : name,
@@ -465,7 +462,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           }, backoffMs);
           resolveTimersRef.current.add(timer);
         });
-        backoffMs = Math.min(backoffMs * 2, 5_000);
+        backoffMs = Math.min(backoffMs * 2, 5000);
       }
       // Give up on THIS pass but not on the call: clearing the guard lets a
       // later 'active' (a hold/unhold, or a second answer) try again, which is
@@ -494,11 +491,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       const mintedFor = companyRef.current;
       const access = accessRef.current;
       const [{ token }, { TelnyxRTC }] = await Promise.all([
-        mintToken().catch((cause: unknown) => {
-          if (cause instanceof ApiError && LASTING_REFUSALS.has(cause.code)) {
+        mintToken().catch((error: unknown) => {
+          if (error instanceof ApiError && LASTING_REFUSALS.has(error.code)) {
             refusedAccessRef.current = access;
           }
-          throw cause;
+          throw error;
         }),
         import("@telnyx/webrtc"),
       ]);
@@ -908,7 +905,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   /** Hold the currently-active call (before answering/placing another). */
   const holdActive = useCallback(() => {
-    const activeId = stateRef.current.activeId;
+    const { activeId } = stateRef.current;
     if (!activeId) return;
     const call = callsRef.current.get(activeId);
     if (!call) return;
@@ -1044,15 +1041,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           sessionId,
           peer,
         });
-      } catch (cause) {
+      } catch (error) {
         dispatch({
           type: "error",
           message:
-            cause instanceof MicPermissionError || cause instanceof ApiError
-              ? cause.message
+            error instanceof MicPermissionError || error instanceof ApiError
+              ? error.message
               : t("shell.callStartFailed"),
         });
-        throw cause;
+        throw error;
       }
     },
     [authorize, ensureClient, rebuildClient, waitForReady, t],
@@ -1067,16 +1064,16 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // that can't capture audio.
       try {
         await acquireMicOrThrow(t);
-      } catch (cause) {
+      } catch (error) {
         const message =
-          cause instanceof MicPermissionError
-            ? cause.message
+          error instanceof MicPermissionError
+            ? error.message
             : t("shell.answerFailed");
         dispatch({ type: "error", message });
         // Reject so the Answer click can surface the reason. state.error is not
         // rendered anywhere, so without this the ring chip just keeps ringing
         // and the actionable "mic is blocked" message is lost.
-        throw new Error(message);
+        throw new Error(message, { cause: error });
       }
       holdActive();
       try {
@@ -1136,7 +1133,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (!info || !call) return;
     if (info.phase === "held") {
       // Unholding swaps: anything currently active goes on hold first.
-      const activeId = stateRef.current.activeId;
+      const { activeId } = stateRef.current;
       if (activeId && activeId !== id) {
         const active = callsRef.current.get(activeId);
         void active?.hold().catch(() => {});

@@ -29,7 +29,11 @@ export async function sendWorkspaceMfaNotices(env: Env, now: Date, companyId?: s
 
   let failures = 0;
   for (const [index, notice] of notices.entries()) {
-    if (index > 0) await new Promise((resolve) => setTimeout(resolve, SEND_INTERVAL_MS));
+    if (index > 0) {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, SEND_INTERVAL_MS);
+      });
+    }
     try {
       await sendWorkspaceMfaNotice(env, notice);
     } catch {
@@ -48,7 +52,7 @@ export async function sendWorkspaceMfaNotices(env: Env, now: Date, companyId?: s
 async function sendWorkspaceMfaNotice(env: Env, notice: WorkspaceMfaNotice) {
   const locale = notice.locale === "fr-CA" ? "fr-CA" : "en";
   const french = locale === "fr-CA";
-  const workspace = notice.workspace_name.replace(/\s+/g, " ").trim();
+  const workspace = notice.workspace_name.replaceAll(/\s+/g, " ").trim();
   const graceUntil = notice.grace_until ? new Date(notice.grace_until) : null;
   const deadline = graceUntil && graceUntil > new Date(notice.required_at)
     ? new Intl.DateTimeFormat(french ? "fr-CA" : "en-CA", {

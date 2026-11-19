@@ -78,7 +78,7 @@ export function LazyIsland<C extends ComponentType<any>>({
   rootMargin = "400px 0px",
 }: LazyIslandProps<C>) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [Loaded, setLoaded] = useState<C | null>(null);
+  const [loaded, setLoaded] = useState<C | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,7 +162,7 @@ export function LazyIsland<C extends ComponentType<any>>({
   }, [eager, load, rootMargin, skipWhenReducedMotion]);
 
   // Once loaded, the island replaces the fallback in the same layout slot.
-  const Island = Loaded;
+  const Island = loaded;
   return (
     <div ref={rootRef}>
       {Island ? (

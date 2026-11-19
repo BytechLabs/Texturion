@@ -40,8 +40,11 @@ function sourceFiles(dir: string): string[] {
 function callArguments(source: string, start: number): string {
   let depth = 1;
   for (let i = start; i < source.length; i++) {
-    if (source[i] === "(") depth++;
-    else if (source[i] === ")" && --depth === 0) return source.slice(start, i);
+    if (source[i] === "(") depth += 1;
+    else if (source[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, i);
+    }
   }
   return source.slice(start);
 }
@@ -51,8 +54,8 @@ function firstArgument(args: string): string {
   let depth = 0;
   for (let i = 0; i < args.length; i++) {
     const c = args[i];
-    if ("([{".includes(c)) depth++;
-    else if (")]}".includes(c)) depth--;
+    if ("([{".includes(c)) depth += 1;
+    else if (")]}".includes(c)) depth -= 1;
     else if (c === "," && depth === 0) return args.slice(0, i).trim();
   }
   return args.trim();

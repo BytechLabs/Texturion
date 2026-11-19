@@ -6,7 +6,10 @@ import type { FailedAttempt } from './idempotency';
 /** Deterministic mint so the assertions are about the RULE, not randomness. */
 function minter() {
   let n = 0;
-  return () => `minted-${n += 1}`;
+  return () => {
+    n += 1;
+    return `minted-${n}`;
+  };
 }
 
 describe(idempotencyKeyFor, () => {

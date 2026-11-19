@@ -159,7 +159,7 @@ ${defaults.join(",\n")}
 `;
 }
 
-const mode = process.argv[2];
+const { 2: mode } = process.argv;
 if (mode !== "--write" && mode !== "--check") {
   console.error("usage: api-schema-snapshot.mjs --write | --check");
   process.exit(2);
@@ -169,7 +169,7 @@ if (mode === "--write") {
   writeFileSync(OUT, next);
   console.log(`wrote ${OUT}`);
 } else {
-  const current = readFileSync(OUT, "utf8").replace(/\r\n/g, "\n");
+  const current = readFileSync(OUT, "utf8").replaceAll('\r\n', "\n");
   if (current !== next) {
     console.error(
       `${OUT} is stale: the database built from supabase/migrations differs from it.\n` +

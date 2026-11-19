@@ -58,7 +58,7 @@ export async function startFakeJwks(): Promise<JwksAuth> {
     res.end(JSON.stringify({ error: "not found" }));
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   const {port} = (server.address() as AddressInfo);
   const origin = `http://127.0.0.1:${port}`;
 
@@ -79,8 +79,8 @@ export async function startFakeJwks(): Promise<JwksAuth> {
         .sign(privateKey);
     },
     close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      ),
+      new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      }),
   };
 }

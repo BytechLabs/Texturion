@@ -109,7 +109,7 @@ async function main(): Promise<void> {
     ),
     apiRounds: integer(values, "--api-rounds", 3),
     deadlineMs: integer(values, "--deadline-ms", 10_000),
-    dwellMs: integer(values, "--dwell-ms", 2_000),
+    dwellMs: integer(values, "--dwell-ms", 2000),
     targetKind: (values.get("--target-kind") ?? "hosted") as CapacityTargetKind,
   });
 
@@ -120,9 +120,9 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((cause: unknown) => {
-  if (cause instanceof CapacityConfigError || cause instanceof CapacityRunError) {
-    process.stderr.write(`capacity: ${cause.message}\n`);
+main().catch((error: unknown) => {
+  if (error instanceof CapacityConfigError || error instanceof CapacityRunError) {
+    process.stderr.write(`capacity: ${error.message}\n`);
   } else {
     // External libraries sometimes put URLs or response bodies in an Error.
     // The operator gets a category, never the unreviewed error string.

@@ -89,7 +89,7 @@ describe(parseEnrichmentOutput, () => {
   });
 
   it.each([
-    ["object response", { response: { street: "12 Hill St", postalcode: 90210, source: "guess", due_date: "tomorrow" } }],
+    ["object response", { response: { street: "12 Hill St", postalcode: 90_210, source: "guess", due_date: "tomorrow" } }],
     ["choices", { choices: [{ message: { content: '{"street":"12 Hill St","postalcode":90210,"source":"guess","due_date":"tomorrow"}' } }] }],
     ["result", { result: { response: '{"street":"12 Hill St","postalcode":90210,"source":"guess","due_date":"tomorrow"}' } }],
   ])("keeps usable fields from %s", (_name, raw) => {

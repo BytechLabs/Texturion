@@ -76,7 +76,7 @@ describe("find messages in one conversation", () => {
     stubFetch(jwksRoute(auth), sb.route);
     const response = await apiRequest(app, env, await auth.token(), endpoint, { companyId: COMPANY_ID });
     expect(response.status).toBe(200);
-    const result = (await response.json()) as { data: { id: string }[]; truncated: boolean };
+    const result = await response.json<{ data: { id: string }[]; truncated: boolean }>();
     expect(result.data).toHaveLength(50);
     expect(result.truncated).toBe(true);
     expect(sb.find("POST", rpc)[0].body).toEqual({ p_company: COMPANY_ID, p_thread: CONV_ID, p_query: "furn" });
@@ -125,7 +125,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -227,7 +227,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/conversations", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
     expect(body.data[0].allowed_actions).toEqual(
       expect.arrayContaining(["reopen", "mark_waiting", "mark_spam"]),
     );
@@ -249,7 +249,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(rpc.body).toMatchObject({
       p_limit: 26,
       p_status: null,
@@ -375,9 +375,9 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; attachments: unknown[]; body_tsv?: unknown }[];
-    };
+    }>();
     expect(body.data.map((m) => m.id)).toEqual(["m2", "m1"]);
     expect(body.data[0].attachments).toEqual([]);
     expect(body.data[0]).not.toHaveProperty("body_tsv");
@@ -415,10 +415,10 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       "/v1/conversations",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(25);
     expect(body.next_cursor).toBe(
       encodeCursor({
@@ -515,7 +515,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     const clock = body.destination_clock as Record<string, unknown>;
     expect(clock).toMatchObject({
       timezone: "America/Toronto",
@@ -570,7 +570,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.contact).toMatchObject({ name: "Jo" });
     expect(body.tags).toEqual([{ id: TAG_ID, name: "Won", color: null }]);
     const messages = body.messages as {
@@ -596,7 +596,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
     expect(messages.next_cursor).toBeNull();
 
     // The messages page is company-scoped and newest-first with limit 50+1.
-    const msgCall = sb.find("GET", "/rest/v1/messages")[0];
+    const [msgCall] = sb.find("GET", "/rest/v1/messages");
     expect(msgCall.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(msgCall.url.searchParams.get("limit")).toBe("51");
     // D14: the embedded first page carries the done fields too.
@@ -666,7 +666,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
       try {
         const response = await answer;
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await new Promise((resolve) => { setTimeout(resolve, 5); });
         return response;
       } finally {
         const left = (inFlight.get(path) ?? 1) - 1;
@@ -702,7 +702,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       expect(probe.together("/rest/v1/conversations", path), path).toBe(true);
     }
     expect(probe.together("/rest/v1/tasks", "/rest/v1/profiles")).toBe(true);
-    expect(((await res.json()) as { open_alert: unknown }).open_alert).toMatchObject({
+    expect((await res.json<{ open_alert: unknown }>()).open_alert).toMatchObject({
       on_call_name: "Dana",
     });
   });
@@ -719,7 +719,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.destination_clock).toMatchObject({
       timezone: "America/Vancouver",
       source: "company",
@@ -743,7 +743,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error).toEqual({ code: "not_found", message: "No such conversation." });
     expect(JSON.stringify(body)).not.toContain(MESSAGE_ID);
     // No message id reached loadMessageTaskFlags, and nothing was looked up
@@ -1074,7 +1074,7 @@ describe("POST /v1/conversations/:id/read", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const upsert = sb.find("POST", "/rest/v1/conversation_reads")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/conversation_reads");
     expect(upsert.body).toMatchObject({
       conversation_id: CONV_ID,
       user_id: auth.subject,
@@ -1101,7 +1101,7 @@ describe("DELETE /v1/conversations/:id/read", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(204);
-    const del = sb.find("DELETE", "/rest/v1/conversation_reads")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/conversation_reads");
     expect(del.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
   });
@@ -1172,7 +1172,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       task: null,
     });
 
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({
       company_id: COMPANY_ID,
       conversation_id: CONV_ID,
@@ -1184,7 +1184,7 @@ describe("POST /v1/conversations/:id/notes", () => {
     });
 
     // last_message_at moves forward only (never backwards).
-    const bump = sb.find("PATCH", "/rest/v1/conversations")[0];
+    const [bump] = sb.find("PATCH", "/rest/v1/conversations");
     expect(bump.body).toEqual({ last_message_at: "2026-07-01T11:00:00+00:00" });
     expect(bump.url.searchParams.get("last_message_at")).toBe(
       "lt.2026-07-01T11:00:00+00:00",
@@ -1251,7 +1251,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       { method: "POST", companyId: COMPANY_ID, body: { body: "" } },
     );
     expect(res.status).toBe(201);
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({ direction: "note", body: "" });
   });
 
@@ -1395,7 +1395,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       );
 
       expect(res.status).toBe(201);
-      const rows = sb.find("POST", "/rest/v1/message_mentions")[0];
+      const [rows] = sb.find("POST", "/rest/v1/message_mentions");
       expect(rows.body).toEqual([
         {
           message_id: NOTE_ID,
@@ -1406,7 +1406,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       ]);
       // The body is untouched, so clients that know nothing about mentions
       // render the note exactly as typed.
-      const insert = sb.find("POST", "/rest/v1/messages")[0];
+      const [insert] = sb.find("POST", "/rest/v1/messages");
       expect(insert.body).toMatchObject({ body: "@Teammate can you check this?" });
     });
 
@@ -1456,9 +1456,9 @@ describe("POST /v1/conversations/:id/notes", () => {
       );
 
       expect(res.status).toBe(200);
-      const page = (await res.json()) as {
+      const page = await res.json<{
         data: { user_id: string; display_name: string }[];
-      };
+      }>();
       expect(page.data).toContainEqual({
         user_id: TEAMMATE,
         role: "member",
@@ -1526,19 +1526,19 @@ describe("POST /v1/conversations/:id/notes", () => {
       },
     );
     expect(res.status).toBe(201);
-    const json = (await res.json()) as { task: unknown; task_id: string };
+    const json = await res.json<{ task: unknown; task_id: string }>();
     expect(json.task).toEqual({ id: TASK_ID, title: "Fix the sink" });
     expect(json.task_id).toBe(TASK_ID);
 
     // The validation lookup was scoped to this conversation + company + live.
-    const lookup = sb.find("GET", "/rest/v1/tasks")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/tasks");
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${TASK_ID}`);
     expect(lookup.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
 
     // The insert carried the task_id.
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({ task_id: TASK_ID });
   });
 
@@ -1634,11 +1634,11 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; next_cursor: null };
+    const body = await res.json<{ data: unknown[]; next_cursor: null }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
-    const eventsCall = sb.find("GET", "/rest/v1/conversation_events")[0];
+    const [eventsCall] = sb.find("GET", "/rest/v1/conversation_events");
     expect(eventsCall.url.searchParams.get("or")).toBe(
       `(created_at.lt.2026-07-01T10:00:00+00:00,and(created_at.eq.2026-07-01T10:00:00+00:00,id.lt.${CONV_ID}))`,
     );
@@ -1686,9 +1686,9 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { type: string; payload: Record<string, unknown> }[];
-    };
+    }>();
     const call = body.data.find((row) => row.type === "call_completed");
     expect(call?.payload.answered_by_user_id).toBe(ASSIGNEE);
     // The rest of the payload survives the rewrite untouched.
@@ -1743,10 +1743,11 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { payload: { call_session_id: string } }[] };
+    const body = await res.json<{ data: { payload: { call_session_id: string } }[] }>();
     expect(body.data.map((row) => row.payload.call_session_id)).toEqual(["kept", "vm-kept"]);
-    expect(body.data[0]).not.toHaveProperty("voicemail_task");
-    expect(body.data[1]).toMatchObject({
+    const [answered, voicemail] = body.data;
+    expect(answered).not.toHaveProperty("voicemail_task");
+    expect(voicemail).toMatchObject({
       voicemail_intake: { address: "42 Elm St" },
       voicemail_task: {
         call_id: "07894d46-191b-4a1d-a09d-278894830000",
@@ -1790,9 +1791,9 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { payload: Record<string, unknown> }[];
-    };
+    }>();
     expect(body.data[0].payload).not.toHaveProperty("answered_by_user_id");
     expect(body.data[0].payload.outcome).toBe("answered");
   });
@@ -1852,7 +1853,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
     expect(res.status).toBe(201);
     // The atomic RPC (keyed on lower(name)) replaces the find/insert/re-select
     // dance and its create/select race.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     // #298 added p_may_create; the name still reaches the RPC untouched,
     // which is what this test has always been about.
     expect(rpc.body).toMatchObject({
@@ -1883,7 +1884,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "VIP*" } },
     );
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_name: "VIP*",
@@ -1980,14 +1981,9 @@ describe("DELETE /v1/conversations/:id/tags/:tag_id", () => {
 
 describe("POST /v1/conversations/bulk (#275)", () => {
   function bulkStub(
-    result: Record<string, unknown> = {
-      action: "set_status",
-      matched: 2,
-      applied: [],
-      failed: [],
-      capped: false,
-    },
+    payload?: Record<string, unknown>,
   ): { sb: SupabaseStub; calls: Record<string, unknown>[] } {
+    const result = payload ?? { action: "set_status", matched: 2, applied: [], failed: [], capped: false };
     const sb = memberStub();
     const calls: Record<string, unknown>[] = [];
     sb.on("POST", "/rest/v1/rpc/api_bulk_conversations", (call) => {
@@ -2117,11 +2113,11 @@ describe("POST /v1/conversations/bulk (#275)", () => {
       ids: [CONV_ID],
       target_status: "closed",
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       applied: { id: string; previous: { status: string } }[];
       failed: { id: string; reason: string }[];
       matched: number;
-    };
+    }>();
     expect(body.applied).toHaveLength(2);
     expect(body.applied[0].previous.status).toBe("open");
     expect(body.applied[1].previous.status).toBe("waiting");
@@ -2362,7 +2358,7 @@ describe("#293 snooze routes", () => {
 
     // Read as the CALLER's deferral, not the thread's — a colleague's snooze
     // must not show up here.
-    const read = sb.find("GET", "/rest/v1/conversation_snoozes")[0];
+    const [read] = sb.find("GET", "/rest/v1/conversation_snoozes");
     expect(read.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -2473,7 +2469,7 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "Two hundred and one" } },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("200-tag limit");
     // Nothing was attached on a refusal.
     expect(sb.find("POST", "/rest/v1/conversation_tags")).toHaveLength(0);
@@ -2502,7 +2498,7 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "Roof" } },
     );
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     expect(rpc.body).toMatchObject({ p_may_create: false });
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
   });
@@ -2545,7 +2541,7 @@ describe("#244 an unclaimed after-hours page on the thread", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    return (await res.json()) as Record<string, unknown>;
+    return res.json<Record<string, unknown>>();
   }
 
   it("AL-1: carries the alert, so any member who opens the thread can claim it", async () => {

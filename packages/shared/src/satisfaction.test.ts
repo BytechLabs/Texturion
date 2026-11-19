@@ -106,7 +106,7 @@ describe("the sample floor", () => {
     // The floor's whole justification. With four answers a single 1 moves the
     // mean by more than a point; at the floor it must not. If somebody lowers
     // this constant, this is the argument they have to answer.
-    const good = Array(SATISFACTION_MIN_SAMPLE - 1).fill(5);
+    const good = Array.from({ length: SATISFACTION_MIN_SAMPLE - 1 }, () => 5);
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     const swing = mean(good) - mean([...good, 1]);
     expect(swing).toBeLessThan(1);

@@ -74,7 +74,7 @@ await runScript("retention-report", async ({ args, db }) => {
     return;
   }
 
-  const weeksSeen = [...new Set(rows.map((r) => r.cohort_week))].sort().reverse();
+  const weeksSeen = [...new Set(rows.map((row) => row.cohort_week))].toSorted((a, b) => b.localeCompare(a));
   console.log(
     `\n  D12 week-4 logo retention — target ${TARGET * 100}%\n` +
       `  ${weeksSeen.length} mature cohort(s), newest ${weeksSeen[0]}, ` +
@@ -98,12 +98,12 @@ await runScript("retention-report", async ({ args, db }) => {
           row.is_small ? "thin" : null,
           row.is_approximate ? "approx" : null,
         ].filter(Boolean);
-        console.log(
-          `  ${row.cohort_week}  ${String(row.segment_value).padEnd(14)}` +
-            `${pct(row.rate)}  ${String(row.retained).padStart(3)}/${String(row.cohort_size).padEnd(3)}` +
-            `  ${verdict(row).padEnd(18)}` +
-            (flags.length > 0 ? `(${flags.join(", ")})` : ""),
-        );
+        console.log([
+          `  ${row.cohort_week}  ${String(row.segment_value).padEnd(14)}`,
+          `${pct(row.rate)}  ${String(row.retained).padStart(3)}/${String(row.cohort_size).padEnd(3)}`,
+          `  ${verdict(row).padEnd(18)}`,
+          flags.length > 0 ? `(${flags.join(", ")})` : "",
+        ].join(""));
       }
     }
     console.log("");
@@ -142,10 +142,9 @@ await runScript("retention-report", async ({ args, db }) => {
   } else {
     const gap = (yes.rate - no.rate) * 100;
     console.log(
-      `\n  Gap: ${gap >= 0 ? "+" : ""}${gap.toFixed(0)} points.\n` +
-        (Math.abs(gap) >= 15
+      `\n  Gap: ${gap >= 0 ? "+" : ""}${gap.toFixed(0)} points.\n${Math.abs(gap) >= 15
           ? "  Large. Activation looks like the growth strategy, and the backlog\n  should reflect that.\n"
-          : "  Small. Activation may be a vanity milestone rather than the lever.\n"),
+          : "  Small. Activation may be a vanity milestone rather than the lever.\n"}`,
     );
   }
 

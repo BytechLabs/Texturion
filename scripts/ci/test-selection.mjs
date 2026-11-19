@@ -35,7 +35,7 @@ export function parseNameStatus(text) {
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     const [status, ...paths] = line.split("\t");
-    const kind = status[0];
+    const [kind] = status;
     if (kind === "R") {
       changes.push({ status: "D", path: paths[0] }, { status: "A", path: paths[1] });
     } else if (kind === "C") {
@@ -120,7 +120,7 @@ export function partition(paths, durations, shardCount) {
   const count = Math.max(1, Math.min(shardCount, paths.length));
   const shards = Array.from({ length: count }, () => ({ files: [], weight: 0 }));
   for (const file of order) {
-    let target = shards[0];
+    let [target] = shards;
     for (const shard of shards) if (shard.weight < target.weight) target = shard;
     target.files.push(file);
     target.weight += weight(file);

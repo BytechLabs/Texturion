@@ -230,7 +230,7 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
 quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<QuoteRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("quotes")
       .select(QUOTE_COLUMNS)
@@ -238,7 +238,7 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
       .eq("id", id)
       .limit(1),
     "quote read",
-  );
+  ) as QuoteRow[];
   /*
    * #106 — checked AFTER the row is found, because the check needs the
    * conversation the quote hangs off. Both failures answer "No such
@@ -254,7 +254,7 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
       need: "read",
     });
   }
-  const row = rows[0];
+  const [row] = rows;
   if (!row) return errorResponse(c, "not_found", "no such quote");
   return c.json(withEffectiveStatus(row, new Date(), c.get("role")));
 });
@@ -296,7 +296,7 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
       .limit(1),
     "quote conversation check",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   if (!conversation) {
     return errorResponse(c, "not_found", "no such conversation");
   }
@@ -324,14 +324,14 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
   }
 
   // The workspace's own billing currency, read once and used below.
-  const company = unwrap<{ billing_currency: string | null }[]>(
+  const [company] = unwrap<{ billing_currency: string | null }[]>(
     await db
       .from("companies")
       .select("billing_currency")
       .eq("id", companyId)
       .limit(1),
     "quote currency lookup",
-  )[0];
+  );
 
   const rows = unwrap<QuoteRow[]>(
     await db
@@ -376,7 +376,7 @@ quotesRoutes.post(
     const env = getEnv(c.env);
     const db = getDb(env);
 
-    const row = unwrap<QuoteRow[]>(
+    const [row] = unwrap<unknown>(
       await db
         .from("quotes")
         .select(QUOTE_COLUMNS)
@@ -384,7 +384,7 @@ quotesRoutes.post(
         .eq("id", id)
         .limit(1),
       "quote send lookup",
-    )[0];
+    ) as QuoteRow[];
     if (!row) return errorResponse(c, "not_found", "no such quote");
     /*
      * #106 — this puts a text on the carrier from the conversation's number,
@@ -417,7 +417,7 @@ quotesRoutes.post(
      * BEFORE anything is minted: a quote that cannot be sent must not leave a
      * live accept link behind, and the cheapest refusals come first.
      */
-    const view = unwrap<SendView[]>(
+    const [view] = unwrap<unknown>(
       await db
         .from("conversations")
         .select(
@@ -431,7 +431,7 @@ quotesRoutes.post(
         .eq("id", row.conversation_id)
         .limit(1),
       "quote send conversation",
-    )[0];
+    ) as SendView[];
     if (!view) return errorResponse(c, "not_found", "no such conversation");
 
     const fromNumber = view.phone_numbers.number_e164;

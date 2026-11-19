@@ -191,15 +191,26 @@ export type CalendarProviderErrorKind =
   | "response";
 
 export class CalendarProviderError extends Error {
+  readonly provider: CalendarProviderName;
+  readonly kind: CalendarProviderErrorKind;
+  readonly operation: string;
+  readonly status: number | null;
+  readonly retryAfterMs: number | null;
+
   constructor(
     message: string,
-    readonly provider: CalendarProviderName,
-    readonly kind: CalendarProviderErrorKind,
-    readonly operation: string,
-    readonly status: number | null,
-    readonly retryAfterMs: number | null = null,
+    provider: CalendarProviderName,
+    kind: CalendarProviderErrorKind,
+    operation: string,
+    status: number | null,
+    retryAfterMs: number | null = null,
   ) {
     super(message);
+    this.provider = provider;
+    this.kind = kind;
+    this.operation = operation;
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
     this.name = "CalendarProviderError";
   }
 }

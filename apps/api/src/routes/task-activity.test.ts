@@ -13,12 +13,13 @@ import {
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import { notifyTaskChangeSafely } from "../tasks/notify";
+import type * as TaskNotifications from "../tasks/notify";
 import { taskActivityRoutes } from "./task-activity";
 
 // The alerts have their own suite (tasks/notify.test.ts); here they are only
 // asked whether the route raised them, for whom, and in what order.
 vi.mock(import("../tasks/notify"), async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  ...(await importOriginal<typeof TaskNotifications>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
 
@@ -110,10 +111,10 @@ describe("GET /v1/tasks/:id/activity", () => {
       { companyId: COMPANY_ID },
     );
     expect(response.status).toBe(200);
-    const json = (await response.json()) as {
+    const json = await response.json<{
       data: Record<string, unknown>[];
       next_cursor: string | null;
-    };
+    }>();
     expect(json.data.map((d) => d.kind)).toEqual(["event", "comment"]);
     expect(json.data[1]).toMatchObject({
       body: "On my way",
@@ -126,7 +127,7 @@ describe("GET /v1/tasks/:id/activity", () => {
       actor: { display_name: "Rehman" },
     });
     expect(json.next_cursor).not.toBeNull();
-    const call = sb.find("POST", "/rest/v1/rpc/api_task_activity")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_task_activity");
     expect(JSON.stringify(call)).toContain('"p_limit":3');
   });
 
@@ -169,7 +170,7 @@ describe("GET /v1/tasks/:id/activity", () => {
     const response = await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/activity`, {
       companyId: COMPANY_ID,
     });
-    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    const json = await response.json<{ data: Record<string, unknown>[] }>();
     expect(json.data[1]).toMatchObject({
       kind: "reference",
       direction: "in",
@@ -215,7 +216,7 @@ describe("GET /v1/tasks/:id/activity", () => {
       `/v1/tasks/${TASK_ID}/activity`,
       { companyId: COMPANY_ID },
     );
-    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    const json = await response.json<{ data: Record<string, unknown>[] }>();
     expect(json.data[0]).toMatchObject({
       event: "assignee_added",
       to_user: { display_name: "Sam" },
@@ -286,7 +287,7 @@ describe("POST /v1/tasks/:id/comments", () => {
       body: "Bring the long ladder",
       author: { display_name: "Rehman" },
     });
-    const insert = sb.find("POST", "/rest/v1/task_comments")[0];
+    const [insert] = sb.find("POST", "/rest/v1/task_comments");
     expect(JSON.stringify(insert)).toContain(COMPANY_ID);
     expect(JSON.stringify(insert)).toContain("Bring the long ladder");
   });

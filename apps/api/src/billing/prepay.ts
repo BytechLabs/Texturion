@@ -372,7 +372,7 @@ export function prepaidCouponIds(env: Env): string[] {
   if (!base) return [];
   return Array.from(
     { length: PREPAY_MONTHS },
-    (_unused, index) => prepaidRemainderCouponId(env, index + 1) as string,
+    (_unused, index) => prepaidRemainderCouponId(env, index + 1)!,
   );
 }
 
@@ -594,7 +594,7 @@ export async function grantPrepaidYear(
             id: licensed.id,
             ...(resumePrice ? { price: resumePrice } : {}),
             discounts: [...carriedReferral, { coupon: couponId }],
-          } as Stripe.SubscriptionUpdateParams.Item,
+          },
         ],
         // Only on the resume path, and `none` rather than the pause routes'
         // `create_prorations`: prorating would invoice the balance of the month
@@ -711,7 +711,7 @@ function clearItemDiscounts(
         id: itemId,
         // "" is the clear. [] is a no-op. See above — this is not a style choice.
         discounts: "",
-      } as Stripe.SubscriptionUpdateParams.Item,
+      },
     ],
   });
 }
@@ -1052,7 +1052,7 @@ export async function ensurePrepaidDiscount(
           {
             id: licensed.id,
             discounts: [...carriedReferral, { coupon: couponId }],
-          } as Stripe.SubscriptionUpdateParams.Item,
+          },
         ],
       },
       {
@@ -1074,9 +1074,9 @@ export async function ensurePrepaidDiscount(
         `${months === 1 ? "" : "s"} — #584 convergence`,
       { source: "api", level: "warning" },
     );
-  } catch (cause) {
+  } catch (error) {
     console.error(
-      `[prepay] convergence failed for company ${companyId}: ${(cause as Error).message}`,
+      `[prepay] convergence failed for company ${companyId}: ${(error as Error).message}`,
     );
   }
 }
@@ -1163,11 +1163,11 @@ export async function sweepUncreditedConversions(
       });
       if (stampError) throw new Error(stampError.message);
       credited += 1;
-    } catch (cause) {
+    } catch (error_) {
       failed += 1;
       console.error(
         `[prepay] could not credit conversion ${row.prepayment_id} ` +
-          `(${row.credit_cents} ${row.currency}): ${(cause as Error).message}`,
+          `(${row.credit_cents} ${row.currency}): ${(error_ as Error).message}`,
       );
     }
   }

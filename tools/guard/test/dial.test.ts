@@ -30,7 +30,7 @@ describe("dial", () => {
     const id = await lease(h);
     const response = await dial(h, id);
     expect(response.status).toBe(200);
-    const ccid = ((await response.json()) as { data: { call_control_id: string } }).data.call_control_id;
+    const ccid = (await response.json<{ data: { call_control_id: string } }>()).data.call_control_id;
     const entry = await h.store.get<{ connection_id: string; via: string }>(`leg:${ccid}`);
     expect(entry).toMatchObject({ connection_id: "conn-robot", via: "robot" });
   });
@@ -65,7 +65,7 @@ describe("dial", () => {
   it("admits no dial under a lease taken for a run that dials nothing", async () => {
     const h = await ready();
     const response = await h.call("/lease", { caller: "rig-api", body: { scenario: "S34", dials: false } });
-    const id = ((await response.json()) as { lease_id: string }).lease_id;
+    const id = (await response.json<{ lease_id: string }>()).lease_id;
     const appDial = h.call("/telnyx/v2/calls", {
       caller: "rig-api",
       body: { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: "sip:gencredowner@sip.telnyx.com" },
@@ -263,7 +263,10 @@ describe("admission", () => {
     for (let i = 0; i < 2; i++) {
       const response = await dial(h, id);
       expect(response.status).toBe(200);
-      h.telnyx.calls.set(((await response.json()) as { data: { call_control_id: string } }).data.call_control_id, { alive: false });
+      h.telnyx.calls.set(
+        (await response.json<{ data: { call_control_id: string } }>()).data.call_control_id,
+        { alive: false },
+      );
     }
     await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.account_hour_full");
     // The hour before still counts: a rolling hour can straddle two UTC hours.
@@ -418,7 +421,7 @@ describe("admission", () => {
     for (let i = 0; i < 3; i++) {
       const response = await dial(h, id);
       expect(response.status).toBe(200);
-      h.telnyx.calls.set(((await response.json()) as { data: { call_control_id: string } }).data.call_control_id, {
+      h.telnyx.calls.set((await response.json<{ data: { call_control_id: string } }>()).data.call_control_id, {
         alive: false,
       });
     }

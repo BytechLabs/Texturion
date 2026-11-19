@@ -199,30 +199,11 @@ async function answer(digits: string) {
  * retry with no code both read as `undefined` here.
  */
 function retriedWith(): { code?: string } {
-  const second = mutate.mock.calls[1];
+  const [, second] = mutate.mock.calls;
   return second ? { code: second[0] as string | undefined } : {};
 }
 
 describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
-  it("opens the export step without submitting the closure", () => {
-    mount(<CloseWorkspaceCard company={COMPANY} />);
-    fireEvent.click(screen.getByRole("button", { name: "Close this workspace" }));
-    const exportFirst = screen.getByRole("link", { name: "Export your data first" });
-    expect(exportFirst.getAttribute("href")).toBe("#export-data");
-    fireEvent.click(exportFirst);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(mutate).not.toHaveBeenCalled();
-  });
-
-  afterEach(() => {
-    cleanup();
-    // Both dialogs render through a Radix portal onto `document.body` rather than
-    // into the container `cleanup` unmounts, so anything a portal leaves behind
-    // outlives the test that opened it — and every query in this file is a
-    // whole-body search for a code field. Cleared rather than trusted; no leak
-    // was observed, and this is here so one cannot start being tolerated.
-    document.body.innerHTML = "";
-  });
   beforeEach(() => {
     mutate.mockReset();
     requestCode.mockReset();
@@ -234,6 +215,21 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
       .mockReset()
       .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
     challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
+  });
+  afterEach(() => {
+    cleanup();
+    // Clear any leftover Radix portal nodes before the next whole-body query.
+    document.body.innerHTML = "";
+  });
+
+  it("opens the export step without submitting the closure", () => {
+    mount(<CloseWorkspaceCard company={COMPANY} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close this workspace" }));
+    const exportFirst = screen.getByRole("link", { name: "Export your data first" });
+    expect(exportFirst.getAttribute("href")).toBe("#export-data");
+    fireEvent.click(exportFirst);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("gives the digits somewhere to be typed", () => {

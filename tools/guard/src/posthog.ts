@@ -1,3 +1,4 @@
+import { redactEmailAddresses } from "@loonext/rig-protocol/redact-email";
 import type { Ctx } from "./context";
 
 /**
@@ -15,13 +16,12 @@ export interface ProductionEvent {
 
 export const POSTHOG_CAPTURE_URL = "https://us.i.posthog.com/i/v0/e/";
 
-/** The API Worker's phone and email patterns (apps/api/src/observability/scrub.ts). */
+/** Keep the API Worker’s phone pattern in sync. */
 const PHONE = /(?<![0-9A-Za-z])(?:\+|%2[Bb])?1?\d{10,15}(?!\d)/g;
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 /** No phone number or email address leaves in a notice's text (D8). */
 export function scrubText(text: string): string {
-  return text.replace(EMAIL, "[email redacted]").replace(PHONE, "[phone redacted]");
+  return redactEmailAddresses(text).replaceAll(PHONE, "[phone redacted]");
 }
 
 /** The `$exception` body PostHog groups into one issue per key. */
@@ -66,10 +66,10 @@ export async function sendProductionEvent(ctx: Ctx, event: ProductionEvent): Pro
     await response.body?.cancel();
     if (!response.ok) console.error(`guard: production event ${event.key}: PostHog answered ${response.status}`);
     return response.ok;
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `guard: production event ${event.key} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return false;
   }

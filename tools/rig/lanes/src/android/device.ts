@@ -210,7 +210,7 @@ export class AndroidDevice {
     this.name = options.name;
     this.#o = options;
     this.#now = options.now ?? Date.now;
-    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => { setTimeout(resolve, ms); }));
     this.adb = new Adb({
       serial: options.serial,
       adb: options.adb,

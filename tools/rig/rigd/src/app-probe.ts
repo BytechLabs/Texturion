@@ -15,29 +15,28 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
-import { API_ENVIRONMENT, type PostHogErrors } from "./posthog-errors.ts";
-import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
-import { totpCode } from "../../../../scripts/rig/seed.mjs";
+import { API_ENVIRONMENT } from "./posthog-errors.ts";
+import type { PostHogErrors } from "./posthog-errors.ts";
+import { stableUuid as seedStableUuid, totpCode } from "../../../../scripts/rig/seed.mjs";
 import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
-import {
-  COMPANY_FIELDS,
-  isFictional,
-  type ApiAnswer,
-  type AppApi,
-  type AutomatedText,
-  type CallRow,
-  type CallStart,
-  type CompanyField,
-  type Destination,
-  type GraceState,
-  type MessageRow,
-  type NumberRow,
-  type CheckoutEvent,
-  type SendResult,
-  type SignUpNumber,
-  type SignUpNumberRow,
-  type VoiceCapState,
-  type WorkspaceState,
+import { COMPANY_FIELDS, isFictional } from "./scenarios/context.ts";
+import type {
+  ApiAnswer,
+  AppApi,
+  AutomatedText,
+  CallRow,
+  CallStart,
+  CheckoutEvent,
+  CompanyField,
+  Destination,
+  GraceState,
+  MessageRow,
+  NumberRow,
+  SendResult,
+  SignUpNumber,
+  SignUpNumberRow,
+  VoiceCapState,
+  WorkspaceState,
 } from "./scenarios/context.ts";
 
 /** The seed's `tenants.json`: tenant key to company id and members' sign-ins. */
@@ -196,7 +195,7 @@ export class AppProbe implements AppApi {
       phone_e164: `eq.${this.#number(args.role)}`,
       select: "revoked_at,source",
     });
-    const row = rows[0];
+    const [row] = rows;
     return row ? { active: row.revoked_at === null, source: row.source } : null;
   }
 
@@ -548,7 +547,7 @@ export class AppProbe implements AppApi {
 
   async companySettings(args: { tenant: string; fields: readonly CompanyField[] }): Promise<Partial<Record<CompanyField, unknown>>> {
     const unknown = args.fields.filter((field) => !(COMPANY_FIELDS as readonly string[]).includes(field));
-    if (unknown.length) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
+    if (unknown.length > 0) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
     if (args.fields.length === 0) return {};
     const companyId = this.#tenant(args.tenant).company_id;
     const [row] = await this.#rest<Record<string, unknown>[]>("companies", { id: `eq.${companyId}`, select: args.fields.join(",") });
@@ -781,15 +780,14 @@ export class AppProbe implements AppApi {
     const period = aiPeriod(this.#now());
     const where = { company_id: `eq.${companyId}`, period: `eq.${period}`, feature: `eq.${args.feature}` };
     const [before] = await this.#rest<{ request_count: number }[]>("company_ai_usage", { ...where, select: "request_count" });
-    if (args.requestCount === null) await this.#write("DELETE", "company_ai_usage", where, undefined, "return=minimal");
-    else {
-      await this.#write("POST", "company_ai_usage", { on_conflict: "company_id,period,feature" }, {
-        company_id: companyId,
-        period,
-        feature: args.feature,
-        request_count: args.requestCount,
-      }, "resolution=merge-duplicates,return=minimal");
-    }
+    await (args.requestCount === null
+      ? this.#write("DELETE", "company_ai_usage", where, undefined, "return=minimal")
+      : this.#write("POST", "company_ai_usage", { on_conflict: "company_id,period,feature" }, {
+          company_id: companyId,
+          period,
+          feature: args.feature,
+          request_count: args.requestCount,
+        }, "resolution=merge-duplicates,return=minimal"));
     return before?.request_count ?? null;
   }
 
@@ -881,7 +879,7 @@ export class AppProbe implements AppApi {
     });
     if (!verified.ok) return { aal: null, meStatus: verified.status };
     const second = ((await verified.json()) as { access_token?: string }).access_token ?? "";
-    const aal = claimsOf(second).aal;
+    const { aal } = claimsOf(second);
     const me = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/me`, {
       headers: { authorization: `Bearer ${second}` },
       signal: AbortSignal.timeout(10_000),
@@ -1011,7 +1009,7 @@ export class AppProbe implements AppApi {
       select: "id",
     });
     const owners = await this.#signUpOwners();
-    const companies = owners.length
+    const companies = owners.length > 0
       ? await this.#rest<{ id: string }[]>("companies", { owner_user_id: `in.(${owners.join(",")})`, select: "id" })
       : [];
     const rows = await this.#heldNumbers(companies.map((company) => company.id));
@@ -1244,7 +1242,7 @@ export class AppProbe implements AppApi {
 
   /** Member keys by auth user id, from the admin listing matched against tenants.json's addresses. */
   async #membersByUser(tenant: string): Promise<Map<string, string>> {
-    const members = this.#tenant(tenant).members;
+    const { members } = this.#tenant(tenant);
     const byEmail = new Map(Object.entries(members).map(([key, member]) => [member.email.toLowerCase(), `${tenant.toLowerCase()}-${key}`]));
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
@@ -1450,7 +1448,7 @@ export class AppProbe implements AppApi {
 /** Above Pro's dial ceiling at the hard 10x multiplier, the most S12 can ever need. */
 const SEED_CALL_RECORDS_MAX = 50_000;
 /** Rows per insert, so a large seed stays inside one request's limits. */
-const SEED_BATCH = 1_000;
+const SEED_BATCH = 1000;
 /** VOICEMAILS_BUCKET in apps/api/src/messaging/inbound-ring.ts. */
 export const VOICEMAILS_BUCKET = "voicemails";
 const SEEDED_VOICEMAIL = /^rig-d14-[A-Za-z0-9_-]{1,40}$/;
@@ -1477,7 +1475,7 @@ const RING_BEACON_PROPERTIES = [
   "standby_bucket",
 ] as const;
 /** More of one tenant's events than any scenario's window holds. */
-const EVENT_ROWS_MAX = 1_000;
+const EVENT_ROWS_MAX = 1000;
 
 const textOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
@@ -1504,7 +1502,7 @@ function sendResult(status: number, message: SentMessage | undefined): SendResul
 
 /** The user id in a Supabase access token. */
 export function subjectOf(token: string): string {
-  const payload = token.split(".")[1];
+  const [, payload] = token.split(".");
   const sub = payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown }).sub : undefined;
   if (typeof sub !== "string" || !/^[0-9a-f-]{36}$/.test(sub)) throw new Error("app probe: the session names no user");
   return sub;
@@ -1530,10 +1528,18 @@ const SIGN_UP_NUMBER_LABEL = "Rig S32 fixture";
 /** The subscription states the app treats as paid (apps/web/src/app/onboarding/steps.ts). */
 const PAID_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "unpaid"]);
 
+export function nonceSlug(nonce: string): string {
+  const normalized = nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-");
+  let start = 0;
+  let end = normalized.length;
+  while (normalized[start] === "-") start += 1;
+  while (end > start && normalized[end - 1] === "-") end -= 1;
+  return normalized.slice(start, end) || "run";
+}
+
 /** The fixture number's provisioning key for a run. */
 export function signUpNumberKey(nonce: string): string {
-  const slug = nonce.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "run";
-  return `${SIGN_UP_NUMBER_PREFIX}s32-${slug}`;
+  return `${SIGN_UP_NUMBER_PREFIX}s32-${nonceSlug(nonce)}`;
 }
 
 type WriteError = Error & { status?: number };
@@ -1565,7 +1571,7 @@ export function aiPeriod(at: number): string {
 }
 
 function claimsOf(token: string): Record<string, unknown> {
-  const payload = token.split(".")[1];
+  const [, payload] = token.split(".");
   try {
     return payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>) : {};
   } catch {

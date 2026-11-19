@@ -75,7 +75,7 @@ function world(options: { company?: boolean; firstSeen?: boolean } = {}) {
   const emails: Record<string, unknown>[] = [];
   const resend: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    emails.push((await request.clone().json()) as Record<string, unknown>);
+    emails.push(await request.clone().json<Record<string, unknown>>());
     return Response.json({ id: "email_1" });
   };
   return { sb, rpcCalls, audits, emails, routes: [sb.route, resend] };
@@ -215,7 +215,7 @@ describe("Stripe redelivers", () => {
 
       await handleChargeDispute(env, lost, "charge.dispute.closed");
       expect(updates, "the coupon was cleared a second time").toHaveLength(1);
-      expect(stripeApi.subscriptions.retrieve).toHaveBeenCalledTimes(1);
+      expect(stripeApi.subscriptions.retrieve).toHaveBeenCalledOnce();
     } finally {
       spy.mockRestore();
     }
@@ -230,7 +230,7 @@ describe("Stripe redelivers", () => {
     await handleChargeDispute(env, dispute({ status: "won" }), "charge.dispute.closed");
 
     expect(w.rpcCalls[0]).toMatchObject({ p_dispute_id: "dp_1" });
-    expect(w.rpcCalls[0].p_closed_at).toBeTruthy();
+    expect(Boolean(w.rpcCalls[0].p_closed_at)).toBe(true);
     expect(notices()).toEqual([]);
   });
 });

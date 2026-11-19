@@ -102,7 +102,7 @@ function withSeams(env: Env, body: unknown): unknown {
  */
 const CALL_PATH = /^\/v2\/calls(?:\/[^/]+\/actions\/[^/]+)?$/;
 const MESSAGE_PATH = /^\/v2\/messages(?:\/|$)/;
-const VERIFICATION_CODE_PATH = /\/verification_codes$/;
+const VERIFICATION_CODE_SUFFIX = "/verification_codes";
 
 function asDestinations(value: unknown): string[] {
   if (typeof value === "string") return [value];
@@ -131,7 +131,7 @@ export function telnyxDestinations(options: {
     return [...asDestinations(body.to), ...asDestinations(body.sip_address)];
   }
   if (MESSAGE_PATH.test(options.path)) return asDestinations(body.to);
-  if (VERIFICATION_CODE_PATH.test(options.path)) {
+  if (options.path.endsWith(VERIFICATION_CODE_SUFFIX)) {
     return asDestinations(body.phone_numbers);
   }
   return [];
@@ -199,9 +199,7 @@ export class TelnyxApiError extends Error {
       .filter((text) => text.length > 0)
       .join("; ");
     super(
-      `Telnyx ${status} on ${requestLabel}` +
-        (codes.length > 0 ? ` [codes ${codes.join(", ")}]` : "") +
-        (summary ? ` — ${summary}` : ""),
+      `Telnyx ${status} on ${requestLabel}${codes.length > 0 ? ` [codes ${codes.join(", ")}]` : ""}${summary ? ` — ${summary}` : ""}`,
     );
     this.name = "TelnyxApiError";
     this.status = status;
@@ -297,7 +295,7 @@ export async function telnyxRequest<T = unknown>(
     {
       method: options.method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     },
     TELNYX_TIMEOUT_MS,
   );
@@ -305,7 +303,7 @@ export async function telnyxRequest<T = unknown>(
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
     try {
-      const parsed = (await response.json()) as { errors?: unknown };
+      const parsed = await response.json<{ errors?: unknown }>();
       if (Array.isArray(parsed.errors)) {
         errors = parsed.errors.filter(
           (item): item is TelnyxErrorItem =>
@@ -358,7 +356,7 @@ export async function telnyxUpload<T = unknown>(
   const blob =
     options.file instanceof Blob
       ? options.file
-      : new Blob([options.file as ArrayBuffer | Uint8Array], {
+      : new Blob([options.file], {
           type: options.contentType,
         });
   form.append("file", blob, options.filename);
@@ -387,7 +385,7 @@ export async function telnyxUpload<T = unknown>(
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
     try {
-      const parsed = (await response.json()) as { errors?: unknown };
+      const parsed = await response.json<{ errors?: unknown }>();
       if (Array.isArray(parsed.errors)) {
         errors = parsed.errors.filter(
           (item): item is TelnyxErrorItem =>

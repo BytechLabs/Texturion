@@ -29,7 +29,7 @@ const inGroup = (item: Item, request: TelnyxRequest) =>
 export const READ_RULES: Readonly<Record<string, ReadRule>> = {
   "GET /v2/phone_numbers": {
     async prepare(request) {
-      for (const name of [...request.query.keys()]) {
+      for (const name of Array.from(request.query.keys())) {
         if (name.startsWith("filter[billing_group_id]")) request.query.delete(name);
       }
       request.query.set("filter[billing_group_id]", request.view.record.billing_group_id);

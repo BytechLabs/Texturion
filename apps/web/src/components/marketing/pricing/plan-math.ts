@@ -35,15 +35,15 @@ import { APP_LINKS } from "@/lib/marketing/site";
 /** Modules marketing never sells: regions_ca (not purchasable yet),
  *  extra_storage (retired by #121: storage is free), and voice (retired by
  *  #134/D42: calling is included on every plan). */
-const UNSELLABLE_MODULES: readonly string[] = [
+const UNSELLABLE_MODULES: ReadonlySet<string> = new Set([
   "regions_ca",
   "extra_storage",
   "voice",
-];
+]);
 
 /** The add-ons a buyer can actually purchase today (API SELLABLE_MODULES). */
 export const SELLABLE_ADDON_CARDS: PlanModuleCard[] = PLAN_MODULE_CARDS.filter(
-  (card) => !UNSELLABLE_MODULES.includes(card.id),
+  (card) => !UNSELLABLE_MODULES.has(card.id),
 );
 
 /**

@@ -90,8 +90,8 @@ function loadServiceWorker(
     caches: {
       open: vi.fn(() =>
         Promise.resolve({
-          addAll: vi.fn(() => Promise.resolve()),
-          match: vi.fn(() => Promise.resolve(undefined)),
+          addAll: vi.fn(async () => {}),
+          match: vi.fn(async () => undefined),
         }),
       ),
       keys: vi.fn(() => Promise.resolve([])),
@@ -849,7 +849,7 @@ describe("offline fallback wiring", () => {
       };
       createContext(sandbox);
       runInContext(SW_SOURCE, sandbox);
-      return (method: string, preloadResponse?: Promise<unknown>) => {
+      return function navigate(method: string, preloadResponse?: Promise<unknown>) {
         let responded: Promise<unknown> | null = null;
         listeners.get("fetch")?.({
           request: { mode: "navigate", method, url: `${ORIGIN}/inbox` },
@@ -949,7 +949,7 @@ describe("offline.html", () => {
     return { listeners, intervals, reload };
   }
 
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const settle = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 
   it("asks the app every 3 s and reloads once it answers", async () => {
     const fetch = vi

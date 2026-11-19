@@ -88,12 +88,13 @@ function connection(
 
 function setView(
   connections: CalendarConnection[] = [],
-  configured: CalendarConnectionsView["configured"] = {
-    google: true,
-    microsoft: true,
-  },
+  configured?: CalendarConnectionsView["configured"],
 ) {
-  mocks.view.data = { connections, disclosures: [], configured };
+  mocks.view.data = {
+    connections,
+    disclosures: [],
+    configured: configured ?? { google: true, microsoft: true },
+  };
 }
 
 function attentionItem(
@@ -195,8 +196,6 @@ function expectRefused(message: RegExp) {
 const DST_GAP = /does not exist because daylight saving time starts/i;
 const DST_FOLD = /happens twice because daylight saving time ends/i;
 
-afterEach(cleanup);
-
 beforeEach(() => {
   window.history.replaceState({}, "", "/settings/profile");
   mocks.authorize.mockReset();
@@ -213,6 +212,8 @@ beforeEach(() => {
   mocks.attentionView.isLoading = false;
   mocks.attentionView.isError = false;
 });
+
+afterEach(cleanup);
 
 describe("#245 two-way calendar settings", () => {
   it("states the write, invitation, and feed-revocation consequences before connect", () => {
@@ -247,12 +248,12 @@ describe("#245 two-way calendar settings", () => {
       }),
     );
     expect(
-      (screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
         name: "Connect Microsoft 365",
-      }) as HTMLButtonElement).disabled,
+      }).disabled,
     ).toBe(true);
     const unavailable = screen.getByText(/Microsoft 365 is not available/i);
-    expect(unavailable).toBeTruthy();
+    expect(unavailable).toBeInstanceOf(Element);
     expect(unavailable.className).not.toContain("sr-only");
   });
 
@@ -323,12 +324,12 @@ describe("#245 two-way calendar settings", () => {
     setView([connection({ conflict_count: 2 })]);
     renderCard();
 
-    expect(screen.getByText("Connected")).toBeTruthy();
-    expect(screen.getByText("maria@example.com")).toBeTruthy();
-    expect(screen.getByText("Calendar: Field crew")).toBeTruthy();
-    expect(screen.getByText(/Last verified/)).toBeTruthy();
-    expect(screen.getByText(/Last synced/)).toBeTruthy();
-    expect(screen.getByText(/2 scheduling conflicts/i)).toBeTruthy();
+    expect(screen.getByText("Connected")).toBeInstanceOf(Element);
+    expect(screen.getByText("maria@example.com")).toBeInstanceOf(Element);
+    expect(screen.getByText("Calendar: Field crew")).toBeInstanceOf(Element);
+    expect(screen.getByText(/Last verified/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/Last synced/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/2 scheduling conflicts/i)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     expect(mocks.disconnect).not.toHaveBeenCalled();
@@ -355,9 +356,9 @@ describe("#245 two-way calendar settings", () => {
     ]);
     renderCard();
 
-    expect(screen.getByText("Reconnect required")).toBeTruthy();
-    expect(screen.getByText("Not verified yet")).toBeTruthy();
-    expect(screen.getByText("Not synced yet")).toBeTruthy();
+    expect(screen.getByText("Reconnect required")).toBeInstanceOf(Element);
+    expect(screen.getByText("Not verified yet")).toBeInstanceOf(Element);
+    expect(screen.getByText("Not synced yet")).toBeInstanceOf(Element);
     expect(screen.getByRole("status").textContent).toMatch(/could not verify/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Reconnect" }));
@@ -401,7 +402,7 @@ describe("#245 two-way calendar settings", () => {
       /disconnected.*could not confirm removal/i,
     );
     expect(screen.getByRole("button", { name: "Connect Google Calendar" }))
-      .toBeTruthy();
+      .toBeInstanceOf(Element);
     expect(warning).not.toMatch(/customer|task|address/i);
   });
 
@@ -430,7 +431,7 @@ describe("#245 two-way calendar settings", () => {
     expect(disclosure.textContent).toMatch(/révoque.*lecture seule/i);
     expect(
       screen.getByRole("button", { name: "Connecter Google Agenda" }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("announces a load failure and lets the reader retry", () => {
@@ -455,7 +456,7 @@ describe("#245 two-way calendar settings", () => {
     setView([connection({ status: "future_state" as never })]);
     renderCard();
 
-    expect(screen.getByText("Needs attention")).toBeTruthy();
+    expect(screen.getByText("Needs attention")).toBeInstanceOf(Element);
     expect(screen.queryByText("future_state")).toBeNull();
   });
 
@@ -483,25 +484,25 @@ describe("#245 two-way calendar settings", () => {
     };
     renderCard();
 
-    expect(screen.getByText("This job moved in two places")).toBeTruthy();
-    expect(screen.getByText("What differs")).toBeTruthy();
-    expect(screen.getByText("Different start time")).toBeTruthy();
-    expect(screen.getByText("Different end time")).toBeTruthy();
-    expect(screen.getByText("Different time zone")).toBeTruthy();
-    expect(screen.getByText("Different job title")).toBeTruthy();
+    expect(screen.getByText("This job moved in two places")).toBeInstanceOf(Element);
+    expect(screen.getByText("What differs")).toBeInstanceOf(Element);
+    expect(screen.getByText("Different start time")).toBeInstanceOf(Element);
+    expect(screen.getByText("Different end time")).toBeInstanceOf(Element);
+    expect(screen.getByText("Different time zone")).toBeInstanceOf(Element);
+    expect(screen.getByText("Different job title")).toBeInstanceOf(Element);
     expect(screen.getByText(/job notes differ too/i).textContent).toMatch(
       /choice also keeps that copy's notes/i,
     );
     expect(screen.getAllByText("Starts")).toHaveLength(2);
     expect(screen.getAllByText("Ends")).toHaveLength(2);
     expect(screen.getAllByText("Time zone")).toHaveLength(2);
-    expect(screen.getByText("America/Toronto")).toBeTruthy();
-    expect(screen.getByText("Europe/Paris")).toBeTruthy();
-    expect(screen.getByText("Loonext schedule")).toBeTruthy();
-    expect(screen.getByText("Google Calendar schedule")).toBeTruthy();
-    expect(screen.getByText(/Maria Chen changed the Loonext schedule/i)).toBeTruthy();
-    expect(screen.getByText(/observed the Google Calendar schedule/i)).toBeTruthy();
-    expect(screen.getByText(/Conflict detected on/i)).toBeTruthy();
+    expect(screen.getByText("America/Toronto")).toBeInstanceOf(Element);
+    expect(screen.getByText("Europe/Paris")).toBeInstanceOf(Element);
+    expect(screen.getByText("Loonext schedule")).toBeInstanceOf(Element);
+    expect(screen.getByText("Google Calendar schedule")).toBeInstanceOf(Element);
+    expect(screen.getByText(/Maria Chen changed the Loonext schedule/i)).toBeInstanceOf(Element);
+    expect(screen.getByText(/observed the Google Calendar schedule/i)).toBeInstanceOf(Element);
+    expect(screen.getByText(/Conflict detected on/i)).toBeInstanceOf(Element);
     expect(screen.getByRole("link", { name: "Open job" }).getAttribute("href"))
       .toBe("/tasks?task=task-1");
 
@@ -540,14 +541,14 @@ describe("#245 two-way calendar settings", () => {
       };
       renderCard();
 
-      expect(screen.getByText(explanation)).toBeTruthy();
+      expect(screen.getByText(explanation)).toBeInstanceOf(Element);
       expect(
         screen.getByRole("button", { name: "Keep Loonext schedule" }),
-      ).toBeTruthy();
+      ).toBeInstanceOf(Element);
       expect(
         screen.queryByRole("button", { name: "Keep calendar schedule" }),
       ).toBeNull();
-      expect(screen.getByRole("button", { name: "Not sure yet" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Not sure yet" })).toBeInstanceOf(Element);
 
       fireEvent.click(
         screen.getByRole("button", { name: "Keep Loonext schedule" }),
@@ -568,7 +569,7 @@ describe("#245 two-way calendar settings", () => {
     submitMovedTime("Etc/GMT+6", "2026-11-03T09:30");
 
     expectMovedTo("2026-11-03T15:30:00.000Z");
-    expect(screen.getByText("This time is in Etc/GMT+6.")).toBeTruthy();
+    expect(screen.getByText("This time is in Etc/GMT+6.")).toBeInstanceOf(Element);
   });
 
   // Every tzdata release in use agrees on these zones' 2026 transitions.
@@ -611,33 +612,29 @@ describe("#245 two-way calendar settings", () => {
       expectRefused(DST_GAP);
     });
 
-    if (TZDATA_ERA === "pre-2026c") {
-      it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
-        submitMovedTime(zone, "2026-11-01T01:30");
+    it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+      submitMovedTime(zone, "2026-11-01T01:30");
 
-        expectRefused(DST_FOLD);
-      });
+      expectRefused(DST_FOLD);
+    });
 
-      it("pre-2026c: submits a January 2027 time at UTC-7", () => {
-        submitMovedTime(zone, "2027-01-15T09:30");
+    it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: submits a January 2027 time at UTC-7", () => {
+      submitMovedTime(zone, "2027-01-15T09:30");
 
-        expectMovedTo("2027-01-15T16:30:00.000Z");
-      });
-    }
+      expectMovedTo("2027-01-15T16:30:00.000Z");
+    });
 
-    if (TZDATA_ERA === "2026c+") {
-      it("2026c+: submits 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
-        submitMovedTime(zone, "2026-11-01T01:30");
+    it.runIf(TZDATA_ERA === "2026c+")("2026c+: submits 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
+      submitMovedTime(zone, "2026-11-01T01:30");
 
-        expectMovedTo("2026-11-01T07:30:00.000Z");
-      });
+      expectMovedTo("2026-11-01T07:30:00.000Z");
+    });
 
-      it("2026c+: submits a January 2027 time at UTC-6", () => {
-        submitMovedTime(zone, "2027-01-15T09:30");
+    it.runIf(TZDATA_ERA === "2026c+")("2026c+: submits a January 2027 time at UTC-6", () => {
+      submitMovedTime(zone, "2027-01-15T09:30");
 
-        expectMovedTo("2027-01-15T15:30:00.000Z");
-      });
-    }
+      expectMovedTo("2027-01-15T15:30:00.000Z");
+    });
   });
 
   it("explains a refused all-day event without offering a destructive guess", () => {
@@ -654,8 +651,8 @@ describe("#245 two-way calendar settings", () => {
     };
     renderCard();
 
-    expect(screen.getByText("This job became an all-day event")).toBeTruthy();
-    expect(screen.getByText(/needs a real start time/i)).toBeTruthy();
+    expect(screen.getByText("This job became an all-day event")).toBeInstanceOf(Element);
+    expect(screen.getByText(/needs a real start time/i)).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: /keep/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /cancelled/i })).toBeNull();
   });
@@ -676,8 +673,8 @@ describe("#245 two-way calendar settings", () => {
 
     expect(
       screen.getByText("This calendar event needs a valid job title"),
-    ).toBeTruthy();
-    expect(screen.getByText(/500 characters or fewer/i)).toBeTruthy();
+    ).toBeInstanceOf(Element);
+    expect(screen.getByText(/500 characters or fewer/i)).toBeInstanceOf(Element);
   });
 
   it.each([
@@ -702,7 +699,7 @@ describe("#245 two-way calendar settings", () => {
 
     renderCard();
 
-    expect(screen.getByText(instruction)).toBeTruthy();
+    expect(screen.getByText(instruction)).toBeInstanceOf(Element);
     expect(screen.queryByText(/time zone is not supported/i)).toBeNull();
   });
 });

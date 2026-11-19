@@ -189,13 +189,13 @@ describe(RequireTwoFactorCard, () => {
  * friction belongs on the door that opens, and the refusals are the block below.
  */
 describe("…and the window the crew gets to comply", () => {
-  afterEach(tidy);
   beforeEach(() => {
     setSaving(false);
     mutate.mockReset();
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast.error).mockReset();
   });
+  afterEach(tidy);
 
   /** Open the card with nothing required yet, and ask for it. */
   function openTheDialog() {
@@ -351,9 +351,9 @@ async function answer(digits: string) {
 
 /** The submit, once it has stopped offering to submit. */
 function busySubmit(): HTMLButtonElement {
-  return screen.getByRole("button", {
+  return screen.getByRole<HTMLButtonElement>("button", {
     name: HANDOVER_CONFIRM_SUBMITTING,
-  }) as HTMLButtonElement;
+  });
 }
 
 /** The input the save was retried with, or undefined if it never was. */
@@ -362,7 +362,6 @@ function retriedWith(): { required?: boolean; code?: string } {
 }
 
 describe("…and when the server asks who is doing this", () => {
-  afterEach(tidy);
   beforeEach(() => {
     setSaving(false);
     mutate.mockReset();
@@ -374,6 +373,7 @@ describe("…and when the server asks who is doing this", () => {
       .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
     challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
   });
+  afterEach(tidy);
 
   it("gives the digits somewhere to be typed", () => {
     // The visible half. A refusal with no field anywhere on the card is not a
@@ -514,11 +514,9 @@ describe("…and when the server asks who is doing this", () => {
     // the old one invalidates the digits in flight — the same lockout, from the
     // other end.
     expect(
-      (
-        screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
           name: sayEnglish(HANDOVER_CONFIRM_RESEND),
-        }) as HTMLButtonElement
-      ).disabled,
+        }).disabled,
     ).toBe(true);
   });
 
@@ -645,7 +643,6 @@ describe("…and when the server asks who is doing this", () => {
  * first.
  */
 describe("…and the second press before the first save lands", () => {
-  afterEach(tidy);
   beforeEach(() => {
     setSaving(false);
     mutate.mockReset();
@@ -657,6 +654,7 @@ describe("…and the second press before the first save lands", () => {
       setSaving(true);
     });
   });
+  afterEach(tidy);
 
   it("will not let the switch be flipped back on top of its own save", () => {
     // Turning the requirement OFF is one silent save with the widest blast radius on
@@ -670,9 +668,9 @@ describe("…and the second press before the first save lands", () => {
     expect(mutate).toHaveBeenCalledOnce();
 
     const toggle = () =>
-      screen.getByRole("switch", {
+      screen.getByRole<HTMLButtonElement>("switch", {
         name: "Require two-factor authentication",
-      }) as HTMLButtonElement;
+      });
     expect(toggle().disabled).toBe(true);
 
     // And it has to absorb the press, not merely look spent. `disabled` on a Radix
@@ -693,7 +691,7 @@ describe("…and the second press before the first save lands", () => {
     flipTheSwitch();
 
     const requireIt = () =>
-      screen.getByRole("button", { name: "Require it" }) as HTMLButtonElement;
+      screen.getByRole<HTMLButtonElement>("button", { name: "Require it" });
 
     fireEvent.click(requireIt());
     expect(mutate).toHaveBeenCalledOnce();
@@ -726,7 +724,6 @@ describe("…and the second press before the first save lands", () => {
  * its own test.
  */
 describe("…and the second press after the first save landed", () => {
-  afterEach(tidy);
   beforeEach(() => {
     setSaving(false);
     mutate.mockReset();
@@ -742,6 +739,7 @@ describe("…and the second press after the first save landed", () => {
       });
     });
   });
+  afterEach(tidy);
 
   it("puts the way-on prompt away once the save has answered", () => {
     mount(<RequireTwoFactorCard required={false} graceUntil={null} />);

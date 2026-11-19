@@ -38,7 +38,7 @@ app.route("/webhooks/telnyx", telnyxWebhookRoute);
 
 beforeEach(async () => {
   const keys = await telnyxSigningKeys();
-  privateKey = keys.privateKey;
+  ({ privateKey } = keys);
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: keys.publicKeyB64 };
   resetCaptures();
 });
@@ -434,8 +434,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(response.status).toBe(200);
     await flush();
 
-    expect(handle10dlcEvent).toHaveBeenCalledOnce();
-    expect(handle10dlcEvent).toHaveBeenCalledWith(env, event);
+    expect(handle10dlcEvent).toHaveBeenCalledExactlyOnceWith(env, event);
     expect(ledger.stamp.calls).toHaveLength(1);
   });
 
@@ -469,10 +468,9 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     const failurePatch = ledger.stamp.calls.find(
       (call) => (call.body as Record<string, unknown>).attempts === 1,
     );
-    expect(failurePatch).toBeDefined();
-    expect(
-      (failurePatch?.body as Record<string, unknown>).last_error,
-    ).toContain("thread_inbound_message failed");
+    expect(failurePatch?.body).toMatchObject({
+      last_error: expect.stringContaining("thread_inbound_message failed"),
+    });
   });
 });
 
@@ -568,7 +566,7 @@ describe("inbound pipeline — opt-out keywords (§5)", () => {
       opted_out: true,
     });
     expect(optOutRevoke.calls).toHaveLength(1);
-    const {url} = optOutRevoke.calls[0];
+    const [{url}] = optOutRevoke.calls;
     expect(url.searchParams.get("phone_e164")).toBe("eq.+16135551000");
     expect(url.searchParams.get("revoked_at")).toBe("is.null");
     expect(events.calls).toHaveLength(1);

@@ -149,8 +149,8 @@ await runScript("reconcile-storage", async ({ apply, db, script }) => {
     let rows;
     try {
       rows = await readAll(db, spec);
-    } catch (cause) {
-      skipped.push(`${spec.bucket}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      skipped.push(`${spec.bucket}: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
     const missing = [];
@@ -286,7 +286,7 @@ async function repair(db, spec, missing, script) {
   const ids = missing.map((row) => row.id);
 
   switch (spec.repair) {
-    case "delete":
+    case "delete": {
       // One at a time, which is the right speed for a repair that REMOVES
       // rows: a mistake costs one row rather than a table, and the id filter
       // is built from a row this script just read rather than from an argument.
@@ -294,7 +294,8 @@ async function repair(db, spec, missing, script) {
         await db.remove(spec.table, { id: `eq.${row.id}` });
       }
       break;
-    case "clear-voicemail":
+    }
+    case "clear-voicemail": {
       for (const row of missing) {
         await db.patch(
           spec.table,
@@ -303,7 +304,8 @@ async function repair(db, spec, missing, script) {
         );
       }
       break;
-    case "mark-reaped":
+    }
+    case "mark-reaped": {
       for (const row of missing) {
         await db.patch(
           spec.table,
@@ -312,8 +314,10 @@ async function repair(db, spec, missing, script) {
         );
       }
       break;
-    default:
+    }
+    default: {
       fail(`unknown repair "${spec.repair}"`);
+    }
   }
 
   for (const row of missing) {

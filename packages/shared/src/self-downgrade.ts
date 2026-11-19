@@ -139,10 +139,10 @@ export function selfDowngradeWarning(
     head.length === 0
       ? say("domain.selfDowngradeSomeOfWhat")
       : head.length === 1
-        ? head[0]!
+        ? head[0]
         : say("domain.selfDowngradeListPair")
             .replace("{first}", head.slice(0, -1).join(", "))
-            .replace("{last}", head[head.length - 1]!);
+            .replace("{last}", head[head.length - 1]);
 
   const scope =
     rest > 0

@@ -134,16 +134,16 @@ describe("#583 what the panel says", () => {
     openDialog(PREPAID);
     // $312.00 collected, four months in, $221.00 back. None of the three is
     // derivable from the price book, so printing them requires having read them.
-    expect(screen.getByText("$312")).toBeTruthy();
-    expect(screen.getByText("$221")).toBeTruthy();
-    expect(screen.getByText("4 of 12")).toBeTruthy();
+    expect(screen.getByText("$312")).toBeInstanceOf(Element);
+    expect(screen.getByText("$221")).toBeInstanceOf(Element);
+    expect(screen.getByText("4 of 12")).toBeInstanceOf(Element);
   });
 
   it("says credit and an amount, and never promises months of service", () => {
     openDialog(PREPAID);
     expect(
       screen.getByText(/puts \$221 back on your account as credit/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     const html = document.body.innerHTML;
     expect(html).not.toMatch(/months? free/i);
     expect(html).not.toMatch(/free months?/i);
@@ -151,7 +151,7 @@ describe("#583 what the panel says", () => {
 
   it("names the plan whose normal price they will start paying", () => {
     openDialog(PREPAID);
-    expect(screen.getByText(/normal Pro monthly price/)).toBeTruthy();
+    expect(screen.getByText(/normal Pro monthly price/)).toBeInstanceOf(Element);
   });
 });
 
@@ -167,7 +167,7 @@ describe("#583 consent", () => {
     // "End my prepaid year" alone asks somebody to agree to a number they have to go
     // back up the dialog to find. The tick carries the figure it agrees to.
     openDialog(PREPAID);
-    expect(screen.getByText("End my prepaid year and credit me $221")).toBeTruthy();
+    expect(screen.getByText("End my prepaid year and credit me $221")).toBeInstanceOf(Element);
   });
 
   it("sends the flag the server demands once it is ticked", () => {
@@ -202,6 +202,6 @@ describe("#583 consent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
 
     expect(switchButton().disabled).toBe(true);
-    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
   });
 });

@@ -9,13 +9,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RegistrationUiState } from "./registration-ui-state";
 import { WorkspaceStatusBanner } from "./status-banner";
 
-const { registration, derived, company } = vi.hoisted(() => ({
-  registration: vi.fn<(enabled?: boolean) => { data: undefined }>(() => ({
+const { registration, derived, company } = vi.hoisted(() => {
+  const derived: { current: RegistrationUiState } = { current: { kind: "none" } };
+  const company: { current: { data: unknown } } = { current: { data: undefined } };
+  const registration = vi.fn<(enabled?: boolean) => { data: undefined }>(() => ({
     data: undefined,
-  })),
-  derived: { current: { kind: "none" } as RegistrationUiState },
-  company: { current: { data: undefined as unknown } },
-}));
+  }));
+  return { registration, derived, company };
+});
 
 vi.mock("@/lib/api/registration", () => ({ useRegistration: registration }));
 vi.mock("@/lib/api/companies", () => ({ useCompany: () => company.current }));
@@ -55,7 +56,7 @@ describe("WorkspaceStatusBanner registration read", () => {
 
   it("leaves it alone in every other state, and while the company loads", () => {
     for (const kind of ["none", "approved", "payment_issue"] as const) {
-      derived.current = { kind } as RegistrationUiState;
+      derived.current = { kind };
       renderToStaticMarkup(<WorkspaceStatusBanner />);
       expect(registration, kind).toHaveBeenLastCalledWith(false);
     }

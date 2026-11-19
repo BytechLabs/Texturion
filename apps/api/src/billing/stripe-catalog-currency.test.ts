@@ -23,15 +23,18 @@ import { PLAN_PREPAY_YEAR_CENTS } from "./plans";
  * one on the pricing page, in the direction of charging somebody something we
  * never advertised.
  *
- * This reads the script as TEXT and asserts every figure appears. It is the
- * same shape as the `scrub.ts` duplication guard: a test file has none of the
- * resolution constraints the thing it guards has, so the import that cannot
- * exist in the module can exist in its test.
+ * Test code can read the setup script and import the shared amounts.
  */
 
 const SCRIPT = readFileSync(
   fileURLToPath(new URL("../../scripts/stripe-setup.ts", import.meta.url)),
   "utf8",
+);
+
+const FILED_AMOUNTS = new Set(
+  [...SCRIPT.matchAll(/\bunit_amount:\s*(\d(?:_?\d)*)(?=\s*[,}])/g)].map(([, literal]) =>
+    Number(literal.replaceAll("_", "")),
+  ),
 );
 
 /** Every amount the catalog must file, with the name its failure should say. */
@@ -108,12 +111,12 @@ const CHARGEABLE_PRICES: [lookupKey: string, cadCents: number | null][] = [
 describe("the Stripe catalog script and the shared price book agree (#328)", () => {
   it.each(FIGURES)("files the %s amount", (label, cents) => {
     expect(
-      SCRIPT.includes(String(cents)),
+      FILED_AMOUNTS,
       `${label} is ${cents}¢ in packages/shared/src/billing-currency.ts and ` +
         `does not appear in scripts/stripe-setup.ts. A catalog that files a ` +
         `different number from the one the pricing page quotes charges ` +
         `somebody something we never advertised.`,
-    ).toBe(true);
+    ).toContain(cents);
   });
 
   it("files both per-segment overage rates", () => {
@@ -174,9 +177,11 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
           `US$290 (#522).`,
       ).toBe(true);
       if (cadCents !== null) {
-        expect(body, `${lookupKey} files the wrong CAD amount`).toContain(
-          `unit_amount: ${cadCents}`,
-        );
+        const literal = /currency_options:\s*\{\s*cad:\s*\{\s*unit_amount:\s*(\d(?:_?\d)*)(?=\s*[,}])/.exec(body)?.[1];
+        expect(
+          literal === undefined ? undefined : Number(literal.replaceAll("_", "")),
+          `${lookupKey} files the wrong CAD amount`,
+        ).toBe(cadCents);
       }
     },
   );
@@ -193,18 +198,18 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
    * Canadian workspace could not add it at all.
    */
   it("keeps a sellable module chargeable in every currency", () => {
-    for (const module of SELLABLE_MODULES) {
-      const body = priceBody(`loonext_module_${module}_licensed`);
+    for (const moduleKey of SELLABLE_MODULES) {
+      const body = priceBody(`loonext_module_${moduleKey}_licensed`);
       for (const currency of BILLING_CURRENCIES) {
         if (currency === "usd") continue;
         expect(
-          body.includes(`${currency}:`),
-          `the ${module} module is now sellable but its Stripe price files no ` +
+          body,
+          `the ${moduleKey} module is now sellable but its Stripe price files no ` +
             `${currency} amount. A ${currency} subscription cannot take a price ` +
             `that has no ${currency} option — the add-on toggle fails outright ` +
             `for every workspace billed in it. Decide the figure, put it in ` +
             `MODULE_CATALOG with a currency axis, and file it here.`,
-        ).toBe(true);
+        ).toContain(`${currency}:`);
       }
     }
   });

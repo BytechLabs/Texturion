@@ -66,14 +66,20 @@ function allStrings(page: PageData): string[] {
 }
 
 describe("compare ledgers (shared laws)", () => {
-  for (const page of PAGES) {
-    it(`${page.name}: no em-dashes or en-dash ranges in any rendered string (Law 6)`, () => {
+  const pageCases = PAGES.map(page => [page.name, page] as const);
+
+  it.each(pageCases)(
+    "%s: no em-dashes or en-dash ranges in any rendered string (Law 6)",
+    (_pageName, page) => {
       for (const s of allStrings(page)) {
         expect(s, s).not.toMatch(/[—–]/);
       }
-    });
+    },
+  );
 
-    it(`${page.name}: the competitor column is dated and the footnote states the verification date`, () => {
+  it.each(pageCases)(
+    "%s: the competitor column is dated and the footnote states the verification date",
+    (_pageName, page) => {
       // #403: derived from COMPARE_VERIFIED_ON, never a literal. The old
       // assertions pinned "as of July 2026" and "2026-07-02" as strings, so the
       // suite would have passed forever asserting a verification nobody had
@@ -83,9 +89,12 @@ describe("compare ledgers (shared laws)", () => {
       expect(competitor?.sub).toBe(COMPARE_AS_OF);
       expect(page.footnote).toContain(COMPARE_VERIFIED_ON);
       expect(page.footnote).toContain("tell us and we'll");
-    });
+    },
+  );
 
-    it(`${page.name}: states the Canada day-one row nobody else can fill (#369)`, () => {
+  it.each(pageCases)(
+    "%s: states the Canada day-one row nobody else can fill (#369)",
+    (_pageName, page) => {
       const row = page.rows.find((r) => r.label === "Starting up in Canada");
       expect(row, "the Canada row is the one differentiator competitors cannot match").toBeDefined();
       const ours = row?.cells[0];
@@ -98,9 +107,17 @@ describe("compare ledgers (shared laws)", () => {
       expect(note).toContain("Canadian customers");
       expect(note).toContain("US texting later");
       expect(note).toContain("$29");
-    });
+    },
+  );
 
-    it(`${page.name}: the Loonext column is the highlighted one and totals $29`, () => {
+  it.each(
+    PAGES.map(page => [
+      `${page.name}: the Loonext column is the highlighted one and totals $29`,
+      page,
+    ] as const),
+  )(
+    "%s",
+    (_pageName, page) => {
       expect(page.columns[0]?.highlight).toBe(true);
       expect(page.columns[0]?.label).toBe("Loonext Starter");
       const total = page.rows.find((r) => r.total);
@@ -108,9 +125,12 @@ describe("compare ledgers (shared laws)", () => {
       expect(
         typeof loonextTotal === "string" ? loonextTotal : loonextTotal?.value,
       ).toBe("$29");
-    });
+    },
+  );
 
-    it(`${page.name}: argues at least one CAPABILITY, not only price (#435)`, () => {
+  it.each(pageCases)(
+    "%s: argues at least one CAPABILITY, not only price (#435)",
+    (_pageName, page) => {
       // A ledger of nothing but prices is an argument a better-funded
       // competitor erases by discounting. These two rows are the ones a
       // discount cannot answer.
@@ -125,9 +145,12 @@ describe("compare ledgers (shared laws)", () => {
       // long checklist would fight what these pages are good at.
       const priced = page.rows.filter((r) => !r.total).length;
       expect(capability.length).toBeLessThan(priced - capability.length);
-    });
+    },
+  );
 
-    it(`${page.name}: every capability row states OUR side as a claim about us (#435)`, () => {
+  it.each(pageCases)(
+    "%s: every capability row states OUR side as a claim about us (#435)",
+    (_pageName, page) => {
       // Ask 2, and the reason for it: "Heymarket has no voicemail
       // transcription" carries #403's verification burden and goes stale the
       // day they ship one. A claim about our own product never does.
@@ -143,9 +166,12 @@ describe("compare ledgers (shared laws)", () => {
         );
         expect(note.length, `${label}: our cell needs a real note`).toBeGreaterThan(40);
       }
-    });
+    },
+  );
 
-    it(`${page.name}: never claims a competitor LACKS a capability (#403, #435)`, () => {
+  it.each(pageCases)(
+    "%s: never claims a competitor LACKS a capability (#403, #435)",
+    (_pageName, page) => {
       // The competitor cell may say what their pricing page prices, and no
       // more. Both of these ship AI heavily, so "they cannot do this" would be
       // false as well as unverifiable.
@@ -167,24 +193,30 @@ describe("compare ledgers (shared laws)", () => {
           /pric(e|es|ing)|credits|rate/,
         );
       }
-    });
+    },
+  );
 
-    it(`${page.name}: says the total excludes AI usage, since a row now prices it (#435)`, () => {
+  it.each(pageCases)(
+    "%s: says the total excludes AI usage, since a row now prices it (#435)",
+    (_pageName, page) => {
       // The ledger totals model seats and texts. Adding an AI row without
       // saying the total omits AI would leave the reader to assume the ~$172
       // and ~$59 already carry it.
       expect(page.footnote).toMatch(/total(s)? include(s)? (any )?AI|include AI/i);
-    });
+    },
+  );
 
-    it(`${page.name}: the 500-texts row is an explicit workload scenario, never an allowance claim (#121)`, () => {
+  it.each(pageCases)(
+    "%s: the 500-texts row is an explicit workload scenario, never an allowance claim (#121)",
+    (_pageName, page) => {
       const workload = page.rows.find((r) => r.label.includes("500"));
       expect(workload?.label).toBe("500 texts a month, the workload");
       const loonextCell = workload?.cells[0];
       const note =
         typeof loonextCell === "string" ? "" : (loonextCell?.note ?? "");
       expect(note).toContain("fair-use texting covers this workload");
-    });
-  }
+    },
+  );
 });
 
 describe("compare pages carry ONE dateline (#403, #435)", () => {
@@ -202,8 +234,9 @@ describe("compare pages carry ONE dateline (#403, #435)", () => {
   const MONTH_YEAR =
     /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d\d\b/;
 
-  for (const file of SOURCES) {
-    it(`${file}: states no month and year as a literal`, () => {
+  it.each(SOURCES)(
+    "%s: states no month and year as a literal",
+    (file) => {
       const source = readFileSync(
         join(import.meta.dirname, file),
         "utf8",
@@ -216,8 +249,8 @@ describe("compare pages carry ONE dateline (#403, #435)", () => {
         hit?.[0],
         `${file} hardcodes "${hit?.[0]}"; derive it from COMPARE_MONTH so moving the verification date moves every dateline`,
       ).toBeUndefined();
-    });
-  }
+    },
+  );
 });
 
 describe("heymarket ledger facts (their published prices, as verified)", () => {

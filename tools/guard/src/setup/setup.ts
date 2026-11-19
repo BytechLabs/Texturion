@@ -2,18 +2,15 @@ import { EDGE_PATHS } from "@loonext/rig-protocol";
 
 import type { Ctx } from "../context";
 import { Refusal } from "../refusal";
-import {
-  ADMISSION_KEYS,
-  roomFor,
-  windowStartHour,
-  type ReserveRecord,
-  type WindowRecord,
-} from "../state/admission";
+import { ADMISSION_KEYS, roomFor, windowStartHour } from "../state/admission";
+import type { ReserveRecord, WindowRecord } from "../state/admission";
 import { limitInForce } from "../state/concurrency";
 import { TelnyxError } from "../telnyx/client";
-import { rememberCredential, connectionOfResource } from "../telnyx/targets";
-import { runSafetyChecks, type SafetyState } from "./safety";
-import { edgeUrl, SPEC, type TelnyxSpec } from "./spec";
+import { connectionOfResource, rememberCredential } from "../telnyx/targets";
+import { runSafetyChecks } from "./safety";
+import type { SafetyState } from "./safety";
+import { edgeUrl, SPEC } from "./spec";
+import type { TelnyxSpec } from "./spec";
 
 /**
  * The setup routine (docs/RIG.md), for the admin class. It makes
@@ -42,9 +39,16 @@ function idOf(item: Item | undefined): string | null {
 }
 
 function randomSecret(length: number): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
   const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join("");
+  const sample = new Uint8Array(1);
+  let secret = "";
+  while (secret.length < length) {
+    const [byte] = crypto.getRandomValues(sample);
+    // Six random bits cover the alphabet. Retry values outside it.
+    const index = byte & 63;
+    if (index < alphabet.length) secret += alphabet.charAt(index);
+  }
+  return secret;
 }
 
 /**
@@ -62,7 +66,7 @@ function hhmm(hour: number): string {
 }
 
 export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<SetupReport> {
-  const telnyx = ctx.telnyx;
+  const { telnyx } = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
   const edge = ctx.config.edgeOrigin;
   if (!edge) throw new Refusal("startup.unconfigured");
@@ -210,8 +214,8 @@ async function ensureLimitProbe(spec: TelnyxSpec, groupId: string, ensure: Ensur
   try {
     await ensure("limit_probe_profile", "/v2/outbound_voice_profiles", "name", probe.name, settings, { name: probe.name, ...settings });
     return null;
-  } catch (cause) {
-    const reason = cause instanceof TelnyxError ? `Telnyx answered ${cause.status}` : "the profile could not be listed or written";
+  } catch (error) {
+    const reason = error instanceof TelnyxError ? `Telnyx answered ${error.status}` : "the profile could not be listed or written";
     return { resource: "limit_probe_profile", name: probe.name, action: "skipped", reason };
   }
 }
@@ -317,12 +321,12 @@ async function ensureNotifications(ctx: Ctx, spec: TelnyxSpec): Promise<SetupSte
     return missing > 0
       ? { resource: "notifications", name, action, reason: `${missing} event condition(s) not found by name` }
       : { resource: "notifications", name, action };
-  } catch (cause) {
+  } catch (error) {
     return {
       resource: "notifications",
       name,
       action: "skipped",
-      reason: cause instanceof Error ? cause.message : String(cause),
+      reason: error instanceof Error ? error.message : String(error),
     };
   }
 }

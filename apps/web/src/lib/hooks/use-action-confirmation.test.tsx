@@ -78,7 +78,6 @@ vi.mock("@loonext/shared", async (importOriginal) => ({
 
 const FACTOR = "totp-factor-id";
 
-afterEach(cleanup);
 beforeEach(() => {
   requestCode.mockClear();
   codeRequest.isPending = false;
@@ -87,6 +86,7 @@ beforeEach(() => {
     .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
   challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
 });
+afterEach(cleanup);
 
 function refusal(code: string, status = 403) {
   return new ApiError(code as never, "nope", status);
@@ -337,6 +337,12 @@ describe("retrying with the digits", () => {
  * out of ownership transfer and workspace closure, worse than the freshness gap the
  * change exists to close.
  */
+function queueChallenge(pending: ((value: unknown) => void)[]) {
+  return () => new Promise((resolve) => {
+    pending.push(resolve);
+  });
+}
+
 describe("proving a factor again, in the browser", () => {
   it("opens the prompt without emailing anything", () => {
     const { result } = renderHook(() => useActionConfirmation());
@@ -541,12 +547,7 @@ describe("proving a factor again, in the browser", () => {
     const pending: ((value: unknown) => void)[] = [];
     challengeAndVerify
       .mockResolvedValueOnce({ data: null, error: new Error("invalid totp") })
-      .mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            pending.push(resolve);
-          }),
-      );
+      .mockImplementation(queueChallenge(pending));
     const retry = vi.fn();
     const { result } = renderHook(() => useActionConfirmation());
     act(() => {
@@ -648,12 +649,7 @@ describe("proving a factor again, in the browser", () => {
      * twice.
      */
     const pending: ((value: unknown) => void)[] = [];
-    challengeAndVerify.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          pending.push(resolve);
-        }),
-    );
+    challengeAndVerify.mockImplementation(queueChallenge(pending));
     const retry = vi.fn();
     const { result } = renderHook(() => useActionConfirmation());
     act(() => {
@@ -726,12 +722,7 @@ describe("proving a factor again, in the browser", () => {
    * belongs to a different action.
    */
   async function abandonThenAskAgain(pending: ((value: unknown) => void)[]) {
-    challengeAndVerify.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          pending.push(resolve);
-        }),
-    );
+    challengeAndVerify.mockImplementation(queueChallenge(pending));
     const first = vi.fn();
     const second = vi.fn();
     const hook = renderHook(() => useActionConfirmation());

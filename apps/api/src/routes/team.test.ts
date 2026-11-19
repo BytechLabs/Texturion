@@ -138,7 +138,8 @@ describe("GET /v1/members", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       data: [
         expect.objectContaining({
           id: MEMBER_ID,
@@ -213,7 +214,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "fourth@crew.example", role: "member" },
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       error: { code: "conflict", message: expect.stringContaining("Seat limit") },
     });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
@@ -232,7 +234,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "sixteenth@crew.example", role: "member" },
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       error: { code: "conflict", message: expect.stringContaining("15 seats") },
     });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
@@ -257,9 +260,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
     expect(res.status).toBe(201);
     // The email went out — the UI shows the plain "Invite sent" confirmation.
-    expect(await res.json()).toMatchObject({ email_sent: true });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: true });
 
-    const insert = sb.find("POST", CREATE_INVITE_RPC)[0];
+    const [insert] = sb.find("POST", CREATE_INVITE_RPC);
     expect(insert.body).toEqual({
       p_company_id: COMPANY_ID,
       p_email: "new@crew.example",
@@ -283,8 +286,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(resend.calls[0].html).toContain('<html lang="fr-CA">');
     expect(resend.calls[0].text).toContain("Si le lien expire");
     expect(resend.calls[0].text).toContain("Ce message de service concerne votre compte Loonext.");
-    const href = String(resend.calls[0].text).match(/https?:\/\/[^\s]+/)?.[0];
-    expect(href).toBeTruthy();
+    const href = /https?:\/\/[^\s]+/.exec(String(resend.calls[0].text))?.[0];
+    expect(href).toBeDefined();
     const link = new URL(href!);
     expect(link.pathname).toBe("/auth/confirm");
     expect(Object.fromEntries(link.searchParams)).toEqual({
@@ -361,7 +364,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     const calls: Record<string, unknown>[] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      calls.push((await request.clone().json()) as Record<string, unknown>);
+      calls.push(await request.clone().json<Record<string, unknown>>());
       return Response.json(
         status === 200 ? { id: "email_1" } : { message: "smtp down" },
         { status },
@@ -401,7 +404,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(201);
     // GoTrue 422s an existing account and emails NOTHING — the route now sends
     // the invite itself instead of telling the inviter to hand-deliver a link.
-    expect(await res.json()).toMatchObject({ email_sent: true });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: true });
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
 
     expect(resend.calls).toHaveLength(1);
@@ -441,7 +444,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "admin" },
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ email_sent: false });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: false });
     // NO rollback: unlike the new-user failure, the invite stays actionable
     // via Copy link.
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
@@ -462,7 +465,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(res.status).toBe(500);
-    const rollback = sb.find("DELETE", "/rest/v1/invites")[0];
+    const [rollback] = sb.find("DELETE", "/rest/v1/invites");
     expect(rollback.url.searchParams.get("id")).toBe(`eq.${INVITE_ID}`);
   });
 
@@ -505,7 +508,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(dup.status).toBe(409);
-    expect(await dup.json()).toMatchObject({
+    await expect(dup.json()).resolves.toMatchObject({
       error: { message_key: "apiRefusals.inviteAlreadyPending" },
     });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
@@ -539,7 +542,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
 
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ id: INVITE_ID, role: "bookkeeper", email_sent: true });
+    await expect(res.json()).resolves.toMatchObject({ id: INVITE_ID, role: "bookkeeper", email_sent: true });
     expect(resend.calls).toHaveLength(1);
     expect(resend.calls[0].text).toContain(`%2Finvite%2F${INVITE_ID}`);
   });
@@ -576,7 +579,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(response.status).toBe(status);
     const rollback = sb.find("PATCH", "/rest/v1/invites");
     if (status === 200) {
-      expect(await response.json()).toMatchObject({ id: INVITE_ID, email_sent: true });
+      await expect(response.json()).resolves.toMatchObject({ id: INVITE_ID, email_sent: true });
       expect(auditRow(sb)).toMatchObject({ action: "member.invite_resent", target_id: INVITE_ID });
       expect(rollback).toHaveLength(0);
     } else {
@@ -627,9 +630,9 @@ describe("GET /v1/invites/mine (company-exempt, #109)", () => {
       companyId: null,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; company_name: string | null; companies?: unknown }[];
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0]).toMatchObject({
       id: INVITE_ID,
@@ -658,7 +661,7 @@ describe("GET /v1/invites/mine (company-exempt, #109)", () => {
       companyId: null,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [] });
+    await expect(res.json()).resolves.toEqual({ data: [] });
     expect(sb.find("GET", "/rest/v1/invites")).toHaveLength(0);
   });
 });
@@ -708,7 +711,8 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       company_id: COMPANY_ID,
       user_id: auth.subject,
       role: "member",
@@ -730,17 +734,15 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       email_enabled: true,
       push_enabled: true,
     });
-    const stamp = sb.find("PATCH", "/rest/v1/invites")[0];
-    expect(
-      typeof (stamp.body as Record<string, unknown>).accepted_at,
-    ).toBe("string");
+    const [stamp] = sb.find("PATCH", "/rest/v1/invites");
+    expect((stamp.body as Record<string, unknown>).accepted_at).toBeTypeOf("string");
   });
 
   it("the same acceptance applied twice creates one membership and sends one note", async () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     // The invite row the route reads is the one the accept stamp updates.
@@ -787,7 +789,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     const sb = acceptStub(
@@ -815,7 +817,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const note = resend.find((mail) =>
       String(mail.text ?? "").includes("covering the north side"),
     );
-    expect(note, "the admin was never sent the note").toBeTruthy();
+    expect(Boolean(note), "the admin was never sent the note").toBe(true);
   });
 
   it("#521 does NOT email a member, who reads it on screen one instead", async () => {
@@ -824,7 +826,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     const sb = acceptStub(
@@ -1144,7 +1146,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     // The mark is cleared, and the role comes from THIS invite — a returning
     // admin does not silently regain admin because they once had it.
     expect(patched).toMatchObject({ deactivated_at: null, role: "member" });
-    expect(await res.json()).toMatchObject({ deactivated_at: null });
+    await expect(res.json()).resolves.toMatchObject({ deactivated_at: null });
   });
 });
 
@@ -1216,7 +1218,8 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { role: "member" } },
     );
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: {
         code: "validation_failed",
         message_key: SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
@@ -1321,16 +1324,10 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
 
 describe("DELETE /v1/members/:id (offboard, not delete)", () => {
   /** The stubs an offboarding needs: the RPC, the softphone, and the cleanups. */
-  function offboardStub(
-    outcome: Record<string, unknown> = {
-      outcome: "deactivated",
-      user_id: "u-target",
-      conversations: 2,
-      tasks: 3,
-    },
-  ): SupabaseStub {
+  function offboardStub(outcome?: Record<string, unknown>): SupabaseStub {
+    const response = outcome ?? { outcome: "deactivated", user_id: "u-target", conversations: 2, tasks: 3 };
     const sb = stubWithRole("owner");
-    sb.on("POST", "/rest/v1/rpc/offboard_member", () => outcome);
+    sb.on("POST", "/rest/v1/rpc/offboard_member", () => response);
     // D43 (#135): deactivation revokes the softphone — no credential row here.
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
@@ -1360,7 +1357,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       conversations_moved: 2,
       tasks_moved: 3,
       sessions_ended: 2,
@@ -1369,7 +1366,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
 
     // #276: deactivate + reassign are ONE transaction. A crash between them is
     // exactly how work ended up pointing at people who had gone.
-    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/offboard_member");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_member_id: TARGET_MEMBER_ID,
@@ -1485,12 +1482,12 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/api_revoke_sessions",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on(
       "DELETE",
       "/rest/v1/push_subscriptions",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("DELETE", "/rest/v1/device_push_tokens", () => []);
     stubFetch(jwksRoute(auth), sb.route);
@@ -1503,7 +1500,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       sessions_ended: 0,
       push_devices_removed: 0,
     });
@@ -1536,7 +1533,7 @@ describe("GET /v1/members/:id/holdings (#276)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ conversations: 4, tasks: 7 });
+    await expect(res.json()).resolves.toEqual({ conversations: 4, tasks: 7 });
     expect(sb.find("POST", "/rest/v1/rpc/api_member_holdings")[0].body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: "u-target",
@@ -1603,10 +1600,8 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(revoke.status).toBe(204);
-    const patch = sb.find("PATCH", "/rest/v1/invites")[0];
-    expect(typeof (patch.body as Record<string, unknown>).revoked_at).toBe(
-      "string",
-    );
+    const [patch] = sb.find("PATCH", "/rest/v1/invites");
+    expect((patch.body as Record<string, unknown>).revoked_at).toBeTypeOf("string");
     // Revoke only touches pending invites.
     expect(patch.url.searchParams.get("accepted_at")).toBe("is.null");
   });
@@ -1623,7 +1618,7 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
     expect(body.data.map((r) => r.allowed_actions)).toEqual([
       ["revoke", "resend"],
       ["revoke", "resend"],
@@ -1711,9 +1706,9 @@ describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
     // Released to UNASSIGNED, not handed to a name: the person leaving should
     // not be choosing who inherits, and unassigned shows up in triage rather
     // than pointing at somebody who has gone.
-    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/offboard_member");
     expect((rpc.body as { p_reassign_to: string | null }).p_reassign_to).toBeNull();
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       conversations_released: 2,
       tasks_released: 1,
     });

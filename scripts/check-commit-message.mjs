@@ -119,16 +119,18 @@ export function scopeErrors(scope, files) {
   const suggestion = suggestScope(touched);
   const names = foreign.map((r) => r.replace("apps/", "")).join(" and ");
   return [
-    `scope "(${scope})" contradicts the diff — it also changes ${names}. ` +
-      `A customer reading the ${names} release notes sees "${scope}:" as the ` +
-      `first word. ` +
+    [
+      `scope "(${scope})" contradicts the diff — it also changes ${names}. `,
+      `A customer reading the ${names} release notes sees "${scope}:" as the `,
+      `first word. `,
       (suggestion
         ? `Use "(${suggestion})" for this diff, or split the commit.`
-        : `Use a scope covering every client it touches, or split the commit.`) +
+        : `Use a scope covering every client it touches, or split the commit.`),
       `\n        offending paths: ${files
         .filter((f) => foreign.some((root) => f.startsWith(`${root}/`)))
         .slice(0, 5)
         .join("\n                         ")}`,
+    ].join(""),
   ];
 }
 
@@ -176,16 +178,16 @@ export function checkOne(message, files = null) {
     }
     if (VAGUE.test(subject)) {
       errors.push(
-        `subject is vague ("${subject.match(VAGUE)[0]}"). A reader must learn what changed.`,
+        `subject is vague ("${VAGUE.exec(subject)[0]}"). A reader must learn what changed.`,
       );
     }
     if (INTERNAL.test(subject)) {
       errors.push(
-        `subject uses internal shorthand ("${subject.match(INTERNAL)[0]}") that means nothing to a customer. Describe the change itself; keep the tracking reference in the body.`,
+        `subject uses internal shorthand ("${INTERNAL.exec(subject)[0]}") that means nothing to a customer. Describe the change itself; keep the tracking reference in the body.`,
       );
     }
     if (PAST_TENSE.test(subject)) {
-      const verb = subject.match(PAST_TENSE)[0];
+      const [verb] = PAST_TENSE.exec(subject);
       errors.push(`use present tense — "${verb.replace(/ed$/, "")}", not "${verb}".`);
     }
     if (/^#?\d+$/.test(subject.trim()) || /^(#\d+|[A-Z]+-\d+)\b/.test(subject)) {
@@ -278,7 +280,14 @@ function main() {
 
   /** @type {{message: string, files: string[] | null}[]} */
   let commits;
-  if (rangeFlag !== -1) {
+  if (rangeFlag === -1) {
+    const [file] = args;
+    if (!file) {
+      console.error("pass a commit-message file, or --range <from>..<to>");
+      process.exit(2);
+    }
+    commits = [{ message: readFileSync(file, "utf8"), files: stagedFiles() }];
+  } else {
     const range = args[rangeFlag + 1];
     if (!range) {
       console.error("--range needs a <from>..<to>");
@@ -299,13 +308,6 @@ function main() {
         return { message: entry.slice(sep + 1).trim(), sha };
       })
       .map(({ message, sha }) => ({ message, files: filesInCommit(sha) }));
-  } else {
-    const file = args[0];
-    if (!file) {
-      console.error("pass a commit-message file, or --range <from>..<to>");
-      process.exit(2);
-    }
-    commits = [{ message: readFileSync(file, "utf8"), files: stagedFiles() }];
   }
 
   const failures = [];
@@ -325,7 +327,7 @@ function main() {
       continue;
     }
     // release-please writes its own release commits.
-    if (/^chore\(main\): release/.test(message.trim())) continue;
+    if (message.trim().startsWith("chore(main): release")) continue;
     const { header, errors } = checkOne(message, files);
     if (errors.length > 0) failures.push({ header, errors });
   }

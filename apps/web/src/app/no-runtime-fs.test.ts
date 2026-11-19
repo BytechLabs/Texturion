@@ -95,8 +95,8 @@ describe("no page reads the filesystem while rendering", () => {
       ["legal/vulnerability-disclosure/page.tsx", "@root/SECURITY.md"],
     ];
     for (const [rel, spec] of pages) {
-      const path = files.find((f) => f.replace(/\\/g, "/").endsWith(rel));
-      expect(path, `${rel} is gone`).toBeTruthy();
+      const path = files.find((f) => f.replaceAll('\\', "/").endsWith(rel));
+      expect(Boolean(path), `${rel} is gone`).toBe(true);
       expect(
         readFileSync(path!, "utf8"),
         `${rel} no longer imports ${spec}`,
@@ -136,10 +136,10 @@ describe("both bundlers know what a .md module is", () => {
 
   it("webpack turns .md into its text", () => {
     expect(
-      config.includes('type: "asset/source"'),
+      config,
       "the webpack .md rule is gone; the legal pages' imports have nothing to " +
         "resolve them and the --webpack rollback build is the one that breaks",
-    ).toBe(true);
+    ).toContain('type: "asset/source"');
   });
 
   it("turbopack turns .md into its text", () => {

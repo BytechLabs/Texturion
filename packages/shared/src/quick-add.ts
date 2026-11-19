@@ -153,7 +153,7 @@ function wallClock(instant: number, timeZone: string): Civil & Clock & { weekday
 
 function offsetAt(instant: number, timeZone: string): number {
   const w = wallClock(instant, timeZone);
-  return Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi) - Math.floor(instant / 60000) * 60000;
+  return Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi) - Math.floor(instant / 60_000) * 60_000;
 }
 
 /** The instant at which a zone's wall clock reads this civil date and time. */
@@ -177,7 +177,7 @@ function daysInMonth(y: number, m: number): number {
 }
 
 function civilKey(c: Civil): number {
-  return c.y * 10000 + c.m * 100 + c.d;
+  return c.y * 10_000 + c.m * 100 + c.d;
 }
 
 interface Word {
@@ -258,8 +258,8 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
     const toMonday = ((8 - today.weekday) % 7) || 7;
     return { kind: "civil", civil: addDays(today, toMonday), words: 2 };
   }
-  if ((w === "next" || w === "this") && next(1) !== undefined && WEEKDAYS[next(1) as string] !== undefined) {
-    const target = WEEKDAYS[next(1) as string];
+  if ((w === "next" || w === "this") && next(1) !== undefined && WEEKDAYS[next(1)!] !== undefined) {
+    const target = WEEKDAYS[next(1)!];
     if (w === "this") {
       const ahead = ((target - today.weekday + 7) % 7) || 7;
       return { kind: "civil", civil: addDays(today, ahead), words: 2 };
@@ -274,16 +274,16 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
   }
 
   if (w === "in" && next(1) !== undefined && next(2) !== undefined) {
-    const amount = /^(\d{1,3})$/.exec(next(1) as string);
-    const unit = next(2) as string;
+    const amount = /^(\d{1,3})$/.exec(next(1)!);
+    const unit = next(2)!;
     if (amount) {
       const n = Number(amount[1]);
       if (n >= 1) {
         if (/^(minutes?|mins?)$/.test(unit)) {
-          return { kind: "instant", instant: now + n * 60000, words: 3, hasClock: true };
+          return { kind: "instant", instant: now + n * 60_000, words: 3, hasClock: true };
         }
         if (/^(hours?|hrs?)$/.test(unit)) {
-          return { kind: "instant", instant: now + n * 3600000, words: 3, hasClock: true };
+          return { kind: "instant", instant: now + n * 3_600_000, words: 3, hasClock: true };
         }
         if (/^(days?)$/.test(unit)) return { kind: "civil", civil: addDays(today, n), words: 3 };
         if (/^(weeks?)$/.test(unit)) return { kind: "civil", civil: addDays(today, n * 7), words: 3 };
@@ -304,13 +304,13 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
 
   // "nov 12" and "12 nov": the next such date on or after today.
   const monthFirst = MONTHS[w];
-  const dayAfter = next(1) === undefined ? null : ordinalDay(next(1) as string);
+  const dayAfter = next(1) === undefined ? null : ordinalDay(next(1)!);
   if (monthFirst !== undefined && dayAfter !== null) {
     const civil = nextOccurrence(monthFirst, dayAfter, today);
     return civil === null ? null : { kind: "civil", civil, words: 2 };
   }
   const dayFirst = ordinalDay(w);
-  const monthAfter = next(1) === undefined ? undefined : MONTHS[next(1) as string];
+  const monthAfter = next(1) === undefined ? undefined : MONTHS[next(1)!];
   if (dayFirst !== null && monthAfter !== undefined) {
     const civil = nextOccurrence(monthAfter, dayFirst, today);
     return civil === null ? null : { kind: "civil", civil, words: 2 };
@@ -357,7 +357,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   let i = 0;
   while (i < words.length) {
     const word = words[i];
-    const low = word.low;
+    const { low } = word;
 
     if (low.startsWith("@") && low.length > 1) {
       const query = low.slice(1);
@@ -387,15 +387,13 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
         continue;
       }
       const label = ctx.labels.find((l) => l.name.toLowerCase() === tag);
-      if (label !== undefined) {
-        if (!labels.some((l) => l.id === label.id)) {
-          labels.push(label);
-          understood.push({ kind: "label", text: take(i, 1) });
-        } else {
-          take(i, 1);
-        }
-      } else {
+      if (label === undefined) {
         ignored.push(word.raw);
+      } else if (labels.some((l) => l.id === label.id)) {
+        take(i, 1);
+      } else {
+        labels.push(label);
+        understood.push({ kind: "label", text: take(i, 1) });
       }
       i += 1;
       continue;
@@ -432,15 +430,20 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   let dueHasTime = false;
   if (dateHit !== null || clock !== null) {
     let instant: number;
-    if (dateHit !== null && dateHit.kind === "instant") {
-      instant = dateHit.instant;
+    if (dateHit?.kind === "instant") {
+      ({ instant } = dateHit);
       dueHasTime = true;
       if (clock !== null) {
         const w = wallClock(instant, ctx.timeZone);
         instant = zonedToInstant(w, clock, ctx.timeZone);
       }
-    } else if (dateHit !== null) {
-      const civil = dateHit.civil;
+    } else if (dateHit === null) {
+      const at = clock!;
+      instant = zonedToInstant(today, at, ctx.timeZone);
+      if (instant <= now) instant = zonedToInstant(addDays(today, 1), at, ctx.timeZone);
+      dueHasTime = true;
+    } else {
+      const { civil } = dateHit;
       if (clock !== null) {
         instant = zonedToInstant(civil, clock, ctx.timeZone);
         dueHasTime = true;
@@ -453,11 +456,6 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
           instant = zonedToInstant(civil, { h: AFTERNOON_HOUR, mi: 0 }, ctx.timeZone);
         }
       }
-    } else {
-      const at = clock as Clock;
-      instant = zonedToInstant(today, at, ctx.timeZone);
-      if (instant <= now) instant = zonedToInstant(addDays(today, 1), at, ctx.timeZone);
-      dueHasTime = true;
     }
     dueAt = new Date(instant).toISOString();
     understood.push({
@@ -483,6 +481,6 @@ function matchMember(members: QuickAddMember[], query: string): QuickAddMember |
   if (exactFirst.length === 1) return exactFirst[0];
   const starts = members.filter((m) => lowerName(m).split(/\s+/).some((part) => part.startsWith(q)));
   if (starts.length === 1) return starts[0];
-  const whole = members.filter((m) => lowerName(m).replace(/\s+/g, "").startsWith(q));
+  const whole = members.filter((m) => lowerName(m).replaceAll(/\s+/g, "").startsWith(q));
   return whole.length === 1 ? whole[0] : null;
 }

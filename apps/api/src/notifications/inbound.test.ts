@@ -266,7 +266,7 @@ describe("notifyInboundMessage (§8)", () => {
     const email = world.resend.calls[0] as { to: string[] };
     expect(email.to).toEqual([`${MEMBER}@team.example`]);
     // Push subscriptions were queried for the assignee only.
-    const subsCall = world.sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [subsCall] = world.sb.find("GET", "/rest/v1/push_subscriptions");
     expect(subsCall.url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
   });
 
@@ -440,7 +440,7 @@ describe("notifyInboundMessage — native device push (#151)", () => {
 
     // Audience-scoped, newest-first, #30-style bounded query. The bound is ten
     // devices PER recipient (#267), so a one-person audience asks for ten.
-    const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    const [lookup] = world.sb.find("GET", "/rest/v1/device_push_tokens");
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
     expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
     expect(lookup.url.searchParams.get("limit")).toBe("10");
@@ -461,10 +461,9 @@ describe("notifyInboundMessage — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const {headers} = (
-      iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns;
-    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
+    expect(iosSend?.message).toMatchObject({
+      apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
+    });
   });
 
   it("prunes an UNREGISTERED token row (cleanup, not a failure)", async () => {
@@ -746,6 +745,7 @@ describe("#694 mute and follow on the inbound audience", () => {
   const HOUR = 3_600_000;
   const future = () => new Date(Date.now() + HOUR).toISOString();
   const past = () => new Date(Date.now() - HOUR).toISOString();
+
   it("a muted member gets no email and no push", async () => {
     const world = buildWorld({
       memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: future(), followed: false }],
@@ -861,7 +861,7 @@ describe("#694 mute and follow on the inbound audience", () => {
     const world = buildWorld({ memberPrefsFail: true });
     stubFetch(...world.routes);
 
-    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow();
+    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow("conversation prefs lookup failed: boom");
     expect(world.resend.calls).toHaveLength(0);
   });
 });

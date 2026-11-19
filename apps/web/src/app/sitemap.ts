@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { TRANSLATED_PAGES } from "@/lib/marketing/translated-pages";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * Marketing sitemap (BLUEPRINT §11.3) — generated from LIVE_ROUTES, the same
@@ -12,12 +12,12 @@ import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
  * they appear here automatically.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const entries: Array<{
+  const entries: {
     path: string;
     priority: number;
     changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
     lastModified?: Date;
-  }> = [
+  }[] = [
     { path: LIVE_ROUTES.home, priority: 1, changeFrequency: "weekly" },
     { path: LIVE_ROUTES.pricing, priority: 0.9, changeFrequency: "weekly" },
 

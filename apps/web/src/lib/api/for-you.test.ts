@@ -143,6 +143,6 @@ describe(useSpamReview, () => {
     fetchSpy.mockResolvedValue(json({ data: [] }));
     renderHook(() => useSpamReview(), { wrapper });
     const query = client.getQueryCache().find({ queryKey: keys.spamReview("co-1") });
-    expect((query?.options as { staleTime?: number }).staleTime).toBe(5 * 60_000);
+    expect(query?.options).toMatchObject({ staleTime: 5 * 60_000 });
   });
 });
