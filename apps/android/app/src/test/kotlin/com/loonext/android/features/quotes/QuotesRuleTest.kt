@@ -95,14 +95,14 @@ class QuotesRuleTest {
 
         // A guard that reads nothing passes for the wrong reason.
         assertEquals(
-            "expected six statuses in quotes.ts, found $declared",
-            6,
+            "expected seven statuses in quotes.ts, found $declared",
+            7,
             declared.size,
         )
 
         val ported = setOf(
             QuoteStatus.DRAFT, QuoteStatus.SENT, QuoteStatus.VIEWED,
-            QuoteStatus.ACCEPTED, QuoteStatus.DECLINED, QuoteStatus.EXPIRED,
+            QuoteStatus.ACCEPTED, QuoteStatus.DECLINED, QuoteStatus.WITHDRAWN, QuoteStatus.EXPIRED,
         )
         // SET EQUALITY, BOTH DIRECTIONS. A status added to the shared rule and
         // not here renders nothing for a state the server can now send; one
