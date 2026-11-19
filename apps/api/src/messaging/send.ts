@@ -25,7 +25,7 @@ import { ApiError } from "../http/errors";
 import { fetchWithDeadline } from "../http/deadline";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
-import { captureEvent, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
+import { captureEvent, errorLogText, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
 import { concealOutboundLinks, recordRetriedQuoteSend, remintOutboundLinks } from "../public-links/outbound";
 import { phoneCountry } from "./delivery-by-country";
 import { recordCarrierOptOut } from "./opt-out";
@@ -978,7 +978,7 @@ export async function dispatchOutbound(
   if (result.ok) {
     if (args.refreshPublicLinks && text !== message.body) {
       await recordRetriedQuoteSend(db, row).catch((error: unknown) => {
-        console.error(`could not update quote for retried message ${row.id}:`, error);
+        console.error(`could not update quote for retried message ${row.id}:`, errorLogText(error));
       });
     }
     // §12 step 18: after the accepted send is durably recorded (instant
