@@ -12,7 +12,8 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "typecheck": "bun check",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:marketing-links": "node scripts/check-marketing-links.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.3",

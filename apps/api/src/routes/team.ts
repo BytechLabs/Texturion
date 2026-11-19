@@ -781,7 +781,9 @@ async function createOrResendInvite(c: Context<AppEnv>) {
     );
   }
   if (result.outcome === "duplicate") {
-    return errorResponse(c, "conflict", "A pending invite for this email already exists.");
+    return errorResponse(c, "conflict", "A pending invite for this email already exists.", {
+      key: "apiRefusals.inviteAlreadyPending",
+    });
   }
   if (result.outcome === "not_found") return errorResponse(c, "not_found", "No such company.");
   if (result.outcome === "invite_not_found") return errorResponse(c, "not_found", "No invite to resend.");

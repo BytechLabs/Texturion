@@ -505,8 +505,19 @@ func formatCents(_ cents: Int) -> String {
 func formatMoneyIn(
     _ cents: Int,
     _ currency: BillingCurrency,
-    audience: BillingCurrency
+    audience: BillingCurrency,
+    locale: String? = nil
 ) -> String {
+    if locale == "fr-CA" {
+        let fractionDigits = cents.isMultiple(of: 100) ? 0 : 2
+        let amount = (Double(cents) / 100).formatted(
+            .number.locale(Locale(identifier: "fr_CA")).precision(.fractionLength(fractionDigits))
+        )
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "\u{202F}", with: " ")
+        let suffix = currency == audience ? "" : currency == .usd ? " US" : " CA"
+        return "\(amount) $\(suffix)"
+    }
     let amount = formatMonthlyCents(cents)
     if currency == audience { return amount }
     // "US$5" / "CA$5" — the prefix goes before the sign, matching web.

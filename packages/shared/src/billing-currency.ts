@@ -1,3 +1,4 @@
+import type { Locale } from "./locale";
 import type { SeatPlan } from "./seats";
 
 /**
@@ -156,15 +157,21 @@ export function formatMoney(
   cents: number,
   currency: BillingCurrency,
   audience: BillingCurrency = currency,
+  locale: Locale = "en",
 ): string {
   const whole = cents / 100;
   // Whole dollars stay whole: "$39", never "$39.00". A trailing ".00" on a
   // plan price reads as machine output and takes up space on a phone.
   const digits = Number.isInteger(whole) ? 0 : 2;
-  const amount = whole.toLocaleString("en-CA", {
+  const amount = whole.toLocaleString(locale === "fr-CA" ? locale : "en-CA", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+  if (locale === "fr-CA") {
+    const french = amount.replaceAll(/[\u00A0\u202F]/gu, " ");
+    const suffix = currency === audience ? "" : currency === "usd" ? " US" : " CA";
+    return french + " $" + suffix;
+  }
   if (currency === audience) return `$${amount}`;
   return currency === "usd" ? `US$${amount}` : `CA$${amount}`;
 }

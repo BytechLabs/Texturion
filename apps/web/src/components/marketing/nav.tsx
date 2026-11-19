@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 import { CountrySelector } from "@/components/marketing/country";
 
 import { navCopy } from '@/i18n/marketing/nav';
+import { appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 import type { NavCopyLocale } from '@/i18n/marketing/nav';
 
 import {
@@ -50,9 +52,16 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
   const copy = navCopy(locale);
   // A French reader clicking the wordmark was landing on the English home,
   // because this href predates there being anywhere else to send them.
-  const home = locale === "fr-CA" ? "/fr" : "/";
-  const menus = navMenusFor(copy);
-  const pricingLink = pricingLinkFor(copy);
+  const home = localizedPath("/", locale);
+  const localizeLink = <T extends { href: string }>(item: T): T => ({
+    ...item,
+    href: localizedPath(item.href, locale),
+  });
+  const menus = navMenusFor(copy).map((menu) => ({
+    ...menu,
+    items: menu.items.map(localizeLink),
+  }));
+  const pricingLink = localizeLink(pricingLinkFor(copy));
   const [condensed, setCondensed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -93,15 +102,15 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
               pill (§4). The selector sets the single site-wide country; on the
               smallest screens the mobile sheet carries it instead. */}
           <div className="ml-auto flex items-center gap-3">
-            <CountrySelector />
+            <CountrySelector locale={locale} />
             <Link
-              href={LOGIN_HREF}
+              href={appLink(LOGIN_HREF, locale)}
               className="frn-focus font-body-mkt hidden h-9 items-center rounded-full px-2.5 text-sm font-medium text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-ink)] sm:inline-flex"
             >
               {copy.logIn}
             </Link>
             <Link
-              href={SIGNUP_HREF}
+              href={appLink(SIGNUP_HREF, locale)}
               className="frn-cta frn-focus hidden sm:inline-flex"
             >
               {copy.ctaPrimary}
@@ -149,16 +158,14 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
                     </Link>
                   </SheetTitle>
                   <SheetDescription className="sr-only">
-                    Loonext navigation: product, pricing, who it&apos;s for,
-                    and comparisons.
+                    {copy.mobileDescription}
                   </SheetDescription>
                   <MobileNav
                     onNavigate={() => setMobileOpen(false)}
                     menus={menus}
                     pricingLink={pricingLink}
-                    contactLink={contactLinkFor(copy)}
-                    ctaLabel={copy.ctaPrimary}
-                    logInLabel={copy.logIn}
+                    contactLink={localizeLink(contactLinkFor(copy))}
+                    locale={locale}
                   />
                 </SheetContent>
               </Sheet>

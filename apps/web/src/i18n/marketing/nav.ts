@@ -71,6 +71,11 @@ export const navEn = {
 
   ctaPrimary: "Get your number",
   ctaSecondary: "See pricing",
+  countryLabel: "Where you run your business",
+  countryUS: "United States",
+  countryUSShort: "US",
+  countryCanada: "Canada",
+  mobileDescription: "Loonext navigation: product, pricing, who it's for, and comparisons.",
 
   // The nav's own furniture. The three aria labels are copy: a screen reader
   // reads them aloud, and an English one on a French page is the same defect
@@ -130,6 +135,11 @@ export const navFr: Translated<typeof navEn> = {
 
   ctaPrimary: "Obtenez votre numéro",
   ctaSecondary: "Voir les tarifs",
+  countryLabel: "Où se trouve votre entreprise",
+  countryUS: "États-Unis",
+  countryUSShort: "É.-U.",
+  countryCanada: "Canada",
+  mobileDescription: "Navigation Loonext : produit, tarifs, métiers et comparatifs.",
 
   skipToContent: "Passer au contenu",
   ariaPrimary: "Principale",

@@ -29,6 +29,12 @@ import { PLAN_SEATS } from "./seats";
 
 const PLANS = Object.keys(PLAN_SEATS) as (keyof typeof PLAN_SEATS)[];
 
+it("uses Canadian French grouping, decimals and currency placement", () => {
+  expect(formatMoney(125_050, "cad", "cad", "fr-CA")).toBe("1 250,50 $");
+  expect(formatMoney(3_900, "cad", "cad", "fr-CA")).toBe("39 $");
+  expect(formatMoney(500, "usd", "cad", "fr-CA")).toBe("5 $ US");
+});
+
 describe("the CAD figures are set, not converted", () => {
   it("prices every plan in every currency", () => {
     for (const currency of BILLING_CURRENCIES) {

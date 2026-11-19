@@ -1,3 +1,4 @@
+import type { Locale } from "@loonext/shared";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
@@ -103,15 +104,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export function RootDocument({
   children,
+  locale = "en",
 }: Readonly<{
   children: React.ReactNode;
+  locale?: Locale;
 }>) {
   return (
     // suppressHydrationWarning: next-themes mutates <html class> before React
     // hydrates (class-strategy dark mode, G2).
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         {/* Global providers = ThemeProvider only (app-providers.tsx carries the
             Query/tooltip/toaster/service-worker weight for signed-in routes). */}
@@ -126,4 +129,8 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+export default function EnglishRootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <RootDocument>{children}</RootDocument>;
 }

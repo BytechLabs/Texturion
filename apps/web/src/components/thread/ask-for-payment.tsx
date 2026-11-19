@@ -227,7 +227,7 @@ export function AskForPayment({
 
       {problem !== null && (
         <p className="mt-2 text-[12px] text-app-amber-ink">
-          {paymentAmountProblemCopy(problem, currency, t)}
+          {paymentAmountProblemCopy(problem, currency, t, t.locale)}
         </p>
       )}
 

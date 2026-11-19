@@ -1,11 +1,14 @@
+import { isLocale } from "@loonext/shared";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
   decideAuthRedirect,
   hasSupabaseSessionCookie,
+  isAuthPage,
   isTransientAuthBlip,
 } from "@/lib/auth/redirects";
+import { AUTH_LOCALE_COOKIE, AUTH_LOCALE_HEADER, authLocale } from "@/i18n/auth-locale";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
 import {
   CSP_HEADER,
@@ -61,6 +64,23 @@ export async function middleware(request: NextRequest) {
   });
   if (hostRedirect) {
     return NextResponse.redirect(hostRedirect, 308);
+  }
+
+  const { pathname, searchParams, protocol } = request.nextUrl;
+  const localizedAuth =
+    isAuthPage(pathname) ||
+    pathname === "/update-password" ||
+    pathname.startsWith("/invite/") ||
+    pathname === "/onboarding" ||
+    pathname.startsWith("/onboarding/");
+  const localeHint = localizedAuth ? searchParams.get("lang") : null;
+  const explicitLocale = isLocale(localeHint) ? localeHint : null;
+  if (localizedAuth) {
+    const stored = request.cookies.get(AUTH_LOCALE_COOKIE)?.value;
+    request.headers.set(
+      AUTH_LOCALE_HEADER,
+      authLocale(explicitLocale ?? stored, request.headers.get("accept-language")),
+    );
   }
 
   // #577 step 2: one nonce per response, minted here because here is the only
@@ -146,6 +166,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = redirect.pathname;
       url.search = redirect.search;
+      if (explicitLocale) url.searchParams.set("lang", explicitLocale);
       return NextResponse.redirect(url);
     }
   }
@@ -158,6 +179,15 @@ export async function middleware(request: NextRequest) {
     response.headers.set(CSP_HEADER, policy);
     const endpoints = reportingEndpointsHeader();
     if (endpoints !== null) response.headers.set("Reporting-Endpoints", endpoints);
+  }
+  if (explicitLocale) {
+    response.cookies.set(AUTH_LOCALE_COOKIE, explicitLocale, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 24,
+      path: "/",
+      sameSite: "lax",
+      secure: protocol === "https:",
+    });
   }
   return response;
 }

@@ -112,7 +112,7 @@ const ALLOWED = new Map<string, string>([
       "reads the value, and it has no concept of our tokens",
   ],
   [
-    "app/layout.tsx",
+    "app/root-document.tsx",
     "the `theme-color` meta and the mask-icon colour are read by the browser " +
       "chrome, not by our CSS",
   ],

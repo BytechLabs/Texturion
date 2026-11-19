@@ -25,7 +25,7 @@ vi.mock("./session-gate", () => ({
 vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));
-
+vi.mock("../root-document", () => ({ metadata: {} }));
 
 describe("onboarding group metadata", () => {
   it("is noindex and gives the dispatcher a default title", () => {

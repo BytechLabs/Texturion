@@ -1,4 +1,7 @@
 import { MarketingShell } from "@/components/marketing/shell";
+import { RootDocument } from "../root-document";
+
+export { metadata, viewport } from "../root-document";
 
 /**
  * The French marketing group (D138).
@@ -16,5 +19,9 @@ import { MarketingShell } from "@/components/marketing/shell";
 export default function MarketingFrLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <MarketingShell locale="fr-CA">{children}</MarketingShell>;
+  return (
+    <RootDocument locale="fr-CA">
+      <MarketingShell locale="fr-CA">{children}</MarketingShell>
+    </RootDocument>
+  );
 }

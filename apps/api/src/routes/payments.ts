@@ -27,7 +27,7 @@
  * message insert — cleans up after itself rather than leaving a live link for a
  * message that never went.
  */
-import { companySettingDefault, estimateSegments, formatMoney, isBillingCurrency, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, paymentRequestState, payoutReadinessCopy, payoutReadinessKeys, resolveLocale, roleHasCapability, stateMachines } from '@loonext/shared';
+import { estimateSegments, formatMoney, isBillingCurrency, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, paymentRequestState, payoutReadinessCopy, payoutReadinessKeys, resolveLocale, roleHasCapability, stateMachines } from '@loonext/shared';
 import type { BillingCurrency, MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
@@ -759,6 +759,7 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       ? await stripeLinkUrl(env, row.stripe_account_id, row.stripe_payment_link_id)
       : null;
 
+  const locale = resolveLocale(null, company?.locale);
   return c.json({
     business_name: company?.name ?? "",
     /**
@@ -770,10 +771,10 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
      * customer meeting an English payment page is exactly the Bill 96 problem,
      * and it is the business's own choice that should decide it.
      */
-    locale: company?.locale ?? companySettingDefault("locale"),
+    locale,
     amount_cents: row.amount_cents,
     currency: row.currency,
-    amount: formatMoney(row.amount_cents, row.currency),
+    amount: formatMoney(row.amount_cents, row.currency, row.currency, locale),
     description: row.description,
     state,
     expires_at: row.expires_at,

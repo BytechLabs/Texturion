@@ -7,6 +7,7 @@ import {
   JOB_RATED_EVENT,
   jobRatedLine,
 } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import type { ConversationEvent,ConversationStatus } from "@/lib/api/types";
 
@@ -16,7 +17,7 @@ import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { statusInSentence } from "@/components/inbox/status-pill";
 import { taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
-import { makeTranslate, useT } from '@/i18n/provider';
+import { makeTranslate, useLocale } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { formatCallDuration } from "@/lib/format/call";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ export function eventSentence(
   memberName: (userId: string | null) => string | null,
   messageBody: (messageId: string) => string | undefined = () => undefined,
   t: Translate = EN,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
   const actor = memberName(event.actor_user_id);
   // The product name, never translated.
@@ -209,7 +211,7 @@ export function eventSentence(
     case "payment_cancelled":
     case "payment_refunded":
     case "payment_disputed": {
-      return paymentEventLine(event, event.type, by, t);
+      return paymentEventLine(event, event.type, by, t, locale);
     }
     // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
     // in the crew's plain language (the message itself renders just below).
@@ -343,9 +345,9 @@ export function SystemLine({
    */
   onJumpToMessage?: (messageId: string) => void;
 }) {
-  const t = useT();
+  const { locale, t } = useLocale();
   const { openTask } = useTaskDrawer();
-  const sentence = eventSentence(event, memberName, messageBody, t);
+  const sentence = eventSentence(event, memberName, messageBody, t, locale);
 
   // Forward/backward compatibility: event types this build doesn't narrate
   // (e.g. historic `review_requested` rows from the removed one-tap review ask,

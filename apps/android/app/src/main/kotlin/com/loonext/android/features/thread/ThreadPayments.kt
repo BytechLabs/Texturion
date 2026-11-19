@@ -206,6 +206,7 @@ fun ThreadPayments(
                                     "amount" to formatMoney(
                                         ask.amountCents,
                                         ask.currency,
+                                        locale = locale,
                                     ),
                                 ),
                             ),

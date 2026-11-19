@@ -904,11 +904,22 @@ fun formatMoney(
     cents: Int,
     currency: BillingCurrency,
     audience: BillingCurrency = currency,
+    locale: String? = null,
 ): String {
+    val numberLocale = if (locale == "fr-CA") Locale.CANADA_FRENCH else Locale.CANADA
     val amount = if (cents % 100 == 0) {
-        String.format(Locale.CANADA, "%,d", cents / 100)
+        String.format(numberLocale, "%,d", cents / 100)
     } else {
-        String.format(Locale.CANADA, "%,.2f", cents / 100.0)
+        String.format(numberLocale, "%,.2f", cents / 100.0)
+    }
+    if (locale == "fr-CA") {
+        val suffix = when {
+            currency == audience -> ""
+            currency == BillingCurrency.USD -> " US"
+            else -> " CA"
+        }
+        val french = amount.replace('\u00A0', ' ').replace('\u202F', ' ')
+        return "$french \$$suffix"
     }
     if (currency == audience) return "\$$amount"
     return if (currency == BillingCurrency.USD) "US\$$amount" else "CA\$$amount"

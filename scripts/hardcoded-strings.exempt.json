@@ -172,7 +172,7 @@
     }
   },
   "web": {
-    "app/layout.tsx": {
+    "app/root-document.tsx": {
       "why": "These two sentences are the route-independent English metadata fallback for the app shell, signup, onboarding, and any page without its own metadata; every localized public page supplies locale-specific metadata itself. Translating this single root value would replace the English fallback for all routes rather than select copy by the current URL locale.",
       "literals": [
         "Loonext: the shared inbox for your crew",

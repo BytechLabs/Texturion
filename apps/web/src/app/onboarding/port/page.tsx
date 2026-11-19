@@ -92,6 +92,7 @@ export default function PortNumberPage() {
       if (!activeCompanyId) {
         const timezone = browserTimezone();
         const company = await createCompany.mutateAsync({
+          locale: t.locale,
           name: (draft.name ?? "").trim(),
           country,
           requested_area_code: areaCodeOf(e164),

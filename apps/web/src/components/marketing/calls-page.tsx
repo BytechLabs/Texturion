@@ -25,6 +25,7 @@
 import { callsCopy } from "@/i18n/marketing/calls";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import Link from "next/link";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
@@ -57,7 +58,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={copy.heroSub}
@@ -141,7 +142,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore} <PlanPrice plan="starter" />/mo on
           Starter covers up to 3 people and <PlanPrice plan="pro" />/mo on Pro
@@ -151,7 +152,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
           and again at 100% before a single paid minute is billed. The concrete
           numbers live in our{" "}
           <Link
-            href="/legal/fair-use"
+            href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             {copy.fairUseLink}
@@ -160,7 +161,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         </p>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -221,7 +222,7 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />

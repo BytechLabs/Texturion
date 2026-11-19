@@ -1,3 +1,6 @@
+import { navCopy } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 import { avatarInitials } from "@loonext/shared";
 
 import { homeCopy } from '@/i18n/marketing/home';
@@ -6,8 +9,6 @@ import { CountryOnly } from "@/components/marketing/country";
 import { CtaButton, Dateline, PanelFrame } from "@/components/marketing/fr";
 import { TruthStrip } from "@/components/marketing/home/truth-strip";
 import {
-  PRIMARY_CTA_LABEL,
-  SECONDARY_CTA_LABEL,
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
@@ -102,9 +103,9 @@ export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
-              <CtaButton href={LIVE_ROUTES.pricing} variant="secondary">
-                {SECONDARY_CTA_LABEL}
+              <CtaButton href={appLink(SIGNUP_HREF, locale)}>{navCopy(locale).ctaPrimary}</CtaButton>
+              <CtaButton href={localizedPath(LIVE_ROUTES.pricing, locale)} variant="secondary">
+                {navCopy(locale).ctaSecondary}
               </CtaButton>
             </div>
 

@@ -16,6 +16,8 @@
 import { useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 
+import { navCopy } from "@/i18n/marketing/nav";
+import type { NavCopyLocale } from "@/i18n/marketing/nav";
 import { cn } from "@/lib/utils";
 
 import { COUNTRY_OPTIONS, useCountry } from './country-context';
@@ -24,10 +26,13 @@ import type { Country } from './country-context';
 export function CountrySelector({
   className,
   fullLabels = false,
+  locale = "en",
 }: {
   className?: string;
   fullLabels?: boolean;
+  locale?: NavCopyLocale;
 }) {
+  const copy = navCopy(locale);
   const { country, setCountry } = useCountry();
   // Roving tabindex (WAI-ARIA radiogroup): only the checked radio is tabbable;
   // arrows move both selection and focus. Refs let us focus the sibling.
@@ -48,7 +53,7 @@ export function CountrySelector({
   return (
     <div
       role="radiogroup"
-      aria-label="Where you run your business"
+      aria-label={copy.countryLabel}
       className={cn(
         "inline-flex items-center rounded-full bg-[color:var(--fr-frost)] p-0.5",
         className,
@@ -56,6 +61,8 @@ export function CountrySelector({
     >
       {COUNTRY_OPTIONS.map((option) => {
         const selected = option.id === country;
+        const label = option.id === "us" ? copy.countryUS : copy.countryCanada;
+        const short = option.id === "us" ? copy.countryUSShort : option.short;
         return (
           <button
             key={option.id}
@@ -80,12 +87,12 @@ export function CountrySelector({
             )}
           >
             {fullLabels ? (
-              option.label
+              label
             ) : (
               // Named "US, United States": it starts with the letters a voice-control user sees (WCAG 2.5.3).
               <>
-                {option.short}
-                <span className="sr-only">, {option.label}</span>
+                {short}
+                <span className="sr-only">, {label}</span>
               </>
             )}
           </button>

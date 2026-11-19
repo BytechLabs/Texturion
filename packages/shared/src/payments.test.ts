@@ -1,4 +1,3 @@
-import { formatMoney } from "./billing-currency";
 import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -374,13 +373,12 @@ describe("#228 the payment ask speaks the customer's language", () => {
     );
   });
 
-  it("leaves the figure and the link alone in both", () => {
-    // Neither is copy. A customer asked for $250 must read $250 whichever
-    // sentence surrounds it, and a translated URL is a broken one.
-    for (const locale of ["en", "fr-CA"] as const) {
-      const text = paymentRequestSms({ ...args, locale });
-      expect(text).toContain(formatMoney(25_000, "cad"));
-      expect(text).toContain(args.url);
-    }
+  it.each([
+    ["en", "$250"],
+    ["fr-CA", "250 $"],
+  ] as const)("formats the amount for %s and preserves the link", (locale, amount) => {
+    const text = paymentRequestSms({ ...args, locale });
+    expect(text).toContain(amount);
+    expect(text).toContain(args.url);
   });
 });

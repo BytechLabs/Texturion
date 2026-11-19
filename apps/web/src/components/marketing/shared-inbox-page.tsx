@@ -16,6 +16,7 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { sharedInboxCopy } from "@/i18n/marketing/shared-inbox";
 import Link from "next/link";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { CountryOnly } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
@@ -57,7 +58,7 @@ export function SharedInboxPageBody({
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline="1 OWNER PER CONVERSATION"
         title={copy.h1}
         sub={copy.heroSub}
@@ -135,7 +136,7 @@ export function SharedInboxPageBody({
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore} <PlanPrice plan="starter" />/mo on Starter for up to 3
           people and one local number, <PlanPrice plan="pro" />/mo on Pro for up
@@ -144,7 +145,7 @@ export function SharedInboxPageBody({
           every crew stays comfortably inside it, and receiving texts is
           always free and unlimited. The concrete numbers live in our{" "}
           <Link
-            href="/legal/fair-use"
+            href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             {copy.fairUseLink}
@@ -167,7 +168,7 @@ export function SharedInboxPageBody({
         </CountryOnly>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -224,7 +225,7 @@ export function SharedInboxPageBody({
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />

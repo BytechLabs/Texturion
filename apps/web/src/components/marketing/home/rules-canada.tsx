@@ -3,6 +3,7 @@ import type { HomeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { CountryOnly } from "@/components/marketing/country";
 import { Eyebrow, FrCard, FrSection } from "@/components/marketing/fr";
@@ -175,7 +176,7 @@ export function RulesCanada({
             heading={copy.rulesTitleUs}
             body={copy.rulesBodyUs}
             chips={US_CHIPS}
-            linkHref={LIVE_ROUTES.featuresCompliance}
+            linkHref={localizedPath(LIVE_ROUTES.featuresCompliance, locale)}
             linkLabel={copy.rulesLinkUs}
           />
         </div>
@@ -194,7 +195,7 @@ export function RulesCanada({
             heading={copy.rulesTitleCa}
             body={copy.rulesBodyCa}
             chips={CANADA_CHIPS}
-            linkHref={LIVE_ROUTES.canada}
+            linkHref={localizedPath(LIVE_ROUTES.canada, locale)}
             linkLabel={copy.rulesLinkCa}
           />
         </div>

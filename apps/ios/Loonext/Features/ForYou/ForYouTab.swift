@@ -1153,8 +1153,10 @@ struct ForYouList: View {
                     ForEach(Array(waitingQuotes.enumerated()), id: \.element.id) {
                         index, quote in
                         if index > 0 { RowDivider() }
+                        let amount = quote.amountLabel(locale: appLocale)
                         OutstandingQuoteRow(
                             quote: quote,
+                            amount: amount,
                             onTap: { onOpenConversation(quote.conversation_id) },
                             chased: chasedQuotes?.contains(quote.id),
                             onChase: {
@@ -1169,7 +1171,7 @@ struct ForYouList: View {
                                             appLocale,
                                             "quotes.chaseNote",
                                             [
-                                                "amount": quote.amountLabel,
+                                                "amount": amount,
                                                 "description": quote.description,
                                             ]
                                         ).prefix(SnoozeTiming.noteMax)
@@ -1252,6 +1254,7 @@ struct ForYouList: View {
 /// to chase; the deadline is only the reason the row will vanish on its own.
 private struct OutstandingQuoteRow: View {
     let quote: Quote
+    let amount: String
     let onTap: @MainActor () -> Void
     /// True once chased; NIL when this member cannot chase at all.
     let chased: Bool?
@@ -1261,7 +1264,7 @@ private struct OutstandingQuoteRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(quote.amountLabel)
+            Text(amount)
                 .font(.golos(13, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(BrandColor.ink)

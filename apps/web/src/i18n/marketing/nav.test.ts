@@ -155,7 +155,7 @@ describe("the two nav catalogues", () => {
       (key) => navEn[key] === navFr[key],
     );
     expect(identical.toSorted()).toEqual(
-      ["compareHeymarket", "compareQuo", "contacts", "hvac", "salons"].toSorted(),
+      ["compareHeymarket", "compareQuo", "contacts", "countryCanada", "hvac", "salons"].toSorted(),
     );
   });
 

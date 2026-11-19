@@ -56,7 +56,7 @@ export function TemplatesPageBody({
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={copy.heroSub}
@@ -173,7 +173,7 @@ export function TemplatesPageBody({
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore} <PlanPrice plan="starter" />
           {copy.pricingStarterAfter} <PlanPrice plan="pro" />
@@ -194,7 +194,7 @@ export function TemplatesPageBody({
         </CountryOnly>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -251,7 +251,7 @@ export function TemplatesPageBody({
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={`${copy.ctaSubBefore} ${activationClaimShort(locale)}${copy.ctaSubAfter}`}
       />

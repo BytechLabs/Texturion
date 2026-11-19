@@ -26,7 +26,7 @@ vi.mock("@/components/shell/gate-header", () => ({
 vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));
-
+vi.mock("../root-document", () => ({ metadata: {} }));
 
 describe("(auth) group metadata", () => {
   it("takes the whole auth surface out of search indexes", () => {

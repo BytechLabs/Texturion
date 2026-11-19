@@ -21,6 +21,7 @@
 import { tasksCopy } from "@/i18n/marketing/tasks";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import Link from "next/link";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
@@ -53,7 +54,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ])}
       />
 
-      <FeatureHero
+      <FeatureHero locale={locale}
         dateline={copy.dateline}
         title={copy.h1}
         sub={copy.heroSub}
@@ -126,7 +127,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ]}
       />
 
-      <PricingSnippet>
+      <PricingSnippet locale={locale}>
         <p>
           {copy.pricingBefore}{" "}
           <PlanPrice plan="starter" />
@@ -134,7 +135,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
           <PlanPrice plan="pro" />
           {copy.pricingProAfter}{" "}
           <Link
-            href="/legal/fair-use"
+            href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             {copy.fairUseLink}
@@ -143,7 +144,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         </p>
       </PricingSnippet>
 
-      <RelatedLinks
+      <RelatedLinks locale={locale}
         heading={copy.relatedEyebrow}
         intro={copy.relatedTitle}
         links={[
@@ -196,7 +197,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         ]}
       />
 
-      <FeatureCta
+      <FeatureCta locale={locale}
         heading={copy.ctaTitle}
         sub={`${copy.ctaSubBefore} ${activationClaim(locale)}${copy.ctaSubAfter}`}
       />

@@ -1218,6 +1218,9 @@ jobs:
       - name: Build web (next build)
         run: pnpm --filter @loonext/web build
 
+      - name: Check French marketing links
+        run: pnpm --filter @loonext/web test:marketing-links
+
       - name: Build web (OpenNext Cloudflare adapter)
         run: pnpm --filter @loonext/web exec opennextjs-cloudflare build
 

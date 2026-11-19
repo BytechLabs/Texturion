@@ -11,7 +11,7 @@ import {
   SNOOZE_NOTE_MAX,
 } from "@loonext/shared";
 
-import { useT } from "@/i18n/provider";
+import { useLocale } from "@/i18n/provider";
 import { useSnoozeConversation } from "@/lib/api/conversations";
 import { useOutstandingQuotes } from "@/lib/api/quotes";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -48,7 +48,7 @@ const OUTSTANDING_QUOTES_LIMIT = 6;
  * recent thing that happened.*
  */
 export function OutstandingQuotesSection() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const { role } = useActiveCompany();
   const quotes = useOutstandingQuotes();
   const snooze = useSnoozeConversation();
@@ -78,10 +78,8 @@ export function OutstandingQuotesSection() {
   return (
     <Section label={t("quotes.outstandingTitle")} count={rows.length}>
       {rows.map((quote) => {
-        const amount = formatMoney(
-          quote.amount_cents,
-          billingCurrencyOf(quote.currency),
-        );
+        const currency = billingCurrencyOf(quote.currency);
+        const amount = formatMoney(quote.amount_cents, currency, currency, locale);
         return (
           <div
             key={quote.id}

@@ -8,6 +8,9 @@ import { SheetClose } from "@/components/ui/sheet-base";
 import { cn } from "@/lib/utils";
 
 import { LOGIN_HREF, SIGNUP_HREF } from '../nav-links';
+import { navCopy } from "@/i18n/marketing/nav";
+import type { NavCopyLocale } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
 import type { NavItem, NavMenu } from '../nav-links';
 import { MenuIconChip } from "./menu-icon";
 
@@ -26,16 +29,15 @@ export function MobileNav({
   menus,
   pricingLink,
   contactLink,
-  ctaLabel,
-  logInLabel,
+  locale,
 }: {
   onNavigate: () => void;
   menus: NavMenu[];
   pricingLink: NavItem;
   contactLink: NavItem;
-  ctaLabel: string;
-  logInLabel: string;
+  locale: NavCopyLocale;
 }) {
+  const copy = navCopy(locale);
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 pt-2 pb-6">
@@ -80,9 +82,9 @@ export function MobileNav({
             sheet, so a mobile visitor gets the same control as the desktop bar. */}
         <section className="mt-6">
           <h3 className="fr-eyebrow px-1 pb-2 text-[color:var(--fr-ink-55)]">
-            Where you run your business
+            {copy.countryLabel}
           </h3>
-          <CountrySelector fullLabels className="flex w-full" />
+          <CountrySelector locale={locale} fullLabels className="flex w-full" />
         </section>
 
       </div>
@@ -94,20 +96,20 @@ export function MobileNav({
       <div className="space-y-2 bg-[color:var(--fr-frost)] p-4">
         <SheetClose asChild>
           <Link
-            href={SIGNUP_HREF}
+            href={appLink(SIGNUP_HREF, locale)}
             onClick={onNavigate}
             className="frn-cta frn-cta-lg frn-focus w-full"
           >
-            {ctaLabel}
+            {copy.ctaPrimary}
           </Link>
         </SheetClose>
         <SheetClose asChild>
           <Link
-            href={LOGIN_HREF}
+            href={appLink(LOGIN_HREF, locale)}
             onClick={onNavigate}
             className="frn-focus font-body-mkt flex min-h-12 w-full items-center justify-center rounded-full border border-black/10 bg-[color:var(--fr-card)] text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:bg-black/[0.03]"
           >
-            {logInLabel}
+            {copy.logIn}
           </Link>
         </SheetClose>
       </div>

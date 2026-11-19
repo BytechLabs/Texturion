@@ -44,24 +44,18 @@ export function paymentAmountProblemCopy(
    * because the local check fires first.
    */
   say: SayPaymentAmount,
+  locale: Locale = "en",
 ): string {
-  /*
-   * #228 — the AMOUNT is formatted here and the sentence around it is a key.
-   *
-   * `formatMoney` already knows the currency; what it does not know is the
-   * language the sentence is in. Both phones have said these three from
-   * `payments.amount*` for months.
-   */
   switch (problem) {
     case "too_small":
       return say("payments.amountTooSmall").replace(
         "{amount}",
-        formatMoney(PAYMENT_MIN_CENTS, currency),
+        formatMoney(PAYMENT_MIN_CENTS, currency, currency, locale),
       );
     case "too_large":
       return say("payments.amountTooLarge").replace(
         "{amount}",
-        formatMoney(PAYMENT_MAX_CENTS, currency),
+        formatMoney(PAYMENT_MAX_CENTS, currency, currency, locale),
       );
     case "not_whole":
       return say("payments.amountNotWhole");
@@ -91,11 +85,6 @@ export function paymentAmountProblemCopy(
  * A TABLE rather than a template with a locale branch, for the same reason
  * every other two-language table here is one: `Record<Locale, …>` means a new
  * language cannot be added without answering for this string.
- *
- * The FIGURE is not translated. `formatMoney` already decides how an amount is
- * written, and a customer who is quoted $450 must read $450 whatever language
- * the sentence around it is in — a price that changed shape between two texts
- * is a price somebody disputes.
  */
 const PAYMENT_SMS: Record<Locale, (business: string, amount: string, description: string, url: string) => string> = {
   en: (business, amount, description, url) =>
@@ -121,7 +110,7 @@ export function paymentRequestSms(args: {
    */
   locale: Locale;
 }): string {
-  const amount = formatMoney(args.amountCents, args.currency);
+  const amount = formatMoney(args.amountCents, args.currency, args.currency, args.locale);
   const description = args.description.trim();
   return PAYMENT_SMS[args.locale](
     args.businessName.trim(),

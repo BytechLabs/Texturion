@@ -5,6 +5,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+import { makeTranslate } from "@/i18n/translate";
 import type { ConversationEvent } from "@/lib/api/types";
 import { NARRATED_PAYMENT_EVENT_TYPES } from "./payment-line";
 import { eventSentence } from "./system-line";
@@ -167,6 +168,13 @@ describe("eventSentence — #607 payment lines", () => {
   }
 
   const CHARGE = { amount_cents: 25_000, currency: "usd" };
+
+  it("formats the timeline amount in Canadian French", () => {
+    const paid = payment("payment_paid", { amount_cents: 125_050, currency: "cad" });
+    expect(
+      eventSentence(paid, noMember, undefined, makeTranslate("fr-CA"), "fr-CA"),
+    ).toBe("Le client a payé 1 250,50 $");
+  });
 
   it("narrates every type it is given — none falls off the switch", () => {
     // The A3 defect itself, as one assertion. Iterated from the shipped list

@@ -504,7 +504,7 @@ private fun paymentLine(
     // new figure.
     val money = billingCurrencyOrNull(event.payloadString("currency")) ?: BillingCurrency.USD
     val cents = event.payloadCents("amount_cents")
-    val amount = cents?.let { formatMoney(it, money) }
+    val amount = cents?.let { formatMoney(it, money, locale = locale) }
 
     val head = when (event.type) {
         // The crew, who have a user row, so these two carry their name.
@@ -538,7 +538,7 @@ private fun paymentLine(
             // three clients.
             val back = event.payloadCents("amount_refunded_cents")?.takeIf { it > 0 } ?: cents
             if (back != null) {
-                say("thread.sysPaymentRefunded", "amount" to formatMoney(back, money))
+                say("thread.sysPaymentRefunded", "amount" to formatMoney(back, money, locale = locale))
             } else {
                 say("thread.sysPaymentRefundedGeneric")
             }

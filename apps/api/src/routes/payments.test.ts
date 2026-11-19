@@ -96,6 +96,7 @@ function stripeRoute(calls: StripeCall[], overrides: Record<string, unknown> = {
 function buildHarness(options: {
   account?: Record<string, unknown> | null;
   accountOverrides?: Record<string, unknown>;
+  locale?: "en" | "fr-CA";
   optedOut?: boolean;
   /** Stripe's answer to creating a connected account, when it refuses. */
   refuseAccountCreate?: string;
@@ -121,7 +122,7 @@ function buildHarness(options: {
   rest.table("feature_flag_overrides");
   rest.table("messaging_registrations");
 
-  rest.insert("companies", { id: COMPANY_ID, name: "Northline Plumbing", country: "US" });
+  rest.insert("companies", { id: COMPANY_ID, name: "Northline Plumbing", country: "US", locale: options.locale });
   // `profiles` has no email column; the owner's email is on the auth user.
   rest.insert("profiles", { id: OWNER_ID });
   rest.insert("contacts", { id: CONTACT_ID, name: "Maria", address: null, timezone: null });
@@ -712,8 +713,12 @@ describe("#224 the customer's page", () => {
     expect(body.pay_url).toBeNull();
   });
 
-  it("shows the amount, the business and what it is for — and nothing else", async () => {
+  it.each([
+    ["en", "$250"],
+    ["fr-CA", "250 $"],
+  ] as const)("shows the payable amount in %s without customer details", async (locale, amount) => {
     const harness = buildHarness({
+      locale,
       requests: [
         {
           id: "55555555-0000-4000-8000-000000000057",
@@ -740,7 +745,8 @@ describe("#224 the customer's page", () => {
     const response = await harness.request("/pay/".concat("b".repeat(43)));
     const body = (await response.json()) as Record<string, unknown>;
     expect(body.business_name).toBe("Northline Plumbing");
-    expect(body.amount).toBe("$250");
+    expect(body.amount).toBe(amount);
+    expect(body.locale).toBe(locale);
     expect(body.pay_url).toBe("https://buy.stripe.com/test_0001");
     // The customer's own details are NOT on a page that lives in SMS logs and
     // browser history. They already know them; putting them here adds only risk.

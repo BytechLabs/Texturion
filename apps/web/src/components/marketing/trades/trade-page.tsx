@@ -25,6 +25,9 @@
  *  - Fully static: zero client islands, zero tab stops added by the demos.
  */
 
+import { navCopy } from "@/i18n/marketing/nav";
+import { appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { tradesCopy, tradesEn } from "@/i18n/marketing/trades";
 import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
@@ -41,8 +44,6 @@ import {
   PanelFrame,
 } from "@/components/marketing/fr";
 import {
-  PRIMARY_CTA_LABEL,
-  SECONDARY_CTA_LABEL,
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 import { Check } from "lucide-react";
@@ -228,9 +229,9 @@ export function TradePage({
             {content.heroSub}
           </p>
           <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
-            <CtaButton href="/pricing" variant="secondary">
-              {SECONDARY_CTA_LABEL}
+            <CtaButton href={appLink(SIGNUP_HREF, locale)}>{navCopy(locale).ctaPrimary}</CtaButton>
+            <CtaButton href={localizedPath("/pricing", locale)} variant="secondary">
+              {navCopy(locale).ctaSecondary}
             </CtaButton>
           </div>
           <p className="fr-mono-data mt-7 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
@@ -352,7 +353,7 @@ export function TradePage({
       {/* PRICING SNIPPET: the price as art (mono law), then Truth Strips. */}
       <FrSection ground="white">
         <FrCard className="mx-auto max-w-3xl p-7 sm:p-12">
-          <HeadlinePriceFigure size="display" />
+          <HeadlinePriceFigure size="display" locale={locale} />
           <h2 className="fr-h3 mt-7 text-[color:var(--fr-ink)]">
             {content.pricingH2}
           </h2>
@@ -410,7 +411,7 @@ export function TradePage({
           <p className="font-body-mkt mt-4 text-[0.875rem] leading-relaxed text-[color:var(--fr-ink-55)]">
             {copy.fairUseBefore}{" "}
             <Link
-              href="/legal/fair-use"
+              href={localizedPath("/legal/fair-use", locale)}
               className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
               {copy.fairUseLink}
@@ -418,7 +419,7 @@ export function TradePage({
             .
           </p>
           <Link
-            href="/pricing"
+            href={localizedPath("/pricing", locale)}
             className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
           >
             {copy.seePricing}
@@ -463,8 +464,8 @@ export function TradePage({
             {content.finalSub}
           </p>
           <div className="mt-9 flex justify-center">
-            <CtaButton href={SIGNUP_HREF} size="lg">
-              {PRIMARY_CTA_LABEL}
+            <CtaButton href={appLink(SIGNUP_HREF, locale)} size="lg">
+              {navCopy(locale).ctaPrimary}
             </CtaButton>
           </div>
           <p className="fr-eyebrow mt-7 text-[color:var(--fr-ink-55)]">

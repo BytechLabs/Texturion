@@ -1,6 +1,7 @@
 import type { Translated } from "../translated";
 
 import type { MarketingLocale } from "./footer";
+import { priceCopy } from "./price-copy";
 
 /**
  * D138 — the home page, in both languages.
@@ -200,9 +201,8 @@ export const homeEn = {
   dealTitle: "One flat price for the whole crew.",
   dealSub:
     "No per-user fees. No quote calls. No annual contracts. This is the whole price list.",
-  dealGuaranteeUs:
-    "30-day money-back guarantee. Full refund, including the registration fee. No fine print.",
-  dealGuaranteeCa: "30-day money-back guarantee. Full refund, no fine print.",
+  dealGuaranteeUs: priceCopy.en.guaranteeUs,
+  dealGuaranteeCa: priceCopy.en.guaranteeCa,
   dealActivationUs:
     "Day one you're not idle: receiving texts works right away. Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
   dealActivationCa:
@@ -215,7 +215,12 @@ export const homeEn = {
   dealTaxCa:
     "Prices in US dollars, plus tax where it applies. Your card issuer may convert the charge to Canadian dollars.",
   dealFairUse: "The concrete numbers live in our fair use policy.",
+  dealFairUseIntro:
+    "* Texting, pictures, and calling are included under an automated fair-use policy, and almost every crew stays well inside it.",
   dealEnterprise: "Talk to us about Enterprise",
+  dealEnterpriseIntro: "More than 15 on the crew?",
+  dealEnterpriseOutro: ", unlimited seats at the same flat, no-per-user price.",
+  dealMonthly: "/mo",
   sliderCrew: "People on your crew",
   sliderLoonext: "Loonext Pro",
   sliderFlat: ", flat",
@@ -511,10 +516,8 @@ export const homeFr: Translated<typeof homeEn> = {
   dealTitle: "Un seul prix fixe pour toute l'équipe.",
   dealSub:
     "Aucuns frais par personne. Aucun appel pour une soumission. Aucun contrat annuel. Voici la liste de prix au complet.",
-  dealGuaranteeUs:
-    "Garantie de remboursement de 30 jours. Remboursement complet, frais d'enregistrement compris. Aucune clause en petits caractères.",
-  dealGuaranteeCa:
-    "Garantie de remboursement de 30 jours. Remboursement complet, aucune clause en petits caractères.",
+  dealGuaranteeUs: priceCopy["fr-CA"].guaranteeUs,
+  dealGuaranteeCa: priceCopy["fr-CA"].guaranteeCa,
   dealActivationUs:
     "Dès le premier jour vous n'êtes pas inactif : la réception des textos fonctionne tout de suite. L'envoi aux clients américains s'active en environ une semaine, de 3 à 7 jours ouvrables, une fois que les compagnies de téléphone vous approuvent.",
   dealActivationCa:
@@ -529,7 +532,12 @@ export const homeFr: Translated<typeof homeEn> = {
     "Prix en dollars américains, plus les taxes applicables. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   dealFairUse:
     "Les chiffres concrets vivent dans notre politique d'utilisation équitable.",
+  dealFairUseIntro:
+    "* Les textos, les photos et les appels sont inclus selon une politique d’utilisation équitable automatisée. Presque toutes les équipes restent bien en deçà des limites.",
   dealEnterprise: "Parlez-nous d'Enterprise",
+  dealEnterpriseIntro: "Votre équipe compte plus de 15 personnes ?",
+  dealEnterpriseOutro: " : places illimitées au même prix fixe, sans frais par personne.",
+  dealMonthly: "/mois",
   sliderCrew: "Personnes dans votre équipe",
   sliderLoonext: "Loonext Pro",
   sliderFlat: ", prix fixe",

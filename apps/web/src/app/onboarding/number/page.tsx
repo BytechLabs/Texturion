@@ -201,6 +201,7 @@ export default function NumberStepPage() {
     const timezone = browserTimezone();
     try {
       const created = await createCompany.mutateAsync({
+        locale: t.locale,
         name: (draft.name ?? "").trim(),
         country: "CA",
         requested_area_code: requestedAreaCode,

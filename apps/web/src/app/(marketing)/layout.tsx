@@ -1,4 +1,7 @@
 import { MarketingShell } from "@/components/marketing/shell";
+import { RootDocument } from "../root-document";
+
+export { metadata, viewport } from "../root-document";
 
 /**
  * The (marketing) route group shell (BLUEPRINT §12, Track A contract): lean,
@@ -22,5 +25,9 @@ import { MarketingShell } from "@/components/marketing/shell";
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <MarketingShell locale="en">{children}</MarketingShell>;
+  return (
+    <RootDocument>
+      <MarketingShell locale="en">{children}</MarketingShell>
+    </RootDocument>
+  );
 }

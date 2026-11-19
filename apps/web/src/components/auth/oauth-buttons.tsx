@@ -58,7 +58,7 @@ export function OAuthButtons({
       },
     );
     if (oauthError) {
-      setError(authErrorMessage(oauthError));
+      setError(authErrorMessage(oauthError, t));
       setPending(null);
     }
   }

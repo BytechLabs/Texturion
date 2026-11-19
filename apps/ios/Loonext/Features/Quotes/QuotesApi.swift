@@ -133,8 +133,8 @@ struct Quote: Codable, Sendable, Identifiable {
     }
 
     /// The amount, through the money formatter rather than typed (#522).
-    var amountLabel: String {
-        formatMoneyIn(amount_cents, billingCurrency, audience: billingCurrency)
+    func amountLabel(locale: String?) -> String {
+        formatMoneyIn(amount_cents, billingCurrency, audience: billingCurrency, locale: locale)
     }
 }
 

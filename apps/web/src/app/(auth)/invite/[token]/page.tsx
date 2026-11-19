@@ -166,7 +166,7 @@ export default function InviteAcceptPage() {
       if (needsPassword) {
         const { error } = await getSupabaseBrowser().auth.updateUser({ password });
         if (error) {
-          toast.error(authErrorMessage(error));
+          toast.error(authErrorMessage(error, t));
           return;
         }
         setPassword("");

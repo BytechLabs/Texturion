@@ -476,6 +476,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(dup.status).toBe(409);
+    expect(await dup.json()).toMatchObject({
+      error: { message_key: "apiRefusals.inviteAlreadyPending" },
+    });
     expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
 
     for (const body of [

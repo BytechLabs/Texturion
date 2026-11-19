@@ -973,13 +973,15 @@ internal fun ForYouList(
                             // The note is what makes the reminder actionable three
                             // days later: "Chase this" is a chore, and "Chase the
                             // $450 quote - replace the water heater" is a job.
+                            val amount = formatMoney(quote.amount_cents, quote.money, locale = locale)
                             val chaseNote = t(
                                 "quotes.chaseNote",
-                                "amount" to formatMoney(quote.amount_cents, quote.money),
+                                "amount" to amount,
                                 "description" to quote.description,
                             ).take(SnoozeTiming.NOTE_MAX)
                             OutstandingQuoteRow(
                                 quote = quote,
+                                amount = amount,
                                 onOpen = { onOpenConversation(quote.conversation_id) },
                                 chased = chasedQuotes?.contains(quote.id),
                                 onChase = { onChaseQuote(quote, chaseNote) },
@@ -1102,6 +1104,7 @@ private const val OUTSTANDING_QUOTES_LIMIT = 6
 @Composable
 private fun OutstandingQuoteRow(
     quote: Quote,
+    amount: String,
     onOpen: () -> Unit,
     /** True once chased; NULL when this member cannot chase at all. */
     chased: Boolean?,
@@ -1116,7 +1119,7 @@ private fun OutstandingQuoteRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            formatMoney(quote.amount_cents, quote.money),
+            amount,
             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
             fontWeight = FontWeight.Medium,
         )

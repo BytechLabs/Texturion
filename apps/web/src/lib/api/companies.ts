@@ -87,6 +87,7 @@ export interface CreateCompanyInput {
   us_texting_enabled?: boolean;
   /** D15: the creating browser's IANA zone, captured silently at onboarding. */
   timezone?: string;
+  locale?: Locale;
   /**
    * #370: how big the crew is, as answered on the name step. Omitted when the
    * question was skipped — "not asked" and "solo" are different answers and the

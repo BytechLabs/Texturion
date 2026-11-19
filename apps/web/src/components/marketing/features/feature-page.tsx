@@ -32,10 +32,13 @@ import {
   FrSection,
 } from "@/components/marketing/fr";
 import {
-  PRIMARY_CTA_LABEL,
-  SECONDARY_CTA_LABEL,
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
+import { navCopy } from "@/i18n/marketing/nav";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { pricingCopy } from "@/i18n/marketing/pricing";
+import { appLink } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 import { cn } from "@/lib/utils";
 import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
@@ -50,6 +53,7 @@ export function FeatureHero({
   title,
   sub,
   panel,
+  locale = "en",
 }: {
   /** The page's load-bearing fact (coverage map), e.g. "1 OWNER PER CONVERSATION". */
   dateline: string;
@@ -57,7 +61,9 @@ export function FeatureHero({
   sub: ReactNode;
   /** The capability's real component staged mid-task, inside a <PanelFrame>. */
   panel: ReactNode;
+  locale?: MarketingLocale;
 }) {
+  const copy = navCopy(locale);
   return (
     <FrSection
       className="pt-10 md:pt-16"
@@ -75,11 +81,11 @@ export function FeatureHero({
           {sub}
         </p>
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <CtaButton href={SIGNUP_HREF} size="lg">
-            {PRIMARY_CTA_LABEL}
+          <CtaButton href={appLink(SIGNUP_HREF, locale)} size="lg">
+            {copy.ctaPrimary}
           </CtaButton>
-          <CtaButton href="/pricing" variant="secondary" size="lg">
-            {SECONDARY_CTA_LABEL}
+          <CtaButton href={localizedPath("/pricing", locale)} variant="secondary" size="lg">
+            {copy.ctaSecondary}
           </CtaButton>
         </div>
       </div>
@@ -307,18 +313,20 @@ export function PlainDetails({
 /* law), with the deck's guarantee microcopy under the CTAs.                  */
 /* -------------------------------------------------------------------------- */
 
-export function PricingSnippet({ children }: { children: ReactNode }) {
+export function PricingSnippet({ children, locale = "en" }: { children: ReactNode; locale?: MarketingLocale }) {
+  const nav = navCopy(locale);
+  const pricing = pricingCopy(locale);
   return (
     <FrSection ground="frost">
       <FrCard className="mx-auto max-w-3xl p-6 sm:p-10">
-        <HeadlinePriceFigure size="display" />
+        <HeadlinePriceFigure size="display" locale={locale} />
         <div className="font-body-mkt mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
           {children}
         </div>
         <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <CtaButton href={SIGNUP_HREF}>{PRIMARY_CTA_LABEL}</CtaButton>
-          <CtaButton href="/pricing" variant="secondary">
-            {SECONDARY_CTA_LABEL}
+          <CtaButton href={appLink(SIGNUP_HREF, locale)}>{nav.ctaPrimary}</CtaButton>
+          <CtaButton href={localizedPath("/pricing", locale)} variant="secondary">
+            {nav.ctaSecondary}
           </CtaButton>
         </div>
         <p className="font-body-mkt mt-5 flex items-start gap-2 text-[13px] text-[color:var(--fr-ink-55)]">
@@ -328,8 +336,8 @@ export function PricingSnippet({ children }: { children: ReactNode }) {
             aria-hidden
           />
           <CountryText
-            us="30-day money-back guarantee. Full refund, including the registration fee. No fine print."
-            ca="30-day money-back guarantee. Full refund, no fine print."
+            us={pricing.featureGuaranteeUs}
+            ca={pricing.featureGuaranteeCa}
           />
         </p>
       </FrCard>
@@ -351,10 +359,12 @@ export function RelatedLinks({
   heading,
   intro,
   links,
+  locale = "en",
 }: {
   heading: string;
   intro: string;
   links: RelatedLink[];
+  locale?: MarketingLocale;
 }) {
   return (
     <FrSection>
@@ -367,7 +377,7 @@ export function RelatedLinks({
           {links.map((link) => (
             <li key={link.href + link.label}>
               <Link
-                href={link.href}
+                href={localizedPath(link.href, locale)}
                 className="group flex h-full items-start justify-between gap-4 rounded-xl bg-[color:var(--fr-frost)] p-5 transition-colors duration-200 ease-out hover:bg-[color:var(--fr-card)] hover:shadow-[var(--fr-shadow-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
               >
                 <span>
@@ -440,9 +450,11 @@ export function FeatureFaq({
 export function FeatureCta({
   heading,
   sub,
+  locale = "en",
 }: {
   heading: ReactNode;
   sub: string;
+  locale?: MarketingLocale;
 }) {
   return (
     <FrSection ground="frost">
@@ -452,13 +464,13 @@ export function FeatureCta({
           {sub}
         </p>
         <div className="mt-8 flex justify-center">
-          <CtaButton href={SIGNUP_HREF} size="lg">
-            {PRIMARY_CTA_LABEL}
+          <CtaButton href={appLink(SIGNUP_HREF, locale)} size="lg">
+            {navCopy(locale).ctaPrimary}
           </CtaButton>
         </div>
         <p className="fr-eyebrow mt-6 text-[color:var(--fr-ink-55)]">
           <PlanPrice plan="starter" />
-          /MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
+          {pricingCopy(locale).featureCtaTerms}
         </p>
       </div>
     </FrSection>

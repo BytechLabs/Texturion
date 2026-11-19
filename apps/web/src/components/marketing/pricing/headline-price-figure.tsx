@@ -1,6 +1,7 @@
 "use client";
 
-import { HEADLINE_PRICE_SUFFIX, headlinePrice } from "@/lib/marketing/headline-price";
+import { headlinePrice, headlinePriceSuffix } from "@/lib/marketing/headline-price";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { usePriceAudience } from "@/components/marketing/pricing/plan-price";
 import { MonoFigure } from "@/components/marketing/fr/mono-figure";
 
@@ -29,15 +30,17 @@ import { MonoFigure } from "@/components/marketing/fr/mono-figure";
 export function HeadlinePriceFigure({
   size = "display",
   tone,
+  locale = "en",
 }: {
   size?: "data" | "stat" | "display";
   tone?: "ink" | "cobalt" | "green" | "flare";
+  locale?: MarketingLocale;
 }) {
   const audience = usePriceAudience();
   return (
     <MonoFigure
-      value={headlinePrice(audience)}
-      suffix={HEADLINE_PRICE_SUFFIX}
+      value={headlinePrice(audience, locale)}
+      suffix={headlinePriceSuffix(locale)}
       size={size}
       {...(tone ? { tone } : {})}
     />

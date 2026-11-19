@@ -1,20 +1,28 @@
-import { boundariesEn } from "@/i18n/sections/boundaries";
-import { commonEn } from "@/i18n/sections/common";
+import { normalizeDeviceLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
+import { useEffect, useState } from "react";
+import { boundariesEn, boundariesFr } from "@/i18n/sections/boundaries";
+import { commonEn, commonFr } from "@/i18n/sections/common";
 
-/**
- * What the two root error boundaries say, in English: they render outside
- * every LocaleProvider (sections/boundaries.ts), so `useT()` only ever
- * answered English there. They read the sections directly because importing
- * `@/i18n/provider` ships the whole two-language app catalogue (about 590 KB)
- * with the root layout, on every page. The keys are the catalogue's, so going
- * back to `t("misc.…")` once a provider sits above them is a rename.
- */
-export const boundaryCopy = {
+// Root errors render everywhere. Loading only their sections keeps the app catalogue off marketing pages.
+const boundaryCopy = {
   ...boundariesEn,
   retry: commonEn.retry,
 } as const;
 
+export function boundaryCopyFor(locale: Locale) {
+  return locale === "fr-CA" ? { ...boundariesFr, retry: commonFr.retry } : boundaryCopy;
+}
+
+export function useBoundaryLocale(): Locale {
+  const [locale, setLocale] = useState<Locale>("en");
+  useEffect(() => {
+    setLocale(normalizeDeviceLocale(navigator.language) ?? "en");
+  }, []);
+  return locale;
+}
+
 /** `misc.errorReference` with the digest filled in. */
-export function boundaryReference(digest: string): string {
-  return boundariesEn.errorReference.split("{digest}").join(digest);
+export function boundaryReference(digest: string, locale: Locale = "en"): string {
+  return boundaryCopyFor(locale).errorReference.replaceAll("{digest}", () => digest);
 }

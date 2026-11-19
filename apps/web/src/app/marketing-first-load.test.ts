@@ -118,7 +118,7 @@ function resolveSpecifier(from: string, spec: string): string | null | undefined
 
 /** The root layout and boundaries, and every route file under the two marketing groups. */
 function marketingEntries(): string[] {
-  const out = ["layout.tsx", "error.tsx", "global-error.tsx", "not-found.tsx"].map((f) =>
+  const out = ["root-document.tsx", "error.tsx", "global-error.tsx", "global-not-found.tsx", "not-found.tsx"].map((f) =>
     join(APP, f),
   );
   const ROUTE_FILE = /^(?:page|layout|error|not-found|loading|template)\.tsx$/;

@@ -183,13 +183,13 @@ func paymentAmountProblemCopy(
         return AppStrings.translate(
             locale,
             "payments.amountTooSmall",
-            ["amount": formatMoneyIn(paymentMinCents, currency, audience: currency)]
+            ["amount": formatMoneyIn(paymentMinCents, currency, audience: currency, locale: locale)]
         )
     case .tooLarge:
         return AppStrings.translate(
             locale,
             "payments.amountTooLarge",
-            ["amount": formatMoneyIn(paymentMaxCents, currency, audience: currency)]
+            ["amount": formatMoneyIn(paymentMaxCents, currency, audience: currency, locale: locale)]
         )
     case .notWhole:
         return AppStrings.translate(locale, "payments.amountNotWhole")
@@ -270,7 +270,7 @@ func paymentRequestSms(
     url: String,
     locale: String
 ) -> String {
-    let amount = formatMoneyIn(amountCents, currency, audience: currency)
+    let amount = formatMoneyIn(amountCents, currency, audience: currency, locale: locale)
     let trimmedName = businessName.trimmingCharacters(in: .whitespacesAndNewlines)
     let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
     return AppStrings.translate(

@@ -100,6 +100,14 @@ final class PaymentTimelineLineTests: XCTestCase {
         )
     }
 
+    func testTimelineAmountUsesCanadianFrenchFormatting() {
+        let paid = event("payment_paid", fullPayload(amountCents: 125_050, description: nil))
+        XCTAssertEqual(
+            eventLine(paid, memberNames: names, contactName: "Sam", locale: "fr-CA"),
+            "Le client a payé 1 250,50 $"
+        )
+    }
+
     /// The figure as this app writes it — computed, never typed. A signed amount
     /// in a phone string literal is what `check-money-literals.mjs` refuses, and
     /// a test that types one is asserting a currency nobody chose.

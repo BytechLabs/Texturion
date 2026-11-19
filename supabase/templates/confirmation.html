@@ -1,13 +1,14 @@
 <!doctype html>
-<html lang="en">
+{{ $french := eq (printf "%v" .Data.locale) "fr-CA" }}
+<html lang="{{ if $french }}fr-CA{{ else }}en{{ end }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
-<title>Confirm your email</title>
+<title>{{ if $french }}Confirmez votre adresse courriel{{ else }}Confirm your email{{ end }}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#ffffff;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Confirm your email address to finish setting up your Loonext account.</div>
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ if $french }}Confirmez votre adresse courriel pour terminer la création de votre compte Loonext.{{ else }}Confirm your email address to finish setting up your Loonext account.{{ end }}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
   <tr>
     <td align="center" style="padding:32px 16px;">
@@ -16,17 +17,17 @@
           <td style="padding:0 0 28px 0;font-family:'Golos Text',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:600;color:#191B14;">Lo<span style="color:#66801F;">o</span>next</td>
         </tr>
         <tr>
-          <td style="padding:0 0 12px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;color:#191B14;">Confirm your email</td>
+          <td style="padding:0 0 12px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;color:#191B14;">{{ if $french }}Confirmez votre adresse courriel{{ else }}Confirm your email{{ end }}</td>
         </tr>
         <tr>
-          <td style="padding:0 0 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#191B14;">You signed up for Loonext with {{ .Email }}. Confirm your email address to finish setting up your account.</td>
+          <td style="padding:0 0 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#191B14;">{{ if $french }}Vous avez créé un compte Loonext avec l’adresse {{ .Email }}. Confirmez votre adresse courriel pour terminer la configuration de votre compte.{{ else }}You signed up for Loonext with {{ .Email }}. Confirm your email address to finish setting up your account.{{ end }}</td>
         </tr>
         <tr>
           <td style="padding:0 0 28px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td bgcolor="#66801F" style="border-radius:6px;">
-                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">Confirm email</a>
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">{{ if $french }}Confirmer mon adresse courriel{{ else }}Confirm email{{ end }}</a>
                 </td>
               </tr>
             </table>
@@ -34,13 +35,13 @@
         </tr>
         <tr>
           <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6E7163;">
-            If the button does not work, use this link:<br>
-            <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="color:#66801F;word-break:break-all;">Open the Loonext confirmation link</a>
+            {{ if $french }}Si le bouton ne fonctionne pas, utilisez ce lien :{{ else }}If the button does not work, use this link:{{ end }}<br>
+            <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next={{ .RedirectTo }}" target="_blank" style="color:#66801F;word-break:break-all;">{{ if $french }}Ouvrir le lien de confirmation Loonext{{ else }}Open the Loonext confirmation link{{ end }}</a>
           </td>
         </tr>
         <tr>
           <td style="border-top:1px solid #E8E8E0;padding:16px 0 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6E7163;">
-            This email was sent to {{ .Email }}. If you did not create a Loonext account, you can ignore this email.<br>
+            {{ if $french }}Ce courriel a été envoyé à {{ .Email }}. Si vous n’avez pas créé de compte Loonext, vous pouvez l’ignorer.{{ else }}This email was sent to {{ .Email }}. If you did not create a Loonext account, you can ignore this email.{{ end }}<br>
             Loonext, <a href="https://loonext.com" target="_blank" style="color:#6E7163;">loonext.com</a>
           </td>
         </tr>
