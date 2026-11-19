@@ -34,9 +34,10 @@
         "job:sweep-stuck-provisioning",
         "job:calendar-sync",
         "job:customer-erasure",
+        "job:webhook-disable-emails",
         "job:deliver-outbound-webhooks"
       ],
-      "note": "Webhook replay, send recovery and outbound webhooks, which rig mode delivers to the robot sink or nowhere. Calendar sync has no connection to work on (X22). The edge relays no 10DLC or porting event, so the replay never reaches a refused endpoint."
+      "note": "Webhook replay, send recovery and outbound webhooks, which rig mode delivers to the robot sink or nowhere. Pause notices use the Resend path through the guard. Calendar sync has no connection to work on (X22). The edge relays no 10DLC or porting event, so the replay never reaches a refused endpoint."
     },
     {
       "config": "apps/api/wrangler.jsonc",
