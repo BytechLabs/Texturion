@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 // this file cannot derive, because the caps live in the Worker.
 import { join } from "node:path";
 
+import { EXTRA_NUMBER_CURRENCY, EXTRA_NUMBER_MONTHLY_CENTS, formatMoney } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
@@ -111,6 +112,12 @@ describe("llms.txt keeps up with what shipped", () => {
         absoluteUrl(LIVE_ROUTES[route]),
       );
     }
+  });
+
+  it("lists the monthly extra-number prices in US dollars", () => {
+    const starter = formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.starter, EXTRA_NUMBER_CURRENCY, "usd");
+    const pro = formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.pro, EXTRA_NUMBER_CURRENCY, "usd");
+    expect(LLMS).toContain(`${starter}/mo each on Starter or ${pro}/mo each on Pro, in US dollars`);
   });
 
   it("describes the AI features, which shipped to three clients", () => {

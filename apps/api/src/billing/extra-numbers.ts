@@ -37,7 +37,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { extraNumberBlockedReason } from '@loonext/shared';
-import type { BillingCurrency, ExtraNumberKey } from '@loonext/shared';
+import type { ExtraNumberKey } from '@loonext/shared';
 
 import { EXTRA_NUMBER_REASONS_EN } from "./extra-number-copy";
 import type { Env } from "../env";
@@ -48,25 +48,6 @@ import type { Stripe } from "./stripe";
 
 /** The wire's language. See the call site for why it is not the reader's. */
 const englishReason = (key: ExtraNumberKey): string => EXTRA_NUMBER_REASONS_EN[key];
-
-
-/** Monthly price per extra number, in cents (#80: $5 Starter, $4 Pro). */
-export const EXTRA_NUMBER_MONTHLY_CENTS: Record<PlanId, number> = {
-  starter: 500,
-  pro: 400,
-};
-
-/**
- * The currency {@link EXTRA_NUMBER_MONTHLY_CENTS} is denominated in.
- *
- * #328/#522: a figure on the wire without its currency is how a card came to
- * promise CA$39 for a fee Stripe invoiced at US$29. The extra-number prices are
- * filed in USD only — same as the module catalog, and for the same reason — so
- * a client billed in CAD renders this with `formatMoney(cents, "usd", "cad")`
- * and gets "US$5/mo", which is what a US-priced line honestly is. What must not
- * happen is a bare "$5", which to a Canadian reader means CAD.
- */
-export const EXTRA_NUMBER_PRICE_CURRENCY: BillingCurrency = "usd";
 
 /** Starter's hard TOTAL number cap: 1 included + at most 1 extra (#80). */
 export { STARTER_MAX_TOTAL_NUMBERS } from "@loonext/shared";

@@ -4,6 +4,7 @@
  * converger over stubbed fetch. Real product code (stripe-node, supabase-js);
  * only global fetch is stubbed.
  */
+import { EXTRA_NUMBER_MONTHLY_CENTS } from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
@@ -17,7 +18,6 @@ import {
   convergeExtraNumberQuantity,
   desiredExtraQuantity,
   effectiveNumberAllowance,
-  EXTRA_NUMBER_MONTHLY_CENTS,
   extraNumberPrice,
   extraNumberPurchasable,
   ScheduleManagedSubscriptionError,

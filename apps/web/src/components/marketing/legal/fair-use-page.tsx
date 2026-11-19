@@ -4,7 +4,7 @@ import {
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
 import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
-import { PlanPrice } from "@/components/marketing/pricing/plan-price";
+import { ExtraNumberPrice, PlanPrice } from "@/components/marketing/pricing/plan-price";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalFairUseCopy } from "@/i18n/marketing/legal-fair-use";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
@@ -37,7 +37,7 @@ export function FairUsePageBody({ locale = "en" }: { locale?: MarketingLocale })
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-07-11"
+      lastUpdatedIso="2026-11-19"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}
@@ -71,6 +71,10 @@ export function FairUsePageBody({ locale = "en" }: { locale?: MarketingLocale })
       </LegalSectionBlock>
       <LegalSectionBlock id="numbers" number="7" heading={copy.sectionNumbers}>
         <p><LegalRichText text={copy.numbers} slots={{ aup }} /></p>
+        <p><LegalRichText text={copy.extraNumbers} slots={{
+          starter: <ExtraNumberPrice plan="starter" />,
+          pro: <ExtraNumberPrice plan="pro" />,
+        }} /></p>
       </LegalSectionBlock>
       <LegalSectionBlock id="add-ons" number="8" heading={copy.sectionAddOns}>
         <p><LegalRichText text={copy.addOns} /></p>

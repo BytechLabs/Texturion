@@ -33,6 +33,12 @@
 export type NumberCountry = "US" | "CA";
 export type ExtraNumberPlan = "starter" | "pro";
 
+/** US cents per month for each number beyond the ones included in the plan. */
+export const EXTRA_NUMBER_MONTHLY_CENTS: Record<ExtraNumberPlan, number> = {
+  starter: 500,
+  pro: 400,
+};
+
 /** Starter's hard TOTAL number cap: 1 included + at most 1 extra (#80). */
 export const STARTER_MAX_TOTAL_NUMBERS = 2;
 

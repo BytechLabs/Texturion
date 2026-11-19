@@ -36,7 +36,7 @@ export const tasksEn = {
   dateline: "THE JOB KEEPS ITS RECEIPT",
   h1: "Book the Hendersons for Tuesday. Now it lives somewhere.",
   heroSub:
-    "A customer asks for something in a text or on the phone, and right now that promise lives in the head of whoever heard it. Promote the message into a task and it gets an owner, a due date and an address, and it stays linked to the exact words the customer used. Work it from a list, a board, a calendar you can drag, or a map of where everything is.",
+    "A customer asks for something in a text or on the phone, and right now that promise lives in the head of whoever heard it. Promote the message into a task and it gets an owner, a due date and an address, and it stays linked to the exact words the customer used. Work it from a list, a board, a calendar or a map of where everything is.",
   boardCaption: "Thursday's board: what the crew promised, and who owns it.",
   boardAria: "The Loonext task board with to-do and done columns",
 
@@ -49,6 +49,8 @@ export const tasksEn = {
   coreBodyThree:
     "And it goes both ways. Task activity shows up inside the conversation, so a teammate reading the conversation sees the job was created, assigned, and scheduled without leaving it.",
 
+  leadToJob:
+    "Turn an inquiry from your website widget into an assigned job. Send a quote from the customer’s conversation so your team can follow up in the same place.",
   viewsEyebrow: "Four ways to look at the same work",
   viewsTitle: "Whichever view matches the question you are asking.",
   viewListTitle: "List and board",
@@ -56,7 +58,7 @@ export const tasksEn = {
     "The flat list for working through, and a to-do and done board for the morning stand-up. Same tasks, same owners; only the arrangement changes.",
   viewCalendarTitle: "Calendar",
   viewCalendarBody:
-    "A month or a week of what is due. Drag a job to a different day to reschedule it, which is what actually happens when a van breaks down and Thursday becomes Friday.",
+    "See what is due by week or by month. Connect your Microsoft 365 calendar to see scheduled jobs assigned to you in Outlook.",
   viewMapBody:
     "Every job with an address, plotted. Two calls on the same street stop being two separate trips, which is the one view that saves fuel rather than time.",
   viewThreadTitle: "In the conversation",
@@ -139,7 +141,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
   dateline: "LE TRAVAIL GARDE SON REÇU",
   h1: "Réservez les Henderson pour mardi. Maintenant, ça existe quelque part.",
   heroSub:
-    "Un client demande quelque chose par texto ou au téléphone, et pour l'instant cette promesse vit dans la tête de celui qui l'a entendue. Transformez le message en tâche et elle obtient un responsable, une échéance et une adresse, et elle reste liée aux mots exacts qu'a employés le client. Travaillez-la depuis une liste, un tableau, un calendrier que vous pouvez glisser, ou une carte de tout ce qu'il y a à faire.",
+    "Un client demande quelque chose par texto ou au téléphone, et pour l'instant cette promesse vit dans la tête de celui qui l'a entendue. Transformez le message en tâche et elle obtient un responsable, une échéance et une adresse, et elle reste liée aux mots exacts qu'a employés le client. Travaillez-la depuis une liste, un tableau, un calendrier ou une carte de tout ce qu'il y a à faire.",
   boardCaption:
     "Le tableau de jeudi : ce que l'équipe a promis, et qui en est responsable.",
   boardAria: "Le tableau des tâches Loonext avec les colonnes à faire et terminé",
@@ -153,6 +155,8 @@ export const tasksFr: Translated<typeof tasksEn> = {
   coreBodyThree:
     "Et ça va dans les deux sens. L'activité d'une tâche apparaît dans la conversation, alors un collègue qui lit le fil voit que le travail a été créé, attribué et planifié sans avoir à le quitter.",
 
+  leadToJob:
+    "Transformez une demande reçue par le bouton de texto de votre site en travail attribué. Envoyez une soumission depuis la conversation du client pour que votre équipe y fasse le suivi.",
   viewsEyebrow: "Quatre façons de regarder le même travail",
   viewsTitle: "La vue qui correspond à la question que vous posez.",
   viewListTitle: "Liste et tableau",
@@ -160,7 +164,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
     "La liste simple pour avancer, et un tableau à faire et terminé pour la réunion du matin. Mêmes tâches, mêmes responsables ; seule la disposition change.",
   viewCalendarTitle: "Calendrier",
   viewCalendarBody:
-    "Un mois ou une semaine de ce qui est dû. Glissez un travail vers un autre jour pour le reporter, ce qui arrive vraiment quand une camionnette brise et que jeudi devient vendredi.",
+    "Voyez les échéances par semaine ou par mois. Connectez votre calendrier Microsoft 365 pour voir les travaux planifiés qui vous sont attribués dans Outlook.",
   viewMapBody:
     "Chaque travail avec une adresse, placé sur la carte. Deux appels sur la même rue cessent d'être deux déplacements distincts, et c'est la seule vue qui économise du carburant plutôt que du temps.",
   viewThreadTitle: "Dans la conversation",

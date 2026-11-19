@@ -9,6 +9,8 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
 
+private const val EXTRA_NUMBER_CATALOG_PATH = "packages/shared/src/extra-numbers.ts"
+
 /**
  * #523 rule 2 / #522 — what one extra phone number costs, on the two surfaces
  * that ask for consent to that charge.
@@ -17,7 +19,7 @@ import java.io.File
  * `val extraPrice = if (company.plan == "pro") "$4/mo" else "$5/mo"` and wrote
  * it into the description of the card whose only control buys a number. Two
  * failures in one line. The figures were typed rather than mirrored, so a
- * repricing in `apps/api/src/billing/extra-numbers.ts` would ship to the API and
+ * repricing in the shared catalogue would ship to the API and
  * leave this client quoting the old one with every Kotlin test green. And they
  * carried no currency: the extra-number price book is filed in USD only — there
  * is no CAD amount in Stripe to collect — so a Canadian workspace read "$5",
@@ -36,7 +38,7 @@ class ExtraNumberPriceTest {
     // -- the half TypeScript can break ---------------------------------------
 
     /**
-     * THE DRIFT GUARD. Fails when `EXTRA_NUMBER_MONTHLY_CENTS` moves in the API
+     * Fails when `EXTRA_NUMBER_MONTHLY_CENTS` changes in the shared catalogue
      * and this hand-port does not follow it.
      *
      * Fails rather than skips when the file or the declaration cannot be found:
@@ -49,7 +51,7 @@ class ExtraNumberPriceTest {
         listOf("starter", "pro").forEach { plan ->
             assertEquals(
                 "EXTRA_NUMBER_MONTHLY_CENTS[$plan] has drifted from " +
-                    "apps/api/src/billing/extra-numbers.ts. The price Stripe bills has " +
+                    "$EXTRA_NUMBER_CATALOG_PATH. The price Stripe bills has " +
                     "moved and this client is still naming the old one on the card " +
                     "that sells the number",
                 tsNumber(block, plan),
@@ -89,14 +91,12 @@ class ExtraNumberPriceTest {
      */
     @Test
     fun `pins the currency that price book is denominated in`() {
-        val ts = apiSource("billing/extra-numbers.ts")
-        val declared = Regex("EXTRA_NUMBER_PRICE_CURRENCY: BillingCurrency = \"(\\w+)\"")
+        val ts = priceCatalogueSource()
+        val declared = Regex("EXTRA_NUMBER_CURRENCY\\s*=\\s*\"(\\w+)\"")
             .find(ts)
             ?: run {
                 fail(
-                    "`EXTRA_NUMBER_PRICE_CURRENCY` not found in " +
-                        "apps/api/src/billing/extra-numbers.ts — was it renamed? Point " +
-                        "this guard at the new name rather than removing it",
+                    "EXTRA_NUMBER_CURRENCY not found in $EXTRA_NUMBER_CATALOG_PATH",
                 )
                 error("unreachable")
             }
@@ -298,13 +298,11 @@ class ExtraNumberPriceTest {
 
     /** The `EXTRA_NUMBER_MONTHLY_CENTS` declaration, from `export const` to `};`. */
     private fun centsBlock(): String {
-        val ts = apiSource("billing/extra-numbers.ts")
+        val ts = priceCatalogueSource()
         val at = ts.indexOf("export const EXTRA_NUMBER_MONTHLY_CENTS")
         if (at < 0) {
             fail(
-                "`export const EXTRA_NUMBER_MONTHLY_CENTS` not found in " +
-                    "apps/api/src/billing/extra-numbers.ts — was it renamed? Point this " +
-                    "guard at the new name rather than removing it",
+                "EXTRA_NUMBER_MONTHLY_CENTS not found in $EXTRA_NUMBER_CATALOG_PATH",
             )
         }
         return ts.substring(at).substringBefore("};")
@@ -319,17 +317,12 @@ class ExtraNumberPriceTest {
         return match!!.groupValues[1].toInt()
     }
 
-    private fun apiSource(relative: String): String {
+    private fun priceCatalogueSource(): String {
         listOf("", "../../", "../../../").forEach { prefix ->
-            val f = File("${prefix}apps/api/src/$relative")
-            if (f.exists()) return f.readText()
+            val file = File("$prefix$EXTRA_NUMBER_CATALOG_PATH")
+            if (file.isFile) return file.readText()
         }
-        fail(
-            "apps/api/src/$relative not found from ${File(".").absolutePath}. This " +
-                "guard compares the Kotlin hand-port against the TypeScript it was " +
-                "ported from, so it fails rather than skipping",
-        )
-        error("unreachable")
+        error("$EXTRA_NUMBER_CATALOG_PATH not found from ${File(".").absolutePath}")
     }
 
     // -- reading this language -------------------------------------------------

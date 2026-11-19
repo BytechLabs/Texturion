@@ -21,6 +21,8 @@
  */
 import { Stripe } from "stripe";
 
+import { EXTRA_NUMBER_MONTHLY_CENTS } from "../../../packages/shared/src/extra-numbers.ts";
+
 const METER_EVENT_NAME = "sms_segments";
 
 /**
@@ -93,8 +95,8 @@ const MODULE_PRICES: {
   { id: "regions_ca", label: "Canada numbers", monthlyCents: 500, envKey: "STRIPE_MODULE_REGIONS_CA_PRICE_ID" },
   // #105 (#80): per-plan extra-number prices — quantity on the subscription =
   // paid extras beyond the plan's included numbers (billing/extra-numbers.ts).
-  { id: "extra_number_starter", label: "Extra number (Starter)", monthlyCents: 500, envKey: "STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID" },
-  { id: "extra_number_pro", label: "Extra number (Pro)", monthlyCents: 400, envKey: "STRIPE_EXTRA_NUMBER_PRO_PRICE_ID" },
+  { id: "extra_number_starter", label: "Extra number (Starter)", monthlyCents: EXTRA_NUMBER_MONTHLY_CENTS.starter, envKey: "STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID" },
+  { id: "extra_number_pro", label: "Extra number (Pro)", monthlyCents: EXTRA_NUMBER_MONTHLY_CENTS.pro, envKey: "STRIPE_EXTRA_NUMBER_PRO_PRICE_ID" },
 ];
 
 const secretKey = process.env.STRIPE_SECRET_KEY;

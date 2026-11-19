@@ -1,10 +1,15 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import {
+  EXTRA_NUMBER_CURRENCY,
+  EXTRA_NUMBER_MONTHLY_CENTS,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
 import {
-  PLAN_MODULE_CARDS,
   PLAN_PRICING,
   US_REGISTRATION_FEE_DOLLARS,
 } from "@/lib/api/types";
@@ -189,13 +194,13 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(PLAN_FAIR_USE_NOTE).not.toMatch(/\d(\.\d+)?¢/);
   });
 
-  it("the ledger names every cost: plans, one-time fee, overage, storage, add-ons, tax, and closes the list", () => {
+  it("lists plans, registration, overage, storage, extra numbers, and tax", () => {
     const terms = LEDGER.map((e) => e.term);
     expect(terms).toContain("Your plan");
     expect(terms).toContain("Register with the phone companies");
     expect(terms).toContain("Extra texts");
     expect(terms).toContain("Storage");
-    expect(terms).toContain("Optional add-ons, if you turn them on");
+    expect(terms).toContain("Extra business numbers");
     expect(terms).toContain("Tax");
     expect(terms).toContain("That's the whole list.");
 
@@ -227,34 +232,8 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(storage?.detail).toContain("nothing pauses");
     expect(storage?.detail).not.toMatch(/\bGB\b/);
 
-    // The add-ons figure and prose agree with the module catalog mirror.
-    // #97/#103: no Picture-messages card. #121: no Extra-storage card.
-    // #134/D42: no Calling card — calling is included on every plan, and the
-    // one add-on left is Canada numbers.
-    const addons = LEDGER.find(
-      (e) => e.term === "Optional add-ons, if you turn them on",
-    );
-    const byId = (id: string) =>
-      PLAN_MODULE_CARDS.find((c) => c.id === id)!;
-    expect(addons?.figure).toBe(`${byId("regions_ca").price}/mo`);
-    expect(addons?.detail).not.toContain("Picture messages");
-    expect(addons?.detail).not.toContain("extra storage");
-    expect(addons?.detail).toContain(`${byId("regions_ca").price}/mo`);
-    expect(addons?.detail).toContain("One add-on exists");
-    expect(addons?.detail).toContain("Canada numbers");
-    // #134: the row leads with the included-calling truth and never sells
-    // Calling as an add-on again.
-    expect(addons?.detail).toContain("Calling is included in every plan");
-    expect(addons?.detail).not.toContain("Calling,");
-    // The minute figures live on /legal/fair-use, not sales copy (#121/D36).
-    expect(addons?.detail).not.toContain("300 minutes");
-    expect(addons?.detail).toContain("fair use policy");
-    // Honest availability: Canada numbers can't be switched on yet.
-    expect(addons?.detail).toContain("isn't switchable on quite yet");
-
-    // The whole-list row counts one add-on and no storage fees.
     const whole = LEDGER.find((e) => e.term === "That's the whole list.");
-    expect(whole?.detail).toContain("one optional add-on");
+    expect(whole?.detail).toContain("optional extra numbers");
     expect(whole?.detail).toContain("no storage fees");
 
     // #328: the tax row names the currency the US reader is charged in. The
@@ -279,6 +258,17 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
       expect(row, entry.term).not.toContain(planPrice("starter", "cad"));
       expect(row, entry.term).not.toContain(planPrice("pro", "cad"));
     }
+  });
+
+  it.each([
+    ["usd", LEDGER],
+    ["cad", LEDGER_CA],
+  ] as const)("shows both extra-number prices to the %s audience", (audience, ledger) => {
+    const starter = formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.starter, EXTRA_NUMBER_CURRENCY, audience);
+    const pro = formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.pro, EXTRA_NUMBER_CURRENCY, audience);
+    const extraNumbers = ledger.find((entry) => entry.id === "extra-numbers");
+    expect(extraNumbers?.figure).toBe(`Starter ${starter}/mo · Pro ${pro}/mo`);
+    expect(extraNumbers?.detail).toContain("beyond the ones your plan includes");
   });
 
   it('the "priced elsewhere" table keeps the dated November 2026 math and the sourced footnote', () => {
@@ -321,7 +311,7 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     expect(terms).toContain("Your plan");
     expect(terms).toContain("Extra texts");
     expect(terms).toContain("Storage");
-    expect(terms).not.toContain("Optional add-ons, if you turn them on");
+    expect(terms).toContain("Extra business numbers");
     expect(terms).toContain("Tax");
     expect(terms).toContain("That's the whole list.");
 

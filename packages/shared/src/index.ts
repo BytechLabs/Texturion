@@ -55,6 +55,7 @@ export {
   extraNumberBlockedReason,
   canBuyExtraNumber,
   EXTRA_NUMBER_CURRENCY,
+  EXTRA_NUMBER_MONTHLY_CENTS,
   STARTER_MAX_TOTAL_NUMBERS,
   type ExtraNumberEligibility,
   type ExtraNumberPlan,

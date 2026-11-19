@@ -7,9 +7,8 @@
  *
  * Pricing-source audit (owner ruling 2026-07-07, QA gate 8): every pulled-out
  * FIGURE below is a template literal over the shared price book
- * (PLAN_PRICE_CENTS / US_REGISTRATION_FEE_CENTS in
- * packages/shared/src/billing-currency.ts, plus PLAN_MODULE_CARDS in
- * lib/api/types.ts), never a retyped number. Numbers inside prose sentences
+ * (PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS, and
+ * EXTRA_NUMBER_MONTHLY_CENTS), never a retyped number. Numbers inside prose
  * keep the deck's exact wording; pricing-facts.test.ts pins each of those to
  * the same constants so prose can't silently drift either.
 
@@ -18,10 +17,16 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { pricingCopy } from "@/i18n/marketing/pricing";
-import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
+import {
+  EXTRA_NUMBER_CURRENCY,
+  EXTRA_NUMBER_MONTHLY_CENTS,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 import type { BillingCurrency } from "@loonext/shared";
 
-import { PLAN_MODULE_CARDS, PLAN_PRICING } from "@/lib/api/types";
+import { PLAN_PRICING } from "@/lib/api/types";
 import type { PlanId } from "@/lib/api/types";
 
 import { compareAsOf } from "../compare/verification";
@@ -34,18 +39,6 @@ import type {
 
 const S = PLAN_PRICING.starter;
 const P = PLAN_PRICING.pro;
-
-function moduleCard(id: "regions_ca") {
-  const card = PLAN_MODULE_CARDS.find((c) => c.id === id);
-  if (!card) throw new Error(`Missing module card: ${id}`);
-  return card;
-}
-
-// #97/#103: no MMS card — pictures are included on every plan. #121: no
-// extra-storage card — storage is free, there is nothing to sell. #134/D42:
-// no Calling card — calling is included on every plan, so the one add-on
-// left in the catalog is Canada numbers.
-const CANADA_NUMBERS = moduleCard("regions_ca");
 
 const price = (plan: PlanId, audience: BillingCurrency) =>
   formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience);
@@ -204,10 +197,13 @@ function ledgerFor(
       detail: copy.ledgerStorageDetail,
     },
     {
-      id: "add-ons",
-      term: copy.ledgerAddOnsTerm,
-      figure: `${CANADA_NUMBERS.price}/mo`,
-      detail: fill(copy.ledgerAddOnsDetail, { addOn: CANADA_NUMBERS.price }),
+      id: "extra-numbers",
+      term: copy.ledgerExtraNumbersTerm,
+      figure: fill(copy.ledgerExtraNumbersFigure, {
+        starter: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.starter, EXTRA_NUMBER_CURRENCY, currency),
+        pro: formatMoney(EXTRA_NUMBER_MONTHLY_CENTS.pro, EXTRA_NUMBER_CURRENCY, currency),
+      }),
+      detail: copy.ledgerExtraNumbersDetail,
     },
     {
       id: "tax",
@@ -232,24 +228,22 @@ export const LEDGER: LedgerEntry[] = ledger("en");
 
 export const ledgerCa = (locale: MarketingLocale = "en"): LedgerEntry[] => {
   const copy = pricingCopy(locale);
-  return ledgerFor("cad", locale)
-    .filter((entry) => entry.id !== "add-ons")
-    .map((entry) => {
-      if (entry.id === "registration") {
-        return {
-          id: entry.id,
-          term: copy.ledgerNoRegisterTerm,
-          figure: fill(copy.ledgerNoRegisterFigure, {
-            zero: formatMoney(0, "usd", "cad"),
-          }),
-          detail: copy.ledgerNoRegisterDetail,
-        };
-      }
-      if (entry.id === "whole-list") {
-        return { ...entry, detail: copy.ledgerWholeListDetailCa };
-      }
-      return entry;
-    });
+  return ledgerFor("cad", locale).map((entry) => {
+    if (entry.id === "registration") {
+      return {
+        id: entry.id,
+        term: copy.ledgerNoRegisterTerm,
+        figure: fill(copy.ledgerNoRegisterFigure, {
+          zero: formatMoney(0, "usd", "cad"),
+        }),
+        detail: copy.ledgerNoRegisterDetail,
+      };
+    }
+    if (entry.id === "whole-list") {
+      return { ...entry, detail: copy.ledgerWholeListDetailCa };
+    }
+    return entry;
+  });
 };
 
 /** The English Canadian ledger, for tests and any English-only surface. */

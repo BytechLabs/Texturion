@@ -47,6 +47,11 @@ export const businessNumberEn = {
   portBodyTwo:
     "Your number keeps working on your old carrier while it moves, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change, and if you want to start texting today, get a new local number now and port your existing one alongside it.",
 
+  landlineEyebrow: "Keep your landline",
+  landlineTitle: "Add texting to an eligible landline.",
+  landlineBody:
+    "Check your number in Settings. Once it’s approved, your team can send and receive texts in Loonext using that number. Calls keep going through your current phone carrier.",
+
   fixesEyebrow: "What the number fixes",
   fixesTitle: "Three problems that end the day the business owns its number.",
   fixesQuoteTitle: "The buried quote",
@@ -88,6 +93,10 @@ export const businessNumberEn = {
   pricingStarterAfter: "/mo for up to 3 people; a second number comes with Pro at",
   pricingProAfter:
     "/mo for up to 15. Both are flat, month to month, with receiving texts always free and unlimited. Porting a number in is free.",
+  pricingExtraBefore:
+    "Eligible workspaces can add extra numbers in Settings. Each extra number costs",
+  pricingExtraBetween: "/mo on Starter or",
+  pricingExtraAfter: "/mo on Pro.",
   pricingUsBefore: "US shops pay a one-time",
   pricingUsMiddle:
     "to register the business with the phone companies, once, ever, so the first month is",
@@ -175,6 +184,11 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
   portBodyTwo:
     "Votre numéro continue de fonctionner chez votre ancien transporteur pendant le transfert, puis il bascule chez Loonext à une date prévue. Rien sur vos camions ni sur votre fiche n'a à changer, et si vous voulez commencer à écrire aujourd'hui, prenez un nouveau numéro local maintenant et transférez le vôtre à côté.",
 
+  landlineEyebrow: "Gardez votre ligne fixe",
+  landlineTitle: "Ajoutez les textos à une ligne fixe admissible.",
+  landlineBody:
+    "Vérifiez votre numéro dans les paramètres. Une fois le numéro approuvé, votre équipe peut envoyer et recevoir des textos dans Loonext avec ce numéro. Votre fournisseur actuel continue de gérer vos appels.",
+
   fixesEyebrow: "Ce que le numéro règle",
   fixesTitle: "Trois problèmes qui finissent le jour où l'entreprise possède son numéro.",
   fixesQuoteTitle: "La soumission enterrée",
@@ -217,6 +231,10 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
     "/mois pour un maximum de 3 personnes ; un deuxième numéro vient avec Pro à",
   pricingProAfter:
     "/mois pour un maximum de 15. Les deux sont fixes, de mois en mois, et recevoir des textos est toujours gratuit et illimité. Transférer un numéro est gratuit.",
+  pricingExtraBefore:
+    "Les espaces de travail admissibles peuvent ajouter des numéros dans les paramètres. Chaque numéro supplémentaire coûte",
+  pricingExtraBetween: "/mois avec Starter ou",
+  pricingExtraAfter: "/mois avec Pro.",
   pricingUsBefore: "Les commerces américains paient des frais uniques de",
   pricingUsMiddle:
     "pour inscrire l'entreprise auprès des compagnies de téléphone, une seule fois, à vie, alors le premier mois est de",

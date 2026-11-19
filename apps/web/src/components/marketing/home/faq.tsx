@@ -60,8 +60,8 @@ function homeFaqs(
   return [
     {
       q: copy.faqNumberQ,
-      a: copy.faqNumberAUs,
-      aCa: copy.faqNumberACa,
+      a: `${copy.faqNumberAUs} ${copy.faqNumberLandline}`,
+      aCa: `${copy.faqNumberACa} ${copy.faqNumberLandline}`,
     },
     {
       q: copy.faqAppQ,

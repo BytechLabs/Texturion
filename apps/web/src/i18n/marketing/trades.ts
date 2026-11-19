@@ -37,6 +37,10 @@ export const tradesEn = {
   doneNote:
     "Tap any message to mark it done. The whole crew sees what's handled.",
 
+  leadsTitle: "Website inquiries and quotes",
+  leadsBody:
+    "Let visitors request a text from your website. Reply in your shared inbox and send a quote link customers can open and accept.",
+
   truthReceiving:
     "Receiving texts is free and unlimited on every plan. Photos are free to receive and saved for you; storage is free.",
 
@@ -56,6 +60,10 @@ export const tradesFr: Translated<typeof tradesEn> = {
 
   doneNote:
     "Touchez n'importe quel message pour le marquer terminé. Toute l'équipe voit ce qui est réglé.",
+
+  leadsTitle: "Demandes du site Web et soumissions",
+  leadsBody:
+    "Permettez aux visiteurs de demander un texto sur votre site Web. Répondez dans la boîte partagée et envoyez un lien vers une soumission que le client peut ouvrir et accepter.",
 
   truthReceiving:
     "La réception des textos est gratuite et illimitée sur tous les forfaits. Les photos sont gratuites à recevoir et conservées pour vous ; le stockage est gratuit.",

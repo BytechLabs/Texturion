@@ -1004,7 +1004,7 @@ private fun prepaidPlanLabel(plan: String): String =
 // ---------------------------------------------------------------------------
 
 /**
- * Mirror of `EXTRA_NUMBER_MONTHLY_CENTS` in apps/api/src/billing/extra-numbers.ts.
+ * Mirror of `EXTRA_NUMBER_MONTHLY_CENTS` in packages/shared/src/extra-numbers.ts.
  *
  * THIS CLIENT ALREADY PRINTED THESE TWO FIGURES, typed, as `"$4/mo"` and
  * `"$5/mo"` on the add-a-number card. That is the shape rule 2 of #523 forbids
@@ -1025,7 +1025,7 @@ internal val EXTRA_NUMBER_MONTHLY_CENTS: Map<String, Int> = mapOf(
 
 /**
  * The currency [EXTRA_NUMBER_MONTHLY_CENTS] is denominated in — mirror of
- * `EXTRA_NUMBER_PRICE_CURRENCY`.
+ * `EXTRA_NUMBER_CURRENCY` in the shared catalogue.
  *
  * USD ONLY, and it is not an oversight to be tidied up later. There is no CAD
  * extra-number price filed in Stripe, so a Canadian workspace's extra number is
