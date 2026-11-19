@@ -254,13 +254,17 @@ struct TaskDetailView: View {
         .sheet(isPresented: $duePickerOpen) {
             if let detail {
                 DuePickerSheet(
-                    initial: parseWireTimestamp(detail.due_at),
+                    initial: detail.due_on.flatMap { taskDay($0) } ?? parseWireTimestamp(detail.due_at),
+                    dateOnly: detail.due_on != nil,
                     onSet: { date in
-                        // The API requires ISO 8601 WITH the local UTC offset.
-                        let iso = encodeDueAt(date)
                         runScopedPatch { scope in
-                            try await mutations.setDue(
-                                companyId: companyId, taskId: detail.id, dueAt: iso, scope: scope
+                            if detail.due_on != nil {
+                                return try await mutations.setDueDay(
+                                    companyId: companyId, taskId: detail.id, day: taskDateKey(date), scope: scope
+                                )
+                            }
+                            return try await mutations.setDue(
+                                companyId: companyId, taskId: detail.id, dueAt: encodeDueAt(date), scope: scope
                             )
                         }
                     }
@@ -1870,14 +1874,16 @@ private struct TaskAddressSection: View {
 @MainActor
 private struct DuePickerSheet: View {
     let initial: Date?
+    let dateOnly: Bool
     let onSet: @MainActor (Date) -> Void
 
     @State private var draft: Date
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
 
-    init(initial: Date?, onSet: @escaping @MainActor (Date) -> Void) {
+    init(initial: Date?, dateOnly: Bool, onSet: @escaping @MainActor (Date) -> Void) {
         self.initial = initial
+        self.dateOnly = dateOnly
         self.onSet = onSet
         // Default to today 9:00 like the Android picker's initial time.
         let fallback = Calendar.current.date(
@@ -1891,7 +1897,7 @@ private struct DuePickerSheet: View {
             DatePicker(
                 AppStrings.translate(appLocale, "contactsTasks.due"),
                 selection: $draft,
-                displayedComponents: [.date, .hourAndMinute]
+                displayedComponents: dateOnly ? .date : [.date, .hourAndMinute]
             )
             .datePickerStyle(.graphical)
             HStack {

@@ -39,21 +39,27 @@ describe(syncTaskReminders, () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it.each([
-    { locale: null, expected: "mardi a 14 h", greeting: "Bonjour Jo" },
-    { locale: "en", expected: "Tuesday at 2:00", greeting: "Hi Jo" },
-  ])("uses the booked task and the stock reminder for $locale", async ({ locale, expected, greeting }) => {
+    { locale: null, expected: "mardi a 14 h", greeting: "Bonjour Jo", dayOnly: false },
+    { locale: "en", expected: "Tuesday at 2:00", greeting: "Hi Jo", dayOnly: false },
+    { locale: "en", expected: "Tuesday.", greeting: "Hi Jo", dayOnly: true },
+  ])("uses the booked task and stock reminder for $locale, date only: $dayOnly", async ({ locale, expected, greeting, dayOnly }) => {
     const env = completeEnv();
     const sb = supabaseStub(env);
     const taskId = "5e3f1a2b-7c4d-4e6f-8a9b-0c1d2e3f4a5b";
-    const dueAt = "2026-12-01T19:00:00.000Z";
+    const dueAt = dayOnly ? null : "2026-12-01T19:00:00.000Z";
+    const dueOn = dayOnly ? "2026-12-01" : null;
     const companyId = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
     sb.on("GET", "/rest/v1/tasks", ({ url }) => {
       const params = url.searchParams;
       if (params.get("select") === "due_at,due_on") {
-        return [{ due_at: params.get("id") === `eq.${taskId}` ? dueAt : "2026-11-30T19:00:00Z" }];
+        return [{
+          due_at: params.get("id") === `eq.${taskId}` ? dueAt : "2026-11-30T19:00:00Z",
+          due_on: dueOn,
+        }];
       }
       return [{
         due_at: dueAt,
+        due_on: dueOn,
         reminders_off: false,
         conversation_id: "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a",
         companies: { name: "Acme", locale: "fr-CA" },
@@ -61,9 +67,10 @@ describe(syncTaskReminders, () => {
       }];
     });
     sb.on("GET", "/rest/v1/companies", () => []);
-    sb.on("GET", "/rest/v1/appointment_reminder_rules", () => [{
-      ...copyFor("fr-CA").appointmentReminders[0], enabled: true,
-    }]);
+    sb.on("GET", "/rest/v1/appointment_reminder_rules", () => [
+      { ...copyFor("fr-CA").appointmentReminders[0], enabled: true },
+      ...(dayOnly ? [TWO_HOURS] : []),
+    ]);
     sb.on("POST", "/rest/v1/rpc/api_sync_task_reminders", () => ({ outcome: "synced", added: 1 }));
     stubFetch(sb.route);
 

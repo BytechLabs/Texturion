@@ -170,6 +170,7 @@ struct TaskMapView: View {
             dueChip?.rawValue ?? "-",
             q,
             meta.token,
+            selectedDay.map { taskDateKey($0) } ?? "-",
             String(refreshKey),
             String(localRefresh),
         ].joined(separator: "|")
@@ -228,6 +229,10 @@ struct TaskMapView: View {
         }
         let trimmedQuery = q.trimmingCharacters(in: .whitespacesAndNewlines)
         let query: String? = trimmedQuery.isEmpty ? nil : trimmedQuery
+        let calendar = Calendar.current
+        let start = selectedDay.map { calendar.startOfDay(for: $0) }
+        let end = start.flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        let dayKey = start.map { taskDateKey($0, calendar: calendar) }
         var accumulated: [TaskItem] = []
         var cursor: String?
         var pages = 0
@@ -240,8 +245,10 @@ struct TaskMapView: View {
                         "status": "open",
                         "assigned_user_id": assignee,
                         "unassigned": unassigned ? "true" : nil,
-                        "due_before": dueFilters.dueBefore,
-                        "due_after": dueFilters.dueAfter,
+                        "due_before": end.map { isoOffsetString($0, timeZone: calendar.timeZone) } ?? dueFilters.dueBefore,
+                        "due_after": start.map { isoOffsetString($0, timeZone: calendar.timeZone) } ?? dueFilters.dueAfter,
+                        "due_on_before": dayKey,
+                        "due_on_after": dayKey,
                         "overdue": dueFilters.overdue ? "true" : nil,
                         "q": query,
                         "priority": meta.priority.isEmpty

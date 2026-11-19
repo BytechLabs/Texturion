@@ -108,7 +108,9 @@ private func firstGlyph(_ word: Substring) -> String {
 
 /// A not-done task whose due date is in the past.
 func isOverdue(_ task: TaskItem, now: Date = Date()) -> Bool {
-    guard !task.done, let due = parseWireTimestamp(task.due_at) else { return false }
+    guard !task.done else { return false }
+    if let day = task.due_on { return day < taskDateKey(now) }
+    guard let due = parseWireTimestamp(task.due_at) else { return false }
     return due < now
 }
 

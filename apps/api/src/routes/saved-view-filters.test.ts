@@ -52,6 +52,8 @@ const NOT_A_FILTER: Record<string, string> = {
     "saved view, and storing the text would make the view answer a question " +
     "nobody is asking any more",
   t9: "a hint about how to read the digits in `q`, so it goes with `q`",
+  due_on_before: "the civil-day companion to the saved due_before range bound",
+  due_on_after: "the civil-day companion to the saved due_after range bound",
   textable: "limits the share picker to conversations the member can text",
   ids: "the specific rows a badge request is about",
   conversation_id:

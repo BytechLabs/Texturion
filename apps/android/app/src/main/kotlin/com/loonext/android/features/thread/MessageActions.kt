@@ -356,8 +356,6 @@ fun MakeTaskSheet(
     onCreateWithExtras: ((String, String?, String?, TaskAddressInput?, TaskCreateExtras) -> Unit)? = null,
     tagsLoader: (suspend () -> List<Tag>)? = null,
     linked: Boolean = false,
-    /** #739: a due (an instant) the form opens with, e.g. a tapped calendar day. */
-    initialDueIso: String? = null,
     initialDueOn: String? = null,
     customerField: (@Composable () -> Unit)? = null,
     customerAddress: String? = null,
@@ -395,13 +393,9 @@ fun MakeTaskSheet(
         }
     }
     // A prefilled due opens More so the day it chose is on screen.
-    var moreOpen by remember { mutableStateOf(!standalone || initialDueIso != null || initialDueOn != null) }
+    var moreOpen by remember { mutableStateOf(!standalone || initialDueOn != null) }
     var dueOn by remember { mutableStateOf(initialDueOn) }
-    var due by remember {
-        mutableStateOf<DueChoice?>(
-            initialDueIso?.let { DueChoice(suggestedDueLabel(it, zone), it) },
-        )
-    }
+    var due by remember { mutableStateOf<DueChoice?>(null) }
     var priority by remember { mutableStateOf(TaskPriority.NORMAL) }
     var labels by remember { mutableStateOf<List<TaskLabel>>(emptyList()) }
     var labelsOpen by remember { mutableStateOf(false) }

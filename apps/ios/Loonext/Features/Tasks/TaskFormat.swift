@@ -81,12 +81,16 @@ func taskHistorySentence(
         }
         return say("contactsTasks.histAssigneeRemoved", ["name": name])
     case "due":
-        guard let due = text(item.to), parseWireTimestamp(due) != nil else {
+        guard let due = text(item.to) else {
             return say("contactsTasks.histDueCleared")
         }
+        if due.count == 10 { return say("contactsTasks.histDueDay", ["date": due]) }
+        guard parseWireTimestamp(due) != nil else { return say("contactsTasks.histDueCleared") }
         let label = TimestampFormat.label(
             due, style: .long, locale: locale, now: now, timeZone: timeZone)
         return say("contactsTasks.histDue", ["due": label])
+    case "customer":
+        return say("contactsTasks.histCustomer")
     case "reminders":
         return say(
             item.to?.boolValue == true

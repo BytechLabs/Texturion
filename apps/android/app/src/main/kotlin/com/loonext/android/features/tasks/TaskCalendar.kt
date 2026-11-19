@@ -69,7 +69,6 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Clock
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -116,16 +115,6 @@ internal data class TaskCalendarSnapshot(
     /** True when the undated count hit its page cap (render "N+"). */
     val undatedTruncated: Boolean,
 )
-
-/** The hour a task made from a tapped day is due, when nobody picked one. */
-internal const val CALENDAR_CREATE_HOUR = 9
-
-/**
- * #739: the due a long-press on [day] starts New task with, as an instant: the
- * morning default on that calendar day in the WORKSPACE's [zone], not the phone's.
- */
-internal fun calendarDayDueIso(day: LocalDate, zone: ZoneId): String =
-    day.atTime(LocalTime.of(CALENDAR_CREATE_HOUR, 0)).atZone(zone).toInstant().toString()
 
 /** The workspace's zone, or the phone's when the id is missing or unknown. */
 internal fun workspaceZone(id: String?): ZoneId =
@@ -799,7 +788,7 @@ private fun dayHeadingLabel(
 }
 
 /** Local midnight as the offset-bearing ISO the route expects. */
-private fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
+internal fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
     date.atStartOfDay(zone).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
 private val MONTH_TITLE = DateTimeFormatter.ofPattern("MMMM yyyy")

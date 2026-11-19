@@ -459,6 +459,14 @@ struct TaskMutations: Sendable {
         )
     }
 
+    func setDueDay(companyId: String, taskId: String, day: String, scope: String?) async throws -> TaskRowPatch {
+        try await api.patch(
+            "/v1/tasks/\(taskId)",
+            body: taskScoped(.object(["due_on": .string(day)]), scope: scope),
+            companyId: companyId
+        )
+    }
+
     /// #237 — stop (or restart) this job's reminders.
     ///
     /// Its own route rather than a field on the metadata patch: the patch

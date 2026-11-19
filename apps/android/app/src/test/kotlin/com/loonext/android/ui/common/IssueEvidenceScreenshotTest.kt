@@ -47,7 +47,6 @@ import com.loonext.android.features.tasks.NewTaskSheetHost
 import com.loonext.android.features.tasks.TaskCalendarSnapshot
 import com.loonext.android.features.tasks.TaskCalendarView
 import com.loonext.android.features.tasks.TaskMapView
-import com.loonext.android.features.tasks.calendarDayDueIso
 import com.loonext.android.features.tasks.taskCalendarBaseAssignee
 import com.loonext.android.features.tasks.taskCalendarFilterKey
 import com.loonext.android.features.tasks.taskMapFilterKey
@@ -720,7 +719,7 @@ class IssueEvidenceScreenshotTest {
                 taskCalendarFilterKey(month, taskCalendarBaseAssignee(TasksTabKind.All, null, false), false, null),
             ),
         ).value = TaskCalendarSnapshot(rows, undatedOpen = 2, undatedDone = 0, undatedTruncated = false)
-        var dueIso by remember { mutableStateOf<String?>(null) }
+        var dueOn by remember { mutableStateOf<String?>(null) }
         Column(Modifier.fillMaxSize()) {
             Spacer(Modifier.height(12.dp))
             TaskCalendarView(
@@ -737,18 +736,18 @@ class IssueEvidenceScreenshotTest {
                 onOpenTask = {},
                 onToggleDone = { _, _ -> },
                 zone = zone,
-                onCreateTask = { day -> dueIso = calendarDayDueIso(day, zone) },
+                onCreateTask = { day -> dueOn = day.toString() },
             )
         }
-        dueIso?.let { iso ->
+        dueOn?.let { day ->
             NewTaskSheetHost(
                 graph = graph,
                 companyId = "co_1",
                 conversationId = null,
                 contactId = null,
                 contactName = "",
-                onDismiss = { dueIso = null },
-                initialDueIso = iso,
+                onDismiss = { dueOn = null },
+                initialDueOn = day,
                 zone = zone,
             )
         }

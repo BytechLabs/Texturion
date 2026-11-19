@@ -148,6 +148,7 @@ const FILTERS: Record<
     assigned_user_id: isUuid,
     unassigned: isBool,
     overdue: isBool,
+    confirmed: (value) => value === false,
     has_location: isBool,
     due_before: isIso,
     due_after: isIso,

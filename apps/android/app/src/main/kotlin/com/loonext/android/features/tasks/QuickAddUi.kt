@@ -107,7 +107,11 @@ internal fun QuickAddSheet(
     val result = remember(line, context) { parseQuickAdd(line, context.copy(now = Instant.now())) }
     val lines = quickAddPreviewLines(
         result,
-        dueText = { dueSentenceTime(it, java.time.Clock.system(zone), locale) },
+        dueText = {
+            if (result.dueHasTime) dueSentenceTime(it, java.time.Clock.system(zone), locale)
+            else Instant.parse(it).atZone(zone).toLocalDate().toString() + " · " +
+                com.loonext.android.core.i18n.AppStrings.translate(locale, "contactsTasks.anyTime")
+        },
         priorityText = { com.loonext.android.core.i18n.AppStrings.translate(locale, TaskPriority.labelKey(it)) },
     )
     val canAdd = result.title.isNotBlank() && !saving

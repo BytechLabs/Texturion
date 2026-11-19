@@ -1437,7 +1437,9 @@ internal fun TaskListRow(
             )
             val overdue = isOverdue(task)
             val locale = LocalAppLocale.current
-            val dueText = task.due_at?.let { dueAt ->
+            val dueText = task.due_on?.let { day ->
+                timedDue(locale) { day + " · " + t("contactsTasks.anyTime") }
+            } ?: task.due_at?.let { dueAt ->
                 timedDue(locale) { due ->
                     if (overdue) {
                         t("contactsTasks.overdueDueWhen", "when" to due(dueAt))

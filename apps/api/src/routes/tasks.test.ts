@@ -992,6 +992,27 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(q.get("phone_number_id")).toBeNull();
   });
 
+  it("keeps timed and day-only jobs in the map window, including an explicit unconfirmed filter", async () => {
+    const map = mapStub([]);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), map.route);
+    const range = new URLSearchParams({
+      has_location: "true",
+      status: "open",
+      confirmed: "false",
+      due_after: "2026-11-19T05:00:00Z",
+      due_before: "2026-11-20T05:00:00Z",
+      due_on_after: "2026-11-19",
+      due_on_before: "2026-11-19",
+    });
+    const response = await request("GET", `/v1/tasks?${range}`);
+    expect(response.status).toBe(200);
+    const query = map.calls[0].url.searchParams;
+    expect(query.get("confirmed_at")).toBe("is.null");
+    expect(query.get("done_at")).toBe("is.null");
+    expect(query.getAll("or")).toContain("(due_at.gte.2026-11-19T05:00:00Z,due_on.gte.2026-11-19)");
+    expect(query.getAll("or")).toContain("(due_at.lte.2026-11-20T05:00:00Z,due_on.lte.2026-11-19)");
+  });
+
   it("keeps map predicates for customer, creator and source", async () => {
     const map = mapStub([]);
     const threads = stubRoute(restMatch(env, "GET", "conversations"), () => []);

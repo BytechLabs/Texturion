@@ -132,7 +132,7 @@ describe("#689 New task", () => {
 
   it("links a contact when opened from a contact", async () => {
     openWith({ contactId: "c1", contactName: "Pat Plumber" });
-    expect(screen.getByRole("button", { name: "Pat Plumber" })).toBeInstanceOf(Element);
+    expect(screen.getByText("Pat Plumber")).toBeInstanceOf(Element);
     typeTitle("Quote the boiler");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());

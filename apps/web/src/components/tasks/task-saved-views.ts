@@ -31,6 +31,7 @@ export function taskStateToView(
   if (state.unassigned) raw.unassigned = true;
   else if (assignee) raw.assigned_user_id = assignee;
   if (state.due === "overdue") raw.overdue = true;
+  if (state.notConfirmed) raw.confirmed = false;
   if (state.dueFrom) raw.due_after = localDayStart(state.dueFrom).toISOString();
   if (state.dueTo) {
     const end = localDayStart(state.dueTo);
@@ -75,6 +76,7 @@ export function viewToTaskState(
   if (clean.unassigned === true) next.unassigned = true;
 
   if (clean.overdue === true) next.due = "overdue";
+  if (clean.confirmed === false) next.notConfirmed = true;
   if (typeof clean.due_after === "string") next.dueFrom = localDate(new Date(clean.due_after));
   if (typeof clean.due_before === "string") {
     const end = new Date(clean.due_before);

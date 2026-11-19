@@ -2888,6 +2888,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
         : null;
     }
     if (body.due_at) changes.due_at = body.due_at;
+    if (body.due_on) changes.due_on = body.due_on;
     if (Object.keys(changes).length > 0) {
       await editTaskSeries(db, { companyId, taskId: id, userId, changes });
     }

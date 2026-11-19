@@ -14,34 +14,21 @@ final class TaskCalendarCreateTests: XCTestCase {
         return calendar
     }
 
-    private func instant(_ iso: String) -> Date {
-        ISO8601DateFormatter().date(from: iso)!
-    }
-
     /// 12 Nov 2026 at midnight on the given calendar's clock.
     private func day(_ calendar: Calendar) -> Date {
         calendar.date(from: DateComponents(year: 2026, month: 11, day: 12))!
     }
 
-    func testTheDueIsNineInTheMorningOfTheTappedDayInTheWorkspaceZone() {
+    func testTheTappedDayCarriesADateAcrossWorkspaceZones() {
         let toronto = calendar("America/Toronto")
         XCTAssertEqual(
-            calendarDayDue(day(toronto), calendar: toronto),
-            instant("2026-11-12T14:00:00Z")
+            taskDateKey(day(toronto), calendar: toronto),
+            "2026-11-12"
         )
         let losAngeles = calendar("America/Los_Angeles")
         XCTAssertEqual(
-            calendarDayDue(day(losAngeles), calendar: losAngeles),
-            instant("2026-11-12T17:00:00Z")
-        )
-    }
-
-    func testTheSameTappedDayIsADifferentInstantInEachWorkspaceZone() {
-        let toronto = calendar("America/Toronto")
-        let losAngeles = calendar("America/Los_Angeles")
-        XCTAssertNotEqual(
-            calendarDayDue(day(toronto), calendar: toronto),
-            calendarDayDue(day(losAngeles), calendar: losAngeles)
+            taskDateKey(day(losAngeles), calendar: losAngeles),
+            "2026-11-12"
         )
     }
 

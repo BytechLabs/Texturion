@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { SCHEDULED_BODY_MAX } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,7 +30,7 @@ function BookingCorrectionToast({ correction, close }: { correction: BookingCorr
         : t("tasks.correctionQueuedAnonymous")}</p>
       {draft !== null && (
         <Textarea aria-label={t("tasks.correctionEdit")} value={draft}
-          maxLength={1600} onChange={(event) => setDraft(event.target.value)} />
+          maxLength={SCHEDULED_BODY_MAX} onChange={(event) => setDraft(event.target.value)} />
       )}
       <div className="flex flex-wrap gap-2">
         {draft === null ? (

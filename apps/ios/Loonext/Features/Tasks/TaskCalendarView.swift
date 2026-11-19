@@ -69,16 +69,6 @@ func calendarGridDays(_ date: Date, calendar: Calendar) -> [Date] {
     return days
 }
 
-/// The hour a task made from a tapped day is due, when nobody picked one.
-let calendarCreateHour = 9
-
-/// #739: the due a long-press (or Return) on `day` starts New task with: the
-/// morning default on that calendar day, read on `calendar`'s clock, which is
-/// the WORKSPACE's zone rather than the phone's.
-func calendarDayDue(_ day: Date, calendar: Calendar) -> Date? {
-    calendar.date(bySettingHour: calendarCreateHour, minute: 0, second: 0, of: day)
-}
-
 /// The calendar the grid reads days on: the workspace's zone when it is a
 /// known identifier, otherwise the phone's.
 func workspaceCalendar(timeZoneId: String?, base: Calendar = .current) -> Calendar {

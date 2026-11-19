@@ -141,6 +141,7 @@ fun TaskMapView(
 ) {
     val mutations = remember(companyId) { TaskMutations(graph.api) }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
+    var selectedDay by remember(companyId) { mutableStateOf<LocalDate?>(LocalDate.now()) }
 
     // Realtime: the same triggers as the list/board — any task change or done
     // flip revalidates the pin set quietly.
@@ -158,17 +159,16 @@ fun TaskMapView(
 
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskMapFilterKey(assigneeUserId, unassigned, due, q, extra),
+        taskMapFilterKey(assigneeUserId, unassigned, due, q, extra) + "|" + (selectedDay?.toString() ?: "-"),
     )
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
-        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra)
+        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra, selectedDay)
     }
 
-    var selectedDay by remember(companyId) { mutableStateOf<LocalDate?>(LocalDate.now()) }
     Column(modifier.fillMaxSize()) {
         TaskMapDays(selectedDay, onSelect = { selectedDay = it })
         when (val current = state) {

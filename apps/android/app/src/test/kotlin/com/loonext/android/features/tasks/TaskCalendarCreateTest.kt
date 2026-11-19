@@ -37,18 +37,6 @@ class TaskCalendarCreateTest {
     private val day = LocalDate.of(2026, 11, 12)
 
     @Test
-    fun theDueIsTheMorningOfTheTappedDayInTheWorkspaceZone() {
-        assertEquals(
-            "2026-11-12T14:00:00Z",
-            calendarDayDueIso(day, ZoneId.of("America/Toronto")),
-        )
-        assertEquals(
-            "2026-11-12T17:00:00Z",
-            calendarDayDueIso(day, ZoneId.of("America/Los_Angeles")),
-        )
-    }
-
-    @Test
     fun aMissingOrUnknownWorkspaceZoneFallsBackToThePhones() {
         assertEquals(ZoneId.systemDefault(), workspaceZone(null))
         assertEquals(ZoneId.systemDefault(), workspaceZone("Not/AZone"))

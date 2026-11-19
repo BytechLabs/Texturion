@@ -72,7 +72,9 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import com.loonext.android.core.model.BookingCorrection
+import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.thread.MessagingRepository
+import com.loonext.android.ui.common.AppSheet
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -1620,8 +1622,10 @@ private fun TaskDetailBody(
     }
 
     if (datePickerOpen) {
-        val initialMillis = parseInstant(detail.due_at)
-            ?.atZone(ZoneId.systemDefault())?.toLocalDate()
+        val dateOnly = detail.due_on != null
+        val initialDay = detail.due_on?.let(LocalDate::parse)
+            ?: parseInstant(detail.due_at)?.atZone(ZoneId.systemDefault())?.toLocalDate()
+        val initialMillis = initialDay
             ?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
         val dateState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
         DatePickerDialog(
@@ -1631,12 +1635,24 @@ private fun TaskDetailBody(
                     enabled = dateState.selectedDateMillis != null,
                     onClick = {
                         val millis = dateState.selectedDateMillis ?: return@TextButton
-                        pickedDate = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneOffset.UTC).toLocalDate()
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                         datePickerOpen = false
-                        timePickerOpen = true
+                        if (dateOnly) {
+                            scope.launch {
+                                val (go, picked) = chooseScope()
+                                if (!go) return@launch
+                                try {
+                                    applyTask(mutations.setDueDay(companyId, detail.id, date.toString(), picked))
+                                } catch (cause: Exception) {
+                                    onActionError(cause.userMessage(locale))
+                                }
+                            }
+                        } else {
+                            pickedDate = date
+                            timePickerOpen = true
+                        }
                     },
-                ) { Text(t("contactsTasks.next")) }
+                ) { Text(t(if (dateOnly) "contactsTasks.setDueDate" else "contactsTasks.next")) }
             },
             dismissButton = {
                 TextButton(onClick = { datePickerOpen = false }) { Text(t("common.cancel")) }
@@ -1711,34 +1727,31 @@ private fun BookingCorrectionDialog(
             }
         }
     }
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = {
+    AppSheet(onDismissRequest = onClose) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp)) {
             Text(notice.recipient?.let { t("contactsTasks.correctionQueued", "name" to it) }
                 ?: t("contactsTasks.correctionQueuedAnonymous"))
-        },
-        text = {
-            Column {
-                val body = draft
-                if (body != null) OutlinedTextField(
+            val body = draft
+            if (body != null) {
+                OutlinedTextField(
                     value = body,
-                    onValueChange = { draft = it.take(1600) },
+                    onValueChange = { draft = it.take(ScheduledSend.BODY_MAX) },
                     label = { Text(t("contactsTasks.correctionEdit")) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-        },
-        confirmButton = {
-            TextButton(enabled = !saving && draft?.isBlank() != true, onClick = {
-                if (draft == null) draft = notice.body else submit(cancel = false)
-            }) { Text(t(if (draft == null) "contactsTasks.correctionEdit" else "common.save")) }
-        },
-        dismissButton = {
-            TextButton(enabled = !saving, onClick = { submit(cancel = true) }) {
-                Text(t("contactsTasks.correctionCancel"))
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Row {
+                TextButton(enabled = !saving && draft?.isBlank() != true, onClick = {
+                    if (draft == null) draft = notice.body else submit(cancel = false)
+                }) { Text(t(if (draft == null) "contactsTasks.correctionEdit" else "common.save")) }
+                TextButton(enabled = !saving, onClick = { submit(cancel = true) }) {
+                    Text(t("contactsTasks.correctionCancel"))
+                }
+                TextButton(onClick = onClose) { Text(t("common.close")) }
             }
-        },
-    )
+        }
+    }
 }
 
 /** "Tomorrow 9:00 AM" — the due row value (spec 23). */

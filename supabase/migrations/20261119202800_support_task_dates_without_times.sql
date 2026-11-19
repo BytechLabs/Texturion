@@ -3,6 +3,29 @@ alter table public.tasks
   add column due_time_set boolean generated always as (due_on is null) stored,
   add constraint tasks_one_due_precision check (due_on is null or due_at is null);
 
+create or replace view public.task_map_rows
+  with (security_invoker = true) as
+select
+  t.id, t.company_id, t.message_id, t.conversation_id, t.title, t.description,
+  t.assigned_user_id, t.due_at, t.created_by_user_id, t.created_at, t.updated_at,
+  t.addr_street, t.addr_unit, t.addr_city, t.addr_state, t.addr_postal_code,
+  t.addr_country, t.addr_provenance, t.lat, t.lng, t.deleted_at,
+  coalesce(m.done_at, t.done_at) as done_at,
+  cv.phone_number_id,
+  c.id as contact_id,
+  c.name as contact_name,
+  c.lat as contact_lat,
+  c.lng as contact_lng,
+  coalesce(t.lat, c.lat) as map_lat,
+  coalesce(t.lng, c.lng) as map_lng,
+  t.reminders_off, t.confirmed_at, t.confirmed_by, t.source_call_id,
+  t.priority, t.priority_rank, t.series_id, t.occurrence_no, t.number,
+  t.due_on, t.due_time_set
+from public.tasks t
+left join public.conversations cv on cv.id = t.conversation_id
+left join public.contacts c on c.id = coalesce(cv.contact_id, t.contact_id)
+left join public.messages m on m.id = t.message_id;
+
 create function public.set_task_due_on(
   p_company_id uuid,
   p_task_id uuid,
@@ -92,14 +115,12 @@ declare
   v_update text := pg_get_functiondef('public.update_task(uuid,uuid,text,text,timestamptz,boolean,uuid,boolean,text,text,text,text,text,text,text,text)'::regprocedure);
   v_api text := pg_get_functiondef('public.api_create_public_task(uuid,uuid,uuid,jsonb,text)'::regprocedure);
   v_confirmation text := pg_get_functiondef('public.api_set_task_confirmation(uuid,uuid,uuid,boolean)'::regprocedure);
-  v_map text := pg_get_viewdef('public.task_map_rows'::regclass, true);
   v_change constant text := 'or (v_new_due   is distinct from v_task.due_at)';
   v_due_value constant text := 'due_at = v_new_due,';
   v_api_arg constant text := $sql$p_due_at => (p_task->>'due_at')::timestamptz,$sql$;
-  v_map_end constant text := E't.number\n   FROM';
 begin
   if strpos(v_update, v_change) = 0 or strpos(v_update, v_due_value) = 0
-     or strpos(v_api, v_api_arg) = 0 or strpos(v_map, v_map_end) = 0 then
+     or strpos(v_api, v_api_arg) = 0 then
     raise exception 'Task due update or creation argument was not found';
   end if;
   v_update := replace(v_update, v_change, v_change ||
@@ -109,8 +130,6 @@ begin
   execute v_update;
   execute replace(v_confirmation, 'v_task.due_at is null',
     '(v_task.due_at is null and v_task.due_on is null)');
-  execute 'create or replace view public.task_map_rows with (security_invoker = true) as ' ||
-    replace(v_map, v_map_end, E't.number,\n    t.due_on,\n    t.due_time_set\n   FROM');
   v_api := replace(v_api, 'v_result := public.create_task(', 'v_result := public.create_task_with_date(');
   execute replace(v_api, v_api_arg, v_api_arg ||
     E'\n      p_due_on => (p_task->>''due_on'')::date,');

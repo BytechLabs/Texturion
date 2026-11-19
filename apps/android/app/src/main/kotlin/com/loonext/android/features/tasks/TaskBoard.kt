@@ -415,6 +415,7 @@ private fun BoardCard(
                 val dueLine = timedDue(LocalAppLocale.current) { due ->
                     // #690: "T-142 · due tomorrow".
                     val line = when {
+                        task.due_on != null -> task.due_on + " · " + t("contactsTasks.anyTime")
                         task.due_at == null -> ""
                         overdue -> t("contactsTasks.overdue")
                         else -> t("contactsTasks.dueWhen", "when" to due(task.due_at))

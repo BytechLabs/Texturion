@@ -214,6 +214,9 @@ class TaskMutations(private val api: ApiClient) {
             scope,
         )
 
+    suspend fun setDueDay(companyId: String, taskId: String, day: String, scope: TaskScope?): Task =
+        patch(companyId, taskId, buildJsonObject { put("due_on", day) }, scope)
+
     /** #693: none | low | normal | high | urgent. */
     suspend fun setPriority(
         companyId: String,
@@ -585,12 +588,14 @@ suspend fun drainLocatedTasks(
     due: DueChip? = null,
     q: String? = null,
     extra: TaskExtraFilters = TaskExtraFilters(),
+    mapDay: java.time.LocalDate? = null,
 ): List<Task> {
     // ASSIGNEE_ALL is UI sugar meaning "no assignee pin" (taskQueryParams
     // parity) — normalize it away before it reaches the wire.
     val assignee = assigneeUserId?.takeUnless { it == ASSIGNEE_ALL }
     val dueFilters = due?.let { dueChipFilters(it) }
         ?: TaskListFilters(dueBefore = extra.dueBefore, dueAfter = extra.dueAfter)
+    val zone = java.time.ZoneId.systemDefault()
     val filters = dueFilters.copy(
         status = TaskStatus.OPEN,
         assignedUserId = assignee,
@@ -602,6 +607,10 @@ suspend fun drainLocatedTasks(
         createdBy = extra.createdBy,
         source = extra.source,
         confirmed = if (extra.notConfirmed) false else null,
+        dueAfter = mapDay?.let { isoAtStartOfDay(it, zone) } ?: dueFilters.dueAfter,
+        dueBefore = mapDay?.let { isoAtStartOfDay(it.plusDays(1), zone) } ?: dueFilters.dueBefore,
+        dueOnAfter = mapDay?.toString(),
+        dueOnBefore = mapDay?.toString(),
     )
     val acc = mutableListOf<Task>()
     var cursor: String? = null

@@ -2655,7 +2655,6 @@ struct MakeTaskSheet: View {
         contactName: String,
         locale: String,
         onDismiss: @escaping @MainActor () -> Void,
-        initialDue: Date? = nil,
         initialDueOn: String? = nil,
         initialAddress: String? = nil
     ) {
@@ -2678,8 +2677,8 @@ struct MakeTaskSheet: View {
         }
         _description = State(initialValue: source.voicemail?.description ?? "")
         // A prefilled due opens More so the day it chose is on screen (#739).
-        _moreOpen = State(initialValue: !source.isStandalone || initialDue != nil || initialDueOn != nil)
-        _due = State(initialValue: initialDueOn.flatMap { taskDay($0) } ?? initialDue)
+        _moreOpen = State(initialValue: !source.isStandalone || initialDueOn != nil)
+        _due = State(initialValue: initialDueOn.flatMap { taskDay($0) })
         _dateOnly = State(initialValue: initialDueOn != nil)
         if let initialAddress {
             var address = AddressFieldValues()
@@ -2785,6 +2784,7 @@ struct MakeTaskSheet: View {
         .sheet(isPresented: $pickingCustomer) {
             if let host = controller as? NewTaskHost {
                 BookingCustomerPicker(load: { try await host.customers(matching: $0) }) { customer in
+                    if changedCustomer && customer?.id == pickedCustomer?.id { return }
                     if addr.street.isEmpty || addr.street == pickedCustomer?.address {
                         addr.street = customer?.address ?? ""
                     }

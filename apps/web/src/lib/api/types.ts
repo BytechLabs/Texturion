@@ -1331,6 +1331,7 @@ export type TaskHistoryKind =
   | "title"
   | "description"
   | "address"
+  | "customer"
   | "assignee"
   | "assignee_added"
   | "assignee_removed"

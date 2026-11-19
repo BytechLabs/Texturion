@@ -118,6 +118,9 @@ create trigger tasks_queue_booking_correction
      is distinct from (old.due_at, old.due_on, old.deleted_at, old.conversation_id))
   execute function public.queue_booking_correction();
 
+revoke execute on function public.record_reminder_booking(), public.queue_booking_correction()
+  from public, anon, authenticated;
+
 create function public.booking_correction_notice(p_company_id uuid, p_task_id uuid, p_actor uuid)
 returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('id', s.id, 'body', s.body, 'recipient', c.name)
@@ -142,6 +145,10 @@ declare
   v_delete_series text := pg_get_functiondef('public.api_delete_task_series(uuid,uuid,uuid)'::regprocedure);
   v_after_lock constant text := 'if public.task_done_at(v_task) is not null then';
   v_due constant text := 'or v_task.due_at is null';
+  v_probe_kind constant text := $$v_probe.origin = 'reminder'$$;
+  v_send_kind constant text := $$v_scheduled.origin = 'reminder'$$;
+  v_booked_start constant text := 'if v_task.id is null';
+  v_booked_end constant text := 'or coalesce(v_source_done_at, v_task.done_at) is not null then';
   v_automation constant text := $$when 'reminder' then 'reminder'$$;
   v_updated constant text := $$return jsonb_build_object('outcome', 'updated', 'task', to_jsonb(v_task));$$;
   v_deleted constant text := $$return jsonb_build_object('outcome', 'deleted');$$;
@@ -149,6 +156,8 @@ declare
   v_notice constant text := 'public.booking_correction_notice(p_company_id, p_task_id, p_actor_user_id)';
 begin
   if strpos(v_sync, v_after_lock) = 0 or strpos(v_fire, v_due) = 0
+     or strpos(v_fire, v_probe_kind) = 0 or strpos(v_fire, v_send_kind) = 0
+     or strpos(v_fire, v_booked_start) = 0 or strpos(v_fire, v_booked_end) = 0
      or strpos(v_fire, v_automation) = 0 or strpos(v_update, v_updated) = 0
      or strpos(v_date, v_updated) = 0 or strpos(v_delete, v_deleted) = 0
      or strpos(v_delete_series, v_series_result) = 0 then
@@ -163,6 +172,10 @@ begin
   if public.task_done_at(v_task) is not null or (v_task.due_at is null and v_task.due_on is null) then$sql$);
   v_fire := replace(v_fire, v_due,
     'or (v_task.due_at is null and (v_task.due_on is null or v_scheduled.reminder_offset_minutes < 1440))');
+  v_fire := replace(v_fire, v_probe_kind, $$v_probe.origin in ('reminder', 'correction')$$);
+  v_fire := replace(v_fire, v_send_kind, $$v_scheduled.origin in ('reminder', 'correction')$$);
+  v_fire := replace(v_fire, v_booked_start, $$if v_scheduled.origin = 'reminder' and (v_task.id is null$$);
+  v_fire := replace(v_fire, v_booked_end, 'or coalesce(v_source_done_at, v_task.done_at) is not null) then');
   execute replace(v_fire, v_automation, v_automation || E'\n       when ''correction'' then ''reminder''');
   execute replace(v_update, v_updated,
     $$return jsonb_build_object('outcome', 'updated', 'task', to_jsonb(v_task), 'correction',

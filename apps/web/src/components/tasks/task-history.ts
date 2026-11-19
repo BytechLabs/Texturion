@@ -2,7 +2,7 @@ import { taskNumberLabel } from "@loonext/shared";
 
 import type { MessageKey, Translate } from "@/i18n/translate";
 import type { TaskFeedItem } from "@/lib/api/types";
-import { formatTimestamp } from "@/lib/format/time";
+import { formatTimestamp, formatWallDay } from "@/lib/format/time";
 
 import { priorityLabelKey, repeatSummary } from "./task-planning";
 
@@ -90,6 +90,9 @@ export function taskHistorySentence(
         ? t("tasks.histAssigned", { by, name })
         : t("tasks.histReassigned", { by });
     }
+    case "customer": {
+      return t("tasks.histCustomer", { by });
+    }
     case "assignee_added": {
       const name = item.to_user?.display_name;
       return name
@@ -104,6 +107,7 @@ export function taskHistorySentence(
     }
     case "due": {
       const due = asString(item.to);
+      if (due?.length === 10) return t("tasks.histDueDay", { by, date: formatWallDay(due, t.locale) });
       return due
         ? t("tasks.histDue", { by, due: formatDueTime(due, t) })
         : t("tasks.histDueCleared", { by });
