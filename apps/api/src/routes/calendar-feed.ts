@@ -33,16 +33,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { buildIcs } from '@loonext/shared';
-import type { IcsEvent } from '@loonext/shared';
+import { buildIcs, roleHasCapability } from '@loonext/shared';
+import type { IcsEvent, MemberRole } from '@loonext/shared';
 
 import { taskLinkUrl, withTaskLink } from "../calendar/providers/normalize";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { resolveNumberAccess } from "../auth/number-access";
 import { hashToken } from "../public-links/tokens";
 import { PUBLIC_PAGE_HEADERS } from "../public-links/guard";
+
+const HISTORY_MS = 90 * 86_400_000;
 
 export const calendarFeedRoutes = new Hono<AppEnv>();
 
@@ -69,19 +70,24 @@ calendarFeedRoutes.use(
  */
 const DEFAULT_MINUTES = 60;
 
+interface FeedReader {
+  company_id: string;
+  user_id: string;
+  role: MemberRole;
+  company_name: string;
+}
+
 interface FeedTask {
   id: string;
   title: string;
   description: string;
   due_at: string;
-  conversation_id: string | null;
   addr_street: string | null;
   addr_unit: string | null;
   addr_city: string | null;
   addr_state: string | null;
   addr_postal_code: string | null;
   updated_at: string | null;
-  conversations: { phone_number_id: string | null } | null;
 }
 
 /** One line, in the order somebody would write it on an envelope. */
@@ -129,64 +135,23 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
     console.error(`calendar feed resolve failed: ${resolveError.message}`);
     return notFound();
   }
-  const reader = (resolved as { company_id: string; user_id: string }[])?.[0];
-  if (!reader) return notFound();
+  const reader = (resolved as FeedReader[] | null)?.[0];
+  if (!reader || !roleHasCapability(reader.role, "conversations.read")) return notFound();
 
-  const company = (
-    await db
-      .from("companies")
-      .select("name")
-      .eq("id", reader.company_id)
-      .limit(1)
-  ).data;
-  const businessName = company?.[0]?.name ?? "Loonext";
-
-  /*
-   * #106, resolved on every poll. A member restricted off a line must not read
-   * its work here — this feed is a second door onto the same rows the inbox
-   * refuses them, and the whole point of a per-member credential is that it
-   * carries no more than the member does.
-   */
-  const access = await resolveNumberAccess(db, {
-    companyId: reader.company_id,
-    userId: reader.user_id,
-    role: "member",
-  });
-
-  let query = db
-    .from("tasks")
-    .select(
-      "id,title,description,due_at,conversation_id,addr_street,addr_unit," +
-        "addr_city,addr_state,addr_postal_code,updated_at," +
-        "conversations(phone_number_id),task_assignees!inner(user_id)",
-    )
-    .eq("company_id", reader.company_id)
-    // #689 C: any task the reader is ON, not only the ones they are first on.
-    .eq("task_assignees.user_id", reader.user_id)
-    .is("deleted_at", null)
-    .not("due_at", "is", null)
-    // Bounded rather than unpaginated: a calendar showing five years of history
-    // is slower to sync and no more useful than one showing the working window.
-    .gte("due_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
-    .order("due_at", { ascending: true })
-    .limit(1000);
-
-  const hidden = access.hiddenNumberIds;
-  if (hidden !== null && hidden.length > 0) {
-    // A task with no conversation is on no line, so it is not on a denied one.
-    query = query.or(
-      `phone_number_id.is.null,phone_number_id.not.in.(${hidden.join(",")})`,
-      { referencedTable: "conversations" },
-    );
-  }
-
-  const { data: taskRows, error: taskError } = await query;
+  const { data: taskRows, error: taskError } = await db.rpc(
+    "api_calendar_feed_tasks",
+    {
+      p_company_id: reader.company_id,
+      p_user_id: reader.user_id,
+      p_since: new Date(Date.now() - HISTORY_MS).toISOString(),
+    },
+  );
   if (taskError) {
     console.error(`calendar feed tasks failed: ${taskError.message}`);
     return notFound();
   }
 
-  const events: IcsEvent[] = ((taskRows ?? []) as unknown as FeedTask[]).map(
+  const events: IcsEvent[] = ((taskRows ?? []) as FeedTask[]).map(
     (task) => {
     const start = new Date(task.due_at);
     const taskUrl = taskLinkUrl(env.APP_ORIGIN, task.id);
@@ -215,16 +180,12 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
   );
 
   const body = buildIcs({
-    name: `${businessName} — my schedule`,
+    name: `${reader.company_name} — my schedule`,
     events,
   });
 
   return c.body(body, 200, {
     "content-type": "text/calendar; charset=utf-8",
-    // Short, because a revoke has to bite. Clients poll on their own schedule
-    // anyway; this only bounds how long a revoked feed could still be served
-    // from somebody's cache.
-    "cache-control": "private, max-age=60",
     "content-disposition": 'inline; filename="schedule.ics"',
   });
 });

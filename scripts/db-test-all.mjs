@@ -222,6 +222,7 @@ const SUITES = [
   "broadcast_skips_bookkeeping",
   "transfer_target_push_channels",
   "thread_tapbacks",
+  "calendar_feed_access",
 ];
 
 const args = process.argv.slice(2);

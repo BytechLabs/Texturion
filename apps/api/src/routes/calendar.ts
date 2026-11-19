@@ -18,8 +18,9 @@ import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { ApiError } from "../http/errors";
 import { generateToken, hashToken } from "../public-links/tokens";
-import { unwrap } from "./core/http";
+import { unwrap, unwrapOptional } from "./core/http";
 
 export const calendarRoutes = new Hono<AppEnv>();
 
@@ -46,7 +47,7 @@ calendarRoutes.post(
     const db = getDb(env);
     const token = generateToken();
 
-    unwrap<string>(
+    const id = unwrapOptional<string>(
       await db.rpc("api_mint_calendar_feed_token", {
         p_company_id: c.get("companyId"),
         p_user_id: c.get("userId"),
@@ -54,6 +55,7 @@ calendarRoutes.post(
       }),
       "calendar feed mint",
     );
+    if (id === null) throw new ApiError("not_found", "Calendar feed is unavailable.");
 
     // The feed is served by this Worker (routes/calendar-feed.ts), so the link
     // names the API host. On the app host it was a page that does not exist.

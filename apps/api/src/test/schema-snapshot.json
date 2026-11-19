@@ -437,6 +437,7 @@
     "api_bulk_task_cap": [[]],
     "api_bulk_tasks": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_action","hasDefault":false},{"name":"p_ids","hasDefault":false},{"name":"p_target_user_id","hasDefault":true},{"name":"p_hidden_number_ids","hasDefault":true},{"name":"p_priority","hasDefault":true},{"name":"p_tag_id","hasDefault":true},{"name":"p_target_user_ids","hasDefault":true}]],
     "api_bulk_unreached": [[{"name":"p_requested","hasDefault":false},{"name":"p_selected","hasDefault":false}]],
+    "api_calendar_feed_tasks": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_since","hasDefault":false}]],
     "api_cancel_calendar_outbox": [[{"name":"p_outbox_id","hasDefault":false},{"name":"p_worker_id","hasDefault":false},{"name":"p_generation","hasDefault":false},{"name":"p_reason","hasDefault":false}]],
     "api_cancel_ownership_transfer": [[{"name":"p_company_id","hasDefault":false},{"name":"p_actor","hasDefault":false}]],
     "api_cancel_scheduled_for_company": [[{"name":"p_company_id","hasDefault":false},{"name":"p_reason","hasDefault":false}]],
