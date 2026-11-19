@@ -2362,6 +2362,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     created_by_user_id: string;
     done_state: string | null;
     done_by: string | null;
+    reminders?: { state: string; next_send_at?: string };
     source_call: SourceCallRow | null;
     linked_contact: { id: string; name: string | null } | null;
     // Null for a call-anchored task (D64).
@@ -2372,7 +2373,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     await db
       .from("tasks")
       .select(
-        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
+        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,reminders:task_reminder_state,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
           "messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)",
       )
       .eq("company_id", companyId)
@@ -2393,7 +2394,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   );
   const profilesRead = loadProfiles(db, userIds, "profiles lookup");
 
-  const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
+  const { messages, done_state, done_by, source_call, linked_contact, reminders, ...task } = row;
   // Conversation-derived reads run beside the access check and are dropped at 'none'.
   const [profiles, subscriptionRes, labelled, viewerLevel, attachmentUnions, activity] =
     await Promise.all([
@@ -2468,6 +2469,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   return c.json({
     ...identity,
     viewer_level: viewerLevel,
+    reminders,
     source_message: messages,
     source_call: publicSourceCall(source_call),
     attachments: attachmentUnions.get(id) ?? [],
@@ -3163,6 +3165,11 @@ tasksRoutes.put(
     });
     if (error) throw new Error(`set_task_reminders_off failed: ${error.message}`);
     const result = parseTaskOutcome(data);
+    if (result.outcome === "no_conversation") {
+      return errorResponse(c, "validation_failed", "Link a customer conversation to turn on reminders.", {
+        key: "apiRefusals.remindersNeedCustomer",
+      });
+    }
     if (result.outcome === "not_found" || !result.task) {
       return errorResponse(c, "not_found", "No such task.");
     }

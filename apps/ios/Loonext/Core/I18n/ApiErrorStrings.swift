@@ -56,6 +56,8 @@ enum ApiErrorStrings {
                 "This workspace has not set up payments yet.",
             "apiRefusals.portAlreadyPending":
                 "A transfer for this number is already in progress.",
+            "apiRefusals.remindersNeedCustomer": "Link a customer conversation to turn on reminders.",
+            "apiRefusals.remindersWorkspaceNotFound": "No such workspace.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Idempotency-Key was already used for a different scheduled text.",
             "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
@@ -166,6 +168,8 @@ enum ApiErrorStrings {
                 "Les paiements ne sont pas encore configurés dans cet espace de travail.",
             "apiRefusals.portAlreadyPending":
                 "Un transfert est déjà en cours pour ce numéro.",
+            "apiRefusals.remindersNeedCustomer": "Associez une conversation avec un client pour activer les rappels.",
+            "apiRefusals.remindersWorkspaceNotFound": "Cet espace de travail est introuvable.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
             "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",

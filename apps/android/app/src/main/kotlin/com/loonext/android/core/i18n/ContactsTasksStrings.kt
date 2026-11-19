@@ -258,6 +258,12 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.remind" to "Remind",
         "contactsTasks.remindOff" to "Off for this job",
         "contactsTasks.remindWorkspace" to "Uses your workspace reminders",
+        "contactsTasks.remindNoneConfigured" to "No workspace reminders are enabled.",
+        "contactsTasks.remindNoCustomerThread" to "Link a customer conversation to send reminders.",
+        "contactsTasks.remindNoneQueued" to "No reminders are scheduled.",
+        "contactsTasks.remindQueued" to "Next reminder sends {when}.",
+        "contactsTasks.remindSent" to "A reminder was sent.",
+        "contactsTasks.remindHeld" to "A reminder is on hold.",
         "contactsTasks.confirmedByCustomer" to "They confirmed they'll be there.",
         "contactsTasks.confirmedByCrew" to "Marked confirmed by your crew.",
         "contactsTasks.taskNoAccess" to
@@ -1154,6 +1160,12 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.remindOff" to "Désactivé pour ce travail",
         "contactsTasks.remindWorkspace" to
             "Utilise les rappels de votre espace de travail",
+        "contactsTasks.remindNoneConfigured" to "Aucun rappel n’est activé dans cet espace de travail.",
+        "contactsTasks.remindNoCustomerThread" to "Liez une conversation avec le client pour envoyer des rappels.",
+        "contactsTasks.remindNoneQueued" to "Aucun rappel n’est prévu.",
+        "contactsTasks.remindQueued" to "Prochain rappel prévu {when}.",
+        "contactsTasks.remindSent" to "Un rappel a été envoyé.",
+        "contactsTasks.remindHeld" to "Un rappel est en attente.",
         "contactsTasks.confirmedByCustomer" to "Le client a confirmé sa présence.",
         "contactsTasks.confirmedByCrew" to "Confirmée par votre équipe.",
         "contactsTasks.taskNoAccess" to

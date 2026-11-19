@@ -66,6 +66,7 @@ import {
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
 import { AiOrb } from "@/components/ui/ai-orb";
+import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
@@ -128,6 +129,28 @@ function confirmedLine(
   return by === "customer"
     ? t("tasks.confirmedByCustomer")
     : t("tasks.confirmedByCrew");
+}
+
+function reminderLine(task: TaskDetail, t: Translate): string {
+  if (task.conversation_id === null) return t("tasks.remindersNoCustomerThread");
+  switch (task.reminders?.state) {
+    case "no_customer_thread": return t("tasks.remindersNoCustomerThread");
+    case "none_configured": return t("tasks.remindersNoneConfigured");
+    case "off": return t("tasks.remindersOffForJob");
+    case "sent": return t("tasks.remindersSent");
+    case "held": return t("tasks.remindersHeld");
+    case "confirmed": return confirmedLine(task.confirmed_by, t);
+    case "none_queued": return t("tasks.remindersNoneQueued");
+    case "queued":
+      return task.reminders.next_send_at
+        ? t("tasks.remindersQueued", {
+            when: formatTimestamp(task.reminders.next_send_at, { style: "long", t }),
+          })
+        : t("tasks.remindersNoneQueued");
+    default:
+      if (task.confirmed_at) return confirmedLine(task.confirmed_by, t);
+      return t(task.reminders_off ? "tasks.remindersOffForJob" : "tasks.remindersFromWorkspace");
+  }
 }
 
 export function TaskDetailPanel({
@@ -293,6 +316,7 @@ function TaskDetailLoaded({
   };
 
   const setReminders = useSetTaskReminders();
+  const canRemind = task.conversation_id !== null && task.reminders?.state !== "no_customer_thread";
 
   const saveAssignees = (ids: string[]) => {
     scoped((scope) =>
@@ -707,27 +731,19 @@ function TaskDetailLoaded({
           </div>
         </section>
 
-        {/* #237: directly under the due date, because it only means anything
-            as a qualifier on it — a job with no date sends nothing whatever
-            this says, and the switch would read as broken sitting anywhere
-            else. Hidden entirely without a date, for the same reason.
-            *Applying: Relationship Strength.* */}
-        {task.due_at !== null && (
+        {task.viewer_level !== "none" && (task.reminders !== undefined || task.due_at !== null) && (
           <section className="flex flex-wrap items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-app-ink">
                 {t("tasks.remindCustomer")}
               </p>
               <p className="text-[12px] text-app-muted">
-                {task.confirmed_at
-                  ? confirmedLine(task.confirmed_by, t)
-                  : (task.reminders_off
-                    ? t("tasks.remindersOffForJob")
-                    : t("tasks.remindersFromWorkspace"))}
+                {reminderLine(task, t)}
               </p>
             </div>
             <Switch
-              checked={!(task.reminders_off ?? false)}
+              checked={canRemind && !task.reminders_off}
+              disabled={!canRemind || setReminders.isPending}
               aria-label={t("tasks.remindCustomerAria")}
               onCheckedChange={(on) =>
                 setReminders.mutate({

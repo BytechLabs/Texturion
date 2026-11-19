@@ -226,6 +226,11 @@ struct TaskSubscription: Decodable, Sendable {
     let subscribed: Bool
 }
 
+struct TaskReminderState: Codable, Sendable {
+    let state: String
+    let next_send_at: String?
+}
+
 struct TaskDetail: Codable, Sendable {
     let id: String
     let company_id: String
@@ -266,6 +271,7 @@ struct TaskDetail: Codable, Sendable {
     /// with defaults so the memberwise init stays source-compatible with every
     /// existing construction site and #Preview.
     var reminders_off: Bool? = nil
+    var reminders: TaskReminderState?
     var confirmed_at: String? = nil
     var confirmed_by: String? = nil
     /// D64: which kind of thing the task promotes, and the promoted call (nil

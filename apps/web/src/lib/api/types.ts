@@ -1443,6 +1443,18 @@ export interface TaskAttachmentItem {
 
 /** GET /v1/tasks/:id — the full detail (row + resolved profiles + source). */
 export interface TaskDetail extends Task {
+  reminders?: {
+    state:
+      | "none_configured"
+      | "no_customer_thread"
+      | "off"
+      | "queued"
+      | "sent"
+      | "held"
+      | "confirmed"
+      | "none_queued";
+    next_send_at?: string;
+  };
   assignee: TaskProfile | null;
   created_by: TaskProfile | null;
   source_message: TaskSourceMessage | null;

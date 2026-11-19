@@ -477,8 +477,12 @@ private fun TaskDetailBody(
 
     fun patched(newDetail: TaskDetail) = onPatched(newDetail)
 
-    // Metadata edits reuse the fetched detail, swapping just the task columns.
     fun applyTask(task: com.loonext.android.core.model.Task) {
+        // A due change can replace the reminder queue.
+        if (task.due_at != detail.due_at) {
+            onChanged()
+            return
+        }
         patched(
             detail.copy(
                 title = task.title,
@@ -954,12 +958,9 @@ private fun TaskDetailBody(
                         )
                     }
 
-                    // #237: directly under the due date, because it only means
-                    // anything as a qualifier on it — a job with no date sends
-                    // nothing whatever this says, and the switch would read as
-                    // broken sitting anywhere else. Hidden without a date, for
-                    // the same reason.
-                    if (detail.due_at != null) {
+                    val reminder = detail.reminders
+                    val canRemind = detail.conversation_id != null && reminder?.state != "no_customer_thread"
+                    if (!noAccess && (reminder != null || detail.due_at != null)) {
                         RowDivider()
                         MetaRow(
                             label = t("contactsTasks.remind"),
@@ -968,20 +969,19 @@ private fun TaskDetailBody(
                             onClick = null,
                             trailing = {
                                 Switch(
-                                    checked = !detail.reminders_off,
-                                    enabled = !noAccess,
+                                    checked = canRemind && !detail.reminders_off,
+                                    enabled = canRemind,
                                     onCheckedChange = { on ->
                                         haptics.tap()
                                         scope.launch {
                                             onActionError(null)
                                             try {
-                                                applyTask(
-                                                    mutations.setReminders(
-                                                        companyId,
-                                                        detail.id,
-                                                        !on,
-                                                    ),
+                                                mutations.setReminders(
+                                                    companyId,
+                                                    detail.id,
+                                                    !on,
                                                 )
+                                                onChanged()
                                             } catch (cause: Exception) {
                                                 onActionError(cause.userMessage(locale))
                                             }
@@ -991,12 +991,22 @@ private fun TaskDetailBody(
                             },
                         ) {
                             Text(
-                                when {
-                                    detail.confirmed_at != null ->
-                                        confirmedLine(detail.confirmed_by, locale)
-                                    detail.reminders_off ->
-                                        t("contactsTasks.remindOff")
-                                    else -> t("contactsTasks.remindWorkspace")
+                                when (if (canRemind) reminder?.state else "no_customer_thread") {
+                                    "no_customer_thread" -> t("contactsTasks.remindNoCustomerThread")
+                                    "none_configured" -> t("contactsTasks.remindNoneConfigured")
+                                    "off" -> t("contactsTasks.remindOff")
+                                    "held" -> t("contactsTasks.remindHeld")
+                                    "sent" -> t("contactsTasks.remindSent")
+                                    "confirmed" -> confirmedLine(detail.confirmed_by, locale)
+                                    "none_queued" -> t("contactsTasks.remindNoneQueued")
+                                    "queued" -> reminder?.next_send_at?.let {
+                                        t("contactsTasks.remindQueued", "when" to dueRowLabel(it, locale))
+                                    } ?: t("contactsTasks.remindNoneQueued")
+                                    else -> when {
+                                        detail.confirmed_at != null -> confirmedLine(detail.confirmed_by, locale)
+                                        detail.reminders_off -> t("contactsTasks.remindOff")
+                                        else -> t("contactsTasks.remindWorkspace")
+                                    }
                                 },
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

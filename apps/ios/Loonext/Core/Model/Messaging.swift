@@ -520,6 +520,7 @@ struct ReminderRulesBody: Codable, Sendable {
 
 struct ReminderRulesSaved: Codable, Sendable {
     var rules: [ReminderRule] = []
+    var replanned_jobs: Int?
 }
 
 /// GET /v1/scheduled-messages.

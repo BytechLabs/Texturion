@@ -96,15 +96,15 @@ fun ReminderRulesCard(scope: SettingsScope) {
                 val result = scope.repo.saveReminderRules(scope.companyId, draft)
                 saved = result.rules
                 draft = result.rules
+                val count = result.replanned_jobs
+                val message = when {
+                    result.rules.none { it.enabled } -> "settingsMore.remindersNowOff"
+                    count == 1 -> "settingsMore.remindersUpdatingOne"
+                    count > 1 -> "settingsMore.remindersUpdatingMany"
+                    else -> "settingsMore.remindersSaved"
+                }
                 scope.showMessage(
-                    AppStrings.translate(
-                        locale,
-                        if (result.rules.isEmpty()) {
-                            "settingsMore.remindersNowOff"
-                        } else {
-                            "settingsMore.remindersSaved"
-                        },
-                    ),
+                    AppStrings.translate(locale, message, mapOf("count" to count.toString())),
                 )
             } catch (cause: Exception) {
                 scope.showMessage(cause.userMessage(locale))

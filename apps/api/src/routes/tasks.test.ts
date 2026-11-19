@@ -1245,6 +1245,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
   it("returns detail plus the merged task_* events + linked notes, oldest-first", async () => {
     const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
       taskRow({
+        reminders: { state: "queued", next_send_at: "2026-07-03T12:00:00.000Z" },
         messages: {
           id: MESSAGE_ID,
           body: "fix the sink",
@@ -1315,8 +1316,10 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     const body = (await response.json()) as {
       activity: { kind: string; id: string; created_at: string }[];
       source_message: { id: string } | null;
+      reminders: { state: string; next_send_at: string };
     };
     expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
+    expect(body.reminders).toEqual({ state: "queued", next_send_at: "2026-07-03T12:00:00.000Z" });
     // Merged + sorted oldest-first: the create event (12:00) then the note (13:00).
     expect(body.activity.map((a) => a.kind)).toEqual(["event", "note"]);
 

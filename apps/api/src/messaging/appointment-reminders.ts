@@ -17,9 +17,13 @@
  */
 import {
   APPOINTMENT_CONFIRMED_EVENT,
+  copyFor,
+  EN_COPY,
+  FR_CA_COPY,
   isAppointmentConfirmation,
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
+  resolveLocale,
 } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +35,11 @@ import {
 } from "./destination-clock";
 import { loadAutomaticTextSettings } from "./automatic-text-settings";
 import { applySendMergeFields, resolveSendMergeFields } from "./merge";
+
+const STOCK_REMINDER_OFFSETS = new Map(
+  [...EN_COPY.appointmentReminders, ...FR_CA_COPY.appointmentReminders]
+    .map((rule) => [rule.body, rule.offset_minutes]),
+);
 
 export interface ReminderRule {
   offset_minutes: number;
@@ -117,11 +126,12 @@ export async function syncTaskReminders(
     // Null for a standalone task with no conversation (#689): no thread to text.
     conversation_id: string | null;
     reminders_off: boolean;
+    companies: { locale: string | null; name: string } | null;
     conversations: {
       // #291: the number the thread is with. The timezone stays the
       // contact's — a second number is not a second country.
       contact_phone_e164: string | null;
-      contacts: { timezone: string | null } | null;
+      contacts: { timezone: string | null; locale: string | null; name: string | null } | null;
     } | null;
   }>(
     await db
@@ -131,7 +141,7 @@ export async function syncTaskReminders(
           // #291: the number the THREAD is with, not the contact's
           // primary. The timezone still comes from the contact — a
           // second number does not put somebody in a second country.
-          "conversations(contact_phone_e164,contacts(timezone))",
+          "conversations(contact_phone_e164,contacts(timezone,locale,name)),companies(locale,name)",
       )
       .eq("id", input.taskId)
       .eq("company_id", input.companyId)
@@ -167,26 +177,37 @@ export async function syncTaskReminders(
       })
     : null;
 
-  // Rendered here rather than at fire time, so the thread strip and the
-  // workspace list show the words that will actually go. `{job_day}` and
-  // `{job_time}` resolve against this conversation's next open due-dated task,
-  // which for a job with a due date is this one.
   let planned: PlannedReminder[] = [];
   if (dueAt !== null && !task.reminders_off && clock && task.conversation_id) {
+    const workspaceLocale = resolveLocale(null, task.companies?.locale);
+    const contactLocale = resolveLocale(task.conversations?.contacts?.locale, workspaceLocale);
+    const stockReminders = copyFor(contactLocale).appointmentReminders;
+    const localizedRules = rules.filter((rule) => rule.enabled).map((rule) => {
+      const stockOffset = STOCK_REMINDER_OFFSETS.get(rule.body);
+      const stock = stockReminders.find((defaultRule) => defaultRule.offset_minutes === stockOffset);
+      return stock ? { ...rule, body: stock.body } : rule;
+    });
     const rendered = new Map<string, string>();
-    for (const rule of rules) {
+    for (const rule of localizedRules) {
       if (rendered.has(rule.body)) continue;
       const ctx = await resolveSendMergeFields(db, rule.body, {
         companyId: input.companyId,
         conversationId: task.conversation_id,
+        jobTaskId: input.taskId,
         userId: input.userId,
         timeZone: clock.timezone,
+        locale: STOCK_REMINDER_OFFSETS.has(rule.body) ? contactLocale : workspaceLocale,
+        now,
       });
-      rendered.set(rule.body, applySendMergeFields(rule.body, ctx));
+      rendered.set(rule.body, applySendMergeFields(rule.body, {
+        ...ctx,
+        contactName: task.conversations?.contacts?.name,
+        businessName: task.companies?.name,
+      }));
     }
     planned = planReminders({
       dueAt,
-      rules,
+      rules: localizedRules,
       now,
       render: (body) => rendered.get(body) ?? body,
     });

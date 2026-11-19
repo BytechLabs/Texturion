@@ -671,4 +671,130 @@ begin
   raise notice 'AR-12 PASSED: a reminder knows which inbound it was written against';
 end $$;
 
+do $$
+declare
+  v_company uuid := '5e000000-0000-4000-8000-0000000000c1';
+  v_owner uuid := '5e000000-0000-4000-8000-00000000000a';
+  v_task uuid := '5e000000-0000-4000-8000-00000000ab02';
+  v_result jsonb;
+  v_reminder uuid;
+begin
+  update public.tasks set reminders_off = false, due_at = now() + interval '3 days' where id = v_task;
+  perform pg_temp.sync(pg_temp.two_reminders());
+  update public.scheduled_messages
+     set status = 'held', held_reason = 'Customer replied.', held_reason_key = 'customer_replied'
+   where company_id = v_company and task_id = v_task and reminder_offset_minutes = 120 and status = 'pending'
+  returning id into v_reminder;
+
+  v_result := public.api_replace_reminder_rules(v_company, v_owner, '[{"offset_minutes":1440,"body":"See you tomorrow."}]');
+  if (v_result->>'replanned_jobs')::int is distinct from 1
+     or not exists (select 1 from public.scheduled_messages where id = v_reminder and status = 'canceled')
+     or not exists (
+       select 1 from public.api_claim_calendar_reminder_replans('rule-test', 10, 120)
+        where company_id = v_company and task_id = v_task
+     ) then
+    raise exception 'AR-13 FAILED: replacing a rule must cancel removed reminders and replan booked jobs: %', v_result;
+  end if;
+
+  v_result := public.api_replace_reminder_rules(v_company, v_owner, '[]');
+  if v_result->'rules' is distinct from '[]'::jsonb or exists (
+    select 1 from public.scheduled_messages where company_id = v_company
+      and origin = 'reminder' and status in ('pending', 'held')
+  ) then
+    raise exception 'AR-13 FAILED: clearing rules left live reminders: %', v_result;
+  end if;
+
+  perform pg_temp.sync(pg_temp.two_reminders());
+  select id into v_reminder from public.scheduled_messages where task_id = v_task
+    and reminder_offset_minutes = 120 and status = 'pending';
+  v_result := public.api_fire_scheduled_message(v_reminder, 1);
+  if v_result->>'outcome' is distinct from 'gone'
+     or not exists (select 1 from public.scheduled_messages where id = v_reminder and status = 'canceled') then
+    raise exception 'AR-13 FAILED: a reminder for a removed rule could still fire: %', v_result;
+  end if;
+end $$;
+
+do $$
+declare
+  v_company uuid := '5e000000-0000-4000-8000-0000000000c1';
+  v_owner uuid := '5e000000-0000-4000-8000-00000000000a';
+  v_task uuid := '5e000000-0000-4000-8000-00000000ab02';
+  v_due timestamptz := now() + interval '3 days';
+  v_conversation uuid;
+  v_standalone uuid;
+  v_message uuid;
+  v_reminder uuid;
+  v_state jsonb;
+begin
+  insert into public.tasks (company_id, title, created_by_user_id)
+  values (v_company, 'Internal work', v_owner)
+  returning id into v_standalone;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_standalone)
+       is distinct from 'no_customer_thread'
+     or public.set_task_reminders_off(v_company, v_standalone, false, v_owner)->>'outcome'
+       is distinct from 'no_conversation' then
+    raise exception 'A job with no customer conversation could enable reminders';
+  end if;
+
+  update public.tasks set due_at = v_due, confirmed_at = null, confirmed_by = null, reminders_off = false
+   where id = v_task
+  returning conversation_id, message_id into v_conversation, v_message;
+  update public.messages set done_at = null where id = v_message;
+  delete from public.scheduled_messages where task_id = v_task;
+  delete from public.appointment_reminder_rules where company_id = v_company;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'none_configured' then
+    raise exception 'A job without enabled rules says it can send reminders';
+  end if;
+
+  insert into public.appointment_reminder_rules (company_id, offset_minutes, body, created_by)
+  values (v_company, 120, 'Reminder before the visit', v_owner);
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'none_queued' then
+    raise exception 'An empty queue is not disclosed';
+  end if;
+
+  insert into public.scheduled_messages (
+    company_id, conversation_id, task_id, origin, reminder_offset_minutes,
+    body, send_at, clock_timezone, clock_source, expires_at, created_by
+  ) values (
+    v_company, v_conversation, v_task, 'reminder', 120, 'Reminder before the visit',
+    v_due - interval '3 hours', 'America/Edmonton', 'contact', v_due, v_owner
+  ) returning id into v_reminder;
+  select public.task_reminder_state(t) into v_state from public.tasks t where id = v_task;
+  if v_state->>'state' is distinct from 'queued'
+     or (v_state->>'next_send_at')::timestamptz is distinct from v_due - interval '3 hours' then
+    raise exception 'The quiet-hours-adjusted reminder is missing: %', v_state;
+  end if;
+
+  update public.scheduled_messages set status = 'held' where id = v_reminder;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'held' then
+    raise exception 'A held reminder is described as queued';
+  end if;
+  update public.scheduled_messages set status = 'sent' where id = v_reminder;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'sent' then
+    raise exception 'A sent reminder is missing';
+  end if;
+
+  update public.scheduled_messages set created_at = now() - interval '1 minute' where id = v_reminder;
+  update public.tasks set due_at = v_due + interval '1 day' where id = v_task;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'none_queued' then
+    raise exception 'A reminder sent before a booking change still appears as sent';
+  end if;
+
+  perform public.set_task_reminders_off(v_company, v_task, true, v_owner);
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'off' then
+    raise exception 'A reminder switch set to off is missing';
+  end if;
+  update public.tasks set confirmed_at = now(), confirmed_by = 'customer' where id = v_task;
+  if (select public.task_reminder_state(t)->>'state' from public.tasks t where id = v_task)
+       is distinct from 'confirmed' then
+    raise exception 'A confirmed visit is missing';
+  end if;
+end $$;
+
 rollback;

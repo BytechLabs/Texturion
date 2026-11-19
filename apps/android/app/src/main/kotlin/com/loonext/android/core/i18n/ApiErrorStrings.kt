@@ -55,6 +55,8 @@ object ApiErrorStrings : AppStrings.Section {
             "This workspace has not set up payments yet.",
         "apiRefusals.portAlreadyPending" to
             "A transfer for this number is already in progress.",
+        "apiRefusals.remindersNeedCustomer" to "Link a customer conversation to turn on reminders.",
+        "apiRefusals.remindersWorkspaceNotFound" to "No such workspace.",
         "apiRefusals.scheduledTextKeyUsed" to
             "Idempotency-Key was already used for a different scheduled text.",
         "apiRefusals.taskCreateKeyUsed" to "Idempotency-Key was already used for a task.",
@@ -164,6 +166,8 @@ object ApiErrorStrings : AppStrings.Section {
             "Les paiements ne sont pas encore configurés dans cet espace de travail.",
         "apiRefusals.portAlreadyPending" to
             "Un transfert est déjà en cours pour ce numéro.",
+        "apiRefusals.remindersNeedCustomer" to "Associez une conversation avec un client pour activer les rappels.",
+        "apiRefusals.remindersWorkspaceNotFound" to "Cet espace de travail est introuvable.",
         "apiRefusals.scheduledTextKeyUsed" to
             "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
         "apiRefusals.taskCreateKeyUsed" to "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",

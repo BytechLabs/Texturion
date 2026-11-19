@@ -238,6 +238,9 @@ export function useSetTaskReminders() {
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.checklist(companyId, input.conversationId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
       // The thread strip shows what is queued, and switching this just changed
       // it. Without this the crew sees a reminder they have cancelled.
       void queryClient.invalidateQueries({

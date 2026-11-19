@@ -3213,6 +3213,9 @@ begin
   -- The final send decision is one DB transaction.  A webhook-due pull holds
   -- the reminder without creating a message; after a fresh pull it fires.  A
   -- booking predicate changing before fire terminalizes instead.
+  insert into public.appointment_reminder_rules (company_id, offset_minutes, body, created_by)
+  values (pg_temp.company_id(), 15, 'Reminder before the visit', v_user_id),
+         (pg_temp.company_id(), 30, 'Reminder half an hour before the visit', v_user_id);
   insert into public.scheduled_messages (
     company_id, conversation_id, task_id, origin, reminder_offset_minutes,
     body, send_at, clock_timezone, clock_source, status,
@@ -3262,7 +3265,7 @@ begin
     expires_at, created_by
   ) values (
     pg_temp.company_id(), 'ca000000-0000-4000-8000-0000000000e1', v_task.id,
-    'reminder', 13, 'Setting off reminder', now() - interval '1 minute',
+    'reminder', 30, 'Setting off reminder', now() - interval '1 minute',
     'America/Edmonton', 'contact', 'pending', now() + interval '1 hour', v_user_id
   ) returning id into v_failed_reminder_id;
   v := public.api_fire_scheduled_message(v_failed_reminder_id, 1);

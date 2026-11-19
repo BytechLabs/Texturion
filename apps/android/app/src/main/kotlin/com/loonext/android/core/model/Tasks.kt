@@ -310,6 +310,12 @@ data class TaskAttachmentItem(
     override val createdAt: String get() = created_at
 }
 
+@Serializable
+data class TaskReminderState(
+    val state: String,
+    val next_send_at: String? = null,
+)
+
 /** GET /v1/tasks/:id. viewer_level 'none' withholds conversation content. */
 @Serializable
 data class TaskDetail(
@@ -348,6 +354,7 @@ data class TaskDetail(
      * fields above are — a mutation response omits them.
      */
     val reminders_off: Boolean = false,
+    val reminders: TaskReminderState? = null,
     val confirmed_at: String? = null,
     val confirmed_by: String? = null,
     val assignee: TaskProfile? = null,

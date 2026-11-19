@@ -18,10 +18,11 @@
  * network call for the owner and a compliance exposure for us.
  */
 import {
-  DEFAULT_REMINDER_RULES,
+  copyFor,
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
   REMINDER_RULES_CAP,
+  resolveLocale,
   SCHEDULED_BODY_MAX,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -32,7 +33,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
-import { expectOk, parseJsonBody, unwrap } from "./core/http";
+import { parseJsonBody, unwrap, unwrapOptional } from "./core/http";
 
 export const appointmentReminderRoutes = new Hono<AppEnv>();
 
@@ -75,11 +76,15 @@ appointmentReminderRoutes.get(
         .order("offset_minutes", { ascending: false }),
       "appointment reminder rules",
     );
+    const company = unwrapOptional<{ locale: string | null }>(
+      await db.from("companies").select("locale").eq("id", companyId).maybeSingle(),
+      "appointment reminder locale",
+    );
 
     return c.json({
       rules,
       // Offered, never applied. See the header.
-      suggested: DEFAULT_REMINDER_RULES,
+      suggested: copyFor(resolveLocale(null, company?.locale)).appointmentReminders,
       cap: REMINDER_RULES_CAP,
     });
   },
@@ -106,48 +111,22 @@ appointmentReminderRoutes.put(
       );
     }
 
-    // Replace-all, and the delete comes first so removing a rule really removes
-    // it. An upsert-only sync leaves a deleted offset firing forever, which is
-    // the same asymmetry `api_sync_task_reminders` avoids by rebuilding.
-    expectOk(
-      await db
-        .from("appointment_reminder_rules")
-        .delete()
-        .eq("company_id", companyId),
-      "clear appointment reminder rules",
+    const saved = unwrap<
+      { outcome: "saved"; rules: Record<string, unknown>[]; replanned_jobs: number }
+      | { outcome: "not_found" }
+    >(
+      await db.rpc("api_replace_reminder_rules", {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_rules: rules,
+      }),
+      "replace appointment reminder rules",
     );
-
-    if (rules.length > 0) {
-      expectOk(
-        await db.from("appointment_reminder_rules").insert(
-          rules.map((rule) => ({
-            company_id: companyId,
-            offset_minutes: rule.offset_minutes,
-            body: rule.body,
-            enabled: rule.enabled ?? true,
-            created_by: userId,
-          })),
-        ),
-        "insert appointment reminder rules",
-      );
+    if (saved.outcome === "not_found") {
+      throw new ApiError("not_found", "No such workspace.", {
+        key: "apiRefusals.remindersWorkspaceNotFound",
+      });
     }
-
-    const saved = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("appointment_reminder_rules")
-        .select("id,offset_minutes,body,enabled,created_at,updated_at")
-        .eq("company_id", companyId)
-        .order("offset_minutes", { ascending: false }),
-      "appointment reminder rules",
-    );
-
-    // NOT re-syncing every open job here, deliberately. A workspace with two
-    // hundred booked jobs would turn one settings save into two hundred
-    // regenerations inside one request. Each job picks up the new rules the
-    // next time it is touched, and until then the old queue is still correct
-    // for what it was queued from — while `jobStillBooked` keeps anything stale
-    // from reaching a customer. A sweep that reconciles the rest belongs with
-    // the cron, not here.
-    return c.json({ rules: saved });
+    return c.json({ rules: saved.rules, replanned_jobs: saved.replanned_jobs });
   },
 );

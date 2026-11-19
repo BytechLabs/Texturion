@@ -583,6 +583,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.remindersNowOff" to
             "Reminders are off. Nothing will go out automatically.",
         "settingsMore.remindersSaved" to "Saved. New jobs will carry these reminders.",
+        "settingsMore.remindersUpdatingOne" to "Saved. Reminders for one booked job are being updated.",
+        "settingsMore.remindersUpdatingMany" to "Saved. Reminders for {count} booked jobs are being updated.",
 
         // -- The settings index ----------------------------------------------
         "settingsMore.sectionWorkspace" to "Workspace",
@@ -1870,6 +1872,10 @@ object SettingsMoreStrings : AppStrings.Section {
             "Les rappels sont désactivés. Rien ne partira automatiquement.",
         "settingsMore.remindersSaved" to
             "Enregistré. Les nouveaux travaux porteront ces rappels.",
+        "settingsMore.remindersUpdatingOne" to
+            "Enregistré. Les rappels d'une tâche planifiée sont en cours de mise à jour.",
+        "settingsMore.remindersUpdatingMany" to
+            "Enregistré. Les rappels de {count} tâches planifiées sont en cours de mise à jour.",
 
         // -- The settings index ----------------------------------------------
         "settingsMore.sectionWorkspace" to "Espace de travail",

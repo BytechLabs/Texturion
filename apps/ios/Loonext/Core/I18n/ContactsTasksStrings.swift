@@ -173,6 +173,12 @@ enum ContactsTasksStrings {
             "contactsTasks.remindAria": "Remind this customer about this job",
             "contactsTasks.remindOff": "Off for this job",
             "contactsTasks.remindWorkspace": "Uses your workspace reminders",
+            "contactsTasks.remindNoneConfigured": "No workspace reminders are enabled.",
+            "contactsTasks.remindNoCustomerThread": "Link a customer conversation to send reminders.",
+            "contactsTasks.remindNoneQueued": "No reminders are scheduled.",
+            "contactsTasks.remindQueued": "Next reminder sends {when}.",
+            "contactsTasks.remindSent": "A reminder was sent.",
+            "contactsTasks.remindHeld": "A reminder is on hold.",
             "contactsTasks.confirmedByCustomer": "They confirmed they'll be there.",
             "contactsTasks.confirmedByCrew": "Marked confirmed by your crew.",
             "contactsTasks.taskNoAccess":
@@ -989,6 +995,12 @@ enum ContactsTasksStrings {
             "contactsTasks.remindOff": "Désactivé pour ce travail",
             "contactsTasks.remindWorkspace":
                 "Utilise les rappels de votre espace de travail",
+            "contactsTasks.remindNoneConfigured": "Aucun rappel n’est activé dans cet espace de travail.",
+            "contactsTasks.remindNoCustomerThread": "Liez une conversation avec le client pour envoyer des rappels.",
+            "contactsTasks.remindNoneQueued": "Aucun rappel n’est prévu.",
+            "contactsTasks.remindQueued": "Prochain rappel prévu {when}.",
+            "contactsTasks.remindSent": "Un rappel a été envoyé.",
+            "contactsTasks.remindHeld": "Un rappel est en attente.",
             "contactsTasks.confirmedByCustomer": "Le client a confirmé sa présence.",
             "contactsTasks.confirmedByCrew": "Confirmée par votre équipe.",
             "contactsTasks.taskNoAccess":
