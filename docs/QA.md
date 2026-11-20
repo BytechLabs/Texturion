@@ -1,0 +1,128 @@
+# QA on the Loonext Rig
+
+Use a branch, tag or commit SHA and record the web deployment and Android APK SHAs separately. Use the rig's seeded workspaces and numbers. Tell anyone sharing the rig before deploying, reseeding or changing an AVD's state. A deploy changes the stack for every lane.
+
+## Connect and check
+
+On the Windows host, run these commands from a checkout of the tooling.
+
+```powershell
+node tools/rig/host/hostd.mjs doctor
+node tools/rig/host/hostd.mjs devices list
+ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=F:/loonext-rig/host/ssh/known_hosts -i F:/loonext-rig/host/ssh/rig rig@192.168.70.10
+```
+
+If the supervisor is down, run `node tools/rig/host/hostd.mjs serve` from a dedicated host terminal. It opens the rig-only adb server on 5137, starts the warm Pixel and forwards adb and hostd into the rig VM. If it fails, read `F:/loonext-rig/host/logs/hostd.log` and use the setup and recovery commands in [tools/rig/README.md](../tools/rig/README.md). The supervisor's VM command addresses the marked `loonext-rig.vmx` only.
+
+In the VM, use the CLI from its tooling checkout. Set up this alias or put the same command on the VM's PATH.
+
+```sh
+export RIG_HOME=/var/lib/loonext-rig
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+alias rig='node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs'
+rig health --only api,web,hostd,adbTunnel
+rig deploy --ref <ref>
+cat "$RIG_HOME/state/deployed.json"
+```
+
+Use a fresh copy of the tooling for new CLI commands. The checkout that serves the deployed app can be older or newer than the tooling checkout. The [rig design](RIG.md) describes the isolation, lane contracts and recovery paths.
+
+## Web
+
+- Use `https://app.rig.internal` from the VM. For a change in a seeded flow, run the scenario whose name and variants match it in [scenarios.json](../tools/rig/scenarios.json), for example `rig run S21 --run-id qa-775-web` for an inbound text and Web Push. The browser lane uses Chromium for calls and Google Chrome for Push. Reuse its per-member profiles to avoid extra new-device emails.
+- For a custom walk, run a Playwright script in a rig checkout. Use [BrowserLane](../tools/rig/lanes/src/browser/lane.ts) with the origins, browser profiles, credentials callback and fake microphone setup shown in [rigd wiring](../tools/rig/rigd/src/wiring.ts). Open a seeded member with `lane.open("qa-w-technician", "qa-w-technician", "/inbox")` using a surface from [surfaces.ts](../tools/rig/robot/src/audio/surfaces.ts). Pass `{ push: true }` as the fourth argument for Chrome Push. Use the returned `.page` for Playwright locators, assertions, requests and screenshots, and call `lane.closeAll()` in `finally`. Read the seeded credentials in the VM from `$RIG_HOME/secrets/tenants.json` without printing them. For recording with Playwright, use a separate test profile and pass `recordVideo: { dir: evidenceDir }` when creating its browser context. Close the context to finish the video.
+- For #775, have a second tab cover the open thread. Assert that the first page really reports `document.visibilityState === "hidden"`; a hidden element or a headless tab that still reports visible cannot verify this path. Send an inbound from an owned robot number, check unread from another session and record that the hidden tab makes zero read requests. Bring it forward and check that it clears unread.
+
+### Authenticated preview
+
+For a self-contained preview with deterministic data and no paid calls, follow the [Theme audit CI job](../.github/workflows/checks.yml). Run it in a dedicated worktree with its own local Supabase stack. `supabase db reset` erases that local project's data. The preview fixtures differ from the rig's seeded tenants.
+
+```sh
+sh scripts/start-supabase-ci.sh
+supabase db reset
+pnpm install --frozen-lockfile
+node scripts/dev-seed.mjs
+node scripts/ci-dev-vars.mjs
+export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$(supabase status -o json | jq -r '.PUBLISHABLE_KEY')"
+export NEXT_PUBLIC_API_URL=http://127.0.0.1:8787
+LOONEXT_AUDIT_WEBRTC=1 pnpm --filter @loonext/web build
+pnpm exec playwright install chromium
+pnpm exec bun scripts/web-journey.mjs
+```
+
+For an interactive walk or the authenticated audits, run the following from the same checkout. Keep the first two commands in separate terminals.
+
+```sh
+pnpm --filter @loonext/api exec wrangler dev --config wrangler.ci.jsonc --port 8787 --ip 127.0.0.1
+pnpm --filter @loonext/web exec next start -p 3100
+node scripts/theme-audit.mjs --authed
+node scripts/check-app-a11y.mjs --authed
+```
+
+Open `http://localhost:3100/login` with the credentials in [dev-seed.mjs](../scripts/dev-seed.mjs). Use the real app and local database to reproduce UI behavior. The journey supplies local test doubles for external providers. Use the rig when the checklist calls for actual Web Push, FCM or Telnyx delivery.
+
+## Android
+
+| hostd device | AVD | API | ADB serial |
+| --- | --- | --- | --- |
+| `pixel` | `rig-pixel` (Pixel 8 profile, Play image) | 36 | `emulator-5560` |
+| `emulator-34` | `rig-api34` | 34 | `emulator-5554` |
+| `emulator-35` | `rig-api35` | 35 | `emulator-5556` |
+| `emulator-36` | `rig-api36` | 36 | `emulator-5558` |
+
+From Windows, use `node tools/rig/host/hostd.mjs devices boot <device>` and wait for `booted`. The cap is three concurrent AVDs. Stop a rotation AVD you control before booting a fourth. Keep the Pixel available for the device lane.
+
+In the VM, build and install a checked, signed `.nonprod` APK. Fetch the desired branch into the tooling repository if the ref has not reached the VM. Build the older ref first for an upgrade test. `--worktree` and `--debuggable` print their build path instead of replacing `current.apk`; pass that path through `--apk`. Downgrades may require a fresh rotation AVD.
+
+```sh
+rig apk --ref <ref>
+cat "$RIG_HOME/work/apk/current.json"
+rig qa install pixel
+export PATH="$HOME/android-sdk/platform-tools:$PATH"
+pkg=com.loonext.android.nonprod
+serial=emulator-5560
+dev() { adb -H 127.0.0.1 -P 15037 -s "$serial" "$@"; }
+dev shell am start -n "$pkg/com.loonext.android.MainActivity"
+```
+
+Use the member appropriate to the checklist, usually QA-A technician. If installation or repair needs the SDK, FA15 is the one-time license acceptance for each SDK. On Windows run `& D:/Android/sdk/cmdline-tools/latest/bin/sdkmanager.bat --sdk_root=D:/Android/sdk --licenses` and, for missing images, `node tools/rig/host/vm/create.mjs --sdk-only --yes`. In the VM run `bash "$RIG_HOME/tooling/tools/rig/box/android-toolchain.sh" --accept-licences`. The on-demand tools require the workstation to be running.
+
+### Drive and capture
+
+```sh
+dev shell uiautomator dump /data/local/tmp/qa-window.xml
+dev exec-out cat /data/local/tmp/qa-window.xml
+dev shell input tap <x> <y>
+dev shell input swipe <x1> <y1> <x2> <y2> <milliseconds>
+rig qa screenshot pixel "$PWD/after.png"
+rig qa record pixel "$PWD/repro.mp4" --seconds 20
+```
+
+Drive the AVD from a second terminal while recording. `screenrecord` captures pixels and has no TalkBack or call audio. Copy reviewed evidence out over SSH with `scp`. When using [Mobile MCP](https://github.com/mobile-next/mobile-mcp/blob/main/llms-install.md), run its Android adb backend on the VM with the SDK tools on PATH and `ADB_SERVER_SOCKET=tcp:127.0.0.1:15037`. Check `mobile_list_available_devices` first and pass the exact contract serial to each call. Use direct adb if the installed MCP backend does not honor the socket or fails to list that serial.
+
+### Device states and delivery
+
+| Goal | Enter and verify | Restore |
+| --- | --- | --- |
+| Process killed | `dev shell input keyevent KEYCODE_HOME`, then `dev shell am kill "$pkg"`. Check `dev shell pidof "$pkg"` returns no PID. | Launch the activity. |
+| Force-stopped | On a rotation AVD, `dev shell am force-stop "$pkg"`. FCM is blocked until relaunch. | Launch the activity. |
+| Forced deep Doze | `dev shell dumpsys deviceidle enable all`, `dev shell dumpsys battery unplug`, `dev shell input keyevent KEYCODE_SLEEP`, `dev shell dumpsys deviceidle force-idle`. Verify `dev shell dumpsys deviceidle get deep` returns `IDLE`. Use `D03` for stepping through maintenance. | `dev shell dumpsys deviceidle unforce` and `dev shell dumpsys battery reset`. |
+| Locked | `dev shell input keyevent KEYCODE_SLEEP`. Verify keyguard with `dev shell dumpsys window`. Use `KEYCODE_WAKEUP`, then unlock with the rig PIN from the VM secret store. | Wake and unlock. |
+| Offline | `dev shell cmd connectivity airplane-mode enable`, `dev shell svc wifi disable` and `dev shell svc data disable`. Confirm the API is unreachable **from the app**. | Disable airplane mode and restore Wi-Fi and mobile data to their previous values. |
+| Slow link | Use [EmulatorConsole.shape](../tools/rig/lanes/src/android/emulator-console.ts) from the VM for speed and latency. Record the settings used. | Reset the shape and Wi-Fi. |
+
+Use `rig run D02p` for the real, guarded ring FCM path without a dial. For a real message push, use a guarded inbound text from the robot, for example `S21`, or reproduce it with [RobotClient.sms](../tools/rig/robot/src/client.ts) and the rig's standing roles. Check FCM acceptance and then the notification shade or Telecom, since accepting a push and showing it are separate observations. Run foreground suppression with the exact target thread open, then send to a different thread as a positive control. For shade actions, verify one reply in the receiver's inbox, test refusal paths, then verify the notification is removed when the same thread is read locally and from another session. Keep notification-revoked and force-stop tests on the rotation AVDs.
+
+### TalkBack and Google Phone
+
+- On the Pixel Play image, open `dev shell am start -a android.settings.ACCESSIBILITY_SETTINGS` and enable the preinstalled TalkBack service. Check `dev shell settings get secure enabled_accessibility_services`. Use Explore by Touch, swipe right or left to change focus, and double-tap to activate. Use gRPC `sendTouch` for actual gestures on the headless emulator. The [TalkBack run record](accessibility-runs/2026-11-11-android-talkback-emulator.md) gives the procedure and speech log signature. UIAutomator can pause TalkBack during a dump. Use the speech overlay or the TalkBack speech log alongside the recording and review pronunciation using guest audio. Restore TalkBack, font scale and app locale when done.
+- For #819, save a fictional local contact in Google Contacts, run Connected Apps sync on the prior build, then install the fixed build with `rig qa install` and sync again. Use the [emulator console's fake GSM call](../tools/rig/lanes/src/android/emulator-console.ts) from a reserved 555-01xx test number. Check the incoming UI, Recents and details in `com.google.android.dialer`, and Call/Text under Connected Apps in `com.google.android.contacts`. Record the versions of both apps. The injected call exercises Google's UI and the contacts provider. Carrier signaling and a Google account's contact sync require their own evidence.
+
+## Calls and evidence
+
+Run `rig budget` for the measured UTC window and remaining capacity. Check `rig health` and the [scenario registry](../tools/rig/scenarios.json) for room and required dials. During the window use `S02` for a browser answer, `S04` for voicemail, `D02` for a killed, Dozing, locked Android answer, and `D07` for an Android outbound call. Check the verdict for skip, infrastructure failure and product failure. A scenario that never places a call cannot verify ring timing or audio. Coordinate the shared window before adding manual steps or recording a multi-surface scenario.
+
+Log the issue, UTC time, ref, browser or AVD/API, package version, exact checklist items, observed result and scenario run ID. Keep evidence under a separate directory, and review it for tokens, test numbers, contact information and other private details before posting. With a [GitHub CLI version that supports attachments](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli), post `gh issue comment <issue> --body-file result.md --attach after.png --attach repro.mp4`. Only close an issue when every remaining platform check is covered.
+
+The rig can verify app UI, Google Phone's emulated modem and contacts behavior, real data and push delivery, software keyguard, forced Doze, network recovery and TalkBack app behavior. Physical Android still matters for vibration duration and strength, natural Doze with motion sensors, receiver proximity and accessory routing, carrier signaling with a SIM and OEM power behavior. iPhone ring-switch audio, Face ID and VoiceOver need an iOS lane that supports the specific hardware or assistive technology under test. Preserve those acceptance items when an emulator run supplies only partial evidence.
