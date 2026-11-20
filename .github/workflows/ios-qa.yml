@@ -19,6 +19,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/ios-qa.yml
+      - apps/ios/project.yml
+      - apps/ios/Loonext/Core/AppConfig.swift
       - apps/ios/qa/**
       - apps/ios/LoonextQATests/**
       - apps/ios/LoonextQAUITests/**
@@ -38,12 +40,32 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Select Xcode 26
+      - name: Match Xcode 26 to an installed iPhone runtime
         run: |
-          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
-          test -n "$XCODE"
+          choice=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          from pathlib import Path
+
+          devices = []
+          for runtime, rows in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"\.iOS-(26-\d+(?:-\d+)*)$", runtime)
+              if not match:
+                  continue
+              version = tuple(map(int, match.group(1).split("-")))
+              xcode = Path(f"/Applications/Xcode_{version[0]}.{version[1]}.app")
+              if xcode.is_dir():
+                  devices += [(version, d["name"] == "iPhone 17 Pro", d["name"], d["udid"], xcode)
+                              for d in rows if d["name"].startswith("iPhone")]
+          if not devices:
+              sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
+          _, _, _, udid, xcode = max(devices)
+          print(xcode, udid)
+          ')
+          read -r XCODE UDID <<< "$choice"
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
+          xcrun simctl list devices available | grep "$UDID"
+          echo "QA_SIMULATOR=$UDID" >> "$GITHUB_ENV"
 
       - name: Generate project and install fixture dependency
         run: |
@@ -68,26 +90,7 @@ jobs:
           swiftc -O Loonext/Core/AppConfig.swift LoonextQATests/ReleaseEndpoints.swift -o "$RUNNER_TEMP/release-endpoints"
           "$RUNNER_TEMP/release-endpoints" | tee "$RUNNER_TEMP/ios-qa/release-config/endpoints.txt"
 
-      - name: Boot iPhone Simulator
-        id: sim
-        run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, re, sys
-          devices = []
-          for runtime, rows in json.load(sys.stdin)["devices"].items():
-              match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
-              if match:
-                  version = tuple(map(int, match.group(1).split("-")))
-                  devices += [(version, d["name"] == "iPhone 17 Pro", d["name"], d["udid"])
-                              for d in rows if d["name"].startswith("iPhone")]
-          print(max(devices)[3])
-          ')
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl status_bar "$UDID" override --time '9:41' --batteryState unplugged --batteryLevel 100
-          echo "QA_SIMULATOR=$UDID" >> "$GITHUB_ENV"
-
-      - name: Build and install QA app
+      - name: Build QA app
         run: |
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/ios-qa"
@@ -95,6 +98,11 @@ jobs:
             -configuration QA -destination "id=$QA_SIMULATOR" \
             -derivedDataPath "$RUNNER_TEMP/ios-qa-build" CODE_SIGN_IDENTITY=- \
             | tee "$RUNNER_TEMP/ios-qa/build.log"
+
+      - name: Boot iPhone Simulator and install QA app
+        timeout-minutes: 4
+        run: |
+          xcrun simctl bootstatus "$QA_SIMULATOR" -b
           app="$RUNNER_TEMP/ios-qa-build/Build/Products/QA-iphonesimulator/Loonext.app"
           /usr/libexec/PlistBuddy -c 'Print :LoonextQAApiURL' "$app/Info.plist" | grep -Fx 'http://127.0.0.1:8765'
           xcrun simctl install "$QA_SIMULATOR" "$app"
