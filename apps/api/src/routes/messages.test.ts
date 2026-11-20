@@ -51,7 +51,7 @@ app.use("/v1/*", companyContext());
 app.route("/v1", messageRoutes);
 app.onError((error, c) => {
   if (error instanceof ApiError) {
-    return errorResponse(c, error.code, error.message);
+    return errorResponse(c, error.code, error.message, error.reference);
   }
   return c.json(
     { error: { code: "internal_error", message: String(error) } },
@@ -342,7 +342,9 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(422);
-    await expect(errorCode(response)).resolves.toBe("validation_failed");
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "validation_failed", message_key: "apiRefusals.outboundDestination" },
+    });
     expect(stubs.gateRpc.calls).toHaveLength(0);
   });
 

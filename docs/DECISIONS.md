@@ -10719,3 +10719,19 @@ Map opens to today's open jobs. Other choices are tomorrow, a selected day, or
 all open jobs. Pins and stops follow the due order, with untimed jobs after
 timed jobs on the same day. Opening a route sends the first nine stops'
 coordinates to the selected platform's directions app on the crew's tap.
+
+## D171 - outbound calling and texting stay within the US and Canada (#820)
+
+A Loonext line can call US and Canadian numbers from either country. A
+Canadian workspace can also text US numbers after it enables US texting and
+its 10DLC campaign is approved. Canadian destinations follow their own
+eligibility rules. Supported toll-free destinations keep the allowance in D165.
+Other countries remain unavailable, including countries outside the US and
+Canada that share the `+1` prefix.
+
+High-cost destinations are the main risk for SMS and voice pumping. Charging
+different rates by country would also make the cost of contacting a customer
+harder to predict. International outbound service is a future option that
+requires per-destination caps and clear per-destination pricing before launch.
+When a number is refused, web, Android and iOS explain which destinations are
+supported in English and French.

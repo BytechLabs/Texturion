@@ -254,7 +254,7 @@ export function Dialer(props: DialerProps) {
             </p>
           )}
           {!serviceCode && !destination && digits.replaceAll(/\D/g, "").length >= 10 && (
-            <p className="text-sm text-app-muted">{t("shell.dialableNumbersOnly")}</p>
+            <p role="status" className="text-sm text-app-muted">{t("apiRefusals.outboundDestination")}</p>
           )}
 
           {/* #459: who this could be, best first. Between the readout and the

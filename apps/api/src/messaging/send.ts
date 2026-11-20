@@ -21,7 +21,7 @@ import type { Env } from "../env";
 import { outboundDestinationRefusal } from "../environments/policy";
 import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
-import { ApiError } from "../http/errors";
+import { ApiError, OUTBOUND_DESTINATION_REFUSAL } from "../http/errors";
 import { fetchWithDeadline } from "../http/deadline";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
@@ -255,10 +255,11 @@ async function checkSendAvailability(
 
   const manualTollFree = mode === "manual" && isTollFreeDestination(destinationE164);
   if (!manualTollFree && !isUsCaDestination(destinationE164)) {
-    throw new ApiError(
-      "validation_failed",
-      "Destination must be a US or Canada number. Premium and non-geographic 5XX numbers are unavailable.",
-    );
+    const refusal = mode === "manual" ? OUTBOUND_DESTINATION_REFUSAL : {
+      message: "This text can only go to an eligible US or Canadian number.",
+      key: "apiRefusals.outboundLocalTextDestination",
+    };
+    throw new ApiError("validation_failed", refusal.message, refusal);
   }
 
   const country = manualTollFree ? "US" : lookupAreaCode(destinationE164)?.country;

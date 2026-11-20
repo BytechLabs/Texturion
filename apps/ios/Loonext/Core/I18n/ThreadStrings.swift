@@ -481,7 +481,6 @@ enum ThreadStrings {
             "thread.messageLabel": "Message",
             "thread.recipientPlaceholder": "Name or phone number",
             "thread.clearRecipient": "Clear recipient",
-            "thread.nanpOnly": "US and Canadian numbers only.",
             "thread.noContactMatch":
                 "No match in contacts. This starts a new conversation.",
             "thread.willText": "Will text {number}",
@@ -1282,7 +1281,6 @@ enum ThreadStrings {
             "thread.messageLabel": "Message",
             "thread.recipientPlaceholder": "Nom ou numéro de téléphone",
             "thread.clearRecipient": "Effacer le destinataire",
-            "thread.nanpOnly": "Numéros américains et canadiens seulement.",
             "thread.noContactMatch":
                 "Aucune correspondance dans les contacts. Ceci démarre une nouvelle "
                 + "conversation.",

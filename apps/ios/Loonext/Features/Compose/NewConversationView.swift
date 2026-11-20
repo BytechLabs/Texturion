@@ -158,7 +158,7 @@ private struct NewConversationLoaded: View {
                 : t("thread.willText", ["number": formatPhone(rawE164)])
         }
         let raw = recipientInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        return rawDigits.count >= 10 || raw.hasPrefix("+") ? t("thread.nanpOnly") : nil
+        return rawDigits.count >= 10 || raw.hasPrefix("+") ? t("apiRefusals.outboundDestination") : nil
     }
 
     private var canSend: Bool {

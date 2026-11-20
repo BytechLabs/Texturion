@@ -459,7 +459,7 @@ private fun NewConversationLoaded(
                         )
                         val hint = when {
                             (rawDigits.length >= 10 || recipientInput.trimStart().startsWith("+")) && rawE164 == null ->
-                                t("thread.nanpOnly")
+                                t("apiRefusals.outboundDestination")
 
                             rawE164 != null && contactMatches.isEmpty() ->
                                 t("thread.noContactMatch")

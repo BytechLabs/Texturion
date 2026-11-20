@@ -148,13 +148,15 @@ export function NewConversation() {
   }, [prefillTo]);
 
   const typedE164 = isPhone ? normalizeNanpInput(input) : null;
+  const unsupportedNumber = isPhone && !typedE164 &&
+    (typedDigits.length >= 10 || /^\+(?!1)\d/.test(input.trim()));
 
   // #63 — combobox geometry: the listbox is the contact matches followed by
   // the optional "Text <number>" row; `active` clamps a stale index when the
   // result set shrinks under the caret.
   const listboxId = "compose-to-results";
   const optionCount = contactRows.length + (typedE164 ? 1 : 0);
-  const listOpen = searchOpen && input.trim() !== "";
+  const listOpen = searchOpen && input.trim() !== "" && (!unsupportedNumber || contactRows.length > 0);
   const active = clampActiveIndex(activeIndex, optionCount);
 
   // --- Draft -----------------------------------------------------------------
@@ -567,7 +569,13 @@ export function NewConversation() {
                   }
                 }}
                 aria-label={t("inbox.composeToAria")}
+                aria-describedby={unsupportedNumber ? "compose-to-destination" : undefined}
               />
+              {unsupportedNumber && (
+                <p id="compose-to-destination" role="status" className="mt-1 text-sm text-muted-foreground">
+                  {t("apiRefusals.outboundDestination")}
+                </p>
+              )}
               {listOpen && (
                 <div
                   id={listboxId}

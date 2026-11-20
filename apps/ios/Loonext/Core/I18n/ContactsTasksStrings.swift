@@ -386,7 +386,6 @@ enum ContactsTasksStrings {
             "contactsTasks.call": "Call",
             "contactsTasks.callWithPhone": "Call with your phone",
             "contactsTasks.emergencyCallsUnavailable": "Loonext can't place emergency calls.",
-            "contactsTasks.dialableNumbersOnly": "Enter a US, Canadian or toll-free number. Premium and non-geographic 5XX numbers are unavailable.",
             "contactsTasks.calling": "Calling…",
             "contactsTasks.callingAria": "Calling",
             "contactsTasks.optedOutBanner":
@@ -1228,7 +1227,6 @@ enum ContactsTasksStrings {
             "contactsTasks.call": "Appeler",
             "contactsTasks.callWithPhone": "Appeler avec votre téléphone",
             "contactsTasks.emergencyCallsUnavailable": "Loonext ne peut pas passer d’appels d’urgence.",
-            "contactsTasks.dialableNumbersOnly": "Entrez un numéro américain, canadien ou sans frais. Les numéros surtaxés et les numéros 5XX non géographiques sont indisponibles.",
             "contactsTasks.calling": "Appel…",
             "contactsTasks.callingAria": "Appel en cours",
             "contactsTasks.optedOutBanner":

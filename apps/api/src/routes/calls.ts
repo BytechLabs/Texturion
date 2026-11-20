@@ -50,7 +50,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { reportHandledFailure } from "../observability/capture";
 import { isKilled } from "../flags/evaluate";
-import { errorResponse } from "../http/errors";
+import { errorResponse, OUTBOUND_DESTINATION_REFUSAL } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import { buildPage } from "../http/pagination";
 import { resolveActorNames } from "./core/attribution";
@@ -66,9 +66,6 @@ import {
 } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
 import { selectedContactNumber } from "./core/contact-number";
-
-const UNSUPPORTED_DESTINATION_MESSAGE =
-  "Enter a US, Canadian or toll-free number. Premium and non-geographic 5XX numbers are unavailable.";
 
 const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
@@ -818,7 +815,9 @@ async function authorizeOutboundCall(
       }
       const normalized = normalizeNanpPhone(to);
       if (!normalized) {
-        return errorResponse(c, "validation_failed", UNSUPPORTED_DESTINATION_MESSAGE);
+        return errorResponse(
+          c, "validation_failed", OUTBOUND_DESTINATION_REFUSAL.message, OUTBOUND_DESTINATION_REFUSAL,
+        );
       }
       customer = normalized;
     }
@@ -835,7 +834,9 @@ async function authorizeOutboundCall(
 
   // Saved contacts and threads pass the same destination check as typed numbers.
   if (!normalizeNanpPhone(customer)) {
-    return errorResponse(c, "validation_failed", UNSUPPORTED_DESTINATION_MESSAGE);
+    return errorResponse(
+      c, "validation_failed", OUTBOUND_DESTINATION_REFUSAL.message, OUTBOUND_DESTINATION_REFUSAL,
+    );
   }
 
   await assertNumberLevel(db, {

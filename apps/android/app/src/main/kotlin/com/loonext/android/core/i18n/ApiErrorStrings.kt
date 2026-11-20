@@ -285,6 +285,10 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.numberNotAssigned" to
             "chosen_number_e164 is not an assigned US/CA geographic number.",
         "apiRefusals.optOutNotActive" to "This number is not opted out.",
+        "apiRefusals.outboundDestination" to
+            "Use a US or Canadian number, or a supported toll-free number.",
+        "apiRefusals.outboundLocalTextDestination" to
+            "This text can only go to an eligible US or Canadian number.",
         "apiRefusals.outboundSendPaused" to
             "Texting is paused while we deal with an issue. Nothing you sent was lost.",
         "apiRefusals.paymentsNotSetUp" to
@@ -642,6 +646,10 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.numberNotAssigned" to
             "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
         "apiRefusals.optOutNotActive" to "Ce numéro ne figure pas dans la liste de désabonnement.",
+        "apiRefusals.outboundDestination" to
+            "Utilisez un numéro américain ou canadien, ou un numéro sans frais pris en charge.",
+        "apiRefusals.outboundLocalTextDestination" to
+            "Ce texto ne peut être envoyé qu’à un numéro américain ou canadien admissible.",
         "apiRefusals.outboundSendPaused" to
             "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
         "apiRefusals.paymentsNotSetUp" to
