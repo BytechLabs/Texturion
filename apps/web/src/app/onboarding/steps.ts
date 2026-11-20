@@ -108,7 +108,7 @@ export interface OnboardingSnapshot {
 
 // ---------------------------------------------------------------------------
 // Registration-owed + draft-completeness mirrors (apps/api/src/billing/
-// registration-draft.ts — the checkout gate; keys per the SPEC §4.4 mapping).
+// registration-draft.ts).
 // ---------------------------------------------------------------------------
 
 /** SPEC §4.2 table: US, or CA with us_texting_enabled. */
@@ -193,9 +193,18 @@ export function pendingRegistrationStep(snapshot: OnboardingSnapshot): "texting"
   if (!company || !owesUsRegistration(company)) return null;
   const campaign = registration?.campaign ?? company.registration.campaign;
   if (campaign?.status === "approved") return null;
-  if (!campaignRowComplete(campaign)) return "texting";
   const brand = registration?.brand ?? company.registration.brand;
-  return brandRowComplete(brand) ? null : "business";
+  if (!brandRowComplete(brand)) return "business";
+  return campaignRowComplete(campaign) ? null : "texting";
+}
+
+function rejectedRegistrationStep(snapshot: OnboardingSnapshot): "business" | "texting" | null {
+  const { company, registration } = snapshot;
+  if (company?.subscription_status !== "canceled" || !owesUsRegistration(company)) return null;
+  const brand = registration?.brand ?? company.registration.brand;
+  const campaign = registration?.campaign ?? company.registration.campaign;
+  if (brand?.status === "rejected" && !brandRowComplete(brand)) return "business";
+  return campaign?.status === "rejected" && !campaignRowComplete(campaign) ? "texting" : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +228,7 @@ export function applicableSteps(snapshot: OnboardingSnapshot): WizardStep[] {
     ? owesUsRegistration(snapshot.company)
     : draftOwesUsRegistration(snapshot.draft);
   return owes
-    ? ["name", "number", "texting", "plan", "business"]
+    ? ["name", "number", "plan", "business", "texting"]
     : ["name", "number", "plan"];
 }
 
@@ -253,7 +262,8 @@ export function resolveOnboardingLocation(
     return step ? { kind: "step", step } : { kind: "setting-up" };
   }
 
-  return { kind: "step", step: stepAllowed("plan", snapshot) ? "plan" : "texting" };
+  const step = snapshot.canManageRegistration ? rejectedRegistrationStep(snapshot) : null;
+  return { kind: "step", step: step ?? "plan" };
 }
 
 /**
@@ -265,7 +275,7 @@ export function stepAllowed(
   step: WizardStep,
   snapshot: OnboardingSnapshot,
 ): boolean {
-  const { company, registration } = snapshot;
+  const { company } = snapshot;
 
   if (step === "name") {
     // The workspace name is fixed at creation here (it stays editable later in
@@ -294,12 +304,8 @@ export function stepAllowed(
     return snapshot.canManageRegistration && pendingRegistrationStep(snapshot) === step;
   }
 
-  const owes = owesUsRegistration(company);
-  if (step === "business") return false;
-  if (step === "texting") return owes;
-  const campaign = registration?.campaign ?? company.registration.campaign;
-  return !owes || campaignRowComplete(campaign) ||
-    (company.subscription_status === "canceled" && campaign === null);
+  const rejectedStep = snapshot.canManageRegistration ? rejectedRegistrationStep(snapshot) : null;
+  return step === (rejectedStep ?? "plan");
 }
 
 /** Progress-dots position: 1-based index within the applicable steps. */

@@ -106,12 +106,12 @@ export const onboardingEn = {
   einHintCa: "The 9-digit number the CRA gave your business.",
   solePropLead: "No problem. We'll register you as a sole proprietor.",
   solePropDetail:
-    "Carriers verify your mobile number with a texted code. Sole proprietor registrations are limited to one phone number.",
+    "Sole proprietor registrations are limited to one phone number.",
   legalFirstName: "Legal first name",
   legalLastName: "Legal last name",
   mobileLabel: "Your mobile number",
   mobileHint:
-    "We'll text a 6-digit verification code to this number after payment.",
+    "Telnyx texts a 6-digit code to this number to verify your identity.",
   legalBusinessName: "Legal business name",
   legalBusinessNameHint:
     "Carriers check this against government business records.",
@@ -141,8 +141,6 @@ export const onboardingEn = {
   textingSubtitle:
     "Carriers review these before approving business texting. We've written " +
     "honest defaults. Edit them if they don't fit.",
-  textingLocked:
-    "These details were already submitted to carriers. Nothing more to do on this step.",
   messageFlowLabel: "How do customers say yes to texts?",
   messageFlowHint:
     "Describe how customers agree to receive texts in person, by phone, or on your website.",
@@ -178,6 +176,9 @@ export const onboardingEn = {
     "file the paperwork for you.",
   portingTimelineTitle: "Bringing your number over",
   afterYouPayTitle: "What happens after you pay",
+  afterYouPayRegistration: "Enter your business and texting details so we can submit them for carrier approval.",
+  afterYouPayNumberReceives: "Your number starts receiving texts as soon as it’s ready.",
+  afterYouPayInbox: "Your inbox opens after carrier approval, typically in 3 to 7 business days. We’ll email you when it’s ready.",
   sendingToCheckout: "Sending you to checkout…",
   continueToCheckout: "Continue to checkout",
   textDefinition:
@@ -289,6 +290,7 @@ export const onboardingEn = {
   fixMemberNote:
     "Ask an owner or admin to fix the flagged details and resubmit.",
   inboxReadyHint: "Text your new number from your phone and watch it land.",
+  inboxWaitingForApproval: "Your inbox opens after carriers approve your US texting registration.",
   inboxWaitingHint:
     "You can start using Loonext now. Your inbox fills in the moment your " +
     "number is ready, and we'll keep you posted at the top of every screen.",
@@ -756,12 +758,12 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   solePropLead:
     "Aucun problème. Nous vous inscrirons comme travailleur autonome.",
   solePropDetail:
-    "Les opérateurs vérifient votre numéro de cellulaire avec un code envoyé par texto. Les inscriptions de travailleurs autonomes sont limitées à un seul numéro de téléphone.",
+    "Les inscriptions de travailleurs autonomes sont limitées à un seul numéro de téléphone.",
   legalFirstName: "Prénom légal",
   legalLastName: "Nom légal",
   mobileLabel: "Votre numéro de cellulaire",
   mobileHint:
-    "Nous texterons un code de vérification à 6 chiffres à ce numéro après le paiement.",
+    "Telnyx envoie un code à 6 chiffres à ce numéro par texto pour vérifier votre identité.",
   legalBusinessName: "Nom légal de l'entreprise",
   legalBusinessNameHint:
     "Les opérateurs le comparent aux registres gouvernementaux des entreprises.",
@@ -794,8 +796,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "Les opérateurs examinent ces renseignements avant d'autoriser les textos " +
     "d'affaires. Nous avons rédigé des réponses honnêtes par défaut. " +
     "Modifiez-les si elles ne vous conviennent pas.",
-  textingLocked:
-    "Ces renseignements ont déjà été transmis aux opérateurs. Rien de plus à faire à cette étape.",
   messageFlowLabel: "Comment vos clients acceptent-ils de recevoir des textos ?",
   messageFlowHint:
     "Décrivez comment vos clients acceptent de recevoir des textos en personne, par téléphone ou sur votre site Web.",
@@ -834,6 +834,9 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "formulaires pour vous.",
   portingTimelineTitle: "Transfert de votre numéro",
   afterYouPayTitle: "Ce qui se passe après le paiement",
+  afterYouPayRegistration: "Fournissez les renseignements sur votre entreprise et vos textos pour que nous puissions les soumettre aux opérateurs.",
+  afterYouPayNumberReceives: "Votre numéro commence à recevoir des textos dès son activation.",
+  afterYouPayInbox: "Votre boîte de réception s’ouvrira après l’approbation des opérateurs, généralement dans un délai de 3 à 7 jours ouvrables. Nous vous aviserons par courriel.",
   sendingToCheckout: "Redirection vers le paiement…",
   continueToCheckout: "Continuer vers le paiement",
   textDefinition:
@@ -954,6 +957,7 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "Demandez au propriétaire ou à un administrateur de corriger les renseignements signalés et de renvoyer le tout.",
   inboxReadyHint:
     "Textez votre nouveau numéro depuis votre téléphone et regardez le message arriver.",
+  inboxWaitingForApproval: "Votre boîte de réception s’ouvrira après l’approbation de votre inscription par les opérateurs.",
   inboxWaitingHint:
     "Vous pouvez commencer à utiliser Loonext dès maintenant. Votre boîte de " +
     "réception se remplit dès que votre numéro est prêt, et nous vous " +

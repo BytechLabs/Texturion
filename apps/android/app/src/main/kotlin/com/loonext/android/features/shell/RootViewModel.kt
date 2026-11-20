@@ -39,6 +39,8 @@ sealed interface RootState {
     /** Owner/admin with subscription_status incomplete — finish checkout on web. */
     data class NeedsCheckout(val me: Me, val companyId: String) : RootState
 
+    data object NeedsRegistration : RootState
+
     /**
      * #496/#314: this session has not satisfied two-factor. `enrolmentRequired`
      * tells the gate which question to ask — a code from somebody who has a
@@ -443,6 +445,11 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
 
             if (graph.sessionStore.current()?.userId != view.user_id) {
                 _state.value = RootState.SignedOut
+                return
+            }
+            if (view.company?.registration?.awaiting_first_approval == true) {
+                graph.sessionStore.forgetReadyWorkspace()
+                _state.value = RootState.NeedsRegistration
                 return
             }
             _state.value = RootState.Ready(view, membership.company_id)

@@ -389,6 +389,8 @@ function SettingUp() {
   if (state.status === "ready") {
     if (company === null) {
       redirectTo = "/onboarding";
+    } else if (checkoutSuccess && registrationStep && state.snapshot?.canManageRegistration) {
+      redirectTo = `/onboarding/${registrationStep}`;
     } else if (!paid && !checkoutSuccess) {
       redirectTo = "/onboarding/plan";
     }
@@ -442,10 +444,11 @@ function SettingUp() {
   // before the phone_numbers row's first status UPDATE. Poll until an ACTIVE
   // number exists so a missed broadcast (or a local dev provisioning nudge)
   // still converges the checklist; realtime drives everything else.
+  const awaitingRegistration = company?.registration.awaiting_first_approval === true;
   const needsNudge =
     state.status === "ready" &&
     company !== null &&
-    (confirming || !company.numbers.some((n) => n.status === "active"));
+    (confirming || awaitingRegistration || !company.numbers.some((n) => n.status === "active"));
   const { companyId } = state;
   useEffect(() => {
     if (!needsNudge || !companyId) return;
@@ -543,7 +546,7 @@ function SettingUp() {
   } else {
     registrationStatus = "working";
   }
-  const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
+  const inboxStatus: RowStatus = activeNumber && !awaitingRegistration ? "done" : "waiting";
 
   // The §3.4 peak: once the number lands, the heading carries the app's ONE
   // exclamation mark (G10) and the number reveals below. Until then it stays a
@@ -724,24 +727,14 @@ function SettingUp() {
           order={2}
           title={t("onboarding.rowInboxReady")}
         >
-          {activeNumber ? (
-            <div className="space-y-3 animate-in fade-in duration-300 ease-out">
-              <p className="text-sm text-muted-foreground">
-                {t("onboarding.inboxReadyHint")}
-              </p>
-              <Button asChild size="lg">
-                <Link href="/inbox">{t("onboarding.openInbox")}</Link>
-              </Button>
-            </div>
+          {awaitingRegistration ? (
+            <p className="text-sm text-muted-foreground">{t("onboarding.inboxWaitingForApproval")}</p>
           ) : (
-            // The inbox works before the number lands — never trap the user on
-            // this screen. The app-wide status banner keeps the setup progress
-            // visible on every page.
-            <div className="space-y-3">
+            <div className={cn("space-y-3", activeNumber && "animate-in fade-in duration-300 ease-out")}>
               <p className="text-sm text-muted-foreground">
-                {t("onboarding.inboxWaitingHint")}
+                {t(activeNumber ? "onboarding.inboxReadyHint" : "onboarding.inboxWaitingHint")}
               </p>
-              <Button asChild variant="outline" size="sm">
+              <Button asChild size={activeNumber ? "lg" : "sm"} variant={activeNumber ? "default" : "outline"}>
                 <Link href="/inbox">{t("onboarding.openInbox")}</Link>
               </Button>
             </div>

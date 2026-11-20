@@ -205,13 +205,11 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
   const companyId = c.get("companyId");
   const body = await parseJsonBody(c, wizardBodySchema);
 
-  if (body.brand) {
-    const company = await fetchCompanyRow(db, companyId);
-    if (company.subscription_status === "incomplete" || company.subscription_status === "incomplete_expired") {
-      throw new ApiError("conflict", "Finish checkout before entering business details.", {
-        key: "apiRefusals.registrationCheckoutRequired",
-      });
-    }
+  const beforeSave = await fetchCompanyRow(db, companyId);
+  if (beforeSave.subscription_status === "incomplete" || beforeSave.subscription_status === "incomplete_expired") {
+    throw new ApiError("conflict", "Finish checkout before entering US texting registration details.", {
+      key: "apiRefusals.registrationCheckoutRequired",
+    });
   }
 
   const { brand, campaign } = await fetchRegistrationRows(db, companyId);
@@ -258,8 +256,8 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
 
 /**
  * POST /v1/registration/submit — owner/admin (§7): first-submission recovery
- * and rejected-resubmit. The normal first submission rides the paid-checkout
- * webhook (§4.1 step 5); this route exists for the recovery/fix paths and is
+ * and rejected-resubmit. Saving the last required draft or recording payment
+ * normally submits the registration. This route is for recovery and is
  * gated on the fee having been paid (§4.2).
  */
 registrationRoutes.post("/submit", requireCapability("numbers.manage"), async (c) => {

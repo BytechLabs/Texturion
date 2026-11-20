@@ -601,6 +601,7 @@ export interface CompanyView {
     brand: RegistrationSummary | null;
     campaign: RegistrationSummary | null;
     completion_step?: "texting" | "business" | null;
+    awaiting_first_approval?: boolean;
   };
 }
 

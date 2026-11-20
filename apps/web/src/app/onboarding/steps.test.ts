@@ -242,11 +242,16 @@ describe(resolveOnboardingLocation, () => {
     ).toEqual({ kind: "step", step: "plan" });
   });
 
-  it("brand complete but campaign missing → texting step", () => {
+  it("opens checkout with no registration drafts", () => {
+    expect(resolveOnboardingLocation(snapshot({ company: {} })))
+      .toEqual({ kind: "step", step: "plan" });
+  });
+
+  it("paid, brand complete but campaign missing → texting step", () => {
     expect(
       resolveOnboardingLocation(
         snapshot({
-          company: {},
+          company: { status: "active" },
           brand: { data: COMPLETE_BRAND_DATA },
           campaign: null,
         }),
@@ -291,10 +296,10 @@ describe(resolveOnboardingLocation, () => {
     expect(stepAllowed("business", state)).toBe(false);
   });
 
-  it("resumes an older paid signup without a campaign at texting", () => {
+  it("starts a paid signup without drafts at business", () => {
     expect(resolveOnboardingLocation(snapshot({
       company: { status: "active" },
-    }))).toEqual({ kind: "step", step: "texting" });
+    }))).toEqual({ kind: "step", step: "business" });
   });
 
   it("canceled subscription resumes at the plan step (resubscribe)", () => {
@@ -307,6 +312,16 @@ describe(resolveOnboardingLocation, () => {
         }),
       ),
     ).toEqual({ kind: "step", step: "plan" });
+  });
+
+  it("resumes an incomplete rejected registration before resubscribing", () => {
+    const company = { status: "canceled" as const };
+    const needsBrand = snapshot({ company, brand: { status: "rejected", data: {} } });
+    const needsCampaign = snapshot({ company, campaign: { status: "rejected", data: {} } });
+    expect(resolveOnboardingLocation(needsBrand)).toEqual({ kind: "step", step: "business" });
+    expect(resolveOnboardingLocation(needsCampaign)).toEqual({ kind: "step", step: "texting" });
+    expect(stepAllowed("plan", needsBrand)).toBe(false);
+    expect(stepAllowed("plan", needsCampaign)).toBe(false);
   });
 
   it("paid + number provisioning → setting-up", () => {
@@ -434,22 +449,22 @@ describe(stepAllowed, () => {
     expect(stepAllowed("texting", caOnly)).toBe(false);
     expect(stepAllowed("plan", caOnly)).toBe(true);
 
-    const paid = snapshot({ company: { status: "active" } });
+    const paid = snapshot({ company: { country: "CA", usTexting: false, status: "active" } });
     expect(stepAllowed("business", paid)).toBe(false);
+    expect(stepAllowed("texting", paid)).toBe(false);
     expect(stepAllowed("plan", paid)).toBe(false);
   });
 
-  it("plan mirrors the checkout draft gate for owing companies", () => {
-    expect(stepAllowed("plan", snapshot({ company: {} }))).toBe(false);
-    expect(
-      stepAllowed(
-        "plan",
-        snapshot({
-          company: {},
-          campaign: { kind: "campaign", data: COMPLETE_CAMPAIGN_DATA },
-        }),
-      ),
-    ).toBe(true);
+  it("allows checkout and keeps both registration steps locked before payment", () => {
+    const unpaid = snapshot({ company: {} });
+    expect(stepAllowed("plan", unpaid)).toBe(true);
+    expect(stepAllowed("business", unpaid)).toBe(false);
+    expect(stepAllowed("texting", unpaid)).toBe(false);
+
+    const paid = snapshot({ company: { status: "active" } });
+    expect(stepAllowed("business", paid)).toBe(true);
+    expect(stepAllowed("texting", paid)).toBe(false);
+    expect(stepAllowed("plan", paid)).toBe(false);
   });
 });
 
@@ -460,7 +475,7 @@ describe(stepAllowed, () => {
 describe("applicableSteps / stepProgress", () => {
   it("US signups walk 5 steps; CA-no-US walks 3", () => {
     expect(applicableSteps(snapshot({ company: null, draft: COMPLETE_DRAFT })))
-      .toEqual(["name", "number", "texting", "plan", "business"]);
+      .toEqual(["name", "number", "plan", "business", "texting"]);
     expect(
       applicableSteps(
         snapshot({ company: { country: "CA", usTexting: false } }),
@@ -472,9 +487,9 @@ describe("applicableSteps / stepProgress", () => {
     const ca = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
-    expect(stepProgress("texting", us)).toEqual({ index: 3, total: 5 });
-    expect(stepProgress("plan", us)).toEqual({ index: 4, total: 5 });
-    expect(stepProgress("business", us)).toEqual({ index: 5, total: 5 });
+    expect(stepProgress("plan", us)).toEqual({ index: 3, total: 5 });
+    expect(stepProgress("business", us)).toEqual({ index: 4, total: 5 });
+    expect(stepProgress("texting", us)).toEqual({ index: 5, total: 5 });
   });
 });
 
@@ -489,8 +504,7 @@ describe("previousStepHref (honest Back navigation)", () => {
   it("walks back to the nearest EDITABLE step for a US company", () => {
     const campaign = { data: COMPLETE_CAMPAIGN_DATA };
     const us = snapshot({ company: {}, campaign });
-    expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
-    expect(previousStepHref("texting", us)).toBe("/onboarding/number");
+    expect(previousStepHref("plan", us)).toBe("/onboarding/number");
     expect(previousStepHref("business", snapshot({ company: { status: "active" }, campaign }))).toBeNull();
   });
 

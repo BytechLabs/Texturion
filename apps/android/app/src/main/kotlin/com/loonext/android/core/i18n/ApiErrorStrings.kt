@@ -269,7 +269,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.conversationNotFound" to "No such conversation.",
         "apiRefusals.idempotencyKeyLength" to "Idempotency-Key must contain 1 to 255 characters.",
         "apiRefusals.billingCheckoutTextingRequired" to
-            "Complete the US texting details before checkout.",
+            "Update your rejected US texting registration before restarting your subscription.",
         "apiRefusals.inviteAlreadyPending" to
             "A pending invite for this email already exists.",
         "apiRefusals.numberCountryMismatch" to
@@ -324,7 +324,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.registrationChanged" to
             "The registration changed. Refresh before editing it.",
         "apiRefusals.registrationCheckoutRequired" to
-            "Finish checkout before entering business details.",
+            "Finish checkout before entering US texting registration details.",
         "apiRefusals.registrationSubmissionInProgress" to
             "The registration is being submitted. Refresh before editing it.",
         "apiRefusals.textEnablementAlreadyPending" to
@@ -641,7 +641,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.conversationNotFound" to "Cette conversation est introuvable.",
         "apiRefusals.idempotencyKeyLength" to "L’en-tête Idempotency-Key doit contenir de 1 à 255 caractères.",
         "apiRefusals.billingCheckoutTextingRequired" to
-            "Fournissez les renseignements sur vos textos vers les États-Unis avant de passer au paiement.",
+            "Corrigez votre inscription rejetée pour les textos vers les États-Unis avant de réactiver votre abonnement.",
         "apiRefusals.inviteAlreadyPending" to
             "Une invitation à cette adresse courriel est déjà en attente.",
         "apiRefusals.numberCountryMismatch" to
@@ -698,7 +698,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.registrationChanged" to
             "L’inscription a changé. Actualisez la page avant de la modifier.",
         "apiRefusals.registrationCheckoutRequired" to
-            "Terminez le paiement avant de saisir les renseignements sur votre entreprise.",
+            "Terminez le paiement avant de fournir les renseignements pour l’inscription aux textos vers les États-Unis.",
         "apiRefusals.registrationSubmissionInProgress" to
             "La demande d’inscription est en cours d’envoi. Actualisez la page avant de la modifier.",
         "apiRefusals.textEnablementAlreadyPending" to

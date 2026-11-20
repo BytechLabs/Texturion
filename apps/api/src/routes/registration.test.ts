@@ -263,17 +263,31 @@ describe("PUT /v1/registration", () => {
     expect(res.status).toBe(403);
   });
 
-  it("accepts texting details before checkout and blocks a brand write", async () => {
-    const harness = buildHarness({ subscription_status: "incomplete", registration_fee_paid_at: null });
-    const saveCampaign = await harness.request("/v1/registration", jsonInit("PUT", { campaign: CAMPAIGN_BODY }));
-    expect(saveCampaign.status).toBe(200);
-    const saveBusiness = await harness.request("/v1/registration", jsonInit("PUT", { brand: BRAND_BODY }));
-    expect(saveBusiness.status).toBe(409);
-    await expect(saveBusiness.json()).resolves.toMatchObject({
-      error: { message_key: "apiRefusals.registrationCheckoutRequired" },
-    });
-    expect(harness.rest.rows("messaging_registrations").map((row) => row.kind)).toEqual(["campaign"]);
+  it.each(["incomplete", "incomplete_expired"])("blocks all registration writes before checkout (%s)", async (status) => {
+    const harness = buildHarness({ subscription_status: status, registration_fee_paid_at: null });
+    for (const body of [{ brand: BRAND_BODY }, { campaign: CAMPAIGN_BODY }, { brand: BRAND_BODY, campaign: CAMPAIGN_BODY }]) {
+      const response = await harness.request("/v1/registration", jsonInit("PUT", body));
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { message_key: "apiRefusals.registrationCheckoutRequired" },
+      });
+    }
+    expect(harness.rest.rows("messaging_registrations")).toEqual([]);
+  });
+
+  it("submits a paid workspace's brand only after both drafts are saved", async () => {
+    const harness = buildHarness();
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    harness.telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({ data: { brandId: "brand-1" } }));
+    const brand = await harness.request("/v1/registration", jsonInit("PUT", { brand: BRAND_BODY }));
+    expect(brand.status).toBe(200);
+    await expect(brand.json()).resolves.toMatchObject({ brand: { status: "draft" }, campaign: null });
     expect(harness.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(0);
+
+    const campaign = await harness.request("/v1/registration", jsonInit("PUT", { campaign: CAMPAIGN_BODY }));
+    expect(campaign.status).toBe(200);
+    await expect(campaign.json()).resolves.toMatchObject({ brand: { status: "submitted" } });
+    expect(harness.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(1);
   });
 
   it("submits a paid workspace's brand after the owner saves its business details", async () => {

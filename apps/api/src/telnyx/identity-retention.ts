@@ -1,6 +1,3 @@
-/**
- * Remove abandoned brand drafts after 30 days.
- */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -20,7 +17,7 @@ export async function runIdentityRetentionJob(
 
   const cleared = (data as number) ?? 0;
   if (cleared > 0) {
-    console.log(`identity retention: removed ${cleared} abandoned brand draft(s)`);
+    console.log(`identity retention: removed ${cleared} abandoned registration draft(s)`);
   }
   return cleared;
 }

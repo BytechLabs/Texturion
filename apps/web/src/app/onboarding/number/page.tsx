@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { draftOwesUsRegistration, previousStepHref, stepProgress } from "../steps";
+import { previousStepHref, stepProgress } from "../steps";
 import type { NumberMode } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
@@ -98,8 +98,6 @@ export default function NumberStepPage() {
     ...state.snapshot,
     draft: { ...draft, country, usTexting },
   });
-  const skipsRegistration = !draftOwesUsRegistration({ country, usTexting });
-  const nextStep = skipsRegistration ? "/onboarding/plan" : "/onboarding/texting";
   const busy = submitting || createCompany.isPending || updateCompany.isPending;
   // Honest Back: the nearest still-editable preceding step, or none (name locks
   // at creation, so an editing user has nothing reachable behind this step).
@@ -166,7 +164,7 @@ export default function NumberStepPage() {
           us_texting_enabled: country === "CA" ? usTexting : true,
         });
         trackOnboardingStepCompleted("number");
-        router.push(nextStep);
+        router.push("/onboarding/plan");
       } catch (error) {
         onError(error);
       }
@@ -191,7 +189,7 @@ export default function NumberStepPage() {
         country,
         requested_area_code: requestedAreaCode,
         ...(full ? { chosen_number_e164: chosenNumber } : {}),
-        us_texting_enabled: !skipsRegistration,
+        us_texting_enabled: country === "US" || usTexting,
         ...(timezone ? { timezone } : {}),
         // #370: the crew size answered back on the name step.
         ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
@@ -210,7 +208,7 @@ export default function NumberStepPage() {
       await queryClient.invalidateQueries({ queryKey: keys.me });
       clearOnboardingDraft();
       trackOnboardingStepCompleted("number");
-      router.push(nextStep);
+      router.push("/onboarding/plan");
     } catch (error) {
       onError(error);
     }

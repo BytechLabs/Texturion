@@ -76,7 +76,7 @@ export function SimpleSelect({
 
   const select = (
     <Select
-      value={value === "" ? undefined : value}
+      value={value}
       onValueChange={onValueChange}
       disabled={disabled}
     >
