@@ -2,8 +2,8 @@ import XCTest
 
 @MainActor
 final class DeviceChecklists: XCTestCase {
-    private let app = XCUIApplication()
-    private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    private lazy var app = XCUIApplication()
+    private lazy var springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     private let fixture = URL(string: "http://127.0.0.1:8765")!
 
     private struct Write: Decodable {
@@ -20,26 +20,25 @@ final class DeviceChecklists: XCTestCase {
         try signIn()
         try openThread("Ada Fixture")
         try await control("push?thread=0&title=Current%20thread%20alert&inbound=1")
+        XCTAssertFalse(notification("Current thread alert").waitForExistence(timeout: 2))
         try waitFor(label("Live test inbound"))
         shot("775 inbound while reading the thread")
 
         try await control("push?thread=1&title=Other%20thread%20alert")
-        let banner = springboard.staticTexts["Other thread alert"].firstMatch
-        try waitFor(banner, timeout: 5)
+        try waitFor(notification("Other thread alert"), timeout: 5)
         shot("775 other thread foreground banner")
         openNotificationCenter()
-        try waitFor(springboard.staticTexts["Other thread alert"].firstMatch)
-        XCTAssertFalse(springboard.staticTexts["Current thread alert"].exists)
+        try waitFor(notification("Other thread alert"))
+        XCTAssertFalse(notification("Current thread alert").exists)
         shot("775 current thread excluded from Notification Center")
     }
 
-    func testNotificationReplyAndTrayClearance() async throws {
+    func testNotificationReply() async throws {
         try signIn()
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
         openNotificationCenter()
-        let replyCard = springboard.staticTexts["Reply from the shade"].firstMatch
-        try waitFor(replyCard).press(forDuration: 1.1)
+        try waitFor(notification("Reply from the shade")).press(forDuration: 1.1)
         try waitFor(springboard.buttons["Reply"].firstMatch).tap()
         let reply = try waitFor(springboard.textFields.firstMatch)
         reply.tap()
@@ -47,27 +46,29 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(springboard.buttons["Send text"].firstMatch).tap()
         try await assertOneWrite(path: "/v1/messages/send", field: "body", value: "Simulator shade reply", requiresKey: true)
         shot("777 notification reply")
+    }
 
-        app.activate()
+    func testNotificationTrayClearance() async throws {
+        try signIn()
         try await control("push?thread=1&title=Clear%20on%20open")
-        try waitFor(springboard.staticTexts["Clear on open"].firstMatch, timeout: 5)
+        try waitFor(notification("Clear on open"), timeout: 5)
         openNotificationCenter()
-        try waitFor(springboard.staticTexts["Clear on open"].firstMatch).tap()
+        try waitFor(notification("Clear on open")).tap()
         try waitFor(label("Second thread history"))
         openNotificationCenter()
-        XCTAssertFalse(springboard.staticTexts["Clear on open"].exists)
+        XCTAssertFalse(notification("Clear on open").exists)
         shot("777 opening the thread clears its card")
         dismissNotificationCenter()
         try waitFor(app.buttons["Back"].firstMatch).tap()
 
         try await control("push?thread=1&title=Clear%20on%20remote%20read&missed=1")
-        try waitFor(springboard.staticTexts["Clear on remote read"].firstMatch, timeout: 5)
+        try waitFor(notification("Clear on remote read"), timeout: 5)
         shot("777 missed-call alert")
         try await control("read")
         openNotificationCenter()
         let removed = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
-            object: springboard.staticTexts["Clear on remote read"].firstMatch
+            object: notification("Clear on remote read")
         )
         let result = await XCTWaiter.fulfillment(of: [removed], timeout: 10)
         XCTAssertEqual(result, .completed)
@@ -191,7 +192,8 @@ final class DeviceChecklists: XCTestCase {
     }
 
     private func openNotificationCenter() {
-        let top = app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0))
+        let foreground = app.state == .runningForeground ? app : springboard
+        let top = foreground.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0))
         top.press(forDuration: 0.1, thenDragTo: top.withOffset(CGVector(dx: 0, dy: 500)))
     }
 
@@ -201,6 +203,10 @@ final class DeviceChecklists: XCTestCase {
 
     private func label(_ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    private func notification(_ title: String) -> XCUIElement {
+        springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
     }
 
     private func field(value: String) -> XCUIElement {

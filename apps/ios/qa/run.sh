@@ -77,7 +77,7 @@ for name in foreground-alerts notification-actions calls offline autosave copy-a
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
-    notification-actions) run_scenario "$name" "$ui/testNotificationReplyAndTrayClearance" || failed=1 ;;
+    notification-actions) run_scenario "$name" "$ui/testNotificationReply" "$ui/testNotificationTrayClearance" || failed=1 ;;
     calls) run_scenario "$name" "$audit/testInCallControls" "$audit/testCallLog" \
       "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" || failed=1 ;;
     offline) run_scenario "$name" "$ui/testOfflineRelaunchAndOutbox" "$unit/OfflineReadCacheTests" || failed=1 ;;
