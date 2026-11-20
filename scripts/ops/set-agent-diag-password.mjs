@@ -30,8 +30,7 @@
  * exist, log in, hold no TEMP, default to read-only, and have each timeout at
  * 60 s or less, with no per-database setting overriding them (migration
  * 20261031100000). And a production database where agent_diag can reach
- * pg_net, which a migration cannot close on Supabase; on the local stack,
- * which installs pg_net, that is a warning. These run when a password is set
+ * pg_net. On the local stack, that is a warning. These run when a password is set
  * or checked. agent-diag.mjs checks the same hazards from inside every
  * agent_diag session it opens, so one that appears later, such as pg_net
  * enabled from the dashboard, stops the next session.

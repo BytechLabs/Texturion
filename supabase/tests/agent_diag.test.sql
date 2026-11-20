@@ -98,13 +98,8 @@ end $$;
 -- one by name. Coverage is reported, because a check that matched nothing
 -- would also pass.
 --
--- Two exemptions. pg_stat_statements grants itself to PUBLIC, but to a role
--- outside pg_read_all_stats, as AD-1 proves agent_diag is, every other role's
--- statement text reads as "<insufficient privilege>", leaving counts and
--- timings. And the tables the pg_net extension owns, which the local Supabase
--- image installs and grants to PUBLIC: production has no pg_net (checked
--- 2026-10-30) and no migration uses it, and enabling it there means revoking
--- PUBLIC on them before agent_diag can log in.
+-- pg_stat_statements is public, but a role without pg_read_all_stats
+-- sees counts and timings without other users' statement text.
 -- ===========================================================================
 do $$
 declare
@@ -120,12 +115,7 @@ begin
                            'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
                      and not ((n.nspname || '.' || c.relname) = any (array[
                            'extensions.pg_stat_statements',
-                           'extensions.pg_stat_statements_info']))
-                     and not exists (
-                           select 1 from pg_depend d
-                             join pg_extension e on e.oid = d.refobjid
-                            where d.classid = 'pg_class'::regclass and d.objid = c.oid
-                              and d.deptype = 'e' and e.extname = 'pg_net'))
+                           'extensions.pg_stat_statements_info'])))
     into v_checked, v_schemas, v_reachable
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
@@ -538,8 +528,7 @@ end $$;
 -- preconditionSql({ production: true }), byte for byte;
 -- packages/shared/src/agent-diag-password.test.ts fails if the two differ.
 -- Each case plants one hazard in a subtransaction, runs the check, keeps its
--- error and rolls the hazard back. The database as migrated has pg_net here,
--- as the local image does, so production's text refuses it for that alone.
+-- error and rolls the hazard back.
 -- ===========================================================================
 do $test$
 declare
@@ -608,7 +597,6 @@ begin
 end $$;
 $check$;
   v_db     text := current_database();
-  v_net    boolean := exists (select 1 from pg_extension where extname = 'pg_net');
   v_plants text[];
   v_wants  text[];
   v_msg    text;
@@ -623,7 +611,7 @@ begin
     format('alter role agent_diag in database %I set statement_timeout = 0', v_db),
     'alter role agent_diag nologin'];
   v_wants := array[
-    case when v_net then 'REFUSED: agent_diag can reach pg_net here' else 'NO REFUSAL' end,
+    'NO REFUSAL',
     'REFUSED: agent_diag can still create temporary objects',
     'REFUSED: agent_diag has no transaction_timeout setting',
     'REFUSED: agent_diag''s statement_timeout is 0, which is off or over 60 s',

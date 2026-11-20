@@ -101,8 +101,7 @@ end $$;
 
 -- ===========================================================================
 -- PR-2. From the catalog: posthog_reader can reach no table or view in any
--- schema but ops_metrics, with agent_diag.test.sql's AD-2 exemptions (the
--- PUBLIC pg_stat_statements views and the local image's pg_net tables).
+-- schema but ops_metrics, with the same pg_stat_statements exemption as agent_diag.
 -- ===========================================================================
 do $$
 declare
@@ -118,12 +117,7 @@ begin
                            'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
                      and not ((n.nspname || '.' || c.relname) = any (array[
                            'extensions.pg_stat_statements',
-                           'extensions.pg_stat_statements_info']))
-                     and not exists (
-                           select 1 from pg_depend d
-                             join pg_extension e on e.oid = d.refobjid
-                            where d.classid = 'pg_class'::regclass and d.objid = c.oid
-                              and d.deptype = 'e' and e.extname = 'pg_net'))
+                           'extensions.pg_stat_statements_info'])))
     into v_checked, v_schemas, v_reachable
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace

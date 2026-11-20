@@ -17,7 +17,7 @@
  * production with a stronger key.
  *
  * EVERY SESSION CHECKS ITSELF FIRST (selfCheckSql): read-only, each timeout
- * at 60 s or less, no TEMP, no pg_net, and no relation outside ops_diag. A
+ * at 60 s or less, no TEMP, no pg_net access, and no relation outside ops_diag. A
  * hazard that appeared after the password was set, such as pg_net enabled
  * from the dashboard, stops the session on production and names the way to
  * withdraw the login.
@@ -182,7 +182,7 @@ export function runPsql(sql, connectionEnv, { args = [], container } = {}) {
  * Run as agent_diag at the start of every session: set-agent-diag-password's
  * hazards, asked of this very session, so its effective settings count
  * wherever they were set. Refuses on production, naming the way to withdraw
- * the login; warns on the local stack, which installs pg_net.
+ * the login, and warns on the local stack.
  */
 export function selfCheckSql({ production }) {
   return `do $$
@@ -234,10 +234,6 @@ begin
      and n.nspname !~ '^pg_(toast|temp_)'
      and c.relkind in ('r', 'p', 'v', 'm', 'f')
      and (n.nspname || '.' || c.relname) not in ('extensions.pg_stat_statements', 'extensions.pg_stat_statements_info')
-     and not exists (select 1 from pg_catalog.pg_depend d
-                       join pg_catalog.pg_extension e on e.oid = d.refobjid
-                      where d.classid = 'pg_catalog.pg_class'::regclass and d.objid = c.oid
-                        and d.deptype = 'e' and e.extname = 'pg_net')
      and pg_catalog.has_schema_privilege(n.oid, 'USAGE')
      and pg_catalog.has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER');
   if v_reach is not null then

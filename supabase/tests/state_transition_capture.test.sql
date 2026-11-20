@@ -1,19 +1,5 @@
 -- #722 phase 4: every state transition is captured in the database.
--- Suite for supabase/migrations/20261111420000_every_state_transition_is_recorded.sql.
---
--- What is pinned:
---   ST-1  with no Vault secret a real transition enqueues nothing
---   ST-2  with the secret, an internal machine (conversation) enqueues exactly one
---         request whose body has the machine, from, to, record id and expected
---   ST-3  an update that does not change the state enqueues nothing
---   ST-4  a provider machine (subscription) is captured
---   ST-5  a derived machine (task) is captured, from and to computed from done_at
---   ST-6  the body carries the company as distinct_id and no person profile
---   ST-7  the edge list answers expected for an edge and a non-edge
---   ST-8  the capture never raises
---   ST-9  activity: a restored task writes record_activity, a phone number
---         status change writes an audit row with a null actor
---   ST-10 grants: no browser role can execute the new functions
+-- State-transition triggers, service-only outbox and the absence of database HTTP.
 --
 -- Run with:
 --   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
@@ -53,117 +39,70 @@ values ('5c000000-0000-4000-8000-000000000d01', '5c000000-0000-4000-8000-0000000
         'Capture task', '5c000000-0000-4000-8000-00000000000a',
         '5c000000-0000-4000-8000-000000000c01');
 
--- A high-water mark on the pg_net queue, so each check sees only its own requests.
-create temp table st_hw (hi bigint not null);
-insert into st_hw values (coalesce((select max(id) from net.http_request_queue), 0));
-
-create function pg_temp.st_new() returns table (body jsonb)
-language sql as $$
-  select convert_from(q.body, 'utf8')::jsonb
-    from net.http_request_queue q
-   where q.id > (select hi from st_hw)
-     and convert_from(q.body, 'utf8')::jsonb ->> 'distinct_id'
-         = '5c000000-0000-4000-8000-0000000000c1'
-$$;
-
-create function pg_temp.st_mark() returns void language sql as $$
-  update st_hw set hi = coalesce((select max(id) from net.http_request_queue), 0)
-$$;
-
--- ST-1: no secret, no request.
-update public.conversations set status = 'waiting'
- where id = '5c000000-0000-4000-8000-000000000c01';
+-- ST-1/2/3: initial state, unchanged state and ordinary transitions.
 do $$
 begin
-  if exists (select 1 from pg_temp.st_new()) then
-    raise exception 'ST-1 FAILED: a transition enqueued a request with no Vault secret';
+  if not exists (select 1 from public.state_transition_outbox
+    where company_id = '5c000000-0000-4000-8000-0000000000c1'
+      and machine = 'workspace' and from_state is null and to_state = 'active' and expected
+  ) then
+    raise exception 'ST-1 FAILED: workspace initial state was not queued';
   end if;
-  raise notice 'ST-1 PASSED: no secret, nothing enqueued';
 end $$;
 
-select vault.create_secret('st-test-key', 'posthog_api_key');
-select pg_temp.st_mark();
+truncate public.state_transition_outbox;
+set local loonext.cause = 'state-transition-test';
 
--- ST-2: an internal machine.
-update public.conversations set status = 'open'
- where id = '5c000000-0000-4000-8000-000000000c01';
-do $$
-declare
-  n int;
-  b jsonb;
-begin
-  select count(*) into n from pg_temp.st_new();
-  if n is distinct from 1 then
-    raise exception 'ST-2 FAILED: expected exactly one request, found %', n;
-  end if;
-  select body into b from pg_temp.st_new();
-  if b ->> 'event' is distinct from 'state_transition'
-     or b -> 'properties' ->> 'machine' is distinct from 'conversation'
-     or b -> 'properties' ->> 'from' is distinct from 'waiting'
-     or b -> 'properties' ->> 'to' is distinct from 'open'
-     or b -> 'properties' ->> 'record_id' is distinct from '5c000000-0000-4000-8000-000000000c01'
-     or b -> 'properties' ->> 'expected' is distinct from 'true' then
-    raise exception 'ST-2 FAILED: wrong body %', b;
-  end if;
-  -- ST-6
-  if b ->> 'distinct_id' is distinct from '5c000000-0000-4000-8000-0000000000c1'
-     or b ->> 'api_key' is distinct from 'st-test-key'
-     or (b -> 'properties' ->> '$process_person_profile') is distinct from 'false'
-     or b -> 'properties' ->> 'environment' is distinct from 'production'
-     or b -> 'properties' ->> 'cause' is null then
-    raise exception 'ST-6 FAILED: wrong envelope %', b;
-  end if;
-  raise notice 'ST-2 PASSED: one request with machine, from, to and record id';
-  raise notice 'ST-6 PASSED: company as distinct_id, no person profile';
-end $$;
-select pg_temp.st_mark();
-
--- ST-3: an update that leaves the state alone.
 update public.conversations set status = 'open', last_message_at = now()
  where id = '5c000000-0000-4000-8000-000000000c01';
+update public.conversations set status = 'waiting'
+ where id = '5c000000-0000-4000-8000-000000000c01';
+
 do $$
 begin
-  if exists (select 1 from pg_temp.st_new()) then
-    raise exception 'ST-3 FAILED: an unchanged state enqueued a request';
+  if (select count(*) from public.state_transition_outbox) <> 1
+     or not exists (select 1 from public.state_transition_outbox
+       where company_id = '5c000000-0000-4000-8000-0000000000c1'
+         and machine = 'conversation' and from_state = 'open' and to_state = 'waiting' and expected
+         and record_id = '5c000000-0000-4000-8000-000000000c01'
+         and cause = 'state-transition-test'
+     ) then
+    raise exception 'ST-2/3 FAILED: only the actual conversation transition should be queued';
   end if;
-  raise notice 'ST-3 PASSED: no change, no request';
 end $$;
 
--- ST-4: a provider machine.
+-- ST-4/5: provider-owned and derived transitions use the same outbox.
 update public.companies set subscription_status = 'past_due'
  where id = '5c000000-0000-4000-8000-0000000000c1';
-do $$
-declare
-  b jsonb;
-begin
-  select body into b from pg_temp.st_new()
-   where body -> 'properties' ->> 'machine' = 'subscription';
-  if b is null
-     or b -> 'properties' ->> 'from' is distinct from 'active'
-     or b -> 'properties' ->> 'to' is distinct from 'past_due' then
-    raise exception 'ST-4 FAILED: subscription move not captured: %', b;
-  end if;
-  raise notice 'ST-4 PASSED: provider machine captured';
-end $$;
-select pg_temp.st_mark();
-
--- ST-5: a derived machine.
 update public.tasks set done_at = now(), done_by_user_id = '5c000000-0000-4000-8000-00000000000a'
  where id = '5c000000-0000-4000-8000-000000000d01';
+
 do $$
-declare
-  b jsonb;
 begin
-  select body into b from pg_temp.st_new()
-   where body -> 'properties' ->> 'machine' = 'task';
-  if b is null
-     or b -> 'properties' ->> 'from' is distinct from 'open'
-     or b -> 'properties' ->> 'to' is distinct from 'done'
-     or b -> 'properties' ->> 'record_id' is distinct from '5c000000-0000-4000-8000-000000000d01'
-     or b -> 'properties' ->> 'expected' is distinct from 'true' then
-    raise exception 'ST-5 FAILED: task move not captured: %', b;
+  if not exists (select 1 from public.state_transition_outbox
+    where machine = 'subscription' and from_state = 'active' and to_state = 'past_due'
+  ) then
+    raise exception 'ST-4 FAILED: subscription move was not queued';
   end if;
-  raise notice 'ST-5 PASSED: derived machine captured';
+  if not exists (select 1 from public.state_transition_outbox
+    where machine = 'task' and from_state = 'open' and to_state = 'done' and expected
+      and record_id = '5c000000-0000-4000-8000-000000000d01'
+  ) then
+    raise exception 'ST-5 FAILED: task move was not queued';
+  end if;
+end $$;
+
+-- ST-6: rolling back a write also rolls back its event.
+savepoint state_change;
+update public.conversations set status = 'open'
+ where id = '5c000000-0000-4000-8000-000000000c01';
+rollback to savepoint state_change;
+
+do $$
+begin
+  if exists (select 1 from public.state_transition_outbox where machine = 'conversation' and to_state = 'open') then
+    raise exception 'ST-6 FAILED: a rolled back transition was queued';
+  end if;
 end $$;
 
 -- ST-7: the edge list.
@@ -222,6 +161,56 @@ begin
     raise exception 'ST-10 FAILED: browser roles can execute %', bad;
   end if;
   raise notice 'ST-10 PASSED: the capture functions are closed to browser roles';
+end $$;
+
+-- ST-11: only the service can drain the outbox. A claim has a lease, and
+-- an acknowledgement removes only the events that reached PostHog.
+set local role service_role;
+do $$
+declare
+  claimed uuid[];
+begin
+  select array_agg(id) into claimed from public.api_claim_state_transitions();
+  if coalesce(cardinality(claimed), 0) < 3 then
+    raise exception 'ST-11 FAILED: queued transitions were not claimed';
+  end if;
+  if exists (select 1 from public.api_claim_state_transitions()) then
+    raise exception 'ST-11 FAILED: a leased transition was claimed again';
+  end if;
+  perform public.api_ack_state_transitions(claimed[1:1]);
+  if exists (select 1 from public.state_transition_outbox where id = claimed[1])
+     or not exists (select 1 from public.state_transition_outbox where id = claimed[2]) then
+    raise exception 'ST-11 FAILED: acknowledgements must remove only the named transitions';
+  end if;
+  update public.state_transition_outbox
+     set available_at = now(), occurred_at = now() - interval '2 days'
+   where id = claimed[2];
+  if exists (select 1 from public.api_claim_state_transitions()) then
+    raise exception 'ST-11 FAILED: an expired transition was claimed';
+  end if;
+  if exists (select 1 from public.state_transition_outbox where id = claimed[2]) then
+    raise exception 'ST-11 FAILED: an expired transition was not deleted';
+  end if;
+
+  if exists (select 1 from pg_roles r
+    where not r.rolsuper and r.rolname in ('anon', 'authenticated', 'agent_diag', 'posthog_reader')
+      and (has_function_privilege(r.oid, 'public.api_claim_state_transitions()', 'EXECUTE')
+        or has_function_privilege(r.oid, 'public.api_ack_state_transitions(uuid[])', 'EXECUTE')
+        or has_table_privilege(r.oid, 'public.state_transition_outbox', 'SELECT, INSERT, UPDATE, DELETE'))
+  ) or not has_function_privilege('service_role', 'public.api_claim_state_transitions()', 'EXECUTE')
+    or not has_function_privilege('service_role', 'public.api_ack_state_transitions(uuid[])', 'EXECUTE') then
+    raise exception 'ST-11 FAILED: outbox grants have drifted';
+  end if;
+end $$;
+reset role;
+
+-- ST-12: the extension and every entry point must stay absent after a DB reset.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname in ('pg_net', 'http'))
+     or to_regnamespace('net') is not null then
+    raise exception 'ST-12 FAILED: database HTTP is enabled again';
+  end if;
 end $$;
 
 rollback;
