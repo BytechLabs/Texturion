@@ -785,7 +785,7 @@ export const identityBodySchema = z
     mctb_message: z.string().max(1000).nullable().optional(),
     // #309: which RECORDING plays. Null is the written words, which is
     // what a line does until somebody chooses otherwise.
-    voicemail_greeting_id: z.string().uuid().nullable().optional(),
+    voicemail_greeting_id: z.uuid().nullable().optional(),
     // The clock this line keeps. Structural validity is checked below with
     // the SAME validators the workspace route uses — a second near-identical
     // rule here is how two surfaces end up disagreeing about what a valid
@@ -804,7 +804,7 @@ export const identityBodySchema = z
       .enum(["ring_everyone", "on_call_only", "voicemail"])
       .nullable()
       .optional(),
-    after_hours_greeting_id: z.string().uuid().nullable().optional(),
+    after_hours_greeting_id: z.uuid().nullable().optional(),
     // #278: how this line's phones ring, and for how long. Null is inherit on
     // both — the same tri-state every override here needs.
     ring_strategy: z.enum(["all", "in_turn"]).nullable().optional(),
@@ -825,7 +825,7 @@ export const identityBodySchema = z
      * tracking numbers are for. Null means untracked, not "use the
      * workspace's", so it never reaches `resolveNumberIdentity`.
      */
-    lead_source_id: z.string().uuid().nullable().optional(),
+    lead_source_id: z.uuid().nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",

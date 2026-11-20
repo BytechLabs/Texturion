@@ -321,7 +321,7 @@ describe(captureEvent, () => {
     }, waitUntil);
     await Promise.all(pending);
 
-    const event = sent.find(({ event }) => event.event === "push_attempt");
+    const event = sent.find(({ event: capturedEvent }) => capturedEvent.event === "push_attempt");
     expect(event?.event.properties).not.toHaveProperty("call_session_id");
     log.mockRestore();
   });

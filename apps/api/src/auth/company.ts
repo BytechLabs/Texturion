@@ -20,6 +20,7 @@ const memberRowSchema = z.object({
   role: z.enum(MEMBER_ROLES),
 });
 
+/* oxlint-disable unicorn/prefer-top-level-await -- Zod supplies defaults for invalid fields. */
 const authorizeSchema = z.object({
   session_revoked: z.boolean(),
   session_new: z.boolean(),
@@ -48,6 +49,7 @@ const authorizeSchema = z.object({
     .nullable()
     .catch(null),
 });
+/* oxlint-enable unicorn/prefer-top-level-await */
 
 /**
  * #581: `company_mfa_posture` read on its own, by {@link resolveMfaStepUp}, for
@@ -55,10 +57,12 @@ const authorizeSchema = z.object({
  * named — see {@link MfaPosture} for why the other two exist. Same tolerance as
  * the object above, and for the same reason.
  */
+/* oxlint-disable unicorn/prefer-top-level-await -- Zod supplies defaults for invalid fields. */
 const posturePayloadSchema = z
   .object({ enforcing: z.boolean() })
   .nullable()
   .catch(null);
+/* oxlint-enable unicorn/prefer-top-level-await */
 
 /**
  * The only /v1 routes that carry a JWT but no company scope (SPEC §7):

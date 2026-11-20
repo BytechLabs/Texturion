@@ -211,6 +211,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
   it("ramps distinct inbound events, each delivered twice, until something gives", async () => {
     let ceiling: string | null = null;
 
+    const rig = stack;
     for (const level of LEVELS) {
       const before = await messageCount();
       const prefix = `rigload-${stack.runId}-L${level}-`;
@@ -232,7 +233,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
         level * COPIES,
         async (index) => {
           const which = Math.floor(index / COPIES);
-          const ack = await stack.injectTelnyx(events[which]);
+          const ack = await rig.injectTelnyx(events[which]);
           if (ack.status >= 200 && ack.status < 300) acked.add(which);
           return ack;
         },
@@ -299,18 +300,12 @@ describe("#251 webhook burst on the rig, ramped", () => {
         }),
       );
 
+      const silent = crossed ? [...acked].filter((which) => !rows.ids.has(`${prefix}${which}`)).length : 0;
+      expect(silent, `level ${level}: events acked but absent from the ledger`).toBe(0);
       if (crossed) {
         // What the Worker said while it refused, so the finding names a cause.
         console.log(`level ${level} worker log, by cause:`, stack.logCauses());
         ceiling = `level ${level}: ${non2xx} refused acks, ${dropped} not landed`;
-        // The honest-degradation requirement, stated as code: crossing the
-        // ceiling must be visible. Either the carrier was told (a non-2xx so
-        // it retries) or the ledger still holds the event for the sweeper.
-        // Neither is a silent loss. Silent means: acked 2xx, not landed, and
-        // not in the ledger at all.
-        let silent = 0;
-        for (const which of acked) if (!rows.ids.has(`${prefix}${which}`)) silent += 1;
-        expect(silent, `level ${level}: events acked but absent from the ledger`).toBe(0);
         break;
       }
     }

@@ -300,18 +300,17 @@ describe("a number somebody is denied does not leak the task", () => {
     expect(sent()).toHaveLength(0);
   });
 
-  it("keeps the task words off a lock screen when the workspace turns content off", () => {
+  it("keeps the task words off a lock screen when the workspace turns content off", async () => {
     // The wording that survives is ours; the title and the comment are withheld
     // by deliverPush from the `withheld` this call declares.
     world();
-    return run({ kind: "comment", commentBody: "Gate code 4417" }).then(() => {
-      const [delivery] = sent();
-      expect(delivery.content).toMatchObject({ written: "people", companyId: COMPANY_ID });
-      if (delivery.content.written !== "people") throw new Error("unreachable");
-      expect(delivery.content.withheld("en")).toEqual({ body: "Open the app to see it" });
-      expect(delivery.content.withheld("fr-CA")).toEqual({
-        body: "Ouvrez l'application pour la voir",
-      });
+    await run({ kind: "comment", commentBody: "Gate code 4417" });
+    const [delivery] = sent();
+    expect(delivery.content).toMatchObject({ written: "people", companyId: COMPANY_ID });
+    if (delivery.content.written !== "people") throw new Error("unreachable");
+    expect(delivery.content.withheld("en")).toEqual({ body: "Open the app to see it" });
+    expect(delivery.content.withheld("fr-CA")).toEqual({
+      body: "Ouvrez l'application pour la voir",
     });
   });
 });

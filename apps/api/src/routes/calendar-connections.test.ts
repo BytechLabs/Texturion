@@ -820,10 +820,12 @@ describe("calendar connection management", () => {
       outcome: "resolved",
       source: "calendar",
     }));
+    const refreshTokens: (string | null)[] = [];
+    const eventAuth: (string | null)[] = [];
     const providerRoute = async (url: URL, request: Request) => {
       if (url.href === "https://oauth2.googleapis.com/token") {
         const form = new URLSearchParams(await request.clone().text());
-        expect(form.get("refresh_token")).toBe("stored-refresh-token");
+        refreshTokens.push(form.get("refresh_token"));
         return Response.json({
           access_token: "fresh-access-token",
           expires_in: 3600,
@@ -833,9 +835,7 @@ describe("calendar connection management", () => {
         url.href ===
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/provider-event-1"
       ) {
-        expect(request.headers.get("Authorization")).toBe(
-          "Bearer fresh-access-token",
-        );
+        eventAuth.push(request.headers.get("Authorization"));
         return Response.json({
           id: "provider-event-1",
           etag: '"etag-fresh"',
@@ -867,6 +867,8 @@ describe("calendar connection management", () => {
         body: { action: "use_calendar" },
       },
     );
+    expect(refreshTokens).toEqual(["stored-refresh-token"]);
+    expect(eventAuth).toEqual(["Bearer fresh-access-token"]);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       outcome: "resolved",
@@ -922,7 +924,7 @@ describe("calendar connection management", () => {
     ["a missing event", "removed"],
     ["an all-day event", "all_day"],
     ["an overlong description", "description_too_long"],
-  ])(
+  ] as const)(
     "durably records %s observed during use_calendar before asking for refresh",
     async (_label, condition) => {
       const env = configuredEnv();
@@ -1034,18 +1036,12 @@ describe("calendar connection management", () => {
         p_provider_condition:
           condition === "removed" ? "event_removed" : "refused",
       });
-      if (condition === "all_day") {
-        expect(observation).toMatchObject({
-          p_observed_provider_version: '"etag-new"',
-          p_refusal_code: "all_day",
-        });
-      }
-      if (condition === "description_too_long") {
-        expect(observation).toMatchObject({
-          p_refusal_code: "description_too_long",
-          p_refusal_detail: "too_long",
-        });
-      }
+      const refusal = {
+        all_day: { p_observed_provider_version: '"etag-new"', p_refusal_code: "all_day" },
+        description_too_long: { p_refusal_code: "description_too_long", p_refusal_detail: "too_long" },
+        removed: { p_provider_condition: "event_removed" },
+      };
+      expect(observation).toMatchObject(refusal[condition]);
       expect(
         sb.find("POST", "/rest/v1/rpc/api_resolve_calendar_conflict"),
       ).toHaveLength(0);

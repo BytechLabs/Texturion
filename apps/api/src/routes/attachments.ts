@@ -1046,7 +1046,7 @@ attachmentsRoutes.post(
       code: ApiErrorCode;
       message: string;
     }[] = [];
-    outcomes.forEach((outcome, index) => {
+    for (const [index, outcome] of outcomes.entries()) {
       const { id, variant: requested_variant } = requests[index];
       if (outcome.kind === "minted") {
         data.push({
@@ -1057,11 +1057,11 @@ attachmentsRoutes.post(
           expires_at: outcome.expiresAt,
           ttl_seconds: outcome.ttlSeconds,
         });
-        return;
+        continue;
       }
       if (outcome.kind === "refused") {
         errors.push({ id, requested_variant, code: outcome.code, message: outcome.message });
-        return;
+        continue;
       }
       // The GET leaves this to onError; the batch still answers, so it reports it.
       void captureException(env, new Error(outcome.detail), {
@@ -1075,7 +1075,7 @@ attachmentsRoutes.post(
         code: INTERNAL_ERROR_CODE,
         message: "Something went wrong.",
       });
-    });
+    }
     return c.json({ data, errors });
   },
 );

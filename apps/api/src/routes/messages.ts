@@ -748,7 +748,7 @@ messageRoutes.get(
     };
 
     let rows: Row[];
-    let nextCursor: string | null = null;
+    let nextCursor: string | null;
     let newerCursor: string | null = null;
     let anchorId: string | null = null;
     let anchorMissing = false;

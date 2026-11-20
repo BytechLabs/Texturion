@@ -251,8 +251,8 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     const [current] = unwrap<QuoteState[]>(await db.from("quotes").select("status,expires_at")
       .eq("company_id", resolved.company_id).eq("id", row.id).limit(1), "quote decision lookup");
     if (!current) return publicLinkNotAvailable(c);
-    const status = effectiveQuoteStatus(current, now);
-    return c.json({ accepted: status === "accepted", status }, status === "accepted" ? 200 : 409);
+    const currentStatus = effectiveQuoteStatus(current, now);
+    return c.json({ accepted: currentStatus === "accepted", status: currentStatus }, currentStatus === "accepted" ? 200 : 409);
   }
 
   if (row.conversation_id) {

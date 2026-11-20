@@ -707,13 +707,8 @@ describe("#537 — proving it is you before the business moves", () => {
         },
       );
       const body = await res.json<{ error?: { code: string } }>();
-      if (shouldPass) {
-        expect(body.error?.code).not.toBe("mfa_reprove_required");
-        expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(1);
-      } else {
-        expect(body.error?.code).toBe("mfa_reprove_required");
-        expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
-      }
+      expect(body.error?.code === "mfa_reprove_required").toBe(!shouldPass);
+      expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(shouldPass ? 1 : 0);
     }
   });
 

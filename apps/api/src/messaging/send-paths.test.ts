@@ -62,9 +62,9 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
     const minting = productionSources()
       .filter((file) => /as\s+SendClearance/.test(readFileSync(file, "utf8")))
       .map(repoPath)
-      .sort();
+      .toSorted();
 
-    expect(minting).toEqual([...MAY_MINT_A_CLEARANCE].sort());
+    expect(minting).toEqual([...MAY_MINT_A_CLEARANCE].toSorted());
   });
 
   it("routes every dispatch through a clearance the gate produced", () => {
@@ -92,7 +92,7 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
     const dispatchers = productionSources()
       .filter((file) => readFileSync(file, "utf8").includes("dispatchOutbound("))
       .map(repoPath)
-      .sort();
+      .toSorted();
 
     expect(dispatchers).toEqual([
       // Away reply and missed-call text-back both come through here.

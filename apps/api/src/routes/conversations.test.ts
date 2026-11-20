@@ -367,14 +367,14 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       ["only", "only"], // the "what did I defer" view
       ["all", "all"], // deliberately opting out of the filter
     ] as const) {
-      const res = await apiRequest(
+      const conversationResponse = await apiRequest(
         app,
         env,
         await auth.token(),
         `/v1/conversations?snoozed=${value}`,
         { companyId: COMPANY_ID },
       );
-      expect(res.status).toBe(200);
+      expect(conversationResponse.status).toBe(200);
       const calls = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
       expect(calls[calls.length - 1].body).toMatchObject({
         p_snoozed: expected,

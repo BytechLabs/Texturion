@@ -66,8 +66,8 @@ describe("#228 the scheduled disclosure a push goes out in", () => {
     // an entry that exists and is empty would buzz a phone and say nothing.
     for (const locale of LOCALES) {
       const copy = SCHEDULED_DISCLOSURE_COPY[locale];
-      expect(Object.keys(copy.reason).sort()).toEqual(
-        Object.keys(SCHEDULED_HOLD_REASONS).sort(),
+      expect(Object.keys(copy.reason).toSorted()).toEqual(
+        Object.keys(SCHEDULED_HOLD_REASONS).toSorted(),
       );
       for (const [reason, sentence] of Object.entries(copy.reason)) {
         expect(sentence.length, `${locale} ${reason} has no copy`).toBeGreaterThan(

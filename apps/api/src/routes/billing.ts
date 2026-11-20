@@ -1477,33 +1477,38 @@ billingRoutes.post("/prepay", async (c) => {
   if (!eligibility.eligible) {
     // Each refusal says the thing the customer can act on, and no more. An
     // unprovisioned catalog is our problem, not theirs.
-    const message =
-      eligibility.reason === "not_activated"
-        ? "Send your first message first, then you can pay for a year up front."
-        : eligibility.reason === "subscription_unhealthy"
-          ? "Sort out your payment method before paying for a year up front."
-          : eligibility.reason === "no_subscription"
-            ? "Subscribe first — a year up front pays for a plan you already have."
-            : eligibility.reason === "already_prepaid"
-              ? `You have already paid for a year. It runs until ${new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10)}.`
-              : eligibility.reason === "plan_change_pending"
-                ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
-                : eligibility.reason === "referral_month_pending"
-                  ? // Named, not folded into the generic sentence, because this
-                    // one is entirely actionable and waiting costs one cycle:
-                    // the year would overwrite the free month, so let the month
-                    // land and then buy the year.
-                    "You have a free month from a referral waiting on your next " +
-                    "bill. Paying for a year now would use it up on a $0 line — " +
-                    "let it land first, then buy the year."
-                  : // #522: `currency_unavailable` deliberately lands here with
-                  // the generic sentence. It is our provisioning gap, not
-                  // theirs, and the alternative — "we can only take this one in
-                  // US dollars" — invites somebody to say yes to a bill that
-                  // moves with the exchange rate on a product sold as Canadian.
-                  // The console.error in prepayEligibility is where it is
-                  // reported, to the person who can run stripe:setup.
-                  "Paying for a year up front isn't available right now.";
+    let message: string;
+    switch (eligibility.reason) {
+      case "not_activated": {
+        message = "Send your first message first, then you can pay for a year up front.";
+        break;
+      }
+      case "subscription_unhealthy": {
+        message = "Sort out your payment method before paying for a year up front.";
+        break;
+      }
+      case "no_subscription": {
+        message = "Subscribe first — a year up front pays for a plan you already have.";
+        break;
+      }
+      case "already_prepaid": {
+        message = `You have already paid for a year. It runs until ${new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10)}.`;
+        break;
+      }
+      case "plan_change_pending": {
+        message = "You have a plan change waiting to take effect. Once it lands you can pay for a year.";
+        break;
+      }
+      case "referral_month_pending": {
+        message = "You have a free month from a referral waiting on your next " +
+          "bill. Paying for a year now would use it up on a $0 line — " +
+          "let it land first, then buy the year.";
+        break;
+      }
+      default: {
+        message = "Paying for a year up front isn't available right now.";
+      }
+    }
     const key = PREPAY_REFUSAL_KEYS[eligibility.reason ?? "not_provisioned"] ?? "apiRefusals.billingPrepayUnavailable";
     const date = eligibility.open?.granted_through.slice(0, 10);
     return errorResponse(c, "conflict", message, { key, vars: date ? { date } : undefined });
@@ -2139,9 +2144,9 @@ billingRoutes.get("/held-numbers", async (c) => {
   const reason: "over_plan_allowance" | "subscription_inactive" | null =
     held.length === 0
       ? null
-      : company.subscription_status === "active"
+      : (company.subscription_status === "active"
         ? "over_plan_allowance"
-        : "subscription_inactive";
+        : "subscription_inactive");
 
   return c.json({
     plan,

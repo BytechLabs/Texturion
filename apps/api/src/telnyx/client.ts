@@ -153,6 +153,37 @@ export interface TelnyxErrorItem {
   detail?: string;
 }
 
+export class TelnyxApiError extends Error {
+  /** HTTP status Telnyx returned. */
+  readonly status: number;
+  /** Parsed `errors` array (empty when the body was not parseable). */
+  readonly errors: TelnyxErrorItem[];
+  /** The Telnyx error codes, e.g. ['40300'] — the stable branching surface. */
+  readonly codes: string[];
+
+  constructor(status: number, errors: TelnyxErrorItem[], requestLabel: string) {
+    const codes = errors
+      .map((item) => item.code)
+      .filter((code): code is string => typeof code === "string");
+    const summary = errors
+      .map((item) => [item.title, item.detail].filter(Boolean).join(": "))
+      .filter((text) => text.length > 0)
+      .join("; ");
+    super(
+      `Telnyx ${status} on ${requestLabel}${codes.length > 0 ? ` [codes ${codes.join(", ")}]` : ""}${summary ? ` — ${summary}` : ""}`,
+    );
+    this.name = "TelnyxApiError";
+    this.status = status;
+    this.errors = errors;
+    this.codes = codes;
+  }
+
+  /** True when any error entry carries the given Telnyx code. */
+  hasCode(code: string): boolean {
+    return this.codes.includes(code);
+  }
+}
+
 /**
  * #616 — is this failure a statement about the REQUEST, or about US?
  *
@@ -184,37 +215,6 @@ export function isDefiniteRefusal(cause: unknown): cause is TelnyxApiError {
 
 export function isEndedCall(cause: unknown): boolean {
   return cause instanceof TelnyxApiError && (cause.status === 404 || cause.hasCode("90018"));
-}
-
-export class TelnyxApiError extends Error {
-  /** HTTP status Telnyx returned. */
-  readonly status: number;
-  /** Parsed `errors` array (empty when the body was not parseable). */
-  readonly errors: TelnyxErrorItem[];
-  /** The Telnyx error codes, e.g. ['40300'] — the stable branching surface. */
-  readonly codes: string[];
-
-  constructor(status: number, errors: TelnyxErrorItem[], requestLabel: string) {
-    const codes = errors
-      .map((item) => item.code)
-      .filter((code): code is string => typeof code === "string");
-    const summary = errors
-      .map((item) => [item.title, item.detail].filter(Boolean).join(": "))
-      .filter((text) => text.length > 0)
-      .join("; ");
-    super(
-      `Telnyx ${status} on ${requestLabel}${codes.length > 0 ? ` [codes ${codes.join(", ")}]` : ""}${summary ? ` — ${summary}` : ""}`,
-    );
-    this.name = "TelnyxApiError";
-    this.status = status;
-    this.errors = errors;
-    this.codes = codes;
-  }
-
-  /** True when any error entry carries the given Telnyx code. */
-  hasCode(code: string): boolean {
-    return this.codes.includes(code);
-  }
 }
 
 export interface TelnyxRequestOptions {

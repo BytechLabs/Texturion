@@ -170,14 +170,16 @@ export async function buildDataExports(
       // #304: two kinds share this queue, this bucket, this reaper and this
       // failure path. What differs is what gets written, so the dispatch is
       // here and nowhere else.
-      const result =
-        row.kind === "conversation_history"
-          ? await buildHistoryExport(db, row, now)
-          : row.kind === "usage_summary"
-            ? await buildUsageSummaryExport(db, row, now)
-            : row.kind === "tasks"
-              ? await buildTasksExport(db, row, now)
-              : await buildOne(env, db, row, now);
+      let result;
+      if (row.kind === "conversation_history") {
+        result = await buildHistoryExport(db, row, now);
+      } else if (row.kind === "usage_summary") {
+        result = await buildUsageSummaryExport(db, row, now);
+      } else if (row.kind === "tasks") {
+        result = await buildTasksExport(db, row, now);
+      } else {
+        result = await buildOne(env, db, row, now);
+      }
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (error_) {

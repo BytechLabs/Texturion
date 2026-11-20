@@ -1271,9 +1271,11 @@ describe("#617 the ACK does not wait for the cascade", () => {
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
     // Queued while the first cascade is still open.
-    const second = instance.onTelnyxEvent(initiatedEvent("e2")).then(() => {
+    const admitSecond = async () => {
+      await instance.onTelnyxEvent(initiatedEvent("e2"));
       order.push("second-admitted");
-    });
+    };
+    const second = admitSecond();
 
     released();
     await second;

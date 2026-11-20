@@ -26,7 +26,7 @@ export function percentile(sorted: number[], fraction: number): number {
 }
 
 export function summarize(values: number[]): Summary {
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = values.toSorted((a, b) => a - b);
   return {
     count: sorted.length,
     p50: Math.round(percentile(sorted, 0.5)),

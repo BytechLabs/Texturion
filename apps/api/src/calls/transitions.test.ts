@@ -727,11 +727,9 @@ describe("#171 — decline (first-class avenue removal)", () => {
       const r = reduce(machine, { type: "decline", userId: "u1" }, 5000, KEY);
       const reply = r.reply as { declined: boolean; state: CallState };
       expect(reply.declined).toBeTypeOf("boolean");
-      if (state !== "ringing") {
-        // Non-ringing is an idempotent no-op; a terminal never resurrects.
-        expect(reply.declined).toBe(false);
-        expect(r.machine?.state).toBe(state);
-      }
+      if (state === "ringing") continue;
+      expect(reply.declined).toBe(false);
+      expect(r.machine?.state).toBe(state);
     }
   });
 
@@ -1248,15 +1246,12 @@ describe("§15.1 property (fuzzed) — VM-ENTRY only when the window is exhauste
         const r = reduce(machine, event, now, keyGen());
         machine = r.machine!;
         now += 100;
-        if (has(r.effects, "telnyx-answer-vm")) {
-          // A VM-ENTRY fired via the T3 exhaustion ladder: it is licensed ONLY
-          // when zero live legs remain AND zero push-capable members remain (the
-          // ladder cancels nothing here — there was nothing live to cancel).
-          const liveAfter = machine.legs.filter((l) =>
-            ["dialing", "ringing", "canceling"].includes(l.status),
-          ).length;
-          expect(liveAfter === 0 && machine.pushCapableUserIds.length === 0).toBe(true);
-        }
+        if (!has(r.effects, "telnyx-answer-vm")) continue;
+        const liveAfter = machine.legs.filter((l) =>
+          ["dialing", "ringing", "canceling"].includes(l.status),
+        ).length;
+        expect({ live: liveAfter, pushCapable: machine.pushCapableUserIds.length })
+          .toEqual({ live: 0, pushCapable: 0 });
       }
     }
   });
@@ -2222,7 +2217,7 @@ describe("#725 — every terminal transition records why the call ended", () => 
   });
 
   it("every reason in the shared list is produced by some path above", () => {
-    expect([...seen].sort()).toEqual([...CALL_END_REASONS].sort());
+    expect([...seen].toSorted()).toEqual([...CALL_END_REASONS].toSorted());
   });
 
   it("the database check allows exactly the shared reasons", () => {

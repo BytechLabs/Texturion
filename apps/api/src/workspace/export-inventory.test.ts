@@ -39,10 +39,10 @@ it("reads existing columns and pages on keys present in the export", () => {
       "company_id", ...columns,
     ]));
     expect(columns, spec.table).toEqual(expect.arrayContaining([...(spec.key ?? ["id"])]));
-    if (spec.parent) {
-      expect(schema.foreignKeys).toContainEqual(expect.objectContaining({
-        table: spec.table, refTable: spec.parent,
-      }));
-    }
+  }
+  for (const spec of EXPORT_TABLES.filter((entry) => entry.parent)) {
+    expect(schema.foreignKeys).toContainEqual(expect.objectContaining({
+      table: spec.table, refTable: spec.parent,
+    }));
   }
 });

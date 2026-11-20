@@ -93,7 +93,7 @@ describe("extraNumberPurchasable (#80 gates)", () => {
       currentCount: STARTER_MAX_TOTAL_NUMBERS,
     });
     expect(capped.ok).toBe(false);
-    if (!capped.ok) expect(capped.reason).toContain("Pro");
+    expect(capped).toMatchObject({ reason: expect.stringContaining("Pro") });
   });
 
   // #464: this used to assert `country: "CA"` was REFUSED, and it was correct
@@ -116,14 +116,14 @@ describe("extraNumberPurchasable (#80 gates)", () => {
   it("still makes a US company wait for carrier approval", () => {
     const blocked = extraNumberPurchasable({ ...base, usTextingEnabled: false });
     expect(blocked.ok).toBe(false);
-    if (!blocked.ok) expect(blocked.reason).toContain("US texting");
+    expect(blocked).toMatchObject({ reason: expect.stringContaining("US texting") });
   });
 
   it("refuses a country the provisioner cannot order in", () => {
     // The gate guards a CHARGE, so an unrecognised country fails closed.
     const blocked = extraNumberPurchasable({ ...base, country: "GB" });
     expect(blocked.ok).toBe(false);
-    if (!blocked.ok) expect(blocked.reason).toContain("US and Canadian");
+    expect(blocked).toMatchObject({ reason: expect.stringContaining("US and Canadian") });
   });
 });
 

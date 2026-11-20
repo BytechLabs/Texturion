@@ -72,6 +72,7 @@ const deliveredEventIds: string[] = [];
 let sipToLine = new Map<string, Line>();
 
 async function seed(): Promise<void> {
+  const rig = stack;
   const statements: string[] = [];
   for (let index = 0; index < LINES; index += 1) {
     const companyId = crypto.randomUUID();
@@ -81,7 +82,7 @@ async function seed(): Promise<void> {
     statements.push(`
       ${userIds
         .map((id, member) =>
-          stack.seedUserSql(id, `${stack.runId}-${index}-${member}@rig-calls.test`, `Crew ${member}`),
+          rig.seedUserSql(id, `${rig.runId}-${index}-${member}@rig-calls.test`, `Crew ${member}`),
         )
         .join("\n")}
       insert into public.companies
@@ -113,8 +114,8 @@ async function seed(): Promise<void> {
   for (let at = 0; at < members.length; at += 12) {
     await Promise.all(
       members.slice(at, at + 12).map(async ({ line, userId }) => {
-        const token = await stack.token(userId);
-        const minted = await stack.call("POST", "/v1/webrtc/token", {
+        const token = await rig.token(userId);
+        const minted = await rig.call("POST", "/v1/webrtc/token", {
           token,
           companyId: line.companyId,
         });
@@ -187,7 +188,8 @@ interface DeliveryTally {
  * sends another's, and the object's FIFO is exactly what has to cope.
  */
 async function drain(): Promise<DeliveryTally> {
-  const {voice} = stack.telnyx;
+  const rig = stack;
+  const {voice} = rig.telnyx;
   const tally: DeliveryTally = { posts: 0, statuses: {} };
   let quietSince: number | null = null;
   for (;;) {
@@ -195,7 +197,7 @@ async function drain(): Promise<DeliveryTally> {
     for (let event = voice.takeEvent(); event; event = voice.takeEvent()) batch.push(event);
     if (batch.length > 0) {
       quietSince = null;
-      const acks = await Promise.all(batch.map((event) => stack.injectTelnyx(event)));
+      const acks = await Promise.all(batch.map((event) => rig.injectTelnyx(event)));
       for (const [at, ack] of acks.entries()) {
         tally.posts += 1;
         tally.statuses[ack.status] = (tally.statuses[ack.status] ?? 0) + 1;
@@ -343,16 +345,14 @@ describe("#251 simultaneous inbound calls through the Durable Object on the rig"
       }
 
       // Wrong, at any level: a call answered by someone who did not answer.
-      if (answered > 0) {
-        const now = await states(sessionIds);
-        for (const [at, line] of active.entries()) {
-          const row = now.get(sessionIds[at]);
-          const leg = answeringLeg.get(line);
-          if (row?.state !== "answered" || !leg) continue;
-          const sip = /^sip:([^@]+)@/.exec(leg.to)?.[1];
-          const expected = sip ? line.userBySip.get(sip) : undefined;
-          expect(row.by, `level ${level}: line ${line.index} answered by`).toBe(expected);
-        }
+      const now = answered > 0 ? await states(sessionIds) : null;
+      for (const [at, line] of active.entries()) {
+        const row = now?.get(sessionIds[at]);
+        const leg = answeringLeg.get(line);
+        if (row?.state !== "answered" || !leg) continue;
+        const sip = /^sip:([^@]+)@/.exec(leg.to)?.[1];
+        const expected = sip ? line.userBySip.get(sip) : undefined;
+        expect(row.by, `level ${level}: line ${line.index} answered by`).toBe(expected);
       }
 
       // Phase 3: every caller hangs up.
@@ -369,12 +369,21 @@ describe("#251 simultaneous inbound calls through the Durable Object on the rig"
 
       // Wrong, at any level: a leg still alive after its call is over.
       const leaked = endMs === null ? 0 : voice.live().length;
-      if (endMs !== null) expect(leaked, `level ${level}: legs left alive`).toBe(0);
+      expect(leaked, `level ${level}: legs left alive`).toBe(0);
 
       const refused = Object.entries(acks)
         .filter(([status]) => Number(status) >= 500)
         .reduce((sum, [, n]) => sum + n, 0);
-      const phaseMissed = ringed.ms === null ? "ring" : answerMs === null ? "answer" : endMs === null ? "end" : null;
+      let phaseMissed;
+      if (ringed.ms === null) {
+        phaseMissed = "ring";
+      } else if (answerMs === null) {
+        phaseMissed = "answer";
+      } else if (endMs === null) {
+        phaseMissed = "end";
+      } else {
+        phaseMissed = null;
+      }
       const crossed = phaseMissed !== null || refused > 0;
 
       const ledger = voice.ledger();

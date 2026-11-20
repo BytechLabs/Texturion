@@ -631,8 +631,8 @@ async function recordBulkConversationActivity(
   }
   for (const row of applied) {
     const {previous} = row;
-    let kind: "assigned" | "unassigned" | "edited" | "tagged" | "untagged" | null = null;
-    let payload: Record<string, unknown> = {};
+    let kind: "assigned" | "unassigned" | "edited" | "tagged" | "untagged" | null;
+    let payload: Record<string, unknown>;
     if (body.action === "assign") {
       if ((previous.assigned_user_id ?? null) === (body.target_user_id ?? null)) continue;
       kind = body.target_user_id ? "assigned" : "unassigned";

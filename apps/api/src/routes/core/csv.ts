@@ -119,7 +119,7 @@ export function parseCsvRows(text: string): CsvRow[] {
   // the line each survivor actually came from.
   return rows
     .map((cells, index) => ({ line: index + 1, cells }))
-    .filter((row) => row.cells.some((cell) => cell.trim() !== ""));
+    .filter((candidate) => candidate.cells.some((cell) => cell.trim() !== ""));
 }
 
 /**

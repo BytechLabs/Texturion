@@ -51,6 +51,6 @@ export function cartSignature(
   return lineItems
     .map((item) => `${item.price ?? "?"}x${item.quantity ?? 1}`)
     .slice()
-    .sort()
+    .toSorted()
     .join(",");
 }

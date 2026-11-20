@@ -179,6 +179,16 @@ export function allExtraNumberPrices(env: Env): string[] {
   ].filter((price): price is string => typeof price === "string" && price.length > 0);
 }
 
+/** Thrown when a quantity change hits a schedule-managed subscription (#18). */
+export class ScheduleManagedSubscriptionError extends Error {
+  constructor(subscriptionId: string) {
+    super(
+      `subscription ${subscriptionId} is schedule-managed — extra-number quantity changes must wait for the schedule to release`,
+    );
+    this.name = "ScheduleManagedSubscriptionError";
+  }
+}
+
 /**
  * Set the subscription's extra-number quantity to `quantity` (create / update /
  * delete the item as needed). `proration` decides when the difference bills:
@@ -227,16 +237,6 @@ export async function setExtraNumberQuantity(args: {
     );
   }
   return { applied: true };
-}
-
-/** Thrown when a quantity change hits a schedule-managed subscription (#18). */
-export class ScheduleManagedSubscriptionError extends Error {
-  constructor(subscriptionId: string) {
-    super(
-      `subscription ${subscriptionId} is schedule-managed — extra-number quantity changes must wait for the schedule to release`,
-    );
-    this.name = "ScheduleManagedSubscriptionError";
-  }
 }
 
 export type ConvergeOutcome =

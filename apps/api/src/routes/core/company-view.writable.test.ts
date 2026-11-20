@@ -42,7 +42,7 @@ function writableFields(): string[] {
   // not silently turn this guard into a no-op — and if neither is there it throws
   // rather than reporting zero writable fields, which is the failure mode a guard
   // must never have.
-  const def = patchSchema._def as {
+  const def = patchSchema.def as {
     shape?: Record<string, unknown>;
     schema?: { shape?: Record<string, unknown> };
   };

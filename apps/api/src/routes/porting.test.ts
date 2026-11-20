@@ -6,7 +6,7 @@ import type { AppEnv, MemberRole } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest, resendRoute, TelnyxMock } from '../telnyx/test-support';
 import type { SentEmailCapture } from '../telnyx/test-support';
-import { completeEnv, stubFetch } from '../test/support';
+import { completeEnv, requireString, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
@@ -391,7 +391,7 @@ describe("POST /v1/port-requests", () => {
       expect(port.ssn_sin_last4 ?? null).toBeNull();
 
       const edited = await harness.request(
-        `/v1/port-requests/${port.id}`,
+        `/v1/port-requests/${requireString(port.id)}`,
         jsonInit("PUT", { entity_name: "Updated name", ssn_sin_last4: "4321" }),
       );
       expect(edited.status).toBe(200);
@@ -1223,9 +1223,9 @@ describe("port allowed actions (#722)", () => {
     harness.state.role = "owner";
     const actions = await actionsOf();
     expect(actions).toEqual({
-      [draft.id as string]: ["edit", "submit", "cancel"],
-      [exception.id as string]: ["edit", "fix_and_resubmit", "cancel"],
-      [ported.id as string]: [],
+      [draft.id]: ["edit", "submit", "cancel"],
+      [exception.id]: ["edit", "fix_and_resubmit", "cancel"],
+      [ported.id]: [],
     });
     harness.state.role = "member";
     expect(Object.values(await actionsOf()).flat()).toEqual([]);

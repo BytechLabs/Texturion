@@ -306,15 +306,11 @@ describe("bounded API ramp", () => {
       503,
       503, // exact repeat confirms
     ];
+    const requests: { health: boolean; headers: Headers }[] = [];
     const fetcher = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      if (String(url).endsWith("/health")) {
-        expect(headers.has("x-company-id")).toBe(false);
-        expect(headers.has("authorization")).toBe(false);
-      } else {
-        expect(headers.get("x-company-id")).toBe(COMPANY_ID);
-        expect(headers.get("authorization")).toBe(`Bearer ${accessToken()}`);
-      }
+      const path = url instanceof Request ? url.url : String(url);
+      requests.push({ health: path.endsWith("/health"), headers });
       return response(statuses.shift() ?? 500);
     }) as unknown as typeof fetch;
     let tick = -1;
@@ -328,6 +324,11 @@ describe("bounded API ramp", () => {
     });
 
     expect(fetcher).toHaveBeenCalledTimes(13);
+    expect(requests.map(({ health }) => health)).toEqual([true, ...Array.from({ length: 12 }, () => false)]);
+    for (const { health, headers } of requests) {
+      expect(headers.get("x-company-id")).toBe(health ? null : COMPANY_ID);
+      expect(headers.get("authorization")).toBe(health ? null : `Bearer ${accessToken()}`);
+    }
     expect(evidence).toHaveLength(2);
     expect(evidence[0]).toMatchObject({
       scenario: "hosted-api-pooler-ramp",
@@ -739,14 +740,9 @@ describe("hosted Realtime connection ramp", () => {
       },
     );
     let settled = false;
-    void run.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-      },
-    );
+    void run.finally(() => {
+      settled = true;
+    }).catch(() => undefined);
     await vi.waitFor(() => expect(openRealtime).toHaveBeenCalledTimes(3));
     expect(settled).toBe(false);
     expect(sibling.close).not.toHaveBeenCalled();
@@ -819,9 +815,11 @@ describe("Supabase Realtime adapter lifecycle", () => {
     });
 
     let closed = false;
-    const closing = handle.close().then(() => {
+    const closeHandle = async () => {
+      await handle.close();
       closed = true;
-    });
+    };
+    const closing = closeHandle();
     await vi.waitFor(() => expect(fakeClient.removeChannel).toHaveBeenCalledOnce());
     expect(fakeClient.realtime.disconnect).not.toHaveBeenCalled();
     expect(closed).toBe(false);
@@ -1027,8 +1025,8 @@ describe("CAPACITY_RESULT privacy", () => {
     const line = formatCapacityEvidence(evidence);
 
     expect(line.startsWith(CAPACITY_RESULT_PREFIX)).toBe(true);
-    for (const value of cfg.sensitiveValues) {
-      if (value.length >= 8) expect(line).not.toContain(value);
+    for (const value of cfg.sensitiveValues.filter((candidate) => candidate.length >= 8)) {
+      expect(line).not.toContain(value);
     }
 
     const unsafe: CapacityEvidence = {

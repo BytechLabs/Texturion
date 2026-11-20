@@ -55,7 +55,7 @@ function publicLinkReaders(file: string): string[] {
 
 it("keeps a roster of public link readers that need deleted-source tests", () => {
   const readers = productionSources(apiSource).flatMap(publicLinkReaders);
-  expect(readers.sort()).toEqual([
+  expect(readers.toSorted()).toEqual([
     "routes/job-photos.ts:photo_set",
     "routes/payments.ts:payment",
     "routes/quotes-public.ts:quote_accept",

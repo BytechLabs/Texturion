@@ -501,13 +501,13 @@ describe("#525 the margin report can see the fixed cost it is paying", () => {
     );
   });
 
-  it("PC525-4: says what the paused cohort costs, beside what it collects", () => 
+  it("PC525-4: says what the paused cohort costs, beside what it collects", async () => {
     // The pause price is provisioned in a Stripe dashboard and is nowhere in
     // this repository, so this is the only place the two figures meet. Printed
     // side by side with NO verdict: #255's rule is that this report says what
     // IS, because a price change on a base this small is unmeasurable before it
     // is unfair.
-    runReport([
+    const printed = await runReport([
       row({ name: "Acme" }),
       row({
         company_id: "00000000-0000-4000-8000-000000000002",
@@ -516,18 +516,17 @@ describe("#525 the margin report can see the fixed cost it is paying", () => {
         paused_price_cents: PAUSED_FEE_CENTS,
         us_texting_enabled: true,
       }),
-    ]).then((printed) => {
-      expect(printed).toContain(
-        `holding 1 number-set(s) and 1 live 10DLC campaign(s): ${money(
-          FIXED_MONTHLY_COST_CENTS.perNumber +
-            FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
-        )}/mo of ours`,
-      );
-      expect(printed).toContain(
-        `against ${money(stripeNetCents(PAUSED_FEE_CENTS))} of holding fees after Stripe`,
-      );
-    })
-  );
+    ]);
+    expect(printed).toContain(
+      `holding 1 number-set(s) and 1 live 10DLC campaign(s): ${money(
+        FIXED_MONTHLY_COST_CENTS.perNumber +
+          FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
+      )}/mo of ours`,
+    );
+    expect(printed).toContain(
+      `against ${money(stripeNetCents(PAUSED_FEE_CENTS))} of holding fees after Stripe`,
+    );
+  });
 
   it("PC525-5: refuses to report at all against a snapshot with no US column", () => {
     // Pointed at a database the migration has not reached, the campaign fee

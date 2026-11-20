@@ -297,7 +297,7 @@ function scan() {
   const oversizedLimits: string[] = [];
   const totals: Totals = { chains: 0, selects: 0, filters: 0, writes: 0, notChains: 0 };
 
-  for (const file of sourceFiles(SRC)) {
+  function scanFile(file: string) {
     const tree = parse(file);
     const rel = relative(resolve(SRC, ".."), file).replaceAll("\\", "/");
     const lineOf = (node: ts.Node) =>
@@ -411,6 +411,7 @@ function scan() {
     };
     visit(tree);
   }
+  for (const file of sourceFiles(SRC)) scanFile(file);
   return { findings, dynamic, oversizedLimits, totals };
 }
 

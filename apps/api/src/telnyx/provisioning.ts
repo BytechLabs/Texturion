@@ -1107,6 +1107,27 @@ export async function suspendCompanyNumbers(
 }
 
 /**
+ * D142: a release refused because Telnyx places the number outside this
+ * environment's partition. No retry can fix it: a person has to change the
+ * number's billing group in the portal. The mismatch alert has already been
+ * raised by the time this is thrown.
+ */
+class TelnyxPartitionRefusalError extends Error {
+  readonly telnyxPhoneNumberId: string;
+  readonly rowId: string;
+
+  constructor(telnyxPhoneNumberId: string, rowId: string) {
+    super(
+      `release refused: Telnyx number ${telnyxPhoneNumberId} is outside ` +
+        `this environment's partition (D142); row ${rowId} stays un-released`,
+    );
+    this.name = "TelnyxPartitionRefusalError";
+    this.telnyxPhoneNumberId = telnyxPhoneNumberId;
+    this.rowId = rowId;
+  }
+}
+
+/**
  * Release one row: undo the Telnyx side (tolerating "already gone"), then mark
  * the row `released` (rows are retained forever — SPEC §6). Used by the
  * grace-expiry job via {@link releaseCompanyNumbers} and by
@@ -1230,27 +1251,6 @@ export async function releaseNumberRow(
     status: "released",
     released_at: new Date().toISOString(),
   });
-}
-
-/**
- * D142: a release refused because Telnyx places the number outside this
- * environment's partition. No retry can fix it: a person has to change the
- * number's billing group in the portal. The mismatch alert has already been
- * raised by the time this is thrown.
- */
-class TelnyxPartitionRefusalError extends Error {
-  readonly telnyxPhoneNumberId: string;
-  readonly rowId: string;
-
-  constructor(telnyxPhoneNumberId: string, rowId: string) {
-    super(
-      `release refused: Telnyx number ${telnyxPhoneNumberId} is outside ` +
-        `this environment's partition (D142); row ${rowId} stays un-released`,
-    );
-    this.name = "TelnyxPartitionRefusalError";
-    this.telnyxPhoneNumberId = telnyxPhoneNumberId;
-    this.rowId = rowId;
-  }
 }
 
 export { TelnyxPartitionRefusalError as TelnyxPartitionRefusal };

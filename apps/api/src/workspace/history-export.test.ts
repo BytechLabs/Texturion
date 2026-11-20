@@ -66,15 +66,16 @@ function dbDouble(tables: {
       }
       return { data: [], error: null };
     };
+    // oxlint-disable-next-line unicorn/no-thenable -- The Supabase query double has to be awaitable.
     chain.then = (resolve: (value: unknown) => unknown) => {
-      const data =
-        table === "contacts"
-          ? tables.contacts ?? []
-          : table === "conversations"
-            ? tables.conversations ?? []
-            : table === "calls"
-              ? tables.calls ?? []
-              : [];
+      let data: Row[] = [];
+      if (table === "contacts") {
+        data = tables.contacts ?? [];
+      } else if (table === "conversations") {
+        data = tables.conversations ?? [];
+      } else if (table === "calls") {
+        data = tables.calls ?? [];
+      }
       return Promise.resolve({ data, error: null }).then(resolve);
     };
     return chain;

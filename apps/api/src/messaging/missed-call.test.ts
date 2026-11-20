@@ -18,7 +18,7 @@ import type { Env } from "../env";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
-import { completeEnv, stubFetch } from '../test/support';
+import { completeEnv, requireString, stubFetch } from '../test/support';
 import { computeMissedFromEvent, sendMissedCallText } from "./missed-call";
 
 const env: Env = completeEnv();
@@ -588,7 +588,7 @@ describe("#307 the text-back names the line", () => {
       callerE164: CALLER,
       callId: CALL_ID,
     });
-    return String(claimBody?.p_body ?? "");
+    return requireString(claimBody?.p_body ?? "");
   }
 
   it("MC-1: a line with no name of its own signs with the workspace's", async () => {
@@ -671,7 +671,7 @@ describe("#307 the text-back names the line", () => {
     ).resolves.toBeDefined();
 
     // And it signed with the workspace name rather than nothing.
-    expect(String(claimBody?.p_body ?? "")).toContain("Ace Plumbing");
+    expect(requireString(claimBody?.p_body ?? "")).toContain("Ace Plumbing");
   });
 
   it("MC-4: a disabled workspace sends nothing", async () => {
@@ -760,7 +760,7 @@ describe("#307 the text-back names the line", () => {
     });
 
     expect(claim.calls).toHaveLength(1);
-    expect(String(claimBody?.p_body ?? "")).toContain("Thanks for calling sales");
-    expect(String(claimBody?.p_body ?? "")).not.toContain("opens at 8");
+    expect(requireString(claimBody?.p_body ?? "")).toContain("Thanks for calling sales");
+    expect(requireString(claimBody?.p_body ?? "")).not.toContain("opens at 8");
   });
 });

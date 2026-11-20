@@ -175,7 +175,7 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
         }
         default: {
           throw new Error(
-            `sweep: no handler for webhook provider "${row.provider}"`,
+            `sweep: no handler for webhook provider "${String(row.provider)}"`,
           );
         }
       }

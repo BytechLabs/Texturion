@@ -56,9 +56,9 @@ import { optionalIdempotencyKey, parseJsonBody, pathUuid, unwrap, unwrapOptional
 export const scheduledMessageRoutes = new Hono<AppEnv>();
 
 const scheduleSchema = z.object({
-  conversation_id: z.string().uuid(),
+  conversation_id: z.uuid(),
   body: z.string().trim().min(1).max(SCHEDULED_BODY_MAX),
-  send_at: z.string().datetime(),
+  send_at: z.iso.datetime(),
   /**
    * Mirrors compose's flag. A caller that has shown the person the quiet-hours
    * warning sends this back; one that has not gets the 409.
@@ -238,7 +238,7 @@ scheduledMessageRoutes.post(
  * "why did that never send" is a question somebody will have.
  */
 const listSchema = z.object({
-  conversation_id: z.string().uuid().optional(),
+  conversation_id: z.uuid().optional(),
   status: z.enum(["live", "all"]).optional(),
 });
 
@@ -337,7 +337,7 @@ scheduledMessageRoutes.get(
  */
 const updateSchema = z.object({
   body: z.string().trim().min(1).max(SCHEDULED_BODY_MAX).optional(),
-  send_at: z.string().datetime().optional(),
+  send_at: z.iso.datetime().optional(),
   quiet_hours_confirmed: z.boolean().optional(),
 });
 

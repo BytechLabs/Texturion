@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../env";
 import { messageReceivedEvent, restMatch, rpcMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
 import type { Stub, StubCall } from '../test/messaging-support';
-import { completeEnv, stubFetch } from '../test/support';
+import { completeEnv, requireString, stubFetch } from '../test/support';
 import { handleInboundMessage } from "./inbound";
 import type { TelnyxEvent } from "./types";
 
@@ -954,12 +954,14 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     const handle = handleInboundMessage(env, inboundEvent({
       media: mediaUrls.map((url) => ({ url, content_type: "image/jpeg" })),
     }));
-    if (permanent) {
-      await handle;
-      expect(refusal(events)).toMatchObject({ reason: "download_failed", index: 1 });
-    } else {
-      await expect(handle).rejects.toThrow("media download failed (HTTP 503)");
-      expect(events.calls).toHaveLength(0);
+    const failure = await handle.then(() => null).catch((error: unknown) => error);
+    const retryableFailure = expect.objectContaining({
+      message: expect.stringContaining("media download failed (HTTP 503)"),
+    });
+    expect(failure).toEqual(permanent ? null : retryableFailure);
+    expect(events.calls).toHaveLength(permanent ? 1 : 0);
+    for (const call of events.calls) {
+      expect(call.body).toMatchObject([{ type: "media_refused", payload: { reason: "download_failed", index: 1 } }]);
     }
 
     expect(downloads.calls).toHaveLength(3);
@@ -1232,7 +1234,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     expect(JSON.stringify(payload)).not.toContain(MEDIA_URL);
     // …and scan_reason may only ever carry OUR vocabulary. The sender picks
     // the file name and the bytes; they do not get to pick this.
-    expect(payload.scan_reason === null || /^[a-z_]+$/.test(String(payload.scan_reason))).toBe(
+    expect(payload.scan_reason === null || /^[a-z_]+$/.test(requireString(payload.scan_reason))).toBe(
       true,
     );
   });
@@ -1643,8 +1645,7 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     expect(carrierOptOuts.calls[0].url.searchParams.get("filter[messaging_profile_id]")).toBe("messaging-profile");
     expect(carrierOptOuts.calls[0].url.searchParams.get("filter[from]")).toBe("+16135551000");
     expect(optOutRevoke.calls).toHaveLength(carrierBlocked ? 0 : 1);
-    if (!carrierBlocked) {
-      const [revoke] = optOutRevoke.calls;
+    for (const revoke of optOutRevoke.calls) {
       const { revoked_at } = revoke.body as { revoked_at: string };
       expect(revoke.url.searchParams.get("updated_at")).toBe(`lte.${revoked_at}`);
     }
@@ -1669,8 +1670,8 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     await handleInboundMessage(env, inboundEvent({ text: "Aide !", autoresponseType }));
 
     expect(away.claim.calls).toHaveLength(replies);
-    if (replies) {
-      expect(away.claim.calls[0].body).toMatchObject({
+    for (const call of away.claim.calls) {
+      expect(call.body).toMatchObject({
         p_automation: "help_reply",
         p_body: expect.stringContaining("Repondez STOP"),
       });

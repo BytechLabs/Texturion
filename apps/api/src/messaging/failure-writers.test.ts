@@ -39,10 +39,10 @@ function uncoveredFailureWrites(path: string): number[] {
       const callee = node.expression;
       const patch = ts.isIdentifier(callee) && callee.text === "persistMessagePatch"
         ? node.arguments[2]
-        : ts.isPropertyAccessExpression(callee) && callee.name.text === "update" &&
+        : (ts.isPropertyAccessExpression(callee) && callee.name.text === "update" &&
             /\.from\(\s*["']messages["']\s*\)$/.test(callee.expression.getText(source))
           ? node.arguments[0]
-          : undefined;
+          : undefined);
       for (const candidate of patch ? values(patch) : []) {
         if (!ts.isObjectLiteralExpression(candidate)) continue;
         const fields = new Map(candidate.properties.flatMap((property) =>

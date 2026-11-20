@@ -323,9 +323,7 @@ describe("submitRegistration — R1 (§4.4)", () => {
     seedRows(rest, { data: { displayName: "only this" } }, {});
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("noop");
-    if (result.action === "noop") {
-      expect(result.reason).toContain("Brand draft data is incomplete");
-    }
+    expect(result).toMatchObject({ reason: expect.stringContaining("Brand draft data is incomplete") });
   });
 
   it("noops for CA companies with us_texting_enabled=false (§4.2)", async () => {
@@ -481,7 +479,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     // Derived from the row and its budget counts, so it is stable for one attempt and
     // different for the next one — a bare row id would make a rejected campaign's
     // resubmission a no-op at Telnyx, which is the opposite failure.
-    expect(key).toContain(String(campaignRow.id));
+    expect(key).toContain(campaignRow.id);
     expect(key).toBe(`10dlc-campaign:${campaignRow.id}:review:0:0`);
   });
 
@@ -701,7 +699,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     // computed". A literal is the whole failure mode, so a literal is what this
     // forbids - any literal, not the one that happened to be tried.
     const source = readFileSync(
-      join(__dirname, "registration.ts"),
+      join(import.meta.dirname, "registration.ts"),
       "utf8",
     );
     const call = /pushRegistrationApproved\(([^)]*)\)/.exec(source);
@@ -1372,9 +1370,7 @@ describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
 
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("noop");
-    if (result.action === "noop") {
-      expect(result.reason).toContain("contact support");
-    }
+    expect(result).toMatchObject({ reason: expect.stringContaining("contact support") });
     // No silent spend: the paid campaignBuilder POST never happened.
     expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
     expect(campaignRowOf(rest).submission_count).toBe(MAX_CAMPAIGN_SUBMISSIONS);
@@ -1431,9 +1427,7 @@ describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
 
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("noop");
-    if (result.action === "noop") {
-      expect(result.reason).toContain("contact support");
-    }
+    expect(result).toMatchObject({ reason: expect.stringContaining("contact support") });
     expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
     expect(emails).toHaveLength(1);
     expect(
@@ -1471,7 +1465,7 @@ describe("#51 brand-create write-ahead marker + orphan adoption", () => {
       submitRegistration(env, COMPANY_ID),
     ]);
 
-    expect(results.map((result) => result.action).sort()).toEqual(["brand_submitted", "noop"]);
+    expect(results.map((result) => result.action).toSorted()).toEqual(["brand_submitted", "noop"]);
     expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
     expect(brandRowOf(rest).brand_submission_lease_until).toBeNull();
   });

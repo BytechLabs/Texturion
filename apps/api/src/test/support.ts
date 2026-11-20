@@ -304,6 +304,24 @@ export function stubFetch(...routes: FetchRoute[]): void {
   );
 }
 
+export function fetchInputUrl(input: RequestInfo | URL | undefined): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  if (input instanceof Request) return input.url;
+  throw new TypeError("Expected a fetch call in the test fixture");
+}
+
+export function requireString(value: unknown): string {
+  if (typeof value !== "string") throw new TypeError("Expected a string in the test fixture");
+  return value;
+}
+
+export function postgrestScalarText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  throw new TypeError("Expected a scalar PostgREST column in the test fixture");
+}
+
 /** Serves the test JWKS document at the env's SUPABASE_JWKS_URL. */
 export function jwksRoute(auth: TestAuth): FetchRoute {
   return (url) =>

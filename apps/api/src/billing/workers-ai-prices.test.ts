@@ -127,14 +127,9 @@ describe("coverage — no model this product calls goes unpriced", () => {
     for (const [model, price] of Object.entries(WORKERS_AI_TOKEN_PRICES)) {
       expect(price.usdPerMillionInput).toBeGreaterThan(0);
       expect(price.usdPerMillionOutput).toBeGreaterThan(0);
-      if (price.publishedAs === model) {
-        expect(price.gap).toBe("");
-      } else {
-        expect(
-          price.gap.length,
-          `${model} is priced from ${price.publishedAs} with no explanation`,
-        ).toBeGreaterThan(40);
-      }
+      const ownRate = price.publishedAs === model;
+      const explained = ownRate ? price.gap === "" : price.gap.length > 40;
+      expect(explained, `${model} priced from ${price.publishedAs}: ${price.gap}`).toBe(true);
     }
   });
 });

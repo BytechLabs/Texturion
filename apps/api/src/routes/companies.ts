@@ -197,7 +197,7 @@ export const patchSchema = z
      * dangerous, and a number released AFTER this was set has to fall back
      * anyway — one rule, applied where it can actually be true.
      */
-    widget_number_id: z.string().uuid().nullable().optional(),
+    widget_number_id: z.uuid().nullable().optional(),
     // Owner-authored away text; null clears it. Max 1000 for a comfortable
     // multi-line emergency-aware message.
     away_message: z.string().trim().max(1000).nullable().optional(),
@@ -323,7 +323,7 @@ export const patchSchema = z
      * feature. Null is the written words, which is what every line does until
      * somebody chooses otherwise.
      */
-    voicemail_greeting_id: z.string().uuid().nullable().optional(),
+    voicemail_greeting_id: z.uuid().nullable().optional(),
     /**
      * #278: what an inbound call does outside business hours, workspace-wide.
      *
@@ -334,7 +334,7 @@ export const patchSchema = z
       .enum(["ring_everyone", "on_call_only", "voicemail"])
       .optional(),
     /** #278: the recording played after hours. Null = the ordinary greeting. */
-    after_hours_greeting_id: z.string().uuid().nullable().optional(),
+    after_hours_greeting_id: z.uuid().nullable().optional(),
     /**
      * #278: whether every eligible phone rings at once, or they join in turn.
      * NOT nullable, like its after-hours sibling: this IS what a line inherits.

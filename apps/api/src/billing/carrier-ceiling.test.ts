@@ -54,7 +54,8 @@ function fakeDb(rows: Row[], opts: { alreadyClaimed?: Set<string> } = {}) {
           eq: (_column: string, id: string) => {
             const filters = {
               eq: () => filters,
-              then: (resolve: (result: { error: null }) => void) => {
+    // oxlint-disable-next-line unicorn/no-thenable -- The Supabase query double has to be awaitable.
+    then: (resolve: (result: { error: null }) => void) => {
                 claimed.delete(id);
                 resolve({ error: null });
               },

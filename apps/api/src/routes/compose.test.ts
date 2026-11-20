@@ -396,18 +396,15 @@ describe("POST /public/v1/messages by phone", () => {
     }), env);
 
     expect(response.status, await response.clone().text()).toBe(consent ? 201 : 422);
-    expect(stubs.telnyx.calls).toHaveLength(consent ? 1 : 0);
-    if (consent) {
-      await expect(response.json()).resolves.toMatchObject({ id: MESSAGE_ID, conversation_id: CONVERSATION_ID });
-      expect(stubs.contactInsert.calls[0].body).toMatchObject({
-        phone_e164: "+16135551000",
-        creation_origin: "api",
-      });
-      expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
-      expect(stubs.contactPatch.calls[0].body).toMatchObject({ consent_source: "attested" });
-    } else {
-      expect(stubs.contactInsert.calls).toHaveLength(0);
-    }
+    const payload = await response.json<{ id?: string; conversation_id?: string }>();
+    expect(payload.id).toBe(consent ? MESSAGE_ID : undefined);
+    expect(payload.conversation_id).toBe(consent ? CONVERSATION_ID : undefined);
+    expect(stubs.contactInsert.calls.map(({ body }) => body)).toMatchObject(consent ? [{
+      phone_e164: "+16135551000",
+      creation_origin: "api",
+    }] : []);
+    expect(stubs.telnyx.calls.map(({ body }) => body)).toMatchObject(consent ? [{ to: "+16135551000" }] : []);
+    expect(stubs.contactPatch.calls.map(({ body }) => body)).toMatchObject(consent ? [{ consent_source: "attested" }] : []);
   });
 });
 

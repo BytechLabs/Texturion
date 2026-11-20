@@ -132,10 +132,7 @@ export function emitWebhookEvent(
   db: SupabaseClient,
   event: OutboundWebhookEvent,
 ): void {
-  const work = enqueueWebhookEvent(db, event).then(
-    () => undefined,
-    () => undefined,
-  );
+  const work = enqueueWebhookEvent(db, event).catch(() => undefined);
   try {
     c?.executionCtx.waitUntil(work);
   } catch {

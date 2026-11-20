@@ -1061,9 +1061,9 @@ describe("allowed actions (#722)", () => {
     };
     h.state.role = "owner";
     await expect(actionsOf()).resolves.toEqual({
-      [failed.id as string]: ["upload_documents", "resubmit", "cancel"],
-      [inProgress.id as string]: ["cancel"],
-      [completed.id as string]: [],
+      [failed.id]: ["upload_documents", "resubmit", "cancel"],
+      [inProgress.id]: ["cancel"],
+      [completed.id]: [],
     });
     h.state.role = "member";
     expect(Object.values(await actionsOf()).flat()).toEqual([]);

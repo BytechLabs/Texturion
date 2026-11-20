@@ -8,7 +8,7 @@ import { SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY } from "@loonext/shared";
 
 import { apiRequest, buildTestApp, countResponse, membershipResponder, pgError, supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
-import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import { completeEnv, createTestAuth, jwksRoute, requireString, stubFetch } from '../test/support';
 import type { FetchRoute, TestAuth } from '../test/support';
 import { teamRoutes } from "./team";
 
@@ -587,16 +587,16 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
     expect(resend.calls[0].text).toContain(original.note);
     expect(response.status).toBe(status);
+    const resent = status === 200;
+    const body = await response.json<{ id?: string; email_sent?: boolean }>();
+    expect(body.id).toBe(resent ? INVITE_ID : undefined);
+    expect(body.email_sent).toBe(resent ? true : undefined);
     const rollback = sb.find("PATCH", "/rest/v1/invites");
-    if (status === 200) {
-      await expect(response.json()).resolves.toMatchObject({ id: INVITE_ID, email_sent: true });
-      expect(auditRow(sb)).toMatchObject({ action: "member.invite_resent", target_id: INVITE_ID });
-      expect(rollback).toHaveLength(0);
-    } else {
-      expect(rollback[0].body).toEqual(original);
-      expect(rollback[0].url.searchParams.get("expires_at")).toBe(`eq.${FUTURE}`);
-      expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
-    }
+    expect(rollback.map((call) => call.body)).toEqual(resent ? [] : [original]);
+    expect(rollback.map((call) => call.url.searchParams.get("expires_at"))).toEqual(resent ? [] : [`eq.${FUTURE}`]);
+    expect(sb.find("POST", "/rest/v1/audit_log").map((call) => call.body)).toMatchObject(
+      resent ? [{ action: "member.invite_resent", target_id: INVITE_ID }] : [],
+    );
   });
 
   it.each([["member", 403], ["owner", 429]])("blocks a resend from %s before emailing", async (role, status) => {
@@ -825,7 +825,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     );
     expect(res.status).toBe(201);
     const note = resend.find((mail) =>
-      String(mail.text ?? "").includes("covering the north side"),
+      requireString(mail.text ?? "").includes("covering the north side"),
     );
     expect(Boolean(note), "the admin was never sent the note").toBe(true);
   });
@@ -863,7 +863,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     expect(res.status).toBe(201);
     expect(
       resend.filter((mail) =>
-        String(mail.text ?? "").includes("covering the north side"),
+        requireString(mail.text ?? "").includes("covering the north side"),
       ),
     ).toHaveLength(0);
   });

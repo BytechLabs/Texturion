@@ -45,6 +45,7 @@ const MAX_DEVICE_PUSH_TOKENS_PER_USER = 10;
  */
 const tokenSchema = z.string().min(1).max(4096);
 
+/* oxlint-disable unicorn/prefer-top-level-await -- Zod supplies defaults for invalid fields. */
 const registerSchema = z.object({
   platform: z.enum(["android", "ios"]),
   token: tokenSchema,
@@ -79,6 +80,7 @@ const registerSchema = z.object({
    */
   locale: z.string().max(100).optional().catch(undefined),
 });
+/* oxlint-enable unicorn/prefer-top-level-await */
 
 const removeSchema = z.object({
   token: tokenSchema,

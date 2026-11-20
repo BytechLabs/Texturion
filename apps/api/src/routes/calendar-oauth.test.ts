@@ -81,6 +81,8 @@ describe("calendar OAuth callback", () => {
     const sb = supabaseStub(env);
     const state = await oauthState("google");
     let consumeCount = 0;
+    const tokenForms: URLSearchParams[] = [];
+    const calendarAuth: (string | null)[] = [];
     sb.on("POST", "/rest/v1/rpc/api_consume_calendar_oauth_state", () => {
       consumeCount += 1;
       return consumeCount === 1
@@ -103,9 +105,7 @@ describe("calendar OAuth callback", () => {
     const providerRoute: FetchRoute = async (url, request) => {
       if (url.href === "https://oauth2.googleapis.com/token") {
         tokenCalls += 1;
-        const body = new URLSearchParams(await request.clone().text());
-        expect(body.get("code_verifier")).toBe(VERIFIER);
-        expect(body.get("code")).toBe("provider-code");
+        tokenForms.push(new URLSearchParams(await request.clone().text()));
         return Response.json({
           access_token: ACCESS_TOKEN,
           refresh_token: REFRESH_TOKEN,
@@ -116,7 +116,7 @@ describe("calendar OAuth callback", () => {
         url.href ===
         "https://www.googleapis.com/calendar/v3/calendars/primary"
       ) {
-        expect(request.headers.get("Authorization")).toBe(`Bearer ${ACCESS_TOKEN}`);
+        calendarAuth.push(request.headers.get("Authorization"));
         return Response.json({
           id: "dana@example.com",
           summary: "Dana's jobs",
@@ -128,9 +128,6 @@ describe("calendar OAuth callback", () => {
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch"
       ) {
         watchBody = await request.clone().json<Record<string, unknown>>();
-        expect(watchBody.address).toBe(
-          "https://api.loonext.com/calendar/webhooks/google",
-        );
         return Response.json({
           id: watchBody.id,
           resourceId: "google-resource",
@@ -146,7 +143,9 @@ describe("calendar OAuth callback", () => {
     expect(first.headers.get("location")).toBe(
       "https://app.loonext.com/settings/profile?calendar=connected",
     );
-    expect(watchBody).not.toBeNull();
+    expect(watchBody).toMatchObject({ address: "https://api.loonext.com/calendar/webhooks/google" });
+    expect(tokenForms.map((form) => [form.get("code_verifier"), form.get("code")])).toEqual([[VERIFIER, "provider-code"]]);
+    expect(calendarAuth).toEqual([`Bearer ${ACCESS_TOKEN}`]);
 
     const complete = sb.find(
       "POST",
@@ -238,13 +237,13 @@ describe("calendar OAuth callback", () => {
       connection_id: CONNECTION_ID,
     }));
     let subscriptionBody: Record<string, unknown> | null = null;
+    const tokenForms: URLSearchParams[] = [];
     const providerRoute: FetchRoute = async (url, request) => {
       if (
         url.href ===
         "https://login.microsoftonline.com/common/oauth2/v2.0/token"
       ) {
-        const body = new URLSearchParams(await request.clone().text());
-        expect(body.get("code_verifier")).toBe(VERIFIER);
+        tokenForms.push(new URLSearchParams(await request.clone().text()));
         return Response.json({
           access_token: ACCESS_TOKEN,
           refresh_token: REFRESH_TOKEN,
@@ -275,6 +274,7 @@ describe("calendar OAuth callback", () => {
 
     const response = await callback(env, "microsoft");
     expect(response.status).toBe(303);
+    expect(tokenForms.map((form) => form.get("code_verifier"))).toEqual([VERIFIER]);
     expect(response.headers.get("location")).toBe(
       "https://app.loonext.com/settings/profile?calendar=connected",
     );

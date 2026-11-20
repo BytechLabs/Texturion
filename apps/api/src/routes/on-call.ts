@@ -31,10 +31,10 @@ const MAX_SHIFT_DAYS = 31;
 
 const shiftSchema = z
   .object({
-    user_id: z.string().uuid(),
-    phone_number_id: z.string().uuid().nullable().optional(),
-    starts_at: z.string().datetime(),
-    ends_at: z.string().datetime(),
+    user_id: z.uuid(),
+    phone_number_id: z.uuid().nullable().optional(),
+    starts_at: z.iso.datetime(),
+    ends_at: z.iso.datetime(),
   })
   .refine((value) => new Date(value.ends_at) > new Date(value.starts_at), {
     message: "A shift has to end after it starts",

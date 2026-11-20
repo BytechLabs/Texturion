@@ -30,7 +30,6 @@ describe(runWebhookDisableEmails, () => {
     let completion = 0;
     db.on("DELETE", "/rest/v1/webhook_disable_emails", ({ url }) => {
       if (url.searchParams.get("audit_id") === `eq.${auditId}`) {
-        expect(url.searchParams.get("company_id")).toBe(`eq.${companyId}`);
         completion += 1;
         if (completion === 1) {
           return Response.json({ code: "fixture", message: "write failed" }, { status: 400 });
@@ -43,6 +42,9 @@ describe(runWebhookDisableEmails, () => {
 
     await expect(runWebhookDisableEmails(getEnv(env), now)).rejects.toThrow("webhook disable email job failed");
     await expect(runWebhookDisableEmails(getEnv(env), now)).resolves.toBe(1);
+    const completions = db.find("DELETE", "/rest/v1/webhook_disable_emails")
+      .filter(({ url }) => url.searchParams.get("audit_id") === `eq.${auditId}`);
+    expect(completions.map(({ url }) => url.searchParams.get("company_id"))).toEqual([`eq.${companyId}`, `eq.${companyId}`]);
     expect(sendEmail).toHaveBeenCalledTimes(2);
     for (const [, mail] of vi.mocked(sendEmail).mock.calls) {
       expect(mail).toMatchObject({

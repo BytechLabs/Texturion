@@ -3,7 +3,7 @@ import { generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import { completeEnv, createTestAuth, fetchInputUrl, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import { expectedIssuer, jwtAuth } from "./jwt";
 
@@ -129,8 +129,8 @@ describe("jwtAuth when the key set cannot be fetched (#251)", () => {
   async function requestWith(token: string, jwksResponse: () => Response | Promise<Response>) {
     const e = brokenEnv();
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-      if (String(input).startsWith(e.SUPABASE_JWKS_URL)) return jwksResponse();
-      throw new Error(`unstubbed fetch ${String(input)}`);
+      if (fetchInputUrl(input).startsWith(e.SUPABASE_JWKS_URL)) return jwksResponse();
+      throw new Error(`unstubbed fetch ${fetchInputUrl(input)}`);
     });
     return app.request("/whoami", { headers: { Authorization: `Bearer ${token}` } }, e);
   }

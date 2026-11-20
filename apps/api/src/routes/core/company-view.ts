@@ -608,7 +608,7 @@ export function withSeatDerived<T extends Record<string, unknown>>(
     seat_limit: seatLimit(
       typeof company.pending_plan === "string"
         ? company.pending_plan
-        : typeof company.plan === "string" ? company.plan : null,
+        : (typeof company.plan === "string" ? company.plan : null),
     ),
   };
 }

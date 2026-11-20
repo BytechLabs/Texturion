@@ -388,7 +388,7 @@ function buildMessage(
 function sendBaseFor(env: Env, credential: FcmCredential): string {
   const base = env.FCM_API_BASE ?? GOOGLE_FCM_API_BASE;
   if (credential.kind === "guard") {
-    let host = "";
+    let host: string;
     try {
       host = new URL(base).hostname.toLowerCase();
     } catch {

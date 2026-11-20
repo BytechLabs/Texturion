@@ -914,15 +914,15 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     expect(body.errors[1].message).toBe(body.errors[2].message);
 
     // Only what passed every gate was claimed or signed.
-    expect(signedObjects(sb).sort()).toEqual(
-      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].sort(),
+    expect(signedObjects(sb).toSorted()).toEqual(
+      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].toSorted(),
     );
     const claimed = sb
       .find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")
       .flatMap((call) => (call.body as { p_objects: { key: string }[] }).p_objects)
       .map((object) => object.key);
-    expect(claimed.sort()).toEqual(
-      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].sort(),
+    expect(claimed.toSorted()).toEqual(
+      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].toSorted(),
     );
 
     // #106 resolved once for the batch, plus one read for its conversations.
@@ -944,7 +944,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     // #261: each claim's dedupe window is the lifetime of the URLs it covers.
     const windows = claims
       .map((call) => before - Date.parse((call.body as { p_dedupe_since: string }).p_dedupe_since))
-      .sort((a, b) => a - b);
+      .toSorted((a, b) => a - b);
     expect(windows[0]).toBeGreaterThanOrEqual(300_000 - 5000);
     expect(windows[0]).toBeLessThan(300_000 + 5000);
     expect(windows[1]).toBeGreaterThanOrEqual(3_600_000 - 5000);

@@ -90,7 +90,7 @@ function world(options: WorldOptions = {}): {
     options.onWrite?.(call.body as { status?: string });
     return options.readyStampFails && (call.body as { status?: string }).status === "ready"
       ? pgError("57014", "statement timeout")
-      : options.leaseLost ? [] : [{ id: EXPORT_ID }];
+      : (options.leaseLost ? [] : [{ id: EXPORT_ID }]);
   });
   for (const table of TABLES) {
     sb.on("GET", `/rest/v1/${table}`, ({ url }) =>
@@ -456,7 +456,7 @@ describe("pruneExpiredExports (#378)", () => {
     return { removed, route };
   }
 
-  function world(rows: Record<string, unknown>[], files: string[]) {
+  function exportWorld(rows: Record<string, unknown>[], files: string[]) {
     const sb = supabaseStub(env);
     const stamped: Record<string, unknown>[] = [];
     sb.on("GET", "/rest/v1/data_exports", () => rows);
@@ -471,7 +471,7 @@ describe("pruneExpiredExports (#378)", () => {
   const NOW = new Date("2026-07-28T12:00:00Z");
 
   it("deletes the objects behind an expired export", async () => {
-    const w = world(
+    const w = exportWorld(
       [{ id: EXPORT_ID, storage_prefix: `${COMPANY_ID}/${EXPORT_ID}` }],
       ["messages.csv", "contacts.csv", "manifest.json"],
     );
@@ -492,7 +492,7 @@ describe("pruneExpiredExports (#378)", () => {
   it("removes all files of a large export before stamping it reaped", async () => {
     const prefix = `${COMPANY_ID}/${EXPORT_ID}`;
     const files = Array.from({ length: 203 }, (_, index) => `messages-${index}.jsonl`);
-    const w = world([{ id: EXPORT_ID, storage_prefix: prefix }], files);
+    const w = exportWorld([{ id: EXPORT_ID, storage_prefix: prefix }], files);
     stubFetch(...w.routes);
 
     await expect(pruneExpiredExports(env, NOW)).resolves.toEqual({ reaped: 1, objectsRemoved: 203 });
@@ -533,7 +533,7 @@ describe("pruneExpiredExports (#378)", () => {
   });
 
   it("keeps the ROW, because a customer should see they asked for one", async () => {
-    const w = world(
+    const w = exportWorld(
       [{ id: EXPORT_ID, storage_prefix: `${COMPANY_ID}/${EXPORT_ID}` }],
       ["messages.csv"],
     );
@@ -574,7 +574,7 @@ describe("pruneExpiredExports (#378)", () => {
   });
 
   it("does nothing when nothing is expired", async () => {
-    const w = world([], []);
+    const w = exportWorld([], []);
     stubFetch(...w.routes);
 
     await expect(pruneExpiredExports(env, NOW)).resolves.toEqual({ reaped: 0, objectsRemoved: 0 });

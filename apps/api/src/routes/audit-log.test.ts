@@ -200,11 +200,9 @@ describe("GET /v1/audit-log", () => {
     );
     expect(res.status).toBe(200);
     const [, ...entries] = parseCsv(await res.text());
-    if (count > cap) {
-      expect(entries.pop()?.[0]).toBe(
-        "Export limited to 10000 audit entries. Narrow the date range or apply a filter.",
-      );
-    }
+    const notice = "Export limited to 10000 audit entries. Narrow the date range or apply a filter.";
+    expect(entries.at(-1)?.[0] === notice).toBe(count > cap);
+    if (count > cap) entries.pop();
     expect(entries.map((entry) => entry[5])).toEqual(
       Array.from({ length: Math.min(count, cap) }, (_, index) => String(count - index)),
     );

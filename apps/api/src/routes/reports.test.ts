@@ -648,7 +648,7 @@ function ratingWorld(
         asked_at: timestamp,
       };
     })
-    .sort((a, b) => b.asked_at.localeCompare(a.asked_at) || b.id.localeCompare(a.id));
+    .toSorted((a, b) => b.asked_at.localeCompare(a.asked_at) || b.id.localeCompare(a.id));
   sb.on("GET", "/rest/v1/job_ratings", (call) => {
     const params = call.url.searchParams;
     expect(params.get("order")).toBe("asked_at.desc,id.desc");
@@ -660,7 +660,7 @@ function ratingWorld(
       : rows.findIndex((row) => filter ===
         `(asked_at.lt.${row.asked_at},and(asked_at.eq.${row.asked_at},id.lt.${row.id}))`,
       ) + 1;
-    if (filter !== null) expect(start).toBeGreaterThan(0);
+    expect(start).toBeGreaterThanOrEqual(filter === null ? 0 : 1);
     return rows.slice(start, start + limit);
   });
   return sb;
