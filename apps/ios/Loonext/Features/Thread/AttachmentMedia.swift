@@ -227,9 +227,6 @@ struct AttachmentFileChip: View {
         .fullScreenCover(isPresented: $openVideo) {
             AttachmentViewer(label: label, contentType: attachment.content_type, mintOriginal: mintOriginal)
         }
-        .alert(AppStrings.translate(appLocale, "thread.fileCantOpen"), isPresented: $failed) {
-            Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {}
-        }
     }
 
     private var openButton: some View {
@@ -239,6 +236,7 @@ struct AttachmentFileChip: View {
                 return
             }
             guard !opening else { return }
+            failed = false
             opening = true
             Task {
                 defer { opening = false }
@@ -259,9 +257,11 @@ struct AttachmentFileChip: View {
                     Text(label)
                         .font(.golos(12.5, weight: .medium))
                         .foregroundStyle(BrandColor.ink)
-                    let size = formatBytes(attachment.size_bytes)
-                    if !size.isEmpty {
-                        Text(size)
+                    let detail = failed
+                        ? AppStrings.translate(appLocale, "thread.fileCantOpen")
+                        : formatBytes(attachment.size_bytes)
+                    if !detail.isEmpty {
+                        Text(detail)
                             .font(.golos(10.5))
                             .foregroundStyle(BrandColor.muted500)
                     }
@@ -287,6 +287,7 @@ struct AttachmentFileChip: View {
                 ["kind": label.lowercased()]
             )
         )
+        .accessibilityHint(failed ? AppStrings.translate(appLocale, "thread.fileCantOpen") : "")
         .disabled(opening)
     }
 

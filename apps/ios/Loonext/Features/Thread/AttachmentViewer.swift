@@ -199,11 +199,18 @@ private struct AttachmentVideo: View {
     let url: URL
     let onFailure: () -> Void
     @State private var player: AVPlayer?
+    @State private var audioPrepared = false
 
     var body: some View {
         Group {
             if let player, let item = player.currentItem {
                 VideoPlayer(player: player)
+                    .onReceive(player.publisher(for: \.timeControlStatus)) { status in
+                        if status != .paused && !audioPrepared {
+                            prepareMediaPlayback()
+                            audioPrepared = true
+                        }
+                    }
                     .onReceive(item.publisher(for: \.status)) { status in
                         if status == .failed { onFailure() }
                     }
@@ -215,7 +222,13 @@ private struct AttachmentVideo: View {
             }
         }
         .task(id: url) { player = AVPlayer(url: url) }
-        .onDisappear { player?.pause() }
+        .onDisappear {
+            player?.pause()
+            if audioPrepared {
+                releaseMediaPlayback()
+                audioPrepared = false
+            }
+        }
     }
 }
 
@@ -232,8 +245,11 @@ struct AttachmentSaveButton: View {
     @State private var sharing = false
 
     var body: some View {
-        let label = AppStrings.translate(appLocale, "thread.saveAttachment")
+        let label = AppStrings.translate(
+            appLocale, failed ? "thread.mediaSaveFailed" : "thread.saveAttachment"
+        )
         Button {
+            failed = false
             saving = true
             Task { await save() }
         } label: {
@@ -241,10 +257,10 @@ struct AttachmentSaveButton: View {
                 if saving {
                     ProgressView().accessibilityLabel(AppStrings.translate(appLocale, "thread.savingAttachment"))
                 } else if withLabel {
-                    Label(label, systemImage: "square.and.arrow.down")
+                    Label(label, systemImage: failed ? "arrow.clockwise" : "square.and.arrow.down")
                         .font(.golos(13, weight: .semibold))
                 } else {
-                    Image(systemName: "square.and.arrow.down")
+                    Image(systemName: failed ? "exclamationmark.circle" : "square.and.arrow.down")
                         .font(.scaled(IconSize.standard, weight: .medium))
                         .accessibilityLabel(label)
                 }
@@ -259,9 +275,6 @@ struct AttachmentSaveButton: View {
             savedURL = nil
         }) {
             if let savedURL { AttachmentShareSheet(url: savedURL) }
-        }
-        .alert(AppStrings.translate(appLocale, "thread.mediaSaveFailed"), isPresented: $failed) {
-            Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {}
         }
     }
 
