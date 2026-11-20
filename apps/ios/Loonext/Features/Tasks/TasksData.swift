@@ -187,6 +187,7 @@ func taskBulkBody(
         if let contactId = filters.contactId { filter["contact_id"] = .string(contactId) }
         if let createdBy = filters.createdBy { filter["created_by"] = .string(createdBy) }
         if let source = filters.source { filter["source"] = .string(source) }
+        if let line = filters.sourceLineId { filter["source_line_id"] = .string(line) }
         if filters.hasAttachments { filter["has_attachments"] = .bool(true) }
         if filters.hasReferences { filter["has_references"] = .bool(true) }
         if let confirmed = filters.confirmed { filter["confirmed"] = .bool(confirmed) }

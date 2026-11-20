@@ -4,7 +4,7 @@ import type { SavedViewFilters } from '@loonext/shared';
 import type { Translate } from "@/i18n/translate";
 import type { TaskPriority } from "@/lib/api/types";
 
-import { parsePriorities } from './task-view-url';
+import { coerceTabForView, parsePriorities, parseView } from './task-view-url';
 import type { TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view-url';
 
 /**
@@ -15,7 +15,7 @@ import type { TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view
  * stored as what it means: Open is `status=open` for the saver, Mine is the
  * saver, Done is `status=done` for the saver, All is everyone's open tasks.
  *
- * Not stored: the view (list, board, calendar, map), the search text, and the
+ * Not stored: the search text and the
  * "today" and "this week" chips, because each means a different window tomorrow.
  * "Overdue" is stored, since it is always relative to now.
  */
@@ -24,7 +24,7 @@ export function taskStateToView(
   state: TaskPageState,
   userId: string,
 ): SavedViewFilters {
-  const raw: Record<string, unknown> = {};
+  const raw: Record<string, unknown> = { layout: state.view };
   const assignee = state.assignee ?? (state.tab === "all" ? undefined : userId);
   if (state.tab === "open" || state.tab === "all") raw.status = "open";
   if (state.tab === "done") raw.status = "done";
@@ -46,6 +46,7 @@ export function taskStateToView(
   if (state.contact) raw.contact_id = state.contact;
   if (state.createdBy) raw.created_by = state.createdBy;
   if (state.source) raw.source = state.source;
+  if (state.sourceLine) raw.source_line_id = state.sourceLine;
   if (state.files) raw.has_attachments = true;
   if (state.refs) raw.has_references = true;
   if (state.group && state.group !== "status") raw.group = state.group;
@@ -53,9 +54,7 @@ export function taskStateToView(
 }
 
 /**
- * A view's filters as page state. The current view, search text and any
- * "today" chip are kept from `current`: applying a view changes what is
- * shown, not how it is laid out.
+ * Older views without a layout keep the layout they were opened from.
  */
 export function viewToTaskState(
   filters: SavedViewFilters,
@@ -63,7 +62,8 @@ export function viewToTaskState(
   current: TaskPageState,
 ): TaskPageState {
   const clean = sanitizeFilters("tasks", filters);
-  const next: TaskPageState = { view: current.view, tab: "all" };
+  const view = typeof clean.layout === "string" ? parseView(clean.layout) : current.view;
+  const next: TaskPageState = { view, tab: "all" };
   if (current.q) next.q = current.q;
 
   const assignee =
@@ -72,6 +72,7 @@ export function viewToTaskState(
   if (clean.status === "done") next.tab = "done";
   else if (clean.status === "open") next.tab = mine ? "open" : "all";
   else next.tab = mine ? "mine" : "all";
+  next.tab = coerceTabForView(next.tab, view);
   if (assignee !== undefined && !mine) next.assignee = assignee;
   if (clean.unassigned === true) next.unassigned = true;
 
@@ -92,6 +93,7 @@ export function viewToTaskState(
   if (typeof clean.contact_id === "string") next.contact = clean.contact_id;
   if (typeof clean.created_by === "string") next.createdBy = clean.created_by;
   if (typeof clean.source === "string") next.source = clean.source as TaskSource;
+  if (typeof clean.source_line_id === "string") next.sourceLine = clean.source_line_id;
   if (clean.has_attachments === true) next.files = true;
   if (clean.has_references === true) next.refs = true;
   if (typeof clean.group === "string") next.group = clean.group as TaskGroup;
@@ -106,6 +108,7 @@ export function taskViewMatches(
 ): boolean {
   const a = sanitizeFilters("tasks", filters);
   const b = taskStateToView(state, userId);
+  if (a.layout === undefined) delete b.layout;
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) if (a[key] !== b[key]) return false;
   return true;

@@ -177,6 +177,7 @@ struct TaskCalendarView: View {
             contactId: meta.contactId,
             createdBy: meta.createdBy,
             source: meta.source,
+            sourceLineId: meta.sourceLineId,
             hasAttachments: meta.hasAttachments,
             hasReferences: meta.hasReferences,
             statusOnly: meta.statusOnly
@@ -653,6 +654,7 @@ struct TaskCalendarView: View {
             contactId: fetchMeta.contactId,
             createdBy: fetchMeta.createdBy,
             source: fetchMeta.source,
+            sourceLineId: fetchMeta.sourceLineId,
             hasAttachments: fetchMeta.hasAttachments,
             hasReferences: fetchMeta.hasReferences,
             confirmed: fetchMeta.notConfirmed ? false : nil,

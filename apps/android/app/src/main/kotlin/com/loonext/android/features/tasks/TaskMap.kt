@@ -258,6 +258,7 @@ internal fun taskMapFilterKey(
         extra.contactId.orEmpty(),
         extra.createdBy.orEmpty(),
         extra.source.orEmpty(),
+        extra.sourceLineId.orEmpty(),
         extra.tagId.orEmpty(),
         extra.priorities.sorted().joinToString(","),
         extra.dueBefore.orEmpty(),

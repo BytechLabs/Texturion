@@ -345,9 +345,10 @@ class MessagingRepository(private val api: ApiClient) {
         companyId: String,
         conversationId: String? = null,
         status: String? = null,
+        phoneLineId: String? = null,
     ): ScheduledMessagePage = api.get(
         "/v1/scheduled-messages",
-        query = mapOf("conversation_id" to conversationId, "status" to status),
+        query = mapOf("conversation_id" to conversationId, "status" to status, "phone_number_id" to phoneLineId),
         companyId = companyId,
     )
 

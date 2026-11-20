@@ -89,7 +89,7 @@ struct AccountSheet: View {
     private var identityCard: some View {
         HStack(spacing: 12) {
             InitialsAvatar(
-                name: membership?.name ?? displayName,
+                name: displayName,
                 size: 44,
                 glyph: 13,
                 typeface: .golos,

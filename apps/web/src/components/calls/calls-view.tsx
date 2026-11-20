@@ -39,6 +39,8 @@ import { useSoftphone } from "@/lib/softphone/provider";
 import { replaceSearch, updateSearch } from "@/lib/url/search-state";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { ConversationsNavigation } from "@/components/shell/conversations-navigation";
+import { usePhoneLine } from "@/components/shell/phone-line";
 
 const FILTERS: { labelKey: MessageKey; value: CallOutcomeFilter | undefined }[] = [
   { labelKey: "shell.filterAll", value: undefined },
@@ -63,14 +65,15 @@ export function CallsView() {
       ? callRoutingReason(reason, t)
       : callEndReason(reason, t))
     : null;
-  const calls = useCalls(outcome, reason);
+  const { selected } = usePhoneLine();
+  const calls = useCalls(outcome, reason, undefined, selected?.id);
   // #210: the Ongoing card derives from the UNFILTERED query — the same cache
   // entry as the All filter — so a live call stays pinned above the log even
   // while Missed is selected (the missed query can't see outcome-null rows).
   // Live rows are the newest rows, so page 1 always carries them; the
   // call.updated realtime invalidation of the [companyId, "calls"] prefix
   // clears the card the moment a row resolves.
-  const allCalls = useCalls(undefined);
+  const allCalls = useCalls(undefined, undefined, undefined, selected?.id);
 
   // Push-to-wake (#135 pt.2): opened from an incoming-call push at
   // /calls?call=<session>. Once the softphone is registered, ask the server to
@@ -196,6 +199,7 @@ export function CallsView() {
       {/* Wraps on a phone: the title, the phone status, Dial and the three
           filters do not fit on one 390px line, and without this the filter
           group ran off the right edge with "Voicemail" cut in half. */}
+      <ConversationsNavigation />
       <PageHeader
         title={t("shell.navCalls")}
         status={<SoftphoneStatus />}

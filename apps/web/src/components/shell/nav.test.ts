@@ -11,6 +11,7 @@ describe("nav registries", () => {
   it("PRIMARY_NAV carries the #129 Calls surface", () => {
     expect(PRIMARY_NAV.map((item) => item.href)).toEqual([
       "/for-you",
+      "/lou",
       "/inbox",
       "/calls",
       "/tasks",
@@ -19,7 +20,6 @@ describe("nav registries", () => {
   });
 
   it("MOBILE_NAV stays locked at four links — no fifth tab (#100)", () => {
-    expect(MOBILE_NAV).toHaveLength(4);
-    expect(MOBILE_NAV.map((item) => item.href)).not.toContain("/calls");
+    expect(MOBILE_NAV.map((item) => item.href)).toEqual(["/for-you", "/inbox", "/tasks", "/lou"]);
   });
 });

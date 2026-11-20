@@ -71,6 +71,8 @@ const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
   // #205: optional per-contact narrowing for the contact history surface.
   contact_id: z.uuid().optional(),
+  phone_number_id: z.uuid().optional(),
+  lou_activity: z.enum(["1"]).optional(),
   // #725: the calls one reason touched, where the call went or why it ended.
   reason: z.enum([...CALL_ROUTINGS, ...CALL_END_REASONS] as [string, ...string[]]).optional(),
 });
@@ -169,6 +171,8 @@ callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => 
     outcome: c.req.query("outcome"),
     contact_id: c.req.query("contact_id"),
     reason: c.req.query("reason"),
+    phone_number_id: c.req.query("phone_number_id"),
+    lou_activity: c.req.query("lou_activity"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -189,6 +193,8 @@ callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => 
       p_hidden_number_ids: access.hiddenNumberIds,
       p_contact_id: query.contact_id ?? null,
       p_reason: query.reason ?? null,
+      ...(query.phone_number_id ? { p_phone_number_id: query.phone_number_id } : {}),
+      ...(query.lou_activity ? { p_lou_activity: true } : {}),
     }),
     "calls list",
   );

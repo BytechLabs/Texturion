@@ -3,26 +3,17 @@ package com.loonext.android.features.shell
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 
-/**
- * #203 shell paging logic: the pure page<->tab mapping and indicator math
- * behind [MainShell]'s HorizontalPager, kept composable-free so JVM tests can
- * pin the decisions.
- *
- * The pageable surfaces are exactly the four pill slots, in slot order.
- * Contacts is deliberately absent: it is a You-sheet surface, not a nav slot
- * (design IA), so it never participates in paging — the shell parks the pager
- * and overlays Contacts above it.
- */
+// Messages and Calls share the Conversations page. Contacts opens through More.
 val SHELL_PAGE_TABS: List<ShellTab> = listOf(
     ShellTab.ForYou,
     ShellTab.Inbox,
-    ShellTab.Calls,
     ShellTab.Tasks,
+    ShellTab.Lou,
 )
 
 /** The pager page for a tab, or null for surfaces outside the pager. */
 fun shellPageForTab(tab: ShellTab): Int? =
-    SHELL_PAGE_TABS.indexOf(tab).takeIf { it >= 0 }
+    SHELL_PAGE_TABS.indexOf(if (tab == ShellTab.Calls) ShellTab.Inbox else tab).takeIf { it >= 0 }
 
 /** The tab a pager page renders; out-of-range pages clamp to the edges. */
 fun shellTabForPage(page: Int): ShellTab =

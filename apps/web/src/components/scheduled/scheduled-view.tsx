@@ -44,6 +44,8 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { PageHeader } from "@/components/ui/page-header";
+import { ConversationsNavigation } from "@/components/shell/conversations-navigation";
+import { usePhoneLine } from "@/components/shell/phone-line";
 import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
@@ -55,7 +57,8 @@ import { cn } from "@/lib/utils";
 
 export function ScheduledView() {
   const t = useT();
-  const scheduled = useScheduledMessages();
+  const { selected } = usePhoneLine();
+  const scheduled = useScheduledMessages(undefined, selected?.id);
   const cancel = useCancelScheduledMessage();
 
   const rows = scheduled.data ?? [];
@@ -113,6 +116,7 @@ export function ScheduledView() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
+      <ConversationsNavigation />
       <PageHeader
         title={t("tasks.scheduledTitle")}
         description={

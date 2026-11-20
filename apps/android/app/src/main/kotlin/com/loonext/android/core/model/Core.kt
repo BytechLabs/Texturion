@@ -349,6 +349,7 @@ data class PhoneNumberSummary(
     val retrying: Boolean? = null,
     /** #722: GET /v1/numbers only. What this member may do now (remediate); null elsewhere. */
     val allowed_actions: List<String>? = null,
+    val label: String? = null,
 )
 
 @Serializable

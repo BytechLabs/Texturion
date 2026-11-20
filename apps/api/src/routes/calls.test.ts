@@ -1251,6 +1251,23 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
 });
 
 describe("#725 calls by reason", () => {
+  it("composes the selected phone line and Lou activity with the outcome", async () => {
+    const lineId = "985bb816-1de2-440b-b0ae-66e37a54507d";
+    const sb = callsStub([]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app, env, await auth.token(),
+      `/v1/calls?outcome=voicemail&phone_number_id=${lineId}&lou_activity=1`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_calls")[0].body).toMatchObject({
+      p_outcome: "voicemail",
+      p_phone_number_id: lineId,
+      p_lou_activity: true,
+    });
+  });
+
   it("passes one reason to the list, and refuses one it does not know", async () => {
     const sb = callsStub([]);
     stubFetch(jwksRoute(auth), sb.route);

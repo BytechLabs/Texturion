@@ -314,6 +314,7 @@ struct NumberHealth: Codable, Sendable {
 
 struct PhoneNumberSummary: Codable, Sendable {
     let id: String
+    var label: String? = nil
     let status: String
     let country: String
     let number_e164: String?

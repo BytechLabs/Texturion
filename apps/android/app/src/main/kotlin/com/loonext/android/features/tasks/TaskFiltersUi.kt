@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.PhoneNumberSummary
+import com.loonext.android.features.shell.PhoneLineMenu
 import com.loonext.android.core.model.Tag
 import com.loonext.android.features.inbox.SAVED_VIEW_NAME_MAX
 import com.loonext.android.features.inbox.SavedView
@@ -72,6 +74,7 @@ internal fun TaskFiltersSheet(
     /** The map takes no due filter. */
     showDue: Boolean,
     showGroup: Boolean,
+    phoneLines: List<PhoneNumberSummary> = emptyList(),
     onChange: (TaskViewState, FilterNames) -> Unit,
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
@@ -194,6 +197,17 @@ internal fun TaskFiltersSheet(
                 }
                 SwitchRow(t("taskViews.hasLinks"), extra.hasReferences) { on ->
                     change(state.copy(extra = extra.copy(hasReferences = on)))
+                }
+            }
+            if (phoneLines.isNotEmpty()) {
+                Column(Modifier.padding(horizontal = 18.dp)) {
+                    Text(t("shell.sourceLine"), style = MaterialTheme.typography.labelMedium)
+                    PhoneLineMenu(
+                        numbers = phoneLines,
+                        selected = phoneLines.firstOrNull { it.id == extra.sourceLineId },
+                        allowAll = true,
+                        onSelect = { change(state.copy(extra = extra.copy(sourceLineId = it))) },
+                    )
                 }
             }
             SwitchRow(t("contactsTasks.notConfirmed"), extra.notConfirmed) { on ->

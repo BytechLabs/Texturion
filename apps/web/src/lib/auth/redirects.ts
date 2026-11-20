@@ -20,6 +20,7 @@
  *  next new route cannot repeat this. */
 const PROTECTED_PREFIXES = [
   "/for-you",
+  "/lou",
   "/inbox",
   "/calls",
   "/tasks",

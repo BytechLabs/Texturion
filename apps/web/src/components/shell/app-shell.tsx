@@ -31,6 +31,8 @@ const PAGE_NAMES: Record<string, MessageKey> = {
   "/scheduled": "tasks.scheduledTitle",
   "/contacts": "shell.navContacts",
   "/tasks": "shell.navTasks",
+  "/tasks/planner": "shell.navPlanner",
+  "/lou": "shell.navLou",
   "/calls": "shell.navCalls",
   "/settings": "shell.navSettings",
   "/trash": "trash.title",
@@ -52,7 +54,7 @@ function readSidebarCollapsed(): boolean {
  * full-viewport-height row (`h-svh overflow-hidden`) so the browser page never
  * scrolls — the sidebar is pinned and the inner panes/documents scroll.
  *
- * - Sidebar (232px expanded / 64px icon rail, lg+): workspace tile, search,
+ * - Sidebar (232px expanded / 56px icon rail, lg+): workspace tile, search,
  *   FOCUS nav, footer user-bar. The collapse choice is persisted per browser.
  *   Hidden <1000px, where the labeled bottom tab bar owns primary nav.
  * - WorkspaceStatusBanner: ambient not-ready strip, app-wide above the content.
@@ -125,7 +127,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               // (sr-only labels among them) are placed in. Without it they
               // were placed in the document and made it scroll too.
               "relative flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
-              fixedFrame ? "overflow-hidden" : "overflow-y-auto",
+              // Modal scroll locking on the body also needs to reach this inner scroller.
+              fixedFrame ? "overflow-hidden" : "overflow-y-auto in-[body[data-scroll-locked]]:overflow-y-hidden",
             )}
           >
             <DocumentTitleProvider baseName={pageName ? t(pageName) : undefined}>

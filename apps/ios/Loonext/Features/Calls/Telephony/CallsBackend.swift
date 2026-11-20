@@ -228,7 +228,9 @@ struct CallsService: CallsBackend {
         outcome: String? = nil,
         cursor: String? = nil,
         limit: Int = 25,
-        reason: String? = nil
+        reason: String? = nil,
+        phoneLineId: String? = nil,
+        louActivity: Bool = false
     ) async throws -> Page<Call> {
         try await api.get(
             "/v1/calls",
@@ -237,6 +239,8 @@ struct CallsService: CallsBackend {
                 "cursor": cursor,
                 "limit": String(limit),
                 "reason": reason,
+                "phone_number_id": phoneLineId,
+                "lou_activity": louActivity ? "1" : nil,
             ],
             companyId: companyId,
             cacheInMemory: cursor == nil

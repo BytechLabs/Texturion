@@ -21,6 +21,7 @@ func taskFilterCount(_ state: TaskViewState) -> Int {
     if state.meta.contactId != nil { count += 1 }
     if state.meta.createdBy != nil { count += 1 }
     if state.meta.source != nil { count += 1 }
+    if state.meta.sourceLineId != nil { count += 1 }
     if state.meta.hasAttachments { count += 1 }
     if state.meta.hasReferences { count += 1 }
     if state.meta.notConfirmed { count += 1 }
@@ -210,6 +211,7 @@ struct TaskFiltersSheet: View {
     let members: [Member]
     let meUserId: String
     let tags: [Tag]
+    let phoneLines: [PhoneNumberSummary]
     let contactSearch: @MainActor (String) async -> [ReferencePick]
     let contactName: String?
     let onApply: @MainActor (_ state: TaskViewState, _ contactName: String?) -> Void
@@ -227,6 +229,7 @@ struct TaskFiltersSheet: View {
         members: [Member],
         meUserId: String,
         tags: [Tag],
+        phoneLines: [PhoneNumberSummary] = [],
         contactSearch: @escaping @MainActor (String) async -> [ReferencePick],
         onApply: @escaping @MainActor (_ state: TaskViewState, _ contactName: String?) -> Void,
         onClose: @escaping @MainActor () -> Void
@@ -234,6 +237,7 @@ struct TaskFiltersSheet: View {
         self.members = members
         self.meUserId = meUserId
         self.tags = tags
+        self.phoneLines = phoneLines
         self.contactSearch = contactSearch
         self.contactName = contactName
         self.onApply = onApply
@@ -377,6 +381,12 @@ struct TaskFiltersSheet: View {
 
     private var detailsSection: some View {
         Section(t("taskRefs.filterDetails")) {
+            PhoneLineMenu(
+                lines: phoneLines,
+                selected: phoneLines.first { $0.id == draft.meta.sourceLineId },
+                allowAll: true,
+                labelKey: "shell.sourceLine"
+            ) { draft.meta.sourceLineId = $0 }
             Picker(t("taskRefs.filterSource"), selection: $draft.meta.source) {
                 Text(t("taskRefs.filterAnySource")).tag(String?.none)
                 ForEach(TaskSourceChoice.all, id: \.self) { source in

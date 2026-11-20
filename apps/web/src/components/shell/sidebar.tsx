@@ -1,16 +1,22 @@
 "use client";
 
+import { useId, useState } from "react";
+
 import { useConfirmLeaving } from "@/lib/softphone/leave-call";
 
 import {
+  CalendarDays,
   Check,
   CheckSquare,
+  ChevronDown,
   ChevronsUpDown,
   CreditCard,
+  Ellipsis,
   Inbox as InboxIcon,
   PanelLeft,
   PhoneIncoming,
   Search,
+  Sparkles,
   Trash2,
   Users,
   Zap,
@@ -37,18 +43,20 @@ import type { Capability, MemberRole } from '@loonext/shared';
 
 import { useT } from '@/i18n/provider';
 import type { MessageKey, Translate } from '@/i18n/provider';
+import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import { InitialsAvatar } from "./initials-avatar";
 import { MemberMenu } from "./member-menu";
-import { isNavActive } from "./nav";
+import { PhoneLinePicker } from "./phone-line";
+import { isNavActive, ROLE_LABEL_KEYS } from "./nav";
 import {
   useForYouNavCount,
   useInboxNavCount,
   useTaskNavCount,
 } from "./use-nav-counts";
-import { companyInitials, NavGlyph, WorkspaceNumbers } from "./workspace-bits";
+import { companyInitials, NavGlyph } from "./workspace-bits";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
@@ -73,21 +81,15 @@ interface NavRow {
   needs: Capability;
 }
 
-// The sidebar is the SOLE primary nav (issue #8). Templates and Numbers live in
-// Settings only; compose is the app-wide FAB; search + notifications + account
-// live in the footer user-bar. So the nav list is just the focus surfaces
-// (+ the #129 call log — quiet row, no count: the accent budget stays on
-// compose and the unread numeral).
-const FOCUS: NavRow[] = [
-  { labelKey: "shell.navForYou", href: "/for-you", icon: Zap, needs: "conversations.read" },
-  { labelKey: "shell.navInbox", href: "/inbox", icon: InboxIcon, needs: "conversations.read" },
-  { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
-  { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
-  { labelKey: "shell.navContacts", href: "/contacts", icon: Users, needs: "conversations.read" },
-  // #735: where deleted work waits for 30 days. Shown to whoever can restore
-  // it; a place you go on purpose, so last and quiet.
-  { labelKey: "shell.navTrash", href: "/trash", icon: Trash2, needs: "records.delete" },
-];
+const FOR_YOU: NavRow = { labelKey: "shell.navForYou", href: "/for-you", icon: Zap, needs: "conversations.read" };
+const LOU: NavRow = { labelKey: "shell.navLou", href: "/lou", icon: Sparkles, needs: "conversations.read" };
+const MESSAGES: NavRow = { labelKey: "shell.navMessages", href: "/inbox", icon: InboxIcon, needs: "conversations.read" };
+const CALLS: NavRow = { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" };
+const TASKS: NavRow = { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" };
+const PLANNER: NavRow = { labelKey: "shell.navPlanner", href: "/tasks/planner", icon: CalendarDays, needs: "conversations.read" };
+const CONTACTS: NavRow = { labelKey: "shell.navContacts", href: "/contacts", icon: Users, needs: "conversations.read" };
+const TRASH: NavRow = { labelKey: "shell.navTrash", href: "/trash", icon: Trash2, needs: "records.delete" };
+const FOCUS = [FOR_YOU, LOU, MESSAGES, CALLS, TASKS, CONTACTS, TRASH];
 
 /**
  * #315: what a role with no inbox gets instead of an empty nav.
@@ -102,15 +104,6 @@ const BILLING_ROW: NavRow = {
   href: "/settings/billing",
   icon: CreditCard,
   needs: "billing.manage",
-};
-
-/** Role names as a person would read them. */
-const ROLE_LABEL_KEYS: Partial<Record<MemberRole, MessageKey>> = {
-  owner: "shell.roleOwner",
-  admin: "shell.roleAdmin",
-  member: "shell.roleMember",
-  read_only: "shell.roleReadOnly",
-  bookkeeper: "shell.roleBookkeeper",
 };
 
 /** The rows this role can actually use, never an empty list. */
@@ -223,22 +216,6 @@ function NavItem({
   );
 }
 
-/**
- * The calm LEFT SIDEBAR (PORTAL-UX §1) — the app's SOLE shell after the top bar
- * was retired (issue #8). Full-height white column, single hairline right
- * border, no shadow. Top → bottom:
- *   - Brand cell (workspace switcher).
- *   - Search row (opens the ⌘K palette).
- *   - FOCUS nav: For you · Inbox · Tasks · Contacts.
- *   - Footer "user bar" (Discord-style): a collapse toggle + notifications bell,
- *     then the account tile that opens the member menu (Settings lives there —
- *     one entry, not two). Templates + Numbers live in Settings; compose is the
- *     app-wide FAB.
- *
- * Expanded (232px, labeled) ⇄ collapsed (64px icon rail) via the footer toggle;
- * the choice is persisted. Hidden below lg, where the labeled bottom tab bar
- * owns nav (§5).
- */
 export function Sidebar({
   collapsed = false,
   onToggleSidebar,
@@ -267,14 +244,21 @@ export function Sidebar({
   const roleLabelKey = ROLE_LABEL_KEYS[role];
   const roleLabel = roleLabelKey ? t(roleLabelKey) : role;
   const navRows = navRowsFor(role);
+  const canRead = roleHasCapability(role, "conversations.read");
+  const [phoneOpen, setPhoneOpen] = useState(true);
+  const phoneGroup = useId();
+
+  function renderRow(row: NavRow) {
+    const inTaskShortcut = pathname.startsWith("/tasks/planner") || pathname.startsWith("/tasks/views/");
+    const active = isNavActive(pathname, row.href) && (row !== TASKS || !inTaskShortcut);
+    return <NavItem key={row.href} row={row} active={active} count={navCounts[row.href]} collapsed={collapsed} t={t} />;
+  }
 
   const logo = (
-    <span
-      aria-hidden
+    <InitialsAvatar
+      initials={companyInitials(membership.name)}
       className="grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-app-tint text-[14px] font-semibold text-app-olive-deep"
-    >
-      {companyInitials(membership.name)}
-    </span>
+    />
   );
 
   const companyTileExpanded = (
@@ -293,16 +277,21 @@ export function Sidebar({
     </>
   );
 
-  // The copyable number strip (expanded only) — sits BELOW the brand cell,
-  // outside the switcher trigger so its copy buttons never nest in a button.
-  const numbersStrip = !collapsed && (
-    <div className="shrink-0 border-b border-app-line px-3 py-2">
-      <WorkspaceNumbers />
-    </div>
+  const workspaceName = t("shell.workspaceNamed", { name: membership.name });
+  const workspaceTrigger = (
+    <DropdownMenuTrigger
+      aria-label={`${workspaceName}. ${t("shell.switchWorkspace")}`}
+      className={cn(
+        "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+        collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-2 py-1 text-left",
+      )}
+    >
+      {collapsed ? logo : companyTileExpanded}
+    </DropdownMenuTrigger>
   );
 
   const workspaceMenu = (
-    <DropdownMenuContent align="start" className="w-56">
+    <DropdownMenuContent side={collapsed ? "right" : "bottom"} align="start" className="w-56">
       <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
       {memberships.map((m) => (
         <DropdownMenuItem
@@ -321,7 +310,7 @@ export function Sidebar({
     </DropdownMenuContent>
   );
 
-  const collapseToggle = (
+  const collapseButton = (
     <button
       type="button"
       onClick={onToggleSidebar}
@@ -335,35 +324,37 @@ export function Sidebar({
     </button>
   );
 
-  const memberTile = (
-    <MemberMenu>
-      {/* Named by what it shows (the member, their role) and then what it
-          opens, so the name holds the visible words in order (WCAG 2.5.3).
-          The space after the name keeps it and the role two words. */}
-      <button
-        type="button"
-        className={cn(
-          "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
-          collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
-        )}
-      >
-        <InitialsAvatar
-          initials={avatarInitials(displayName || membership.name)}
-          className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
-        />
-        {!collapsed && (
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12.5px] font-semibold text-app-ink">
-              {displayName || t("shell.you")}
-            </span>{" "}
-            <span className="block truncate text-[11px] text-app-muted-2">
-              {roleLabel}
-            </span>
+  const collapseToggle = collapsed ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{collapseButton}</TooltipTrigger>
+      <TooltipContent side="right">{t("shell.expandSidebar")}</TooltipContent>
+    </Tooltip>
+  ) : collapseButton;
+
+  const memberButton = (
+    <button
+      type="button"
+      className={cn(
+        "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+        collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
+      )}
+    >
+      <InitialsAvatar
+        initials={avatarInitials(displayName || membership.name)}
+        className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
+      />
+      {!collapsed && (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-semibold text-app-ink">
+            {displayName || t("shell.you")}
+          </span>{" "}
+          <span className="block truncate text-[11px] text-app-muted-2">
+            {roleLabel}
           </span>
-        )}
-        <span className="sr-only">{t("shell.accountAndSettings")}</span>
-      </button>
-    </MemberMenu>
+        </span>
+      )}
+      <span className="sr-only">{t("shell.accountAndSettings")}</span>
+    </button>
   );
 
   return (
@@ -371,7 +362,7 @@ export function Sidebar({
       <aside
         className={cn(
           "hidden h-full shrink-0 flex-col border-r border-app-line bg-app-paper lg:flex",
-          collapsed ? "w-[64px]" : "w-[232px]",
+          collapsed ? "w-14" : "w-[232px]",
         )}
       >
         {/* Brand cell — 56px + bottom hairline. */}
@@ -383,17 +374,12 @@ export function Sidebar({
         >
           {multi ? (
             <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label={t("shell.switchWorkspace")}
-                className={cn(
-                  "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
-                  collapsed
-                    ? "size-10 justify-center"
-                    : "w-full gap-2.5 px-2 py-1 text-left",
-                )}
-              >
-                {collapsed ? logo : companyTileExpanded}
-              </DropdownMenuTrigger>
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>{workspaceTrigger}</TooltipTrigger>
+                  <TooltipContent side="right">{workspaceName}</TooltipContent>
+                </Tooltip>
+              ) : workspaceTrigger}
               {workspaceMenu}
             </DropdownMenu>
           ) : (
@@ -402,14 +388,11 @@ export function Sidebar({
                 "flex items-center",
                 collapsed ? "" : "gap-2.5 px-2",
               )}
-              aria-label={t("shell.workspaceNamed", { name: membership.name })}
             >
-              {collapsed ? logo : companyTileExpanded}
+              {collapsed ? <>{logo}<span className="sr-only">{workspaceName}</span></> : companyTileExpanded}
             </div>
           )}
         </div>
-
-        {numbersStrip}
 
         {/* Nav area: search + focus nav. */}
         <div
@@ -455,18 +438,34 @@ export function Sidebar({
             </button>
           )}
 
-          {/* FOCUS group. */}
           <nav aria-label={t("shell.primaryNav")} className="flex flex-col gap-px">
-            {navRows.map((row) => (
-              <NavItem
-                key={row.href}
-                row={row}
-                active={isNavActive(pathname, row.href)}
-                count={navCounts[row.href]}
-                collapsed={collapsed}
-                t={t}
-              />
-            ))}
+            {canRead ? (
+              <>
+                {renderRow(FOR_YOU)}
+                {renderRow(LOU)}
+                <SidebarDivider rail={collapsed} />
+                {!collapsed && (
+                  <button
+                    type="button"
+                    aria-expanded={phoneOpen}
+                    aria-controls={phoneGroup}
+                    onClick={() => setPhoneOpen((open) => !open)}
+                    className="flex h-8 items-center justify-between rounded-[9px] px-[11px] text-xs font-semibold text-app-muted hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {t("shell.phoneLine")}
+                    <ChevronDown className={cn("size-3.5", !phoneOpen && "-rotate-90")} aria-hidden />
+                  </button>
+                )}
+                <div id={phoneGroup} hidden={!phoneOpen && !collapsed} className="space-y-px">
+                  <PhoneLinePicker rail={collapsed} />
+                  {renderRow(MESSAGES)}
+                  {renderRow(CALLS)}
+                </div>
+                <SidebarDivider rail={collapsed} />
+                <TaskNavigation collapsed={collapsed} taskLink={renderRow(TASKS)} plannerLink={renderRow(PLANNER)} pathname={pathname} />
+                {renderRow(CONTACTS)}
+              </>
+            ) : navRows.filter((row) => row !== TRASH).map(renderRow)}
           </nav>
         </div>
 
@@ -480,21 +479,123 @@ export function Sidebar({
         >
           {collapsed ? (
             <>
+              {navRows.includes(TRASH) && <div className="w-full">{renderRow(TRASH)}</div>}
               {collapseToggle}
-              <NotificationBell appVariant />
-              {memberTile}
+              <NotificationBell appVariant tooltip />
+              <Tooltip>
+                <MemberMenu>
+                  <TooltipTrigger asChild>{memberButton}</TooltipTrigger>
+                </MemberMenu>
+                <TooltipContent side="right">{t("shell.accountAndSettings")}</TooltipContent>
+              </Tooltip>
             </>
           ) : (
             <>
+              {navRows.includes(TRASH) && renderRow(TRASH)}
               <div className="mb-1 flex items-center justify-between px-0.5">
                 {collapseToggle}
                 <NotificationBell appVariant />
               </div>
-              {memberTile}
+              <MemberMenu>{memberButton}</MemberMenu>
             </>
           )}
         </div>
       </aside>
     </TooltipProvider>
+  );
+}
+
+function SidebarDivider({ rail }: { rail: boolean }) {
+  return <hr className={cn("my-2 border-app-line", rail ? "mx-2.5" : "mx-[11px]")} />;
+}
+
+function TaskNavigation({
+  collapsed,
+  taskLink,
+  plannerLink,
+  pathname,
+}: {
+  collapsed: boolean;
+  taskLink: React.ReactNode;
+  plannerLink: React.ReactNode;
+  pathname: string;
+}) {
+  const t = useT();
+  const { data } = useSavedViews("tasks");
+  const [open, setOpen] = useState(true);
+  const shortcutsId = useId();
+  const views = data?.data ?? [];
+  const activeShortcut = pathname === PLANNER.href || pathname.startsWith("/tasks/views/");
+
+  if (collapsed) {
+    return (
+      <div className="group/tasks relative">
+        {taskLink}
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger
+                aria-label={t("shell.taskShortcuts")}
+                aria-current={activeShortcut ? "page" : undefined}
+                className={cn(
+                  "absolute -right-1 top-0 grid size-5 place-items-center rounded border border-app-line focus-visible:ring-2 focus-visible:ring-ring",
+                  activeShortcut
+                    ? "bg-app-tint text-app-olive-deep"
+                    : "bg-app-paper text-app-ink opacity-0 focus:opacity-100 data-[state=open]:opacity-100 group-hover/tasks:opacity-100 group-focus-within/tasks:opacity-100",
+                )}
+              >
+                <Ellipsis className="size-3.5" aria-hidden />
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right">{t("shell.taskShortcuts")}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent side="right" align="start" className="w-52">
+            <DropdownMenuItem asChild><Link href={PLANNER.href}>{t(PLANNER.labelKey)}</Link></DropdownMenuItem>
+            {views.length > 0 && <DropdownMenuLabel>{t("shell.savedTaskViews")}</DropdownMenuLabel>}
+            {views.map((view) => (
+              <DropdownMenuItem key={view.id} asChild><Link className="truncate" href={`/tasks/views/${view.id}`}>{view.name}</Link></DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="relative [&>a]:pr-8">
+        {taskLink}
+        <button
+          type="button"
+          className="absolute right-1 top-1 grid size-7 place-items-center rounded-md text-app-muted hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={t("shell.taskShortcuts")}
+          aria-expanded={open}
+          aria-controls={shortcutsId}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <ChevronDown className={cn("size-3.5", !open && "-rotate-90")} aria-hidden />
+        </button>
+      </div>
+      <div id={shortcutsId} hidden={!open} className="ml-4 space-y-px">
+        {plannerLink}
+        {views.length > 0 && (
+          <div>
+            <p className="px-[11px] pb-1 pt-2 text-[11px] font-medium text-app-muted">{t("shell.savedTaskViews")}</p>
+            {views.map((view) => {
+              const href = `/tasks/views/${view.id}`;
+              const active = pathname === href;
+              return (
+                <Link key={view.id} href={href} aria-current={active ? "page" : undefined} className={cn(
+                  "block truncate rounded-[9px] px-[11px] py-2 text-[13px] font-medium",
+                  active ? "bg-app-tint text-app-olive-deep" : "text-app-ink-soft hover:bg-app-line-soft",
+                )}>
+                  {view.name}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

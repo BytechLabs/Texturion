@@ -21,15 +21,17 @@ const state = (over: Partial<TaskPageState> = {}): TaskPageState => ({
 describe("a task view holds the query", () => {
   it("stores Open as my open tasks, Mine as me, Done as my done, All as everyone's open", () => {
     expect(taskStateToView(state({ tab: "open" }), ME)).toEqual({
+      layout: "list",
       status: "open",
       assigned_user_id: ME,
     });
-    expect(taskStateToView(state({ tab: "mine" }), ME)).toEqual({ assigned_user_id: ME });
+    expect(taskStateToView(state({ tab: "mine" }), ME)).toEqual({ layout: "list", assigned_user_id: ME });
     expect(taskStateToView(state({ tab: "done" }), ME)).toEqual({
+      layout: "list",
       status: "done",
       assigned_user_id: ME,
     });
-    expect(taskStateToView(state({ tab: "all" }), ME)).toEqual({ status: "open" });
+    expect(taskStateToView(state({ tab: "all" }), ME)).toEqual({ layout: "list", status: "open" });
   });
 
   it("stores the new filters, the sort and the grouping", () => {
@@ -48,6 +50,7 @@ describe("a task view holds the query", () => {
       ME,
     );
     expect(view).toEqual({
+      layout: "list",
       status: "open",
       contact_id: CONTACT,
       created_by: "me",
@@ -60,9 +63,10 @@ describe("a task view holds the query", () => {
     });
   });
 
-  it("does not store the search text, the view, or a today chip", () => {
+  it("stores the layout and leaves out search text and the relative today chip", () => {
     const view = taskStateToView(state({ tab: "all", q: "furnace", view: "board", due: "today" }), ME);
-    expect(view).toEqual({ status: "open" });
+    expect(view).toEqual({ layout: "board", status: "open" });
+    expect(viewToTaskState(view, ME, state()).view).toBe("board");
   });
 
   it("stores overdue, and a due range as instants", () => {

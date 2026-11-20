@@ -6,10 +6,15 @@ import SwiftUI
 /// reached from the account sheet / router (Android MainShell parity).
 enum ShellTab: Hashable {
     case forYou
-    case inbox
-    case calls
+    case conversations
     case tasks
+    case lou
     case contacts
+}
+
+private enum ConversationsSection: Hashable {
+    case messages
+    case calls
 }
 
 /// A full-screen surface pushed ABOVE the tab shell (#186). The pill nav lives
@@ -70,15 +75,6 @@ private enum ShellSheet: Identifiable {
     }
 }
 
-/// The mobile shell (Paper & Olive, docs/MOBILE-DESIGN.md): content runs
-/// edge-to-edge and the FLOATING INK PILL nav sits over it — a fixed-ink
-/// capsule (dark in BOTH themes), 66pt tall, 14pt inset, four icon slots
-/// (For you · Inbox · Calls · Tasks) + the 34pt avatar. The active slot is a
-/// paper circle; a coral dot on the avatar means unread notifications; a
-/// canvas gradient fades content out behind the pill. No labels, no numeral
-/// badges. Tapping the avatar opens the account sheet; Contacts is a
-/// nav-less destination reached from there.
-///
 /// #186: the tab shell is the ROOT of a single `NavigationStack`. Thread /
 /// task / contact opens push a `ShellRoute` onto that stack — the pushed
 /// surface covers the whole shell (pill included), so the pill exists ONLY on
@@ -96,6 +92,9 @@ struct ShellView: View {
     @ObservedObject private var router = AppRouter.shared
     @State private var hydratedMe: Me
     @State private var tab: ShellTab = .forYou
+    @State private var conversationsSection: ConversationsSection = .messages
+    @State private var rememberedLineId: String?
+    private let linePreferenceKey: String
     @State private var path: [ShellRoute] = []
     @State private var activeSheet: ShellSheet?
     @State private var shareForThread: (conversationID: String, attachments: SharedAttachments)?
@@ -136,6 +135,9 @@ struct ShellView: View {
     init(graph: AppGraph, me: Me, companyId: String, root: RootViewModel) {
         self.graph = graph
         self.companyId = companyId
+        let lineKey = "phone-line/\(me.user_id)/\(companyId)"
+        self.linePreferenceKey = lineKey
+        _rememberedLineId = State(initialValue: UserDefaults.standard.string(forKey: lineKey))
         self.root = root
         self.notifReadState = NotificationsReadState.shared.forCompany(companyId)
         _hydratedMe = State(initialValue: me)
@@ -265,7 +267,8 @@ struct ShellView: View {
             router.openCalls = false
             activeSheet = nil
             path.removeAll()
-            tab = .calls
+            conversationsSection = .calls
+            tab = .conversations
         }
         .onReceive(router.$openForYou) { open in
             guard open else { return }
@@ -303,7 +306,8 @@ struct ShellView: View {
             router.openInbox = false
             activeSheet = nil
             path.removeAll()
-            tab = .inbox
+            conversationsSection = .messages
+            tab = .conversations
         }
         // The viewed thread (#165) is always the TOP route when it is a thread —
         // the Android `routeStack.lastOrNull() as Thread` twin. Global surfaces
@@ -554,23 +558,18 @@ struct ShellView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
                 .toolbar(.hidden, for: .tabBar)
             }
-            Tab("Inbox", systemImage: "tray", value: ShellTab.inbox) {
-                InboxTab(graph: graph, companyId: companyId, me: hydratedMe)
+            Tab("Conversations", systemImage: "tray", value: ShellTab.conversations) {
+                conversations
                     .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
                     .toolbar(.hidden, for: .tabBar)
             }
-            Tab("Calls", systemImage: "phone", value: ShellTab.calls) {
-                CallsView(
-                    graph: graph,
-                    companyId: companyId,
-                    me: hydratedMe,
-                    openConversation: { AppRouter.shared.openConversationId = $0 }
-                )
-                .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
-                .toolbar(.hidden, for: .tabBar)
-            }
             Tab("Tasks", systemImage: "checklist", value: ShellTab.tasks) {
                 TasksTab(graph: graph, companyId: companyId, me: hydratedMe)
+                    .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
+                    .toolbar(.hidden, for: .tabBar)
+            }
+            Tab("Lou", systemImage: "sparkles", value: ShellTab.lou) {
+                LouTab(graph: graph, companyId: companyId, me: hydratedMe)
                     .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
                     .toolbar(.hidden, for: .tabBar)
             }
@@ -592,6 +591,44 @@ struct ShellView: View {
             }
         }
         .overlay(alignment: .bottom) { globalLayers }
+    }
+
+    private var conversations: some View {
+        let lines = accessiblePhoneLines(hydratedMe.company?.numbers ?? [])
+        let selected = lines.first { $0.id == rememberedLineId } ?? lines.first
+        return VStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: 4) {
+                PhoneLineMenu(lines: lines, selected: selected, onSelect: selectPhoneLine)
+                SegmentedControl(
+                    options: [
+                        SegmentedOption(.messages, title: AppStrings.translate(appLocale, "shell.navMessages")),
+                        SegmentedOption(.calls, title: AppStrings.translate(appLocale, "shell.navCalls")),
+                    ],
+                    selection: $conversationsSection,
+                    size: .compact,
+                    label: AppStrings.translate(appLocale, "shell.navConversations")
+                )
+            }
+            .padding(.horizontal, 18)
+
+            switch conversationsSection {
+            case .messages:
+                InboxTab(
+                    graph: graph, companyId: companyId, me: hydratedMe,
+                    phoneLineId: selected?.id, onSelectPhoneLine: selectPhoneLine
+                )
+            case .calls:
+                CallsView(
+                    graph: graph, companyId: companyId, me: hydratedMe, phoneLineId: selected?.id,
+                    openConversation: { AppRouter.shared.openConversationId = $0 }
+                )
+            }
+        }
+    }
+
+    private func selectPhoneLine(_ id: String?) {
+        rememberedLineId = id
+        UserDefaults.standard.set(id, forKey: linePreferenceKey)
     }
 
     // MARK: - Pushed routes (above the shell — no pill)
@@ -721,8 +758,6 @@ struct ShellView: View {
         .allowsHitTesting(false)
     }
 
-    /// The 66pt ink capsule — fixed dark in BOTH themes, 14pt inset above
-    /// the safe area. Four 46pt slots + the avatar; no labels, no numerals.
     private var pillNav: some View {
         HStack(spacing: 0) {
             navSlot(
@@ -731,22 +766,17 @@ struct ShellView: View {
                 label: AppStrings.translate(appLocale, "shell.navForYou")
             )
             navSlot(
-                .inbox,
+                .conversations,
                 icon: "tray",
-                label: AppStrings.translate(appLocale, "shell.navInbox")
-            )
-            navSlot(
-                .calls,
-                icon: "phone",
-                label: AppStrings.translate(appLocale, "shell.navCalls")
+                label: AppStrings.translate(appLocale, "shell.navConversations")
             )
             navSlot(
                 .tasks,
                 icon: "checklist",
                 label: AppStrings.translate(appLocale, "shell.navTasks")
             )
-            avatarButton
-                .padding(.horizontal, 6)
+            navSlot(.lou, icon: "sparkles", label: AppStrings.translate(appLocale, "shell.navLou"))
+            moreButton
         }
         .padding(.horizontal, 8)
         .frame(height: 66)
@@ -782,6 +812,12 @@ struct ShellView: View {
                             ? BrandColor.inkFixed
                             : BrandColor.paperFixed.opacity(0.52)
                     )
+                if value == .forYou && counts.forYou > 0 {
+                    Circle().fill(BrandColor.coral)
+                        .frame(width: 8, height: 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(4)
+                }
             }
             .frame(width: 46, height: 46)
             .contentShape(Circle())
@@ -792,44 +828,30 @@ struct ShellView: View {
         .accessibilityAddTraits(tab == value ? .isSelected : [])
     }
 
-    /// The 34pt avatar slot — opens the account sheet; the coral dot means
-    /// unread notifications (never a numeral).
-    private var avatarButton: some View {
+    private var moreButton: some View {
         Button {
             Haptics.tap()
             activeSheet = .account
         } label: {
-            InitialsAvatar(
-                name: hydratedMe.display_name.isBlank ? nil : hydratedMe.display_name,
-                size: 34
-            )
-            .overlay(alignment: .topTrailing) {
+            ZStack(alignment: .topTrailing) {
+                if tab == .contacts {
+                    Circle().fill(BrandColor.paperFixed)
+                }
+                Image(systemName: "ellipsis")
+                    .font(.scaled(IconSize.large, weight: .regular))
+                    .foregroundStyle(tab == .contacts ? BrandColor.inkFixed : BrandColor.paperFixed.opacity(0.52))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if notifReadState.unreadCount > 0 {
-                    Circle()
-                        .fill(BrandColor.coral)
-                        // The ring is the CAPSULE showing through, so it has to
-                        // be the capsule's colour rather than a fixed ink that
-                        // merely used to equal it. Once the capsule lightened in
-                        // dark (#556) an `inkFixed` ring stopped being a cutout
-                        // and became a dark halo around the dot.
-                        .overlay(Circle().stroke(BrandColor.navPill, lineWidth: 2))
-                        .frame(width: 9, height: 9)
-                        .offset(x: 2, y: -2)
+                    Circle().fill(BrandColor.coral).frame(width: 8, height: 8).padding(4)
                 }
             }
+            .frame(width: 46, height: 46)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        // Surface the unread-notification dot to VoiceOver (it was a purely
-        // visual coral dot before).
-        .accessibilityLabel(
-            notifReadState.unreadCount > 0
-                ? AppStrings.translate(
-                    appLocale,
-                    "shell.youUnread",
-                    ["count": "\(notifReadState.unreadCount)"]
-                )
-                : AppStrings.translate(appLocale, "shell.you")
-        )
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(AppStrings.translate(appLocale, "shell.navMore"))
+        .accessibilityAddTraits(tab == .contacts ? .isSelected : [])
     }
 
     // MARK: - Overlays above the nav
@@ -1040,5 +1062,157 @@ struct ShellView: View {
             openTasks: openTasks
         )
         if let unread = badges?.unread_conversations { PushCoordinator.setAppBadge(unread) }
+    }
+}
+
+func accessiblePhoneLines(_ numbers: [PhoneNumberSummary]) -> [PhoneNumberSummary] {
+    numbers.filter { $0.status == NumberStatus.active && $0.number_e164 != nil }
+}
+
+struct PhoneLineMenu: View {
+    let lines: [PhoneNumberSummary]
+    let selected: PhoneNumberSummary?
+    var allowAll = false
+    var labelKey = "shell.phoneLine"
+    let onSelect: @MainActor (String?) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var options: [SelectOption<String?>] {
+        var choices: [SelectOption<String?>] = []
+        if allowAll {
+            choices.append(SelectOption(nil, title: AppStrings.translate(appLocale, "shell.allPhoneLines")))
+        }
+        for line in lines {
+            let number = formatPhone(line.number_e164)
+            let title = line.label.flatMap { $0.isBlank ? nil : "\($0) · \(number)" } ?? number
+            choices.append(SelectOption(line.id, title: title, copyValue: line.number_e164))
+        }
+        return choices
+    }
+
+    var body: some View {
+        if !lines.isEmpty {
+            SelectField(
+                options: options, selected: selected?.id,
+                label: AppStrings.translate(appLocale, labelKey), onSelect: onSelect
+            )
+        }
+    }
+}
+
+private enum LouSection: Hashable {
+    case overview
+    case activity
+    case settings
+}
+
+@MainActor
+private struct LouTab: View {
+    let graph: AppGraph
+    let companyId: String
+    let me: Me
+
+    @Environment(\.appLocale) private var appLocale
+    @State private var section: LouSection = .overview
+    @State private var activityLineId: String?
+    @State private var notice: String?
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ScreenTitle(text: t("shell.navLou"))
+                SegmentedControl(
+                    options: [
+                        SegmentedOption(.overview, title: t("shell.louOverview")),
+                        SegmentedOption(.activity, title: t("shell.louActivity")),
+                        SegmentedOption(.settings, title: t("shell.settings")),
+                    ],
+                    selection: $section
+                )
+                switch section {
+                case .overview:
+                    Text(t("shell.louOverviewDescription"))
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
+                case .activity:
+                    let lines = accessiblePhoneLines(me.company?.numbers ?? [])
+                    let selected = lines.first { $0.id == activityLineId }
+                    PhoneLineMenu(lines: lines, selected: selected, allowAll: true) { activityLineId = $0 }
+                    LouActivity(service: CallsService(api: graph.api), companyId: companyId, lineId: selected?.id)
+                        .id(selected?.id)
+                case .settings:
+                    if let notice { Text(notice).font(.golos(12)) }
+                    AiSectionView(scope: SettingsScope(
+                        graph: graph,
+                        repo: SettingsRepository(api: graph.api, sessionStore: graph.sessionStore),
+                        companyId: companyId,
+                        me: me,
+                        role: me.memberships.first { $0.company_id == companyId }?.role,
+                        showMessage: { notice = $0 }
+                    ))
+                }
+            }
+            .padding(18)
+        }
+        .background(BrandColor.canvas)
+    }
+}
+
+@MainActor
+private struct LouActivity: View {
+    let service: CallsService
+    let companyId: String
+    let lineId: String?
+
+    @Environment(\.appLocale) private var appLocale
+    @State private var calls: [Call] = []
+    @State private var cursor: String?
+    @State private var nextCursor: String?
+    @State private var loading = true
+    @State private var retry = 0
+    @State private var failure: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let failure {
+                LoadError(message: failure) { retry += 1 }
+            } else if calls.isEmpty {
+                if loading {
+                    ListSkeleton(rows: 4, inset: 0)
+                } else {
+                    Text(AppStrings.translate(appLocale, "shell.louActivityEmpty"))
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
+                }
+            }
+            ForEach(calls, id: \.id) { call in
+                Button(call.contact_name ?? call.caller_name ?? formatPhone(call.caller_e164)) {
+                    AppRouter.shared.openCallSessionId = call.call_session_id
+                }
+                .font(.golos(13, weight: .semibold))
+                .frame(minHeight: 44)
+            }
+            if let nextCursor, nextCursor != cursor {
+                Button(AppStrings.translate(appLocale, "contactsTasks.showMore")) { cursor = nextCursor }
+            }
+        }
+        .task(id: "\(cursor ?? "")/\(retry)") {
+            loading = true
+            failure = nil
+            defer { loading = false }
+            do {
+                let page = try await service.calls(
+                    companyId: companyId, outcome: "voicemail", cursor: cursor, phoneLineId: lineId, louActivity: true
+                )
+                guard !Task.isCancelled else { return }
+                calls.append(contentsOf: page.data)
+                nextCursor = page.next_cursor
+            } catch {
+                if !Task.isCancelled { failure = error.userMessage }
+            }
+        }
     }
 }

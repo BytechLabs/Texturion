@@ -123,6 +123,7 @@ import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.readShellData
+import com.loonext.android.features.shell.selectedPhoneLine
 import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
@@ -650,6 +651,11 @@ private fun ReadyShell(
     var shareForThread by remember(companyId) { mutableStateOf<Pair<String, IncomingShare>?>(null) }
     val offline by graph.connectionWatch.offline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
+    val linePreferences = remember(context) { context.getSharedPreferences("phone-line", 0) }
+    val linePreferenceKey = "${me.user_id}/$companyId"
+    var rememberedLineId by rememberSaveable(linePreferenceKey) {
+        mutableStateOf(linePreferences.getString(linePreferenceKey, null))
+    }
     val routeStack = rememberSaveable(saver = OverlayStackSaver) {
         androidx.compose.runtime.mutableStateListOf<Overlay>()
     }
@@ -926,7 +932,6 @@ private fun ReadyShell(
     ReadyShellFrame(offline || staleWorkspace) {
         if (hasInbox) {
             MainShell(
-                me = hydratedMe,
                 counts = counts,
                 unreadNotifications = unreadNotifications ?: 0,
                 tab = tab,
@@ -994,6 +999,12 @@ private fun ReadyShell(
                     inboxDestination = inboxDestination,
                     onInboxDestinationConsumed = { inboxDestination = null },
                     onViewedConversationChanged = { tabViewedConversation = it },
+                    selectedLine = selectedPhoneLine(hydratedMe.company?.numbers.orEmpty(), rememberedLineId),
+                    onSelectLine = { id ->
+                        rememberedLineId = id
+                        linePreferences.edit().putString(linePreferenceKey, id).apply()
+                    },
+                    onSelectConversationsTab = { tab = it },
                 )
             }
 

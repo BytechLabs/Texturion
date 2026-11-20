@@ -56,12 +56,15 @@ image.
   1px `#F0F0E8` dividers (`outlineVariant`), row padding ~11–12dp v / 16dp h.
 - **Screens**: radius-30 world (sheets use `extraLarge`); page padding 18dp.
 - **Nav**: floating ink pill, 66dp tall, 14dp inset, radius pill; slots
-  For you (bolt) · Inbox · Calls (phone) · Tasks (checklist) · avatar 34dp.
+  For you (bolt) · Conversations (tray) · Tasks (checklist) · Lou (sparkles) · More (ellipsis).
   Active slot = 46dp paper circle w/ ink icon; idle = paper @ 52%; coral dot on
-  avatar = unread notifications. Content fades out behind it (130dp gradient).
-  NO labels, NO numeral badges. (Shipped in `features/shell/Shell.kt`.)
-- **IA change**: Calls is a NAV TAB; Contacts moved under the You sheet
-  (You sheet rows: Notifications · Contacts · Settings · Sign out).
+  For you and More indicates items needing attention. Content fades out behind
+  the pill (130dp gradient). Icons carry accessible names. Use dots for badges.
+- Conversations shares one phone line across Messages, Scheduled, Calls and
+  Voicemail. Tasks includes Planner and saved views. Lou starts at the workspace
+  level and Activity has its own line filter. More opens a sheet over the current
+  screen with profile, workspace switching, Notifications, Contacts, Trash,
+  Settings and Sign out.
 - **Icon buttons**: 44dp paper circles w/ 17dp stroke icons, subtle shadow.
 - **FABs**: 54dp ink circle (compose = pencil, right 18dp, above nav).
 - **Chips**: pill, 10sp Bold (`Ds.kt → DsChip`).

@@ -195,8 +195,8 @@ export const keys = {
    * #129 /calls — the call log, one cursor list per outcome filter
    * ("all" | "missed" | "answered" | "voicemail").
    */
-  calls: (companyId: string, outcome: string, reason = "any", contactId = "any") =>
-    [companyId, "calls", outcome, reason, contactId] as const,
+  calls: (companyId: string, outcome: string, reason = "any", contactId = "any", lineId?: string) =>
+    [companyId, "calls", outcome, reason, contactId, ...(lineId ? [lineId] : [])] as const,
   /** #725: how many calls each reason touched, for the settings that cause them. */
   callEffects: (companyId: string) => [companyId, "calls", "effects"] as const,
 

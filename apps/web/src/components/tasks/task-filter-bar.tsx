@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
+import { usePhoneLine } from "@/components/shell/phone-line";
 import { FilterButton } from "@/components/ui/filter-button";
 import { Input } from "@/components/ui/input";
 import {
@@ -59,9 +60,11 @@ type OptionalTaskField = Exclude<keyof TaskPageState, "tab" | "view">;
 export function TaskFilterBar({
   state,
   onChange,
+  showSavedViews = true,
 }: {
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
+  showSavedViews?: boolean;
 }) {
   const t = useT();
   const { userId } = useActiveCompany();
@@ -88,16 +91,16 @@ export function TaskFilterBar({
           />
         </div>
         <FilterPopover state={state} onChange={onChange} />
-        <SavedViewsMenu
+        {showSavedViews && <SavedViewsMenu
           surface="tasks"
           isCurrent={(view) => taskViewMatches(view, state, userId)}
           onApply={(view) => onChange(viewToTaskState(view, userId, state))}
           currentFilters={() => taskStateToView(state, userId)}
           suggestName={() => suggestTaskViewName(state, t)}
-          hasFilters={taskFilterCount(state) > 0 || state.tab !== "open"}
+          hasFilters={taskFilterCount(state) > 0 || state.tab !== "open" || state.view !== "list"}
           saveDescription={t("tasks.viewSaveDescription")}
           shareNote={t("tasks.viewShareNote")}
-        />
+        />}
       </div>
       {/* #711: only while something is applied. */}
       {taskFilterCount(state) > 0 && <ChipRow state={state} onChange={onChange} />}
@@ -117,6 +120,7 @@ export function taskFilterCount(state: TaskPageState): number {
     state.contact,
     state.createdBy,
     state.source,
+    state.sourceLine,
     state.files,
     state.refs,
     state.dueFrom || state.dueTo,
@@ -206,6 +210,7 @@ function ChipRow({
   const t = useT();
   const members = useMembers();
   const tags = useTags();
+  const { lines } = usePhoneLine();
   const tagName = state.tag
     ? (tags.data?.data.find((tag) => tag.id === state.tag)?.name ??
       t("tasks.label"))
@@ -219,6 +224,12 @@ function ChipRow({
     <div className="flex flex-wrap items-center gap-1.5">
       {state.notConfirmed && (
         <Chip label={t("tasks.notConfirmed")} onRemove={() => onChange(withoutTaskFields(state, ["notConfirmed"]))} />
+      )}
+      {state.sourceLine && (
+        <Chip
+          label={lines.find((line) => line.id === state.sourceLine)?.name ?? t("shell.sourceLine")}
+          onRemove={() => onChange(withoutTaskFields(state, ["sourceLine"]))}
+        />
       )}
       {assigneeName && (
         <Chip
@@ -479,6 +490,7 @@ function FilterPopover({
   const members = useMembers();
   const tags = useTags();
   const { userId } = useActiveCompany();
+  const { lines } = usePhoneLine();
 
   const assignableMembers = useMemo(
     () => (members.data?.data ?? []).filter((m) => m.deactivated_at === null),
@@ -722,6 +734,25 @@ function FilterPopover({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {lines.length > 0 && (
+              <CommandGroup heading={t("shell.sourceLine")}>
+                {lines.map((line) => (
+                  <CommandItem
+                    key={line.id}
+                    value={`source-line-${line.id}`}
+                    keywords={[line.name, line.number, t("shell.sourceLine")]}
+                    onSelect={() => state.sourceLine === line.id
+                      ? patch({}, ["sourceLine"])
+                      : patch({ sourceLine: line.id })}
+                  >
+                    <span>{line.name}</span>
+                    {state.sourceLine === line.id && (
+                      <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
             <CommandGroup heading={t("tasks.carries")}>
               <CommandItem
                 value="has-files"

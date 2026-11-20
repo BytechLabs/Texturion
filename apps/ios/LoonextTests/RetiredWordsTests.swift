@@ -44,9 +44,10 @@ final class RetiredWordsTests: XCTestCase {
     /// "Line" meaning a phone line is retired for "number". "Line" keeps its
     /// other meanings (a line of text, "Line of work", `{line}`), so the bare
     /// word is not banned: this matches the phrases a phone line turns up in.
-    /// Key to why "line" is not a phone line there.
-    private let lineOtherMeanings: [String: String] = [
+    private let lineExceptions: [String: String] = [
         "settings.aiCatchUpHelp": "every line of a catch-up is a line of text quoting a message",
+        "shell.phoneLine": "#877 groups Messages and Calls by phone line",
+        "shell.allPhoneLines": "#877 filters Lou activity locally",
     ]
 
     private func saysThread(_ value: String) -> Bool {
@@ -88,14 +89,14 @@ final class RetiredWordsTests: XCTestCase {
 
     func testNoEnglishValueCallsAPhoneNumberALine() {
         let offenders = AppStrings.en
-            .filter { saysPhoneLine($0.value) && lineOtherMeanings[$0.key] == nil }
+            .filter { saysPhoneLine($0.value) && lineExceptions[$0.key] == nil }
             .map { "\($0.key): \($0.value)" }
             .sorted()
         XCTAssertEqual(offenders, [], "a phone number is called a line")
     }
 
     func testEveryNamedLineExceptionStillMatches() {
-        let stale = lineOtherMeanings.keys.filter { key in
+        let stale = lineExceptions.keys.filter { key in
             guard let value = AppStrings.en[key] else { return true }
             return !saysPhoneLine(value)
         }

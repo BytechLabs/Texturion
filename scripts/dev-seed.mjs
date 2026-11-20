@@ -39,6 +39,7 @@ const USERS = [
 // Fixed ids so reruns hit ON CONFLICT instead of duplicating.
 const COMPANY = "11111111-1111-4111-8111-111111111111";
 const NUMBER = "22222222-2222-4222-8222-222222222222";
+const TASK_VIEW_ID = "e1000000-0000-4000-8000-000000000001";
 const C = (n) => `a0000000-0000-4000-8000-00000000000${n}`; // contacts
 const V = (n) => `b0000000-0000-4000-8000-00000000000${n}`; // conversations
 const M = (n) => `c0000000-0000-4000-8000-0000000000${String(n).padStart(2, "0")}`; // messages
@@ -289,6 +290,11 @@ values
    '${sam}', now() + interval '1 day', '${dana}'),
   ('${K(2)}', '${COMPANY}', '${M(5)}', '${V(1)}',
    'Confirm expansion tank stock', '', '${sam}', null, '${dana}')
+on conflict (id) do nothing;
+
+insert into public.saved_views (id, company_id, surface, name, filters, created_by)
+values ('${TASK_VIEW_ID}', '${COMPANY}', 'tasks', 'Service task board',
+        '{"layout":"board","group":"assignee"}', '${dana}')
 on conflict (id) do nothing;
 
 insert into public.conversation_events

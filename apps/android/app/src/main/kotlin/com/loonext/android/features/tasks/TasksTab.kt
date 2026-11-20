@@ -189,6 +189,7 @@ private fun TaskListScreen(
     // death identically (founder mandate); an unknown saved name falls back
     // to List rather than crashing a downgrade.
     var viewName by rememberSaveable(companyId) { mutableStateOf(TaskViewKind.List.name) }
+    var planner by rememberSaveable(companyId) { mutableStateOf(false) }
     val view = TaskViewKind.entries.firstOrNull { it.name == viewName } ?: TaskViewKind.List
     var assigneeChip by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var unassignedChip by rememberSaveable(companyId) { mutableStateOf(false) }
@@ -204,6 +205,8 @@ private fun TaskListScreen(
     var contactName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var createdByFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var sourceFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var sourceLineId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    val phoneLines = me.company?.numbers.orEmpty()
     var hasFilesFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var hasLinksFilter by rememberSaveable(companyId) { mutableStateOf(false) }
     var notConfirmedFilter by rememberSaveable(companyId) { mutableStateOf(false) }
@@ -221,6 +224,7 @@ private fun TaskListScreen(
         contactId = contactFilterId,
         createdBy = createdByFilter,
         source = sourceFilter,
+        sourceLineId = sourceLineId,
         hasAttachments = hasFilesFilter,
         hasReferences = hasLinksFilter,
         notConfirmed = notConfirmedFilter,
@@ -329,7 +333,7 @@ private fun TaskListScreen(
             ?.display_name?.ifBlank { null }
     }
 
-    val currentState = TaskViewState(tab, assigneeChip, unassignedChip, dueChip, extra)
+    val currentState = TaskViewState(tab, assigneeChip, unassignedChip, dueChip, extra, view)
 
     /** Every control at once, so a view or a sheet change reloads the list ONCE. */
     fun applyState(next: TaskViewState, nextContactName: String?, nextTagName: String?) {
@@ -345,6 +349,7 @@ private fun TaskListScreen(
         contactName = nextContactName?.takeIf { next.extra.contactId != null }
         createdByFilter = next.extra.createdBy
         sourceFilter = next.extra.source
+        sourceLineId = next.extra.sourceLineId
         hasFilesFilter = next.extra.hasAttachments
         hasLinksFilter = next.extra.hasReferences
         notConfirmedFilter = next.extra.notConfirmed
@@ -361,7 +366,10 @@ private fun TaskListScreen(
     var landed by rememberSaveable(companyId) { mutableStateOf(false) }
 
     fun applyView(view: SavedView) {
-        applyState(taskViewToState(view.filters, me.user_id), null, null)
+        val state = taskViewToState(view.filters, me.user_id)
+        planner = false
+        state.layout?.let { viewName = it.name }
+        applyState(state, null, null)
     }
 
     fun loadViews() {
@@ -458,7 +466,13 @@ private fun TaskListScreen(
                     .padding(start = 18.dp, end = 18.dp, top = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
+                ScreenTitle(t(if (planner) "shell.navPlanner" else "contactsTasks.tasksTitle"), Modifier.weight(1f))
+                TextButton(onClick = {
+                    planner = !planner
+                    viewName = if (planner) TaskViewKind.Calendar.name else TaskViewKind.List.name
+                }) {
+                    Text(t(if (planner) "shell.navTasks" else "shell.navPlanner"))
+                }
                 if (view != TaskViewKind.Map) {
                     PaperIconButton(
                         icon = Icons.Outlined.Search,
@@ -485,15 +499,22 @@ private fun TaskListScreen(
             // Four views now (#184), so the pills go icon-only with spoken
             // labels rather than crowding the rail.
             SegmentedControl(
-                segments = listOf(
+                segments = if (planner) listOf(
+                    Segment(TaskViewKind.Calendar, t("shell.plannerSchedule")),
+                    Segment(TaskViewKind.Board, t("shell.plannerWorkload")),
+                    Segment(TaskViewKind.Map, t("shell.plannerRoutes")),
+                ) else listOf(
                     Segment(TaskViewKind.List, t("contactsTasks.viewList"), Icons.AutoMirrored.Outlined.ViewList),
                     Segment(TaskViewKind.Board, t("contactsTasks.viewBoard"), Icons.Outlined.ViewKanban),
                     Segment(TaskViewKind.Calendar, t("contactsTasks.viewCalendar"), Icons.Outlined.CalendarMonth),
                     Segment(TaskViewKind.Map, t("contactsTasks.viewMap"), Icons.Outlined.Map),
                 ),
                 selected = view,
-                onSelect = { viewName = it.name },
-                iconOnly = true,
+                onSelect = {
+                    viewName = it.name
+                    if (planner && it == TaskViewKind.Board) groupName = TaskGroup.Assignee.name
+                },
+                iconOnly = !planner,
                 modifier = Modifier.padding(horizontal = 18.dp),
             )
 
@@ -530,7 +551,7 @@ private fun TaskListScreen(
                 filterCount = filterCount,
                 onFilter = { filtersSheetOpen = true },
                 modifier = Modifier.padding(horizontal = 18.dp),
-                views = if (view == TaskViewKind.List || view == TaskViewKind.Board) {
+                views = if (!planner) {
                     ListViews(
                         entries = savedViews.map {
                             ViewsMenuEntry(
@@ -541,7 +562,7 @@ private fun TaskListScreen(
                             )
                         },
                         activeId = matchingView?.id,
-                        canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open) &&
+                        canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open || view != TaskViewKind.List) &&
                             matchingView == null,
                         canShare = canShareViews,
                         onApply = { id -> savedViews.firstOrNull { it.id == id }?.let { applyView(it) } },
@@ -641,6 +662,11 @@ private fun TaskListScreen(
                 }
                 if (createdByFilter != null) {
                     add(ActiveFilterChip(memberName(createdByFilter) ?: teammateLabel) { createdByFilter = null })
+                }
+                sourceLineId?.let { id ->
+                    val line = phoneLines.firstOrNull { it.id == id }
+                    val name = line?.label ?: line?.number_e164 ?: t("shell.sourceLine")
+                    add(ActiveFilterChip(name) { sourceLineId = null })
                 }
                 sourceFilter?.let { source ->
                     add(ActiveFilterChip(sourceLabels[source] ?: source) { sourceFilter = null })
@@ -816,6 +842,7 @@ private fun TaskListScreen(
 
     if (filtersSheetOpen) {
         TaskFiltersSheet(
+            phoneLines = phoneLines,
             state = currentState,
             names = FilterNames(contactName, tagFilterName),
             members = members,

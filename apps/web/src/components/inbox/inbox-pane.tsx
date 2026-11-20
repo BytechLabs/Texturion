@@ -12,6 +12,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ConversationsNavigation } from "@/components/shell/conversations-navigation";
+import { usePhoneLine } from "@/components/shell/phone-line";
 import { useT } from "@/i18n/provider";
 import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -39,11 +41,15 @@ export function InboxPane() {
   const currentQuery = searchParams.toString();
   const params = useParams<{ conversationId?: string }>();
   const { userId } = useActiveCompany();
+  const { selected, select } = usePhoneLine();
 
   const filters = useMemo(
     () => parseInboxSearchParams(new URLSearchParams(currentQuery)),
     [currentQuery],
   );
+  useEffect(() => {
+    if (filters.line) select(filters.line);
+  }, [filters.line, select]);
 
   const setFilters = useCallback(
     (next: InboxUrlFilters) => {
@@ -88,6 +94,7 @@ export function InboxPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-app-ground">
+      <ConversationsNavigation />
       {/* #715 / #732: the page's one main action, in the header every page
           shares. Scheduled is a view of this inbox. */}
       <PageHeader
@@ -122,7 +129,7 @@ export function InboxPane() {
             <GettingStartedCard />
           </div>
           <ConversationList
-            filters={toConversationFilters(filters, userId)}
+            filters={toConversationFilters({ ...filters, line: filters.line ?? selected?.id }, userId)}
             hasUrlFilters={hasActiveFilters(filters)}
             activeConversationId={activeConversationId}
             listQuery={currentQuery}

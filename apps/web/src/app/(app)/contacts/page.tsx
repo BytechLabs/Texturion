@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
+import Link from "next/link";
 import { Upload } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -45,13 +46,20 @@ export default function ContactsPage() {
       <PageHeader
         title={t("appShell.contactsTitle")}
         secondary={
-          <ContactsActions
-            canImport={canImport}
-            query={query}
-            tagId={tagId}
-            importSource={importSource}
-            onImportSourceChange={setImportSource}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {canImport && (
+              <Button asChild size="sm" variant="ghost">
+                <Link href="/settings/blocked-numbers">{t("blockedNumbers.title")}</Link>
+              </Button>
+            )}
+            <ContactsActions
+              canImport={canImport}
+              query={query}
+              tagId={tagId}
+              importSource={importSource}
+              onImportSourceChange={setImportSource}
+            />
+          </div>
         }
         primary={<NewContactAction />}
       />

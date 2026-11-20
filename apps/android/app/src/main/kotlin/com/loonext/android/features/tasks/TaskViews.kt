@@ -27,6 +27,7 @@ private val UUID_RE =
 private val ISO_RE = Regex("""^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2}))?$""")
 private val SORTS = setOf("created", "due", "priority", "updated")
 private val SOURCES = setOf("text", "call", "none")
+private val LAYOUTS = TaskViewKind.entries.associateBy { it.name.lowercase() }
 private val GROUPS = setOf("status", "assignee", "priority")
 
 private fun JsonObject.str(key: String): String? =
@@ -44,7 +45,7 @@ fun sanitizeTaskFilters(raw: JsonObject): JsonObject {
         val bool = primitive?.let { if (it.isString) null else it.booleanOrNull }
         val keep: Boolean = when (key) {
             "status" -> text == "open" || text == "done"
-            "assigned_user_id", "tag_id", "contact_id", "conversation_id" ->
+            "assigned_user_id", "tag_id", "contact_id", "conversation_id", "source_line_id" ->
                 text != null && UUID_RE.matches(text)
 
             "unassigned", "overdue", "has_location", "has_attachments", "has_references" -> bool != null
@@ -57,6 +58,7 @@ fun sanitizeTaskFilters(raw: JsonObject): JsonObject {
             "created_by" -> text != null && (text == "me" || UUID_RE.matches(text))
             "source" -> text != null && text in SOURCES
             "group" -> text != null && text in GROUPS
+            "layout" -> text in LAYOUTS
             else -> false
         }
         if (keep) out[key] = value
@@ -72,6 +74,7 @@ data class TaskViewState(
     val unassigned: Boolean,
     val dueChip: DueChip?,
     val extra: TaskExtraFilters,
+    val layout: TaskViewKind? = null,
 )
 
 /**
@@ -107,6 +110,7 @@ fun taskViewToState(filters: JsonObject, meUserId: String): TaskViewState {
         contactId = clean.str("contact_id"),
         createdBy = clean.str("created_by"),
         source = clean.str("source"),
+        sourceLineId = clean.str("source_line_id"),
         hasAttachments = clean.flag("has_attachments"),
         hasReferences = clean.flag("has_references"),
         notConfirmed = (clean["confirmed"] as? JsonPrimitive)?.booleanOrNull == false,
@@ -114,7 +118,7 @@ fun taskViewToState(filters: JsonObject, meUserId: String): TaskViewState {
         dueBefore = if (dueChip == null) clean.str("due_before") else null,
         group = TaskGroup.entries.firstOrNull { it.wire == clean.str("group") } ?: TaskGroup.Status,
     )
-    return TaskViewState(tab, chip, unassigned && chip == null, dueChip, extra)
+    return TaskViewState(tab, chip, unassigned && chip == null, dueChip, extra, LAYOUTS[clean.str("layout")])
 }
 
 /** The Tasks screen's controls as a view would store them. */
@@ -128,6 +132,7 @@ fun taskStateToView(state: TaskViewState, meUserId: String): JsonObject {
         else -> meUserId
     }
     val raw = buildJsonObject {
+        state.layout?.let { put("layout", JsonPrimitive(it.name.lowercase())) }
         when (state.tab) {
             TasksTabKind.Open -> put("status", JsonPrimitive("open"))
             TasksTabKind.Done -> put("status", JsonPrimitive("done"))
@@ -148,6 +153,7 @@ fun taskStateToView(state: TaskViewState, meUserId: String): JsonObject {
         extra.contactId?.let { put("contact_id", JsonPrimitive(it)) }
         extra.createdBy?.let { put("created_by", JsonPrimitive(it)) }
         extra.source?.let { put("source", JsonPrimitive(it)) }
+        extra.sourceLineId?.let { put("source_line_id", JsonPrimitive(it)) }
         if (extra.hasAttachments) put("has_attachments", JsonPrimitive(true))
         if (extra.hasReferences) put("has_references", JsonPrimitive(true))
         if (extra.notConfirmed) put("confirmed", JsonPrimitive(false))
@@ -157,10 +163,11 @@ fun taskStateToView(state: TaskViewState, meUserId: String): JsonObject {
 }
 
 /** Is this view the arrangement currently on screen? */
-fun taskViewMatches(filters: JsonObject, state: TaskViewState, meUserId: String): Boolean =
-    sanitizeTaskFilters(filters) == taskStateToView(state, meUserId) &&
-        // A view for an empty arrangement is never "the one open".
-        sanitizeTaskFilters(filters).isNotEmpty()
+fun taskViewMatches(filters: JsonObject, state: TaskViewState, meUserId: String): Boolean {
+    val saved = sanitizeTaskFilters(filters)
+    val effective = if ("layout" in saved) state else state.copy(layout = null)
+    return saved.isNotEmpty() && saved == taskStateToView(effective, meUserId)
+}
 
 /** One section of a grouped list or one column of a grouped board. */
 data class TaskBucket(

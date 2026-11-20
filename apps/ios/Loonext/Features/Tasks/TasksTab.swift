@@ -23,6 +23,7 @@ struct TasksTab: View {
 
     @State private var tab: TasksTabKind = .open
     @State private var view: TaskViewKind = .list
+    @State private var planner = false
     @State private var assigneeChip: String?
     @State private var unassignedChip = false
     @State private var dueChip: DueChip?
@@ -43,6 +44,7 @@ struct TasksTab: View {
     @State private var contactFilterName: String?
     @State private var createdByFilter: String?
     @State private var sourceFilter: String?
+    @State private var sourceLineId: String?
     @State private var hasAttachmentsFilter = false
     @State private var hasReferencesFilter = false
     @State private var notConfirmedFilter = false
@@ -94,6 +96,7 @@ struct TasksTab: View {
             contactId: contactFilter,
             createdBy: createdByFilter,
             source: sourceFilter,
+            sourceLineId: sourceLineId,
             hasAttachments: hasAttachmentsFilter,
             hasReferences: hasReferencesFilter,
             notConfirmed: notConfirmedFilter,
@@ -111,7 +114,8 @@ struct TasksTab: View {
             unassigned: unassignedChip,
             due: dueChip,
             meta: metaFilters,
-            group: groupChoice
+            group: groupChoice,
+            layout: view
         )
     }
 
@@ -128,6 +132,7 @@ struct TasksTab: View {
         contactFilter = state.meta.contactId
         createdByFilter = state.meta.createdBy
         sourceFilter = state.meta.source
+        sourceLineId = state.meta.sourceLineId
         hasAttachmentsFilter = state.meta.hasAttachments
         hasReferencesFilter = state.meta.hasReferences
         notConfirmedFilter = state.meta.notConfirmed
@@ -137,8 +142,11 @@ struct TasksTab: View {
         groupChoice = state.group
     }
 
-    private func applyView(_ view: SavedView) {
-        applyState(taskViewState(view.filters, meUserId: me.user_id))
+    private func applyView(_ saved: SavedView) {
+        let state = taskViewState(saved.filters, meUserId: me.user_id)
+        planner = false
+        if let layout = state.layout { view = layout }
+        applyState(state)
     }
 
     private var filtersActive: Bool {
@@ -172,7 +180,16 @@ struct TasksTab: View {
         // (`AppRouter.openTaskId`), so the task detail renders ABOVE the tab
         // shell with no pill (it used to push inside this tab, under the pill).
         VStack(spacing: 0) {
-            headerRow
+            if planner {
+                plannerHeader
+            } else {
+                headerRow
+                Button(AppStrings.translate(appLocale, "shell.navPlanner")) {
+                    planner = true
+                    view = .calendar
+                }
+                .frame(minHeight: 44)
+            }
             searchField
             controlsRow
             switch view {
@@ -344,9 +361,16 @@ struct TasksTab: View {
         }
     }
 
-    /// Big display heading + the paper-circle view switcher (spec 24). Four
-    /// views now (#184/#186): List, Board, Calendar, Map — icon-only pills with
-    /// spoken labels, ink-filled when selected.
+    private var plannerHeader: some View {
+        TaskPlannerHeader(selected: view, onBack: {
+            planner = false
+            view = .list
+        }) { next in
+            view = next
+            if next == .board { groupChoice = TaskGroup.assignee }
+        }
+    }
+
     private var headerRow: some View {
         TasksTitleRow(selected: view) { next in
             view = next
@@ -424,7 +448,7 @@ struct TasksTab: View {
                 isDefault: view.id == controller.defaultViewId
             )
         }
-        let filtered = taskFilterCount(currentState) > 0 || tab != .open
+        let filtered = taskFilterCount(currentState) > 0 || tab != .open || view != .list
         return ListViewsModel(
             entries: entries,
             activeId: active?.id,
@@ -448,7 +472,7 @@ struct TasksTab: View {
             ListFilterRow(
                 filterCount: taskFilterCount(currentState),
                 onFilter: { filtersOpen = true },
-                views: viewsModel
+                views: planner ? nil : viewsModel
             ) {
                 tabPills
                 sortMenuChip
@@ -464,6 +488,7 @@ struct TasksTab: View {
                 members: members,
                 meUserId: me.user_id,
                 tags: workspaceTags,
+                phoneLines: accessiblePhoneLines(me.company?.numbers ?? []),
                 contactSearch: contactSearchClosure(),
                 onApply: { state, contactName in
                     applyState(state, contactName: contactName)
@@ -526,6 +551,13 @@ struct TasksTab: View {
             chips.append(ActiveFilterChip(id: "createdBy", label: memberLabel(id)) {
                 createdByFilter = nil
             })
+        }
+        if let sourceLineId {
+            let line = me.company?.numbers.first { $0.id == sourceLineId }
+            chips.append(ActiveFilterChip(
+                id: "sourceLine",
+                label: line?.label ?? line?.number_e164 ?? AppStrings.translate(appLocale, "shell.sourceLine")
+            ) { self.sourceLineId = nil })
         }
         if let source = sourceFilter {
             chips.append(ActiveFilterChip(

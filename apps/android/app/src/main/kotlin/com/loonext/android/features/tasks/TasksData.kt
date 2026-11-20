@@ -97,6 +97,7 @@ class TaskMutations(private val api: ApiClient) {
                     filters.contactId?.let { put("contact_id", it) }
                     filters.createdBy?.let { put("created_by", it) }
                     filters.source?.let { put("source", it) }
+                    filters.sourceLineId?.let { put("source_line_id", it) }
                     if (filters.hasAttachments) put("has_attachments", true)
                     if (filters.hasReferences) put("has_references", true)
                     filters.confirmed?.let { put("confirmed", it) }
@@ -606,6 +607,7 @@ suspend fun drainLocatedTasks(
         contactId = extra.contactId,
         createdBy = extra.createdBy,
         source = extra.source,
+        sourceLineId = extra.sourceLineId,
         confirmed = if (extra.notConfirmed) false else null,
         dueAfter = mapDay?.let { isoAtStartOfDay(it, zone) } ?: dueFilters.dueAfter,
         dueBefore = mapDay?.let { isoAtStartOfDay(it.plusDays(1), zone) } ?: dueFilters.dueBefore,

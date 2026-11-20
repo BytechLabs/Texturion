@@ -31,6 +31,7 @@ describe(navRowsFor, () => {
         .filter((href) => href !== "/trash");
       expect(hrefs, role).toEqual([
         "/for-you",
+        "/lou",
         "/inbox",
         "/calls",
         "/tasks",

@@ -36,9 +36,10 @@ export function outcomePlaceholder(
   outcome: CallOutcomeFilter,
   reason = "any",
   contactId = "any",
+  lineId?: string,
 ): CallPages | undefined {
   const all = queryClient.getQueryData<CallPages>(
-    keys.calls(companyId, "all", reason, contactId),
+    keys.calls(companyId, "all", reason, contactId, lineId),
   );
   if (!isCallPages(all)) return undefined;
   const rows = all.pages
@@ -93,22 +94,24 @@ export function useCalls(
   outcome?: CallOutcomeFilter,
   reason?: string,
   contactId?: string,
+  lineId?: string,
+  louActivity = false,
 ) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useInfiniteQuery({
-    queryKey: keys.calls(companyId, outcome ?? "all", reason ?? "any", contactId ?? "any"),
+    queryKey: [...keys.calls(companyId, outcome ?? "all", reason ?? "any", contactId ?? "any", lineId), ...(louActivity ? ["lou"] : [])],
     queryFn: ({ pageParam, signal }) =>
       apiFetch<Page<Call>>("/v1/calls", {
         companyId,
         signal,
-        searchParams: { cursor: pageParam, outcome, reason, contact_id: contactId },
+        searchParams: { cursor: pageParam, outcome, reason, contact_id: contactId, phone_number_id: lineId, lou_activity: louActivity ? "1" : undefined },
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     // Not the previous filter's rows: those would put answered calls under Missed.
-    placeholderData: outcome
-      ? () => outcomePlaceholder(queryClient, companyId, outcome, reason, contactId)
+    placeholderData: outcome && !louActivity
+      ? () => outcomePlaceholder(queryClient, companyId, outcome, reason, contactId, lineId)
       : undefined,
   });
 }

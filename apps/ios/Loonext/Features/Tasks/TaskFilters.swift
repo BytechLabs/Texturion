@@ -98,6 +98,7 @@ struct TaskListFilters: Equatable, Sendable {
     var createdBy: String? = nil
     /// "text", "call" or "none".
     var source: String? = nil
+    var sourceLineId: String? = nil
     var hasAttachments: Bool = false
     var hasReferences: Bool = false
     var confirmed: Bool? = nil
@@ -116,6 +117,7 @@ struct TaskMetaFilters: Equatable, Sendable {
     var contactId: String? = nil
     var createdBy: String? = nil
     var source: String? = nil
+    var sourceLineId: String? = nil
     var hasAttachments: Bool = false
     var hasReferences: Bool = false
     var notConfirmed: Bool = false
@@ -130,7 +132,7 @@ struct TaskMetaFilters: Equatable, Sendable {
     /// A filter, not the sort: the sort re-orders and hides nothing.
     var hasFilter: Bool {
         !priority.isEmpty || tagId != nil || contactId != nil || createdBy != nil
-            || source != nil || hasAttachments || hasReferences || notConfirmed || dueAfter != nil
+            || source != nil || sourceLineId != nil || hasAttachments || hasReferences || notConfirmed || dueAfter != nil
             || dueBefore != nil
     }
 
@@ -138,7 +140,7 @@ struct TaskMetaFilters: Equatable, Sendable {
     var token: String {
         [
             priority.sorted().joined(separator: ","), tagId ?? "", sort ?? "",
-            contactId ?? "", createdBy ?? "", source ?? "",
+            contactId ?? "", createdBy ?? "", source ?? "", sourceLineId ?? "",
             hasAttachments ? "a" : "", hasReferences ? "r" : "", notConfirmed ? "unconfirmed" : "",
             dueAfter ?? "", dueBefore ?? "", statusOnly ?? "",
         ].joined(separator: ":")
@@ -220,6 +222,7 @@ func taskQueryParams(
         "contact_id": filters.contactId,
         "created_by": filters.createdBy,
         "source": filters.source,
+        "source_line_id": filters.sourceLineId,
         "has_attachments": filters.hasAttachments ? "true" : nil,
         "has_references": filters.hasReferences ? "true" : nil,
         "confirmed": filters.confirmed.map { $0 ? "true" : "false" },
@@ -235,7 +238,7 @@ func taskQueryParams(
 /// Any of the #690 filters. Each one is an explicit parameter to the route, so
 /// each one switches off the Open and Mine defaults, like every other filter.
 func taskHasExtraFilters(_ filters: TaskListFilters) -> Bool {
-    filters.contactId != nil || filters.createdBy != nil || filters.source != nil
+    filters.contactId != nil || filters.createdBy != nil || filters.source != nil || filters.sourceLineId != nil
         || filters.hasAttachments || filters.hasReferences
 }
 
@@ -340,6 +343,7 @@ func taskListArms(
             contactId: meta.contactId,
             createdBy: meta.createdBy,
             source: meta.source,
+            sourceLineId: meta.sourceLineId,
             hasAttachments: meta.hasAttachments,
             hasReferences: meta.hasReferences,
             confirmed: meta.notConfirmed ? false : nil

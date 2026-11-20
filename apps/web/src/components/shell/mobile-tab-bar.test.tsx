@@ -2,19 +2,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileTabBar } from "./mobile-tab-bar";
 
-/**
- * #100: the mobile shell is the bottom tab bar alone — no top header. The
- * fifth cell is the ACCOUNT AVATAR (replacing "More"): it opens the account
- * sheet and carries a dot when there are unread notifications. These pin the
- * render contract: four nav links + the avatar button, the unread dot, and
- * that no "More" link to /settings remains.
- */
 const state = {
   unread: 0,
+  pathname: "/inbox",
 };
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/inbox",
+  usePathname: () => state.pathname,
 }));
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({
@@ -45,40 +39,43 @@ vi.mock("./mobile-account-sheet", () => ({
 
 beforeEach(() => {
   state.unread = 0;
+  state.pathname = "/inbox";
 });
 
-describe("MobileTabBar (#100)", () => {
-  it("renders the four nav links plus the avatar button — and NO More link", () => {
+describe(MobileTabBar, () => {
+  it("renders the five destinations in order with More as a dialog trigger", () => {
     const html = renderToStaticMarkup(<MobileTabBar />);
-    for (const label of ["For You", "Inbox", "Tasks", "Contacts"]) {
-      expect(html).toContain(label);
+    let previous = 0;
+    for (const href of ["/for-you", "/inbox", "/tasks", "/lou"]) {
+      const position = html.indexOf(`href="${href}"`);
+      expect(position).toBeGreaterThan(previous);
+      previous = position;
     }
-    // The avatar cell: initials + the "You" label, a button (not a link).
-    expect(html).toContain("RE");
-    expect(html).toContain("You");
-    // Its name starts with the word it shows (WCAG 2.5.3).
-    expect(html).toContain('aria-label="You, account and settings"');
-    // The old More → /settings tab is gone (#100); Settings lives in the sheet.
-    expect(html).not.toContain(">More<");
+    expect(html.indexOf('aria-label="More"')).toBeGreaterThan(previous);
+    expect(html).toContain('aria-haspopup="dialog"');
   });
 
-  it("carries the For you and Inbox numerals and no Tasks one", () => {
+  it.each(["/inbox", "/inbox/scheduled", "/calls", "/calls/detail"])("selects Conversations alone on %s", (path) => {
+    state.pathname = path;
     const html = renderToStaticMarkup(<MobileTabBar />);
-    expect(html).toContain('aria-label="For You, 2"');
-    expect(html).toContain('aria-label="Inbox, 3"');
-    // aria-current follows the page that is showing, not a pending tap.
+    expect(html).toContain('aria-label="For you, 2"');
+    expect(html).toContain('aria-label="Conversations, 3"');
     const current = html.match(/<a [^>]*aria-current="page"[^>]*>/g) ?? [];
     expect(current).toHaveLength(1);
     expect(current[0]).toContain('href="/inbox"');
   });
 
-  it("shows a dot on the avatar when there are unread notifications", () => {
-    state.unread = 4;
+  it.each(["/contacts", "/trash", "/settings/account"])("selects More alone on %s", (path) => {
+    state.pathname = path;
     const html = renderToStaticMarkup(<MobileTabBar />);
-    expect(html).toContain("4 unread notifications");
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toMatch(/<button[^>]*aria-current="page"/);
+  });
 
+  it("includes the unread notification count in the More label", () => {
+    state.unread = 4;
+    expect(renderToStaticMarkup(<MobileTabBar />)).toContain('aria-label="More, 4"');
     state.unread = 0;
-    const quiet = renderToStaticMarkup(<MobileTabBar />);
-    expect(quiet).not.toContain("unread notifications");
+    expect(renderToStaticMarkup(<MobileTabBar />)).toContain('aria-label="More"');
   });
 });

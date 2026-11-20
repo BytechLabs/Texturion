@@ -62,6 +62,7 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     expect(decideAuthRedirect("/for-you", true)).toBeNull();
     expect(decideAuthRedirect("/tasks", true)).toBeNull();
     expect(isProtectedPath("/for-you")).toBe(true);
+    expect(isProtectedPath("/lou")).toBe(true);
     expect(isProtectedPath("/tasks")).toBe(true);
   });
 

@@ -115,18 +115,21 @@ ratios, which fail only when something is genuinely wrong.
 
 ## G3. App architecture & navigation
 
+- The signed-in sidebar groups Search, For you and Lou above Phone line.
+  Messages, Scheduled, Calls and Voicemail follow the selected number.
+  Tasks, Planner, saved task views and Contacts use workspace data. The
+  icon rail has the same order and opens Planner and saved views from Task
+  shortcuts. Trash and the sidebar toggle are in the footer.
 - **Desktop (≥1024px):** three-region shell.
-  Left sidebar 240px: logo wordmark, primary nav (Inbox, Contacts, Templates), spacer,
-  Settings, usage meter mini-bar, company/user block at bottom. `stone-100` background,
-  active item = white pill + petrol text.
+  Left sidebar 232px when labeled and 56px as an icon rail. The workspace
+  switcher stays at the top. The active item uses the Paper & Olive tint and
+  its paired text color.
   Middle: conversation list, 360px, own scroll.
   Right: thread pane (flexible) with a 320px contact panel toggled by an info button
   (persisted preference).
-- **Tablet (768–1023px):** sidebar collapses to 64px icon rail; list+thread as master-detail.
-- **Mobile (<768px):** bottom tab bar (Inbox, Contacts, Settings) with target sizing
-  governed by `docs/APP-LAYOUT-V2.md` §7 and safe-area padding; conversation list
-  full-screen; thread pushes in as a full-screen view with back header; compose FAB
-  (petrol, bottom-right, above tab bar) on the inbox tab.
+- Below the desktop breakpoint the bottom tab bar shows For you, Conversations,
+  Tasks, Lou and More. It uses the target sizing in `docs/APP-LAYOUT-V2.md` §7
+  and safe-area padding. More opens the account and workspace sheet.
 - **URLs:** `/inbox` (list; `?status=&assignee=&tag=&q=` filters in the URL),
   `/inbox/[conversationId]` (thread), `/contacts`, `/contacts/[id]`, `/templates`,
   `/settings/{workspace|team|billing|usage|notifications|numbers|profile}`, `/onboarding/*`,

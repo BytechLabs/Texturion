@@ -10,9 +10,10 @@ import {
   LogOut,
   Monitor,
   Moon,
-  PhoneIncoming,
   Settings,
   Sun,
+  Trash2,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -41,8 +42,9 @@ import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { cn } from "@/lib/utils";
 
 
+import { ROLE_LABEL_KEYS } from "./nav";
 import { companyInitials, WorkspaceNumbers } from "./workspace-bits";
-import { avatarInitials } from "@loonext/shared";
+import { avatarInitials, roleHasCapability } from "@loonext/shared";
 
 /** Count above this renders as `9+` (the calm numeral cap, §1.3). */
 function cap(n: number): string {
@@ -83,7 +85,7 @@ export function MobileAccountSheetBody({
   onFeedOpened: () => void;
 }) {
   const t = useT();
-  const { membership, memberships, switchCompany, displayName, companyId } =
+  const { membership, memberships, switchCompany, displayName, companyId, role } =
     useActiveCompany();
   const confirmLeaving = useConfirmLeaving();
   const unread = useNotificationsUnreadCount();
@@ -96,6 +98,7 @@ export function MobileAccountSheetBody({
 
   const count = unread.data?.count ?? 0;
   const multi = memberships.length > 1;
+  const roleLabelKey = ROLE_LABEL_KEYS[role];
 
   function toggleFeed() {
     setFeedOpen((current) => {
@@ -152,7 +155,7 @@ export function MobileAccountSheetBody({
               {displayName || t("shell.you")}
             </p>
             <p className="truncate text-[12px] text-app-muted">
-              {membership.name}
+              {roleLabelKey ? t(roleLabelKey) : membership.name}
             </p>
           </div>
         </div>
@@ -248,15 +251,13 @@ export function MobileAccountSheetBody({
             )}
           </section>
 
-          {/* #129: the mobile home of the call log — the tab bar stays four
-              links + avatar (#100), so Calls rides the account sheet. */}
-          <Link href="/calls" className={rowClass} onClick={onClose}>
-            <PhoneIncoming
+          <Link href="/contacts" className={rowClass} onClick={onClose}>
+            <Users
               className="size-4 shrink-0 text-app-muted-2"
               strokeWidth={1.75}
               aria-hidden
             />
-            {t("shell.navCalls")}
+            {t("shell.navContacts")}
           </Link>
 
 
@@ -268,6 +269,12 @@ export function MobileAccountSheetBody({
             />
             {t("shell.navSettings")}
           </Link>
+          {roleHasCapability(role, "records.delete") && (
+            <Link href="/trash" className={rowClass} onClick={onClose}>
+              <Trash2 className="size-4 shrink-0 text-app-muted-2" aria-hidden />
+              {t("shell.navTrash")}
+            </Link>
+          )}
         </div>
 
         {/* Theme — the inbox filter-bar segmented control, verbatim: a stone

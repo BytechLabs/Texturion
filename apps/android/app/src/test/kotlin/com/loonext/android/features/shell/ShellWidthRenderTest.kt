@@ -4,20 +4,27 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
-import com.loonext.android.core.model.Me
-import com.loonext.android.core.model.Membership
-import com.loonext.android.core.model.SubscriptionStatus
+import androidx.compose.ui.test.performClick
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
 import org.junit.Assert.assertTrue
@@ -54,6 +61,46 @@ class ShellWidthRenderTest {
 
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    @Config(sdk = [34], qualifiers = "w411dp-h891dp")
+    fun `Conversations keeps its view when the line changes or More opens`() {
+        val lines = listOf(
+            PhoneNumberSummary("service", "active", "CA", "+14165550101", created_at = "", label = "Service"),
+            PhoneNumberSummary("sales", "active", "CA", "+14165550102", created_at = "", label = "Sales"),
+        )
+        compose.setContent {
+            LoonextTheme {
+                var active by remember { mutableStateOf(ShellTab.Calls) }
+                var lineId by remember { mutableStateOf<String?>("service") }
+                var more by remember { mutableStateOf(false) }
+                MainShell(
+                    counts = ShellCounts(forYou = 2),
+                    unreadNotifications = 0,
+                    tab = active,
+                    onTabChange = { active = it },
+                    onCompose = {},
+                    onOpenAccountSheet = { more = true },
+                ) { tab, modifier ->
+                    if (tab == ShellTab.Inbox || tab == ShellTab.Calls) {
+                        Column(modifier) {
+                            ConversationsHeader(lines, selectedPhoneLine(lines, lineId), { lineId = it }, tab, { active = it })
+                        }
+                    }
+                }
+                if (more) Text("Account sheet opened")
+            }
+        }
+        compose.onNodeWithContentDescription("Conversations").assertIsSelected()
+        compose.onNodeWithText("Service", substring = true).performClick()
+        compose.onNodeWithText("Sales", substring = true).performClick()
+        compose.onNodeWithText("Calls").assertIsSelected()
+        compose.onNodeWithText("Sales", substring = true).assertExists()
+        writePng(compose.onRoot().captureToImage().asAndroidBitmap(), "issue-877-conversations")
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Account sheet opened").assertExists()
+        compose.onNodeWithContentDescription("Conversations").assertIsSelected()
+    }
 
     @Test
     @Config(sdk = [34], qualifiers = "w411dp-h891dp")
@@ -141,7 +188,6 @@ class ShellWidthRenderTest {
             ) {
             LoonextTheme {
                 MainShell(
-                    me = ME,
                     counts = ShellCounts(forYou = 2, unreadConversations = 5, openTasks = 3),
                     unreadNotifications = 2,
                     tab = ShellTab.Inbox,
@@ -209,20 +255,5 @@ class ShellWidthRenderTest {
         File(dir, "$name.png").outputStream().use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
-    }
-
-    private companion object {
-        val ME = Me(
-            user_id = "user-1",
-            display_name = "Sam Rivera",
-            memberships = listOf(
-                Membership(
-                    company_id = "c1",
-                    name = "Northside Plumbing",
-                    role = "owner",
-                    subscription_status = SubscriptionStatus.ACTIVE,
-                ),
-            ),
-        )
     }
 }

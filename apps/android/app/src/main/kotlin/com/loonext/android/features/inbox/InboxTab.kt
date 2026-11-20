@@ -144,6 +144,8 @@ import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.features.shell.PhoneLineMenu
+import com.loonext.android.features.shell.selectedPhoneLine
 import com.loonext.android.features.shell.LocalShellPageActive
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.ThreadScreen
@@ -290,6 +292,8 @@ fun InboxTab(
     onOpenTask: (taskId: String) -> Unit,
     onComposeNew: (prefillContactId: String?) -> Unit,
     modifier: Modifier = Modifier,
+    phoneLineId: String? = null,
+    onSelectPhoneLine: ((String?) -> Unit)? = null,
 ) {
     // Threads and compose are ROUTES above the shell now (founder mandate:
     // nothing pushed shows the pill nav) — this tab is only ever the list, so
@@ -306,6 +310,8 @@ fun InboxTab(
         onCompose = { onComposeNew(null) },
         onTextContact = { contactId -> onComposeNew(contactId) },
         modifier = modifier,
+        phoneLineId = phoneLineId,
+        onSelectPhoneLine = onSelectPhoneLine,
     )
 }
 
@@ -341,6 +347,7 @@ private class InboxController(
      * catalogue has to be reachable without one.
      */
     private val locale: String,
+    initialPhoneLineId: String?,
 ) {
     /** One line of the catalogue, for the notices below. */
     private fun say(key: String, vars: Map<String, String> = emptyMap()): String =
@@ -361,8 +368,11 @@ private class InboxController(
         private set
     var unassignedOnly by mutableStateOf(false)
         private set
-    var lineId by mutableStateOf<String?>(null)
-        private set
+    private var shellLineId by mutableStateOf(initialPhoneLineId)
+    private var filterLineId by mutableStateOf<String?>(null)
+    var lineId: String?
+        get() = shellLineId ?: filterLineId
+        private set(value) { filterLineId = value }
     var tagId by mutableStateOf<String?>(null)
         private set
 
@@ -571,6 +581,14 @@ private class InboxController(
         assigneeUserId = null
         unassignedOnly = true
         showPane()
+    }
+
+    fun selectShellLine(id: String?) {
+        if (shellLineId == id) return
+        shellLineId = id
+        scheduled = emptyList()
+        showPane()
+        refreshScheduled()
     }
 
     fun setLineFilter(id: String?) {
@@ -867,9 +885,11 @@ private class InboxController(
 
     /** #233: what the workspace has queued. Quiet failure — it gates one icon. */
     fun refreshScheduled() {
+        val line = shellLineId
         scope.launch {
             runCatching {
-                scheduled = repo.scheduledMessages(companyId).scheduled_messages
+                val page = repo.scheduledMessages(companyId, phoneLineId = line)
+                if (line == shellLineId) scheduled = page.scheduled_messages
             }
         }
     }
@@ -882,6 +902,7 @@ private class InboxController(
      * schedule it again — so it confirms rather than asking.
      */
     fun cancelScheduled(id: String) {
+        val line = shellLineId
         val before = scheduled
         scheduled = before.filterNot { it.id == id }
         scope.launch {
@@ -889,10 +910,7 @@ private class InboxController(
                 repo.cancelScheduledMessage(companyId, id)
                 notify(ScheduledSend.copy("canceled_confirmation"))
             } catch (cause: Exception) {
-                // It is still queued. Putting it back is the only honest state:
-                // a row that vanished while still being due to send is the
-                // silent disappearance DECISIONS.md rules out.
-                scheduled = before
+                if (line == shellLineId) scheduled = before
                 notify(cause.userMessage(locale))
             }
         }
@@ -1428,6 +1446,8 @@ private fun InboxList(
     onCompose: () -> Unit,
     onTextContact: (String) -> Unit,
     modifier: Modifier = Modifier,
+    phoneLineId: String? = null,
+    onSelectPhoneLine: ((String?) -> Unit)? = null,
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
     val outboxRows by remember(graph) { graph.outbox.rows }.collectAsState(initial = emptyList())
@@ -1438,15 +1458,16 @@ private fun InboxList(
     }
     val lines = me.company?.numbers.orEmpty().mapNotNull { number ->
         number.number_e164?.let { number.id to MergeFields.formatNanpNumber(it) }
-    }.toMap()
+    }.toMap().takeIf { phoneLineId == null }.orEmpty()
     // #228: the language is part of the key. The controller's snackbars are
     // built in coroutines, so it holds the locale rather than reading it — and a
     // controller kept across a language change would keep saying the old one.
     val locale = LocalAppLocale.current
     val controller = remember(companyId, locale) {
-        InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope, locale)
+        InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope, locale, phoneLineId)
     }
     LaunchedEffect(controller) { controller.start() }
+    LaunchedEffect(controller, phoneLineId) { controller.selectShellLine(phoneLineId) }
     // #508: land on the filter another surface asked for. Keyed on the token so
     // a repeat request re-fires, and reported as consumed so it cannot re-apply
     // on the next recomposition and undo a filter the reader changed by hand.
@@ -1645,6 +1666,12 @@ private fun InboxList(
                 },
                 onCancel = { controller.cancelScheduled(it) },
                 onDismiss = { scheduledSheetOpen = false },
+                lineMenu = onSelectPhoneLine?.let { select ->
+                    {
+                        val numbers = me.company?.numbers.orEmpty()
+                        PhoneLineMenu(numbers, selectedPhoneLine(numbers, phoneLineId), allowAll = false, onSelect = select)
+                    }
+                },
             )
         }
 
@@ -1694,22 +1721,16 @@ private fun InboxHeader(
             }
         }
         Spacer(Modifier.width(8.dp))
-        // #233: self-surfacing rather than buried. The whole ask is "so nobody
-        // is surprised", and a control that only appears when something IS
-        // queued does that without costing a permanent slot on the days
-        // nothing is. *Applying: Zen of Clarity.*
-        if (scheduledCount > 0) {
-            PaperIconButton(
-                icon = Icons.Outlined.Schedule,
-                contentDescription = if (scheduledCount == 1) {
-                    t("inbox.scheduledOneAria")
-                } else {
-                    t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
-                },
-                onClick = onScheduled,
-            )
-            Spacer(Modifier.width(8.dp))
-        }
+        PaperIconButton(
+            icon = Icons.Outlined.Schedule,
+            contentDescription = when (scheduledCount) {
+                0 -> t("inbox.scheduledTitle")
+                1 -> t("inbox.scheduledOneAria")
+                else -> t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
+            },
+            onClick = onScheduled,
+        )
+        Spacer(Modifier.width(8.dp))
         PaperIconButton(
             icon = Icons.Outlined.Search,
             contentDescription = t("inbox.searchAria"),

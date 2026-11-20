@@ -440,11 +440,12 @@ struct MessagingRepository: Sendable {
     func scheduledMessages(
         companyId: String,
         conversationId: String? = nil,
-        status: String? = nil
+        status: String? = nil,
+        phoneLineId: String? = nil
     ) async throws -> ScheduledMessagePage {
         try await api.get(
             "/v1/scheduled-messages",
-            query: ["conversation_id": conversationId, "status": status],
+            query: ["conversation_id": conversationId, "status": status, "phone_number_id": phoneLineId],
             companyId: companyId
         )
     }

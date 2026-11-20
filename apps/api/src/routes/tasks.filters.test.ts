@@ -166,6 +166,14 @@ describe("GET /v1/tasks: the #690 filters", () => {
     expect(list.calls[0].url.searchParams.get("source_call_id")).toBe("is.null");
   });
 
+  it("filters on the recorded source line in the workspace task list", async () => {
+    const lineId = "985bb816-1de2-440b-b0ae-66e37a54507d";
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => []);
+    stubFetch(jwksRoute(auth), members(), noRules(), list.route, ...tail());
+    await request("GET", `/v1/tasks?source_line_id=${lineId}`);
+    expect(list.calls[0].url.searchParams.get("source_line_id")).toBe(`eq.${lineId}`);
+  });
+
   it("has_attachments reads the files column", async () => {
     const list = stubRoute(restMatch(env, "GET", "tasks"), () => []);
     stubFetch(jwksRoute(auth), members(), noRules(), list.route, ...tail());

@@ -65,6 +65,7 @@ export function taskSearchParams(
     !filters.contact_id &&
     !filters.created_by &&
     !filters.source &&
+    !filters.source_line_id &&
     !filters.has_attachments &&
     !filters.has_references;
   const status = filters.status ?? (needsAllSentinel ? "open" : undefined);
@@ -91,6 +92,7 @@ export function taskSearchParams(
     contact_id: filters.contact_id,
     created_by: filters.created_by,
     source: filters.source,
+    source_line_id: filters.source_line_id,
     has_attachments: filters.has_attachments ? true : undefined,
     has_references: filters.has_references ? true : undefined,
     limit: filters.limit,
