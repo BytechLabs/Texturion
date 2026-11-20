@@ -35,18 +35,28 @@ final class DeviceChecklists: XCTestCase {
 
     func testNotificationReply() async throws {
         let body = "Simulator shade reply"
+        let push = "push?thread=1&title=Reply%20from%20the%20shade"
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
         openNotificationCenter()
-        try await control("push?thread=1&title=Reply%20from%20the%20shade")
-        let card = try waitFor(springboard.buttons.matching(NSPredicate(
+        try await control(push)
+        let card = springboard.buttons.matching(NSPredicate(
             format: "identifier == %@ AND label CONTAINS %@", "ListCell", "Reply from the shade"
-        )).firstMatch)
-        let frame = card.frame
-        XCTAssertFalse(frame.isEmpty)
-        // SpringBoard can wait for animations long after the card is ready for touch.
-        try await control("hold?x=\(Int(frame.midX))&y=\(Int(frame.midY))")
+        )).firstMatch
         let replyAction = springboard.buttons["Reply"].firstMatch
+        for _ in 0..<2 where !replyAction.exists {
+            try await hold(try waitFor(card))
+            if replyAction.waitForExistence(timeout: 2) { break }
+        }
+        if !replyAction.exists {
+            XCUIDevice.shared.press(.home)
+            let banner = springboard.staticTexts["Reply from the shade"].firstMatch
+            for _ in 0..<2 where !replyAction.exists {
+                try await control(push)
+                if banner.waitForExistence(timeout: 4) { try await hold(banner) }
+                if replyAction.waitForExistence(timeout: 2) { break }
+            }
+        }
         shot("777 notification after touch and hold")
         try waitFor(replyAction).tap()
         let keyboardIntro = springboard.buttons["Continue"].firstMatch
@@ -271,6 +281,14 @@ final class DeviceChecklists: XCTestCase {
         request.httpMethod = "POST"
         let (body, response) = try await URLSession.shared.data(for: request)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200, String(decoding: body, as: UTF8.self))
+    }
+
+    private func hold(_ element: XCUIElement) async throws {
+        // SpringBoard can wait for animations long after the card is ready for touch.
+        let frame = element.frame
+        if !frame.isEmpty {
+            try await control("hold?x=\(Int(frame.midX))&y=\(Int(frame.midY))")
+        }
     }
 
     private func assertOneWrite(path: String, field: String, value: String, requiresKey: Bool = false) async throws {
