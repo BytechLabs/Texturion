@@ -25,6 +25,20 @@ final class NotificationsPushPayloadTests: XCTestCase {
         }
     }
 
+    private actor ReplyTransport: HTTPClient {
+        private(set) var requests: [URLRequest] = []
+
+        func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            requests.append(request)
+            let body = """
+            {"id":"sent","conversation_id":"thread","body":"Shade reply",
+             "direction":"outbound","status":"sent","created_at":"2026-11-20T00:00:00Z"}
+            """
+            let response = HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!
+            return (Data(body.utf8), response)
+        }
+    }
+
     func testOnlyAFullyScopedPageOffersAcknowledgement() {
         var data = [
             "alert_id": "aaaaaaaa-1111-2222-3333-444455556666",
@@ -79,6 +93,57 @@ final class NotificationsPushPayloadTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testNotificationReplyUsesScopedIdempotentOutboxSend() async throws {
+        let company = UUID().uuidString
+        let conversation = UUID().uuidString
+        let user = UUID().uuidString
+        let message = UUID().uuidString
+        let suite = "push-reply-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let mediaRoot = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: mediaRoot)
+        }
+        let session = SessionStore(storage: InMemorySessionStorage())
+        session.save(Session(
+            accessToken: "test-token", refreshToken: "test-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600, userId: user, email: "simulator@loonext.test"
+        ))
+        let transport = ReplyTransport()
+        let graph = AppGraph(
+            sessionStore: session,
+            transport: transport,
+            outboxStore: Outbox(defaults: defaults, mediaRoot: mediaRoot)
+        )
+        let payload = [
+            "thread_action": "message", "can_reply": "true",
+            "action_company_id": company, "action_user_id": user,
+            "action_conversation_id": conversation, "action_message_id": message,
+        ]
+        let accepted = try await performThreadPushAction(.reply, data: payload, replyText: " Shade reply ", graph: graph)
+        XCTAssertTrue(accepted)
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !graph.outbox.store.all().isEmpty && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertTrue(graph.outbox.store.all().isEmpty)
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/v1/messages/send")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Company-Id"), company)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "push-reply-\(message)-\(user)")
+        let body = try XCTUnwrap(request.httpBody)
+        XCTAssertEqual(
+            try JSONDecoder().decode([String: String].self, from: body),
+            ["conversation_id": conversation, "body": "Shade reply"]
+        )
+    }
+
     // MARK: - parsePush
 
     func testReadClearsThreadAlertsWithoutClearingNoteMentions() {
@@ -94,7 +159,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
         let content = parsePush([
             "title": "New text from Dana",
             "body": "Can you come by Thursday?",
-            "url": "https://app.loonext.com/inbox/1f0f7a5e-1111-2222-3333-444455556666",
+            "url": "\(AppConfig.appOrigin.absoluteString)/inbox/1f0f7a5e-1111-2222-3333-444455556666",
         ])
 
         XCTAssertEqual(content.category, PushCategory.messages)
@@ -143,7 +208,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(content.category, PushCategory.incomingCalls)
         XCTAssertEqual(content.tag, "call:sess-abc-123")
         XCTAssertEqual(content.callSessionId, "sess-abc-123")
-        XCTAssertEqual(content.url, "https://app.loonext.com/calls?call=sess-abc-123")
+        XCTAssertEqual(content.url, "\(AppConfig.appOrigin.absoluteString)/calls?call=sess-abc-123")
     }
 
     func testTwoConcurrentCallsGetTwoDistinctTags() {
@@ -309,7 +374,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
 
         XCTAssertEqual(content.title, "Loonext")
         XCTAssertEqual(content.body, "You have a new notification.")
-        XCTAssertEqual(content.url, "https://app.loonext.com/inbox/c1")
+        XCTAssertEqual(content.url, "\(AppConfig.appOrigin.absoluteString)/inbox/c1")
     }
 
     // MARK: - normalizeDeepLink
@@ -317,25 +382,25 @@ final class NotificationsPushPayloadTests: XCTestCase {
     func testRelativePathsResolveAgainstTheAppOrigin() {
         XCTAssertEqual(
             normalizeDeepLink("/inbox/abc"),
-            "https://app.loonext.com/inbox/abc"
+            "\(AppConfig.appOrigin.absoluteString)/inbox/abc"
         )
     }
 
     func testLegacyConversationsPathsNormalizeToInbox() {
         XCTAssertEqual(
-            normalizeDeepLink("https://app.loonext.com/conversations/abc"),
-            "https://app.loonext.com/inbox/abc"
+            normalizeDeepLink("\(AppConfig.appOrigin.absoluteString)/conversations/abc"),
+            "\(AppConfig.appOrigin.absoluteString)/inbox/abc"
         )
         XCTAssertEqual(
             normalizeDeepLink("/conversations/abc"),
-            "https://app.loonext.com/inbox/abc"
+            "\(AppConfig.appOrigin.absoluteString)/inbox/abc"
         )
     }
 
     func testQueryStringsSurviveForTheCallsWakeLink() {
         XCTAssertEqual(
-            normalizeDeepLink("https://app.loonext.com/calls?call=sess-1"),
-            "https://app.loonext.com/calls?call=sess-1"
+            normalizeDeepLink("\(AppConfig.appOrigin.absoluteString)/calls?call=sess-1"),
+            "\(AppConfig.appOrigin.absoluteString)/calls?call=sess-1"
         )
     }
 
@@ -364,17 +429,17 @@ final class NotificationsPushPayloadTests: XCTestCase {
     }
 
     func testNonThreadLinksTagPerDeepLink() {
-        let tag = coalescingTag(kind: nil, normalizedUrl: "https://app.loonext.com/tasks")
+        let tag = coalescingTag(kind: nil, normalizedUrl: "\(AppConfig.appOrigin.absoluteString)/tasks")
 
-        XCTAssertEqual(tag, "notice:https://app.loonext.com/tasks")
+        XCTAssertEqual(tag, "notice:\(AppConfig.appOrigin.absoluteString)/tasks")
     }
 
     // MARK: - queryParam
 
     func testQueryParamReadsTheFirstValueAndDecodesIt() {
-        XCTAssertEqual(queryParam(url: "https://app.loonext.com/x?call=a%20b&other=1", name: "call"), "a b")
-        XCTAssertNil(queryParam(url: "https://app.loonext.com/x?other=1", name: "call"))
-        XCTAssertNil(queryParam(url: "https://app.loonext.com/x?call=", name: "call"))
+        XCTAssertEqual(queryParam(url: "\(AppConfig.appOrigin.absoluteString)/x?call=a%20b&other=1", name: "call"), "a b")
+        XCTAssertNil(queryParam(url: "\(AppConfig.appOrigin.absoluteString)/x?other=1", name: "call"))
+        XCTAssertNil(queryParam(url: "\(AppConfig.appOrigin.absoluteString)/x?call=", name: "call"))
     }
 
     // MARK: - parsePushRoute (deep-link routing contract)
@@ -418,7 +483,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
 
     func testInboxUrlsRouteToTheThread() {
         XCTAssertEqual(
-            parsePushRoute(url: "https://app.loonext.com/inbox/conv-1"),
+            parsePushRoute(url: "\(AppConfig.appOrigin.absoluteString)/inbox/conv-1"),
             .thread(conversationId: "conv-1")
         )
         XCTAssertEqual(
@@ -429,7 +494,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
 
     func testLegacyConversationsUrlsRouteToTheThread() {
         XCTAssertEqual(
-            parsePushRoute(url: "https://app.loonext.com/conversations/conv-1"),
+            parsePushRoute(url: "\(AppConfig.appOrigin.absoluteString)/conversations/conv-1"),
             .thread(conversationId: "conv-1")
         )
     }
@@ -448,7 +513,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
         // the query param, so a permalink somebody was handed resolved to the
         // empty calls list — the dead-end tap this table exists to prevent.
         XCTAssertEqual(
-            parsePushRoute(url: "https://app.loonext.com/calls/sess-3"),
+            parsePushRoute(url: "\(AppConfig.appOrigin.absoluteString)/calls/sess-3"),
             .calls(sessionId: "sess-3")
         )
     }
@@ -473,7 +538,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
     func testATaskWithNoThreadBehindItOpensItsOwnPage() {
         // This used to resolve to nothing, so the tap appeared to do nothing.
         XCTAssertEqual(
-            parsePushRoute(url: "https://app.loonext.com/tasks/task-9"),
+            parsePushRoute(url: "\(AppConfig.appOrigin.absoluteString)/tasks/task-9"),
             .task(taskId: "task-9")
         )
     }
@@ -484,7 +549,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
             .calls(sessionId: "sess-9")
         )
         XCTAssertEqual(
-            parsePushRoute(url: "https://app.loonext.com/calls"),
+            parsePushRoute(url: "\(AppConfig.appOrigin.absoluteString)/calls"),
             .calls(sessionId: nil)
         )
     }
@@ -506,7 +571,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
     }
 
     func testAnExplicitInboxLinkOpensInboxWhileAnInvalidLinkHasNoRoute() {
-        let digest = parsePush(["url": "https://app.loonext.com/inbox"])
+        let digest = parsePush(["url": "\(AppConfig.appOrigin.absoluteString)/inbox"])
         XCTAssertEqual(parsePushRoute(url: digest.url), .inbox)
         XCTAssertNil(parsePushRoute(url: "https://evil.example.com/inbox/x"))
         XCTAssertNil(parsePushRoute(url: nil))

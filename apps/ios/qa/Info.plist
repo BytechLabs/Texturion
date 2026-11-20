@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>fr</string>
+	</array>
+	<key>LoonextTelemetryEnvironment</key>
+	<string>$(LOONEXT_TELEMETRY_ENVIRONMENT)</string>
+	<key>LoonextQAApiURL</key>
+	<string>$(LOONEXT_QA_API_URL)</string>
+	<key>LoonextQAWebURL</key>
+	<string>$(LOONEXT_QA_WEB_URL)</string>
+	<key>LoonextQASupabaseURL</key>
+	<string>$(LOONEXT_QA_SUPABASE_URL)</string>
+	<key>LoonextQASupabasePublishableKey</key>
+	<string>$(LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

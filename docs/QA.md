@@ -157,3 +157,33 @@ The rig can verify app UI, Google Phone's emulated modem and contacts behavior, 
 | Ordinary SIM-carrier calls | The Play image can inject an incoming GSM event into Google Phone and exercise lookup and call history. Actual carrier signaling needs a radio and subscription. |
 | iPhone silent switch and Face ID hardware | The Simulator can exercise app audio policy and simulated biometric outcomes. The switch, the audio route on a physical phone and the Face ID sensor are hardware checks. |
 | Physical screen-reader interaction | Use TalkBack and VoiceOver in the respective lanes where available and record what spoke. Device acoustics and physical interaction remain outside the lab. |
+
+## iOS Simulator
+
+Open **Actions → iOS QA → Run workflow** and choose a scenario or `all`. The CLI equivalent is `gh workflow run ios-qa.yml --ref main -f scenario=all`. Pull requests that change the workflow or test harness build the QA app, verify Release endpoints and run `calls` as a smoke test. The workflow installs `com.loonext.ios.qa` on an iPhone Simulator and uses synthetic data on the runner. It needs no Apple account, Firebase configuration, customer credentials, carrier traffic, or founder's phone.
+
+Each scenario records a video, a final screenshot, XCUITest screenshots and results, and its fixture server log. Network scenarios also capture the synthetic request bodies and any injected `.apns` payloads. Open the `ios-qa-*` artifact on the run page. The run summary lists each scenario's result.
+
+The workflow signs in to the loopback fixture with synthetic credentials supplied at launch. This keeps the system Save Password prompt out of the device checklists. The dedicated sign-in accessibility audit still exercises the form.
+
+| Scenario | Issue | Simulator evidence |
+| --- | --- | --- |
+| `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
+| `notification-actions` | #777 | XCTest attempts a Reply from Notification Center and checks card removal on thread open and on a read broadcast for the same user. A separate test submits a synthetic reply action to the app's handler and checks the outgoing request and idempotency key. |
+| `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover synthetic VoIP payloads, caller privacy, wake policy, and the softphone behavior behind CallKit answer and end actions. |
+| `offline` | #778 | The fixture closes API and Realtime connections while Simulator networking stays active. The app reopens cached data after termination, flushes a queued send once after reconnect and returns to sign-in when refresh is refused. This exercises app behavior on transport failure. The iOS reachability strip and real radio transitions need a separate network-loss pass. |
+| `autosave` | #780 | UI tests edit contact notes and leave the screen, then edit Calling settings and immediately press Home. The fixture checks one PATCH with the latest value and the tests reopen the UI to confirm it. A debounce regression drives the sub-800 ms window independently of Simulator gesture timing. |
+| `copy-and-media` | #805 | UI tests check rendered settings labels, the task-list delete confirmation, and playback progress on synthetic audio. Unit tests check English and Canadian French permission strings, including Face ID, and playback session setup. |
+| `accessibility` | #238 | Apple's `performAccessibilityAudit` checks the app's primary flows using the same audit target as Gate / iOS. It reports properties such as labels, contrast, hit regions and large-text clipping. |
+
+`LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
+
+For interactive tests of throughput and packet loss, Xcode exposes Network Link Conditioner profiles in its Devices and Simulators window. The hosted test controls the fixture's sockets while leaving its control endpoint reachable. [Apple network conditioning guide](https://developer.apple.com/videos/play/tech-talks/111378/)
+
+### Accepted iPhone hardware gaps
+
+`simctl push` injects ordinary alert payloads directly and bypasses FCM and APNs. Apple supports the APNs development sandbox on eligible Simulator hosts with a configured build. [Xcode release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-14-release-notes)
+
+X21 accepts the hardware-only gaps for iOS QA. These include alert sound with the phone locked or unlocked, ring/silent-switch behavior, receiver proximity, real call audio and voicemail audio immediately after a call. End-to-end PushKit wake and locked-device CallKit answer or decline require a provisioned iPhone and a VoIP credential on the relevant Telnyx connection. App Lock's physical Face ID prompt and a spoken VoiceOver pass, including announcement timing and French pronunciation, are also outside this lane.
+
+When the applicable Simulator, Android emulator and web checks pass, close the issue with one line naming its accepted iPhone hardware gap.

@@ -1,0 +1,125 @@
+name: iOS QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario to run
+        type: choice
+        default: all
+        options:
+          - all
+          - foreground-alerts
+          - notification-actions
+          - calls
+          - offline
+          - autosave
+          - copy-and-media
+          - accessibility
+  pull_request:
+    paths:
+      - .github/workflows/ios-qa.yml
+      - apps/ios/project.yml
+      - apps/ios/Loonext/Core/AppConfig.swift
+      - apps/ios/qa/**
+      - apps/ios/LoonextQATests/**
+      - apps/ios/LoonextQAUITests/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-qa-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    timeout-minutes: 65
+    defaults:
+      run:
+        working-directory: apps/ios
+    env:
+      QA_SCENARIO: ${{ inputs.scenario || 'calls' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Match Xcode 26 to an installed iPhone runtime
+        run: |
+          choice=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          from pathlib import Path
+
+          devices = []
+          for runtime, rows in json.load(sys.stdin)["devices"].items():
+              match = re.search(r"\.iOS-(26-\d+(?:-\d+)*)$", runtime)
+              if not match:
+                  continue
+              version = tuple(map(int, match.group(1).split("-")))
+              xcode = Path(f"/Applications/Xcode_{version[0]}.{version[1]}.app")
+              if xcode.is_dir():
+                  devices += [(version, d["name"] == "iPhone 17 Pro", d["name"], d["udid"], xcode)
+                              for d in rows if d["name"].startswith("iPhone")]
+          if not devices:
+              sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
+          _, _, _, udid, xcode = max(devices)
+          print(xcode, udid)
+          ')
+          read -r XCODE UDID <<< "$choice"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+          xcrun simctl list devices available | grep "$UDID"
+          echo "QA_SIMULATOR=$UDID" >> "$GITHUB_ENV"
+
+      - name: Generate project and install fixture dependency
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          npm install --prefix "$RUNNER_TEMP/ios-qa-node" --no-audit --no-fund --ignore-scripts ws@8.21.0
+          echo "NODE_PATH=$RUNNER_TEMP/ios-qa-node/node_modules" >> "$GITHUB_ENV"
+
+      - name: Verify Release endpoints
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/ios-qa/release-config"
+          xcodebuild -project Loonext.xcodeproj -scheme Loonext -configuration Release \
+            -sdk iphonesimulator -showBuildSettings -json \
+            > "$RUNNER_TEMP/release-settings.json"
+          node -e '
+            const entries = require(process.argv[1]);
+            const { buildSettings } = entries.find((entry) => entry.target === "Loonext");
+            if (buildSettings.PRODUCT_BUNDLE_IDENTIFIER !== "com.loonext.ios" ||
+                /\bLOONEXT_QA\b/.test(buildSettings.SWIFT_ACTIVE_COMPILATION_CONDITIONS ?? "")) process.exit(1);
+          ' "$RUNNER_TEMP/release-settings.json"
+          swiftc -O Loonext/Core/AppConfig.swift LoonextQATests/ReleaseEndpoints.swift -o "$RUNNER_TEMP/release-endpoints"
+          "$RUNNER_TEMP/release-endpoints" | tee "$RUNNER_TEMP/ios-qa/release-config/endpoints.txt"
+
+      - name: Build QA app
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/ios-qa"
+          xcodebuild build-for-testing -project Loonext.xcodeproj -scheme LoonextQA \
+            -configuration QA -destination "id=$QA_SIMULATOR" \
+            -derivedDataPath "$RUNNER_TEMP/ios-qa-build" CODE_SIGN_IDENTITY=- \
+            | tee "$RUNNER_TEMP/ios-qa/build.log"
+
+      - name: Boot iPhone Simulator and install QA app
+        timeout-minutes: 7
+        run: |
+          xcrun simctl bootstatus "$QA_SIMULATOR" -b
+          app="$RUNNER_TEMP/ios-qa-build/Build/Products/QA-iphonesimulator/Loonext.app"
+          /usr/libexec/PlistBuddy -c 'Print :LoonextQAApiURL' "$app/Info.plist" | grep -Fx 'http://127.0.0.1:8765'
+          xcrun simctl install "$QA_SIMULATOR" "$app"
+
+      - name: Run scenario and capture evidence
+        timeout-minutes: 48
+        run: bash qa/run.sh "$QA_SCENARIO"
+
+      - name: Upload Simulator evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-qa-${{ env.QA_SCENARIO }}
+          path: ${{ runner.temp }}/ios-qa
+          retention-days: 14
+          if-no-files-found: error

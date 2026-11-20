@@ -2,6 +2,10 @@
 # then open Loonext.xcodeproj in Xcode 26+. Deployment target is iOS 26 so the
 # whole app adopts Liquid Glass natively.
 name: Loonext
+configs:
+  Debug: debug
+  QA: debug
+  Release: release
 options:
   bundleIdPrefix: com.loonext
   useBaseInternationalization: false
@@ -115,6 +119,17 @@ targets:
       configs:
         Debug:
           LOONEXT_TELEMETRY_ENVIRONMENT: local
+        QA:
+          LOONEXT_TELEMETRY_ENVIRONMENT: qa
+          PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa
+          SUPPORTED_PLATFORMS: iphonesimulator
+          CODE_SIGN_ENTITLEMENTS: qa/Simulator.entitlements
+          INFOPLIST_FILE: qa/Info.plist
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG LOONEXT_QA"
+          LOONEXT_QA_API_URL: http://127.0.0.1:8765
+          LOONEXT_QA_WEB_URL: http://127.0.0.1:8765
+          LOONEXT_QA_SUPABASE_URL: http://127.0.0.1:8765
+          LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY: simulator-local
         Release:
           LOONEXT_TELEMETRY_ENVIRONMENT: production
           # dSYMs for PostHog to symbolicate a crash with (posthog-cli in ship.yml).
@@ -154,6 +169,11 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        QA:
+          PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa.share
+          SUPPORTED_PLATFORMS: iphonesimulator
+          CODE_SIGN_ENTITLEMENTS: ""
   LoonextTests:
     type: bundle.unit-test
     platform: iOS
@@ -182,6 +202,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.uitests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
+  LoonextQAUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - LoonextQAUITests
+    dependencies:
+      - target: Loonext
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
 schemes:
   Loonext:
     build:
@@ -196,3 +228,18 @@ schemes:
       targets:
         - LoonextTests
         - LoonextUITests
+  LoonextQA:
+    build:
+      targets:
+        Loonext: all
+        LoonextTests: [test]
+        LoonextUITests: [test]
+        LoonextQAUITests: [test]
+    run:
+      config: QA
+    test:
+      config: QA
+      targets:
+        - LoonextTests
+        - LoonextUITests
+        - LoonextQAUITests

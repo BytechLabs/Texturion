@@ -1595,6 +1595,11 @@ private struct AutosaveField: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)
+        .onChange(of: initial) { previous, latest in
+            guard saveState == .idle, value == previous else { return }
+            value = latest
+            autosave = DebouncedTextSave(latest)
+        }
         .onDisappear { autosave.flush() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { autosave.flush() }

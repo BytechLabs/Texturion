@@ -57,6 +57,11 @@ final class OfflineReadCacheTests: XCTestCase {
     func testOnlyDefaultListsAndFirstPagesOfRecordsAreEligible() {
         let thread = "/v1/conversations/aaaa0000-0000-4000-8000-000000000001"
         XCTAssertTrue(isOfflineRead(path: "/v1/for-you", query: [:], userId: "member"))
+        XCTAssertTrue(isOfflineRead(
+            path: "/v1/conversations",
+            query: ["phone_number_id": "aaaa0000-0000-4000-8000-000000000002", "pinned": "exclude"],
+            userId: "member"
+        ))
         XCTAssertTrue(isOfflineRead(path: thread + "/messages", query: ["limit": "50"], userId: "member"))
         XCTAssertTrue(isOfflineRead(path: "/v1/tasks", query: ["assigned_user_id": "member"], userId: "member"))
         XCTAssertFalse(isOfflineRead(path: thread + "/messages", query: ["cursor": "older"], userId: "member"))
@@ -239,7 +244,17 @@ final class OfflineReadCacheTests: XCTestCase {
             companyId: "workspace"
         )
         XCTAssertEqual(cached?.data.map(\.id), ["original"])
+
+        home.selectShellLine("line")
+        await home.reload(showLoading: true).value
         await transport.goOffline()
+
+        let restored = InboxController(api: api, companyId: "workspace", meUserId: "member")
+        restored.selectShellLine("line")
+        await restored.reload(showLoading: true).value
+        guard case .ready = restored.state else { return XCTFail("The selected line should open offline") }
+        XCTAssertEqual(restored.rows.map(\.id), ["original"])
+        XCTAssertEqual(restored.pinnedRows.map(\.id), ["pin"])
 
         let filters: [(name: String, apply: @MainActor (InboxController) -> Void)] = [
             ("Unassigned", { $0.setUnassignedFilter() }),

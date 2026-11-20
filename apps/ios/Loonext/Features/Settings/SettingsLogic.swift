@@ -545,7 +545,9 @@ func formatBytes(_ bytes: Int) -> String {
 }
 
 /// The shareable invite accept link (same origin the web copies).
-func inviteLink(_ inviteId: String) -> String { "https://app.loonext.com/invite/\(inviteId)" }
+func inviteLink(_ inviteId: String) -> String {
+    AppConfig.appOrigin.appending(path: "invite/\(inviteId)").absoluteString
+}
 
 // MARK: - What this workspace is charged in (#328)
 

@@ -660,13 +660,16 @@ final class InboxController {
         if showLoading { state = .loading }
         return Task {
             var retainRows = keepLoaded
-            if showLoading, !isFiltered,
+            let line = lineId
+            if showLoading, activeInboxFilters(filterState).allSatisfy({ $0 == .line }),
                let page: Page<ConversationListItem> = await inboxApi.api.cachedGet(
-                   "/v1/conversations", query: ["status": "open", "pinned": "exclude", "limit": "25"],
+                   "/v1/conversations",
+                   query: ["status": "open", "pinned": "exclude", "limit": "25", "phone_number_id": line],
                    companyId: companyId
                ) {
                 let pinned: Page<ConversationListItem>? = await inboxApi.api.cachedGet(
-                    "/v1/conversations", query: ["status": "open", "pinned": "only", "limit": "100"],
+                    "/v1/conversations",
+                    query: ["status": "open", "pinned": "only", "limit": "100", "phone_number_id": line],
                     companyId: companyId
                 )
                 guard seq == loadSeq, !Task.isCancelled else { return }
@@ -2038,6 +2041,7 @@ private struct ConversationRow: View {
                 }
             }
             .padding(.vertical, 5)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // Announce read/unread to VoiceOver — the AttentionDot that conveys it

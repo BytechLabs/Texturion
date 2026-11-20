@@ -35,7 +35,7 @@ enum Passkeys {
     /// passkey is scoped to the RP that created it, so a different id here would
     /// mint a credential the web app could never use: one account, two second
     /// factors that each work in exactly one place.
-    static let relyingPartyId = "app.loonext.com"
+    static let relyingPartyId = AppConfig.appOrigin.host!
 
     /// What the caller needs out of the server's creation options.
     struct CreationOptions: Equatable {
