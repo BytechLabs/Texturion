@@ -73,6 +73,11 @@ run_scenario() {
     | tee "$output/xcodebuild.log" || result=$?
   xcrun simctl io "$QA_SIMULATOR" screenshot "$output/final.png" || result=1
   curl --silent --fail http://127.0.0.1:8765/__qa/writes > "$output/writes.json" || result=1
+  if [[ "$name" == notification-actions ]]; then
+    xcrun simctl spawn "$QA_SIMULATOR" log show --last 20m --style compact \
+      --predicate 'subsystem == "com.loonext.ios" AND category == "push" AND eventMessage CONTAINS "notification reply"' \
+      > "$output/push.log" 2>&1 || true
+  fi
   stop_processes || result=1
 
   if [[ -d "$output/tests.xcresult" ]]; then
@@ -89,15 +94,16 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|calls|offline|autosave|copy-and-media|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions calls offline autosave copy-and-media accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
     notification-actions) run_scenario "$name" "$ui/testNotificationReply" "$ui/testNotificationTrayClearance" \
       "$unit/NotificationsPushPayloadTests" || failed=1 ;;
+    notification-reply-transport) run_scenario "$name" "$unit/NotificationReplyFixtureTests" || failed=1 ;;
     calls) run_scenario "$name" "$audit/testInCallControls" "$audit/testCallLog" \
       "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" "$unit/TelephonyMappingTests" || failed=1 ;;
     offline) run_scenario "$name" "$ui/testOfflineRelaunchAndOutbox" "$unit/OfflineReadCacheTests" || failed=1 ;;

@@ -202,8 +202,11 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
         }
         if let action = ThreadPushAction(rawValue: response.actionIdentifier) {
             let reply = (response as? UNTextInputNotificationResponse)?.userText
+            if action == .reply { coordinatorLog.notice("Received notification reply") }
             if await handleThreadAction(action, data: data, reply: reply) {
                 center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+            } else if action == .reply {
+                coordinatorLog.warning("Could not queue notification reply")
             }
             return
         }

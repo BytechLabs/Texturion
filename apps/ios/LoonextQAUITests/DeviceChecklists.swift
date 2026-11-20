@@ -34,6 +34,7 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testNotificationReply() async throws {
+        let body = "Simulator shade reply"
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
@@ -46,13 +47,25 @@ final class DeviceChecklists: XCTestCase {
         }
         shot("777 notification after touch and hold")
         try waitFor(replyAction).tap()
+        let keyboardIntro = springboard.buttons["Continue"].firstMatch
+        if keyboardIntro.waitForExistence(timeout: 5) {
+            keyboardIntro.tap()
+        }
         let reply = try waitFor(springboard.textViews.matching(
             NSPredicate(format: "identifier == %@ AND label == %@", "", "")
         ).firstMatch)
-        reply.typeText("Simulator shade reply")
-        try waitFor(springboard.buttons["Send text"].firstMatch).tap()
-        try await assertOneWrite(path: "/v1/messages/send", field: "body", value: "Simulator shade reply", requiresKey: true)
-        shot("777 notification reply")
+        XCTAssertTrue(reply.isHittable)
+        reply.typeText(body)
+        XCTAssertEqual(reply.value as? String, body)
+        let send = try waitFor(springboard.buttons["Send text"].firstMatch)
+        shot("777 reply ready to send in Notification Center")
+        XCTAssertTrue(send.isEnabled && send.isHittable)
+        send.tap()
+        try await assertOneWrite(path: "/v1/messages/send", field: "body", value: body, requiresKey: true)
+        app.activate()
+        try openThread("Ben Fixture")
+        try waitFor(label(body))
+        shot("777 reply received in the fixture conversation")
     }
 
     func testNotificationTrayClearance() async throws {

@@ -11,11 +11,15 @@ on:
           - all
           - foreground-alerts
           - notification-actions
+          - notification-reply-transport
           - calls
           - offline
           - autosave
           - copy-and-media
           - accessibility
+      runtime:
+        description: iOS Simulator version (defaults to newest installed)
+        type: string
   pull_request:
     paths:
       - .github/workflows/ios-qa.yml
@@ -41,16 +45,18 @@ jobs:
         working-directory: apps/ios
     env:
       QA_SCENARIO: ${{ inputs.scenario || 'calls' }}
+      QA_IOS_RUNTIME: ${{ inputs.runtime }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Match Xcode 26 to an installed iPhone runtime
+      - name: Select Xcode 26 and an installed iPhone runtime
         run: |
           choice=$(xcrun simctl list devices available -j | python3 -c '
-          import json, re, sys
+          import json, os, re, sys
           from pathlib import Path
 
           devices = []
+          requested = os.environ.get("QA_IOS_RUNTIME", "")
           for runtime, rows in json.load(sys.stdin)["devices"].items():
               match = re.search(r"\.iOS-(26-\d+(?:-\d+)*)$", runtime)
               if not match:
@@ -62,7 +68,12 @@ jobs:
                               for d in rows if d["name"].startswith("iPhone")]
           if not devices:
               sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
-          _, _, _, udid, xcode = max(devices)
+          _, _, _, _, xcode = max(devices)
+          if requested:
+              devices = [device for device in devices if ".".join(map(str, device[0])) == requested]
+              if not devices:
+                  sys.exit(f"iOS Simulator runtime {requested} is unavailable")
+          _, _, _, udid, _ = max(devices)
           print(xcode, udid)
           ')
           read -r XCODE UDID <<< "$choice"

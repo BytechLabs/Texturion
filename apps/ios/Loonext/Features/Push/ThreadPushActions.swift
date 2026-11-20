@@ -101,7 +101,7 @@ func performThreadPushAction(
                 ownerUserId: scope.userId
             ))
         }
-        graph.outbox.flushOnBackground()
+        await graph.outbox.flushForNotificationResponse()
         return true
     case .markRead:
         guard data["thread_action"] == "message" else { return false }
