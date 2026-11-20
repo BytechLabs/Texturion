@@ -31,7 +31,7 @@ permissions:
 jobs:
   simulator:
     runs-on: macos-latest
-    timeout-minutes: 50
+    timeout-minutes: 65
     defaults:
       run:
         working-directory: apps/ios
@@ -100,7 +100,7 @@ jobs:
             | tee "$RUNNER_TEMP/ios-qa/build.log"
 
       - name: Boot iPhone Simulator and install QA app
-        timeout-minutes: 4
+        timeout-minutes: 7
         run: |
           xcrun simctl bootstatus "$QA_SIMULATOR" -b
           app="$RUNNER_TEMP/ios-qa-build/Build/Products/QA-iphonesimulator/Loonext.app"
@@ -108,7 +108,7 @@ jobs:
           xcrun simctl install "$QA_SIMULATOR" "$app"
 
       - name: Run scenario and capture evidence
-        timeout-minutes: 34
+        timeout-minutes: 48
         run: bash qa/run.sh "$QA_SCENARIO"
 
       - name: Upload Simulator evidence

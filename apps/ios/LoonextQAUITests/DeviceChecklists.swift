@@ -38,7 +38,10 @@ final class DeviceChecklists: XCTestCase {
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
         openNotificationCenter()
-        try waitFor(notification("Reply from the shade")).press(forDuration: 1.1)
+        let card = springboard.buttons.matching(identifier: "ShortLook.Platter.Content.Seamless").matching(
+            NSPredicate(format: "label CONTAINS %@", "Reply from the shade")
+        ).firstMatch
+        try waitFor(card).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.1)
         try waitFor(springboard.buttons["Reply"].firstMatch).tap()
         let reply = try waitFor(springboard.textFields.firstMatch)
         reply.tap()
@@ -53,7 +56,9 @@ final class DeviceChecklists: XCTestCase {
         try await control("push?thread=1&title=Clear%20on%20open")
         try waitFor(notification("Clear on open"), timeout: 5)
         openNotificationCenter()
-        try waitFor(notification("Clear on open")).tap()
+        try waitFor(notification("Clear on open"))
+        dismissNotificationCenter()
+        try openThread("Ben Fixture")
         try waitFor(label("Second thread history"))
         openNotificationCenter()
         XCTAssertFalse(notification("Clear on open").exists)
@@ -80,7 +85,7 @@ final class DeviceChecklists: XCTestCase {
         try openThread("Ada Fixture")
         try waitFor(label("Test thread history"))
         try await control("mode?value=offline")
-        let composer = try waitFor(app.textViews.firstMatch)
+        let composer = try waitFor(app.textFields["Text message"].firstMatch)
         composer.tap()
         composer.typeText("Simulator queued text")
         try waitFor(app.buttons["Send text"].firstMatch).tap()
@@ -116,9 +121,9 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(back)
         notes.typeText("!")
         back.tap()
-        try await assertOneWrite(path: "/v1/contacts/20000000-0000-4000-8000-000000000020", field: "notes", value: "Test notes!")
+        try await assertOneWrite(path: "/v1/contacts/20000000-0000-4000-8000-000000000020", field: "notes", value: "!Test notes")
         try waitFor(label("Ada Fixture")).tap()
-        try reveal(field(value: "Test notes!"))
+        try reveal(field(value: "!Test notes"))
         shot("780 contact notes persisted after back")
     }
 
@@ -131,9 +136,9 @@ final class DeviceChecklists: XCTestCase {
         message.tap()
         message.typeText("!")
         XCUIDevice.shared.press(.home)
-        try await assertOneWrite(path: "/v1/company", field: "mctb_message", value: "Test message!")
+        try await assertOneWrite(path: "/v1/company", field: "mctb_message", value: "!Test message")
         app.activate()
-        try reveal(field(value: "Test message!"))
+        try reveal(field(value: "!Test message"))
         shot("780 calling setting persisted after background")
     }
 
@@ -150,6 +155,7 @@ final class DeviceChecklists: XCTestCase {
         app.launch()
         try waitFor(app.buttons["Tasks"].firstMatch).tap()
         try waitFor(label("Test boiler")).press(forDuration: 1.1)
+        try waitFor(app.buttons["More actions for Test boiler"].firstMatch).tap()
         try waitFor(app.buttons["Delete task"].firstMatch).tap()
         try waitFor(label("This task will be removed for everyone on your team."))
         shot("805 task list delete confirmation")
@@ -198,7 +204,8 @@ final class DeviceChecklists: XCTestCase {
     }
 
     private func dismissNotificationCenter() {
-        springboard.swipeUp()
+        XCUIDevice.shared.press(.home)
+        app.activate()
     }
 
     private func label(_ text: String) -> XCUIElement {

@@ -56,7 +56,7 @@ function broadcast(event, payload) {
 }
 
 async function push(index, title, missedCall = false) {
-  const path = join(process.env.QA_EVIDENCE, `push-${index}-${missedCall ? "missed" : "message"}.apns`);
+  const path = join(process.env.QA_EVIDENCE, `push-${index}-${randomUUID()}.apns`);
   const payload = {
     aps: { alert: { title, body: "Simulator QA alert" }, sound: "default", badge: 1,
       "thread-id": `conversation:${threadIDs[index]}`, category: missedCall ? "MISSED_CALL" : "MESSAGE" },
@@ -176,7 +176,9 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });
-    if (path === "/v1/conversations") return json(page(searchParams.has("pinned") ? [] : threadIDs.map((_, index) => thread(index))));
+    if (path === "/v1/conversations") {
+      return json(page(searchParams.get("pinned") === "only" ? [] : threadIDs.map((_, index) => thread(index))));
+    }
 
     const [, conversationID, tail] = path.match(/^\/v1\/conversations\/([^/]+)(?:\/([^/]+))?$/) ?? [];
     const index = threadIDs.indexOf(conversationID);
