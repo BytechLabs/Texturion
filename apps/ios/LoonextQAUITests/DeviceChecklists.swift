@@ -39,15 +39,16 @@ final class DeviceChecklists: XCTestCase {
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
         openNotificationCenter()
         let title = try waitFor(springboard.staticTexts["Reply from the shade"].firstMatch)
-        let replyAction = springboard.descendants(matching: .any)["Reply"].firstMatch
+        let replyAction = springboard.buttons["Reply"].firstMatch
         try await Task.sleep(for: .seconds(2))
         for _ in 0..<2 where !replyAction.exists {
             title.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).press(forDuration: 1.5)
         }
         shot("777 notification after touch and hold")
         try waitFor(replyAction).tap()
-        let reply = try waitFor(springboard.textFields.firstMatch)
-        reply.tap()
+        let reply = try waitFor(springboard.textViews.matching(
+            NSPredicate(format: "identifier == %@ AND label == %@", "", "")
+        ).firstMatch)
         reply.typeText("Simulator shade reply")
         try waitFor(springboard.buttons["Send text"].firstMatch).tap()
         try await assertOneWrite(path: "/v1/messages/send", field: "body", value: "Simulator shade reply", requiresKey: true)
