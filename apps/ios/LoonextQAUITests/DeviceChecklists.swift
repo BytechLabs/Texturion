@@ -37,14 +37,13 @@ final class DeviceChecklists: XCTestCase {
         let body = "Simulator shade reply"
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
-        openNotificationCenter()
-        try await control("push?thread=1&title=Reply%20from%20the%20shade")
-        let card = try waitFor(springboard.buttons.matching(NSPredicate(
-            format: "identifier == %@ AND label CONTAINS %@", "ListCell", "Reply from the shade"
-        )).firstMatch)
+        let banner = springboard.staticTexts["Reply from the shade"].firstMatch
         let replyAction = springboard.buttons["Reply"].firstMatch
-        for offset in [0.5, 0.25, 0.75] where !replyAction.exists {
-            card.coordinate(withNormalizedOffset: CGVector(dx: offset, dy: 0.5)).press(forDuration: 1)
+        for _ in 0..<3 where !replyAction.exists {
+            try await control("push?thread=1&title=Reply%20from%20the%20shade")
+            if banner.waitForExistence(timeout: 4) {
+                banner.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).press(forDuration: 1.5)
+            }
             if replyAction.waitForExistence(timeout: 2) { break }
         }
         shot("777 notification after touch and hold")
