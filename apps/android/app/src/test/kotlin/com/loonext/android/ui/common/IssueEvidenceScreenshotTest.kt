@@ -633,7 +633,7 @@ class IssueEvidenceScreenshotTest {
         compose.waitUntil(10_000) { compose.onAllNodes(hasText("Replace kitchen shutoff valve")).fetchSemanticsNodes().isNotEmpty() }
         if (shifts) {
             compose.onNodeWithText("Shifts and breaks").performClick()
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Break start")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Save")).fetchSemanticsNodes().isNotEmpty() }
         }
     }) {
         DispatchPlanner(api = graph.api, companyId = "co_1", userId = "usr_1", timezone = "UTC",

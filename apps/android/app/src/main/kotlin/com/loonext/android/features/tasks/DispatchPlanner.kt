@@ -21,10 +21,12 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ViewKanban
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -575,6 +577,7 @@ internal fun DispatchPlanner(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 internal fun DispatchShiftSheet(
     date: LocalDate,
     members: List<DispatchMember>,
@@ -590,7 +593,7 @@ internal fun DispatchShiftSheet(
     var shift by remember { mutableStateOf(current(worker)) }
     val mode = if (shift == null) "workspace" else if (shift?.start == null) "off" else "shift"
     val locale = LocalAppLocale.current
-    AppSheet(onDismissRequest = onDismiss) {
+    AppSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.testTag("dispatch-shift-editor").verticalScroll(rememberScrollState()).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(t("contactsTasks.dispatchShifts"), style = MaterialTheme.typography.titleLarge)
