@@ -101,6 +101,7 @@ struct TaskDetailView: View {
 
     @State private var pickerOpen = false
     @State private var duePickerOpen = false
+    @State private var plannerOpen = false
     @State private var pickingBookingCustomer = false
     @State private var correction: BookingCorrectionNotice?
     @State private var deletedWithCorrection = false
@@ -153,6 +154,11 @@ struct TaskDetailView: View {
         }
         .navigationTitle(AppStrings.translate(appLocale, "contactsTasks.taskHeading"))
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $plannerOpen, onDismiss: { refreshKey += 1 }) {
+            DispatchPlanner(graph: graph, companyId: companyId, me: me, initialTask: taskId) {
+                if $0 != taskId { AppRouter.shared.openTaskId = $0 }
+            }
+        }
         // The tab's list screen hides the bar; the pushed detail needs it
         // back for the title, back button, and overflow menu.
         .toolbar(.visible, for: .navigationBar)
@@ -977,6 +983,26 @@ struct TaskDetailView: View {
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
+
+            if !noAccess {
+                RowDivider()
+                Button {
+                    plannerOpen = true
+                } label: {
+                    HStack {
+                        Text(AppStrings.translate(appLocale, "contactsTasks.dispatchAddBlock"))
+                        Spacer()
+                        if let scheduled = detail.scheduled_at {
+                            Text(TimestampFormat.label(scheduled, style: .long, locale: appLocale)).foregroundStyle(BrandColor.muted500)
+                        }
+                        metaRowChevron
+                    }
+                    .padding(.horizontal, 15)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
 
             if !noAccess && detail.message_id == nil && detail.source_call == nil && detail.source?.kind != "call" {
                 RowDivider()

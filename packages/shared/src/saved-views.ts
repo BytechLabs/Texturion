@@ -145,10 +145,11 @@ const FILTERS: Record<
   },
   tasks: {
     status: oneOf("open", "done"),
-    assigned_user_id: isUuid,
+    assigned_user_id: (value) => value === "me" || isUuid(value),
     unassigned: isBool,
     overdue: isBool,
     confirmed: (value) => value === false,
+    scheduled: isBool,
     has_location: isBool,
     due_before: isIso,
     due_after: isIso,
@@ -173,6 +174,9 @@ const FILTERS: Record<
     // request carries it.
     group: oneOf("status", "assignee", "priority"),
     layout: oneOf("list", "board", "calendar", "map"),
+    columns: (value) => typeof value === "string" &&
+      (value === "" || value.split(",").every(oneOf("assignee", "due", "scheduled", "status"))),
+    due_relative: oneOf("today", "week"),
   },
 };
 
@@ -184,7 +188,7 @@ export function savedViewFilterKeys(surface: SavedViewSurface): string[] {
 export type SavedViewFilters = Record<string, FilterValue>;
 
 /** Keys a view stores that no list endpoint reads: how it is laid out, not what it shows. */
-const VIEW_ONLY_KEYS = new Set(["group", "layout"]);
+const VIEW_ONLY_KEYS = new Set(["group", "layout", "columns", "due_relative"]);
 
 /**
  * Keep only the filters this surface understands, with values it accepts.

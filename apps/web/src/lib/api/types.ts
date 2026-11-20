@@ -1164,6 +1164,7 @@ export interface Task {
   due_at: string | null;
   due_on?: string | null;
   due_time_set?: boolean;
+  scheduled_at?: string | null;
   correction?: BookingCorrection;
   calendar_hold?: boolean;
   created_by_user_id: string;

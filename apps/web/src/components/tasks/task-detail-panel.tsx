@@ -69,7 +69,7 @@ import {
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
 import { AiOrb } from "@/components/ui/ai-orb";
-import { formatTimestamp } from "@/lib/format/time";
+import { formatScheduledTime, formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
@@ -787,6 +787,15 @@ function TaskDetailLoaded({
             </div>
           </div>
         </section>
+        {task.scheduled_at && <p className="text-sm text-app-muted">
+          {t("tasks.scheduledTime")}{" · "}
+          <time dateTime={task.scheduled_at}>
+            {formatScheduledTime(task.scheduled_at, t.locale, undefined, true)}
+          </time>
+        </p>}
+        {!noAccess && <Button variant="outline" size="sm" asChild>
+          <Link href={`/tasks/planner?job=${task.id}`}>{t("tasks.dispatchAddBlock")}</Link>
+        </Button>}
         {!noAccess && (!task.done && (task.due_at || task.due_on) || task.confirmed_at) && (
           <Button type="button" variant="outline" size="sm" disabled={confirmation.isPending}
             onClick={() => confirmation.mutate({ taskId: task.id, confirmed: !task.confirmed_at },

@@ -23,7 +23,6 @@ struct TasksTab: View {
 
     @State private var tab: TasksTabKind = .open
     @State private var view: TaskViewKind = .list
-    @State private var planner = false
     @State private var assigneeChip: String?
     @State private var unassignedChip = false
     @State private var dueChip: DueChip?
@@ -55,6 +54,7 @@ struct TasksTab: View {
     @State private var groupChoice = TaskGroup.status
     @State private var filtersOpen = false
     @State private var quickAddOpen = false
+    @State private var plannerOpen = false
     @State private var fullFormAfterQuickAdd = false
     @State private var viewsController: TaskViewsController?
     @State private var saveViewOpen = false
@@ -144,7 +144,6 @@ struct TasksTab: View {
 
     private func applyView(_ saved: SavedView) {
         let state = taskViewState(saved.filters, meUserId: me.user_id)
-        planner = false
         if let layout = state.layout { view = layout }
         applyState(state)
     }
@@ -180,16 +179,7 @@ struct TasksTab: View {
         // (`AppRouter.openTaskId`), so the task detail renders ABOVE the tab
         // shell with no pill (it used to push inside this tab, under the pill).
         VStack(spacing: 0) {
-            if planner {
-                plannerHeader
-            } else {
-                headerRow
-                Button(AppStrings.translate(appLocale, "shell.navPlanner")) {
-                    planner = true
-                    view = .calendar
-                }
-                .frame(minHeight: 44)
-            }
+            headerRow
             searchField
             controlsRow
             switch view {
@@ -361,19 +351,19 @@ struct TasksTab: View {
         }
     }
 
-    private var plannerHeader: some View {
-        TaskPlannerHeader(selected: view, onBack: {
-            planner = false
-            view = .list
-        }) { next in
-            view = next
-            if next == .board { groupChoice = TaskGroup.assignee }
-        }
-    }
-
     private var headerRow: some View {
-        TasksTitleRow(selected: view) { next in
-            view = next
+        HStack(spacing: 8) {
+            TasksTitleRow(selected: view) { next in view = next }
+            Button {
+                plannerOpen = true
+            } label: {
+                Image(systemName: "calendar.badge.clock").frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.planner"))
+            .padding(.trailing, 18)
+        }
+        .fullScreenCover(isPresented: $plannerOpen) {
+            DispatchPlanner(graph: graph, companyId: companyId, me: me) { AppRouter.shared.openTaskId = $0 }
         }
         .sheet(
             isPresented: $quickAddOpen,
@@ -472,7 +462,7 @@ struct TasksTab: View {
             ListFilterRow(
                 filterCount: taskFilterCount(currentState),
                 onFilter: { filtersOpen = true },
-                views: planner ? nil : viewsModel
+                views: viewsModel
             ) {
                 tabPills
                 sortMenuChip

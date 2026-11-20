@@ -4,21 +4,8 @@ import type { SavedViewFilters } from '@loonext/shared';
 import type { Translate } from "@/i18n/translate";
 import type { TaskPriority } from "@/lib/api/types";
 
-import { coerceTabForView, parsePriorities, parseView } from './task-view-url';
+import { parsePriorities, parseTaskColumns, parseView, TASK_COLUMNS } from './task-view-url';
 import type { TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view-url';
-
-/**
- * #689 G: the /tasks page's state, in and out of a saved view.
- *
- * A view holds the query, never the result, and what it can hold is the shared
- * allow-list for the `tasks` surface. The tab is not a filter there, so it is
- * stored as what it means: Open is `status=open` for the saver, Mine is the
- * saver, Done is `status=done` for the saver, All is everyone's open tasks.
- *
- * Not stored: the search text and the
- * "today" and "this week" chips, because each means a different window tomorrow.
- * "Overdue" is stored, since it is always relative to now.
- */
 
 export function taskStateToView(
   state: TaskPageState,
@@ -26,12 +13,15 @@ export function taskStateToView(
 ): SavedViewFilters {
   const raw: Record<string, unknown> = { layout: state.view };
   const assignee = state.assignee ?? (state.tab === "all" ? undefined : userId);
-  if (state.tab === "open" || state.tab === "all") raw.status = "open";
-  if (state.tab === "done") raw.status = "done";
+  if (state.status) raw.status = state.status;
+  else if (state.tab === "open" || state.tab === "done") raw.status = state.tab;
+  if (state.columns && state.columns.length !== TASK_COLUMNS.length) raw.columns = state.columns.join(",");
   if (state.unassigned) raw.unassigned = true;
   else if (assignee) raw.assigned_user_id = assignee;
   if (state.due === "overdue") raw.overdue = true;
+  else if (state.due) raw.due_relative = state.due;
   if (state.notConfirmed) raw.confirmed = false;
+  if (state.scheduled !== undefined) raw.scheduled = state.scheduled;
   if (state.dueFrom) raw.due_after = localDayStart(state.dueFrom).toISOString();
   if (state.dueTo) {
     const end = localDayStart(state.dueTo);
@@ -53,9 +43,7 @@ export function taskStateToView(
   return sanitizeFilters("tasks", raw);
 }
 
-/**
- * Older views without a layout keep the layout they were opened from.
- */
+/** Older saved views have no layout and use the one already open. */
 export function viewToTaskState(
   filters: SavedViewFilters,
   userId: string,
@@ -65,19 +53,23 @@ export function viewToTaskState(
   const view = typeof clean.layout === "string" ? parseView(clean.layout) : current.view;
   const next: TaskPageState = { view, tab: "all" };
   if (current.q) next.q = current.q;
+  if (typeof clean.columns === "string") next.columns = parseTaskColumns(clean.columns);
 
   const assignee =
     typeof clean.assigned_user_id === "string" ? clean.assigned_user_id : undefined;
   const mine = assignee === userId;
-  if (clean.status === "done") next.tab = "done";
-  else if (clean.status === "open") next.tab = mine ? "open" : "all";
-  else next.tab = mine ? "mine" : "all";
-  next.tab = coerceTabForView(next.tab, view);
+  if (mine) {
+    next.tab = clean.status === "open" || clean.status === "done" ? clean.status : "mine";
+  } else if (clean.status === "open" || clean.status === "done") {
+    next.status = clean.status;
+  }
   if (assignee !== undefined && !mine) next.assignee = assignee;
   if (clean.unassigned === true) next.unassigned = true;
 
   if (clean.overdue === true) next.due = "overdue";
+  else if (clean.due_relative === "today" || clean.due_relative === "week") next.due = clean.due_relative;
   if (clean.confirmed === false) next.notConfirmed = true;
+  if (typeof clean.scheduled === "boolean") next.scheduled = clean.scheduled;
   if (typeof clean.due_after === "string") next.dueFrom = localDate(new Date(clean.due_after));
   if (typeof clean.due_before === "string") {
     const end = new Date(clean.due_before);
@@ -137,7 +129,10 @@ export function suggestTaskViewName(state: TaskPageState, t: Translate): string 
     }[state.source];
     return t("tasks.chipSource", { source });
   }
-  if (state.tab === "all") return t("tasks.tabAll");
+  if (state.status === "open") return t("tasks.statusOpen");
+  if (state.status === "done") return t("tasks.statusDone");
+  if (state.assignee === "me") return t("tasks.myWork");
+  if (state.tab === "all") return t("tasks.allTasks");
   if (state.tab === "done") return t("tasks.tabDone");
   if (state.tab === "mine") return t("tasks.tabMine");
   return t("tasks.tabOpen");

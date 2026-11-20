@@ -99,12 +99,12 @@ export function BoardView({ state }: { state: TaskPageState }) {
     byId.set(task.id, task);
   }
   const all = [...byId.values()];
-  const todo = all.filter((task) => !task.done);
-  const done = all.filter((task) => task.done);
-  const status = <ResultsStatus query={state.q} count={busy ? null : all.length} />;
+  const todo = all.filter((task) => !task.done && base.status !== "done");
+  const done = all.filter((task) => task.done && base.status !== "open");
+  const status = <ResultsStatus query={state.q} count={busy ? null : todo.length + done.length} />;
 
   // An empty last answer says nothing yet about the filter now loading.
-  if (all.length === 0) {
+  if (todo.length + done.length === 0) {
     if (busy) return <BoardSkeleton />;
     return (
       <>

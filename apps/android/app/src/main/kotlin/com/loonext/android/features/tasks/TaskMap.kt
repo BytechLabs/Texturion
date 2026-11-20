@@ -907,7 +907,8 @@ private fun syncPins(
 ) {
     val key = "$pinColor|" +
         groups.joinToString("|") { group ->
-            group.key + ":" + group.tasks.joinToString(",") { stopNumbers[it.id].toString() }
+            "${group.key}:${group.lat},${group.lng}:" + (stopNumbers[group.key]?.toString()
+                ?: group.tasks.joinToString(",") { stopNumbers[it.id].toString() })
         }
     if (key == sync.pinsKey) return
     sync.pinsKey = key
@@ -918,8 +919,8 @@ private fun syncPins(
         val marker = Marker(map).apply {
             position = GeoPoint(group.lat, group.lng)
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            val first = stopNumbers[group.tasks.first().id]
-            val label = if (group.tasks.size == 1) first.toString() else "$first+"
+            val first = stopNumbers[group.key] ?: group.tasks.firstOrNull()?.let { stopNumbers[it.id] }
+            val label = if (group.tasks.size > 1) "$first+" else first.toString()
             setIcon(stopMarker(map.context, label, pinColor))
             // No Android-View bubble: the peek card is a Compose overlay.
             infoWindow = null
@@ -934,6 +935,29 @@ private fun syncPins(
     }
     fitCamera(map, groups)
     map.invalidate()
+}
+
+@Composable
+internal fun DispatchStopMap(
+    stops: List<DispatchBlock>,
+    tasks: List<DispatchTask>,
+    onOpenTask: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val byId = tasks.associateBy { it.id }
+    val groups = stops.mapNotNull { stop ->
+        val task = byId[stop.task_id] ?: return@mapNotNull null
+        val (lat, lng) = validPin(task.lat, task.lng) ?: return@mapNotNull null
+        TaskPinGroup(stop.id, lat, lng, task.title, emptyList())
+    }
+    if (groups.isEmpty()) return
+    OsmTaskMap(
+        groups = groups,
+        stopNumbers = stops.mapIndexed { index, block -> block.id to index + 1 }.toMap(),
+        locate = null,
+        onPickGroup = { id -> stops.firstOrNull { it.id == id }?.let { onOpenTask(it.task_id) } },
+        modifier = modifier,
+    )
 }
 
 private fun stopMarker(context: Context, label: String, color: Int): BitmapDrawable {

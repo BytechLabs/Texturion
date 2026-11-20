@@ -60,8 +60,13 @@ export const EXPORT_TABLES: readonly ExportTable[] = [
       "assigned_user_id,created_by_user_id,priority,due_at,done_at,done_by_user_id," +
       "confirmed_at,confirmed_by,series_id,occurrence_no,occurrence_on,reminders_off," +
       "addr_street,addr_unit,addr_city,addr_state,addr_postal_code,addr_country," +
-      "creation_origin,created_at,updated_at",
+      "creation_origin,created_at,updated_at,due_on,dispatch_estimate,dispatch_windows",
     liveOnly: true,
+  },
+  {
+    table: "task_schedule_blocks",
+    columns: "id,task_id,assignee_id,starts_at,ends_at,locked",
+    parent: "tasks",
   },
   {
     table: "task_assignees",

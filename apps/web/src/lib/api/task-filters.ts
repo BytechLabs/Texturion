@@ -40,6 +40,7 @@ export interface TaskListFilters {
   /** Past-due AND not-done (overdue is never applied to done tasks). */
   overdue?: boolean;
   confirmed?: boolean;
+  scheduled?: boolean;
   /** Only tasks whose conversation→contact has a lat/lng (the Map view). */
   has_location?: boolean;
   /** Title trigram search. */

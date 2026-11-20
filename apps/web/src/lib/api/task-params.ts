@@ -56,6 +56,7 @@ export function taskSearchParams(
     !filters.status &&
     !filters.overdue &&
     filters.confirmed === undefined &&
+    filters.scheduled === undefined &&
     !filters.conversation_id &&
     !filters.due_before &&
     !filters.due_after &&
@@ -81,6 +82,7 @@ export function taskSearchParams(
     due_on_after: filters.due_on_after,
     overdue: filters.overdue ? true : undefined,
     confirmed: filters.confirmed,
+    scheduled: filters.scheduled,
     has_location: filters.has_location ? true : undefined,
     q: filters.q,
     priority:

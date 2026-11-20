@@ -73,7 +73,7 @@ declare
     -- #689 D: who follows a task, and the push collapse windows.
     'task_subscribers', 'task_notify_windows',
     -- #689 C: which members are on a task. References only.
-    'task_assignees',
+    'task_assignees', 'task_schedule_blocks',
     -- #690: references, relations and the task counter.
     'record_references', 'task_links', 'task_counters',
     'lead_sources',

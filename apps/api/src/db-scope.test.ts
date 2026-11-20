@@ -109,7 +109,7 @@ const TENANT_TABLES = new Set([
   // #689 D: who follows a task, and the 60-second collapse windows.
   "task_subscribers", "task_notify_windows",
   // #689 C: who is on a task.
-  "task_assignees",
+  "task_assignees", "task_schedule_blocks",
   // #690: references, relations and the per-workspace task counter.
   "record_references", "task_links", "task_counters",
   // #714: one activity row per event on a contact, task, conversation or call.

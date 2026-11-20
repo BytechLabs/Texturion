@@ -19,6 +19,7 @@ import { bulkResultMessage, EMPTY_SELECTION, isEmpty, isRowSelected, selectAllMa
 import type { BulkSelection } from '@/lib/inbox/bulk-selection';
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { flattenPages } from "@/lib/api/pagination";
+import { formatScheduledTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
@@ -30,16 +31,24 @@ import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskRowActions } from "../task-actions";
 import { useIsXl } from "@/lib/use-is-xl";
 import { useTaskDrawer } from "../use-task-drawer";
-import { toTaskFilters } from '../task-view-url';
-import type { TaskPageState } from '../task-view-url';
+import { TASK_COLUMNS, toTaskFilters } from '../task-view-url';
+import type { TaskColumn, TaskPageState } from '../task-view-url';
 import { taskSourceLink } from "../task-format";
 
 /** How long the pointer rests on a row before its detail is fetched ahead. */
 const PREFETCH_HOVER_MS = 100;
+const COLUMN_LAYOUT = {
+  assignee: ["tasks.assignee", "144px"],
+  due: ["tasks.due", "128px"],
+  scheduled: ["tasks.scheduledTime", "144px"],
+  status: ["tasks.columnStatus", "96px"],
+} as const;
 
 /** What every row needs from the list, built once so a memoized row stays put. */
 interface RowContext {
   wide: boolean;
+  columns: readonly TaskColumn[];
+  gridTemplateColumns: string;
   onOpen: (taskId: string) => void;
   onPrefetch: (taskId: string) => void;
 }
@@ -61,7 +70,9 @@ export function ListView({ state }: { state: TaskPageState }) {
   const wide = useIsXl();
   const { openTask } = useTaskDrawer();
   const onPrefetch = usePrefetchTask();
-  const row: RowContext = { wide, onOpen: openTask, onPrefetch };
+  const columns = state.columns ?? TASK_COLUMNS;
+  const gridTemplateColumns = ["minmax(0,1fr)", ...columns.map((column) => COLUMN_LAYOUT[column][1])].join(" ");
+  const row: RowContext = { wide, columns, gridTemplateColumns, onOpen: openTask, onPrefetch };
   // The Open / Done tabs pin a status. The statusless tabs (All, Mine, an
   // assignee chip) must show open AND done, and a bare /v1/tasks pins
   // status=open, so they union two status-scoped queries, like the Board.
@@ -308,11 +319,10 @@ function TaskListBody({
       )}
       {/* Column header — quiet stone labels, hidden on mobile (the row carries
           its own compact layout there). */}
-      <div className={cn(SECTION_LABEL_CLASS, "hidden min-w-[640px] grid-cols-[minmax(0,1fr)_160px_128px_96px] items-center gap-4 border-b border-border px-3 pb-2 md:grid")}>
+      <div className={cn(SECTION_LABEL_CLASS, "hidden min-w-[640px] items-center gap-4 border-b border-border px-3 pb-2 md:grid")}
+        style={{ gridTemplateColumns: row.gridTemplateColumns }}>
         <span>{t("tasks.columnTask")}</span>
-        <span>{t("tasks.assignee")}</span>
-        <span>{t("tasks.due")}</span>
-        <span>{t("tasks.columnStatus")}</span>
+        {row.columns.map((column) => <span key={column}>{t(COLUMN_LAYOUT[column][0])}</span>)}
       </div>
       <ul className={cn("transition-opacity duration-150", busy && "opacity-60")}>
         {tasks.map((task) => (
@@ -354,6 +364,8 @@ function TaskRowView({
   selected,
   onToggleSelected,
   wide,
+  columns,
+  gridTemplateColumns,
   onOpen,
   onPrefetch,
 }: {
@@ -362,6 +374,13 @@ function TaskRowView({
   onToggleSelected: (taskId: string) => void;
 } & RowContext) {
   const t = useT();
+  const scheduled = task.scheduled_at && formatScheduledTime(task.scheduled_at, t.locale, undefined, true);
+  const cells = {
+    assignee: <InlineAssignee task={task} />,
+    due: <InlineDue task={task} />,
+    scheduled: scheduled ? <time className="text-xs text-app-muted" dateTime={task.scheduled_at ?? undefined}>{scheduled}</time> : "–",
+    status: <TaskStatusPicker task={task} />,
+  };
   const source = taskSourceLink(task, t, { besideTask: wide });
   // #712: right-click, long-press or the menu key opens the task's one action list.
   const { actions, dialogs } = useTaskRowActions(task);
@@ -380,7 +399,8 @@ function TaskRowView({
           hoverTimer.current = setTimeout(() => onPrefetch(task.id), PREFETCH_HOVER_MS);
         }}
         onPointerLeave={cancelHover}
-        className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4"
+        className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:gap-4"
+        style={{ gridTemplateColumns }}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
           {/* #743: the row's one checkbox selects. Status changes from the
@@ -426,23 +446,17 @@ function TaskRowView({
                 <ArrowUpRight className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
               </Link>
             )}
+            {columns.includes("scheduled") && scheduled && <p className="mt-1 text-xs text-app-muted md:hidden">
+              {t("tasks.scheduledTime")}{" · "}<time dateTime={task.scheduled_at ?? undefined}>{scheduled}</time>
+            </p>}
             {/* Mobile-only meta row (the desktop grid shows these as columns). */}
             <div className="mt-1.5 flex items-center gap-2 md:hidden">
-              <InlineAssignee task={task} />
-              <InlineDue task={task} />
-              <TaskStatusPicker task={task} />
+              {columns.filter((column) => column !== "scheduled").map((column) =>
+                <div key={column}>{cells[column]}</div>)}
             </div>
           </div>
         </div>
-        <div className="hidden min-w-0 md:block">
-          <InlineAssignee task={task} />
-        </div>
-        <div className="hidden md:block">
-          <InlineDue task={task} />
-        </div>
-        <div className="hidden md:block">
-          <TaskStatusPicker task={task} />
-        </div>
+        {columns.map((column) => <div key={column} className="hidden min-w-0 md:block">{cells[column]}</div>)}
       </div>
       {dialogs}
     </li>

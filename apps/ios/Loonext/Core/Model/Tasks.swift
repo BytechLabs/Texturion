@@ -20,6 +20,7 @@ struct TaskItem: Codable, Sendable {
     let due_at: String?
     var due_on: String? = nil
     var due_time_set: Bool? = nil
+    var scheduled_at: String? = nil
     var confirmed_at: String? = nil
     var confirmed_by: String? = nil
     var calendar_hold: Bool?
@@ -248,6 +249,7 @@ struct TaskDetail: Codable, Sendable {
     let due_at: String?
     var due_on: String? = nil
     var due_time_set: Bool? = nil
+    var scheduled_at: String? = nil
     var calendar_hold: Bool?
     let created_by_user_id: String
     let created_at: String

@@ -110,8 +110,9 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   // Fetch every task due within the window (+ the tab/chip scope). The
   // due-range makes this a due-sorted query.
   const range = windowInstants(gridStart, gridEnd, timeZone);
+  const selection = toTaskFilters(state);
   const filters = {
-    ...toTaskFilters(state),
+    ...selection,
     status: undefined,
     overdue: undefined,
     due_after: range.after,
@@ -136,8 +137,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     if (task.calendar_hold || !day || !visibleKeys.has(day)) {
       return false;
     }
-    if (state.tab === "open") return !task.done;
-    if (state.tab === "done") return task.done;
+    if (selection.overdue && (!task.due_at || task.done || Date.parse(task.due_at) >= Date.now())) return false;
+    if (selection.due_after && (!task.due_at || Date.parse(task.due_at) < Date.parse(selection.due_after))) return false;
+    if (selection.due_before && (!task.due_at || Date.parse(task.due_at) >= Date.parse(selection.due_before))) return false;
+    if (selection.status === "open") return !task.done;
+    if (selection.status === "done") return task.done;
     return true;
   });
 

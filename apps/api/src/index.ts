@@ -130,6 +130,7 @@ import { publicQuoteRoutes } from "./routes/quotes-public";
 import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
+import { dispatchRoutes } from "./routes/dispatch";
 import { recordActivityRoutes } from "./routes/record-activity";
 import { taskActivityRoutes } from "./routes/task-activity";
 import { taskReferenceRoutes } from "./routes/task-references";
@@ -346,6 +347,7 @@ app.route("/v1", onCallRoutes); // #244 rota + acknowledge
 app.route("/v1", trashRoutes);
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
+app.route("/v1", dispatchRoutes);
 app.route("/v1", taskActivityRoutes); // #689 E task history + comments
 app.route("/v1", recordActivityRoutes); // #714 one activity timeline for every record
 app.route("/v1", taskReferenceRoutes); // #690 task links, linked tasks, reference chips

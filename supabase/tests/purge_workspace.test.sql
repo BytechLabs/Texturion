@@ -101,6 +101,11 @@ values ('a9000000-0000-4000-8000-000000000060','a9000000-0000-4000-8000-00000000
         'a9000000-0000-4000-8000-000000000050','a9000000-0000-4000-8000-000000000040',
         'Quote it','a9000000-0000-4000-8000-00000000000a');
 
+insert into public.task_schedule_blocks (id, company_id, task_id, assignee_id, starts_at, ends_at)
+values ('a9000000-0000-4000-8000-000000000069', 'a9000000-0000-4000-8000-000000000001',
+        'a9000000-0000-4000-8000-000000000060', 'a9000000-0000-4000-8000-00000000000b',
+        now() + interval '1 day', now() + interval '25 hours');
+
 -- The STOP that must outlive the business that received it.
 insert into public.opt_outs (id, company_id, phone_e164, source)
 values ('a9000000-0000-4000-8000-000000000070','a9000000-0000-4000-8000-000000000001',
@@ -210,7 +215,8 @@ begin
      or exists (select 1 from public.contacts where company_id = v_company)
      or exists (select 1 from public.phone_numbers where company_id = v_company)
      or exists (select 1 from public.company_members where company_id = v_company)
-     or exists (select 1 from public.tasks where company_id = v_company) then
+     or exists (select 1 from public.tasks where company_id = v_company)
+     or exists (select 1 from public.task_schedule_blocks where company_id = v_company) then
     raise exception 'PW-2 FAILED: company-scoped rows survived the teardown';
   end if;
 

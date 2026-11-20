@@ -80,8 +80,6 @@ function MapDayContent({ state, day }: { state: TaskPageState; day: string | und
   const range = pickedDay ? windowInstants(pickedDay, pickedDay, browserTimezone() ?? "UTC") : null;
   const filters = {
     ...toTaskFilters(state),
-    status: "open" as const,
-    assigned_user_id: state.assignee,
     ...(range ? { due_after: range.after, due_before: range.before, due_on_after: day, due_on_before: day } : {}),
     has_location: true,
     has_attachments: undefined,

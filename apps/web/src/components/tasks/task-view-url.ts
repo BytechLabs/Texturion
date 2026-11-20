@@ -30,6 +30,13 @@ export const TASK_VIEWS: readonly { id: TaskView; labelKey: MessageKey }[] = [
 ];
 
 const VIEW_IDS = new Set<TaskView>(["list", "board", "calendar", "map"]);
+export const TASK_COLUMNS = ["assignee", "due", "scheduled", "status"] as const;
+export type TaskColumn = (typeof TASK_COLUMNS)[number];
+
+export function parseTaskColumns(value: string): TaskColumn[] {
+  const selected = new Set(value.split(","));
+  return TASK_COLUMNS.filter((column) => selected.has(column));
+}
 
 export function parseView(raw: string | null): TaskView {
   return raw !== null && VIEW_IDS.has(raw as TaskView)
@@ -43,42 +50,12 @@ export function parseView(raw: string | null): TaskView {
 
 export type TaskTab = "open" | "mine" | "all" | "done";
 
-export const TASK_TABS: readonly { id: TaskTab; labelKey: MessageKey }[] = [
-  { id: "open", labelKey: "tasks.tabOpen" },
-  { id: "mine", labelKey: "tasks.tabMine" },
-  { id: "all", labelKey: "tasks.tabAll" },
-  { id: "done", labelKey: "tasks.tabDone" },
-];
-
 const TAB_IDS = new Set<TaskTab>(["open", "mine", "all", "done"]);
-
-/**
- * #113: which status tabs actually DO something in each view. Board organizes
- * by status (its own columns) and Map shows every status (status: undefined),
- * so the Open/Done status dimension is a no-op there — only the assignee
- * dimension (Mine | All) applies. List and Calendar consume all four. The
- * filter bar renders exactly this set per view instead of always showing four,
- * two of which silently did nothing on Board/Map.
- */
-export function tabsForView(view: TaskView): readonly TaskTab[] {
-  return view === "board" || view === "map"
-    ? (["mine", "all"] as const)
-    : (["open", "mine", "all", "done"] as const);
-}
-
-/**
- * #113: coerce a tab to one the target view supports. Switching from
- * List(Open) to Board keeps "my tasks" (open/done → mine) rather than carrying
- * an Open pill the board ignores.
- */
-export function coerceTabForView(tab: TaskTab, view: TaskView): TaskTab {
-  return tabsForView(view).includes(tab) ? tab : "mine";
-}
 
 function parseTab(raw: string | null): TaskTab {
   return raw !== null && TAB_IDS.has(raw as TaskTab)
     ? (raw as TaskTab)
-    : "open"; // "Open" is the default landing tab (T6.1 "what needs me now").
+    : "all";
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +85,9 @@ export const DUE_LABEL_KEYS: Record<DueFilter, MessageKey> = {
 export interface TaskPageState {
   view: TaskView;
   tab: TaskTab;
+  status?: "open" | "done";
+  scheduled?: boolean;
+  columns?: TaskColumn[];
   /** A specific member user id (chip); the Mine tab owns the `me` assignee. */
   assignee?: string;
   /** The unassigned chip. */
@@ -176,6 +156,12 @@ export function parseTaskSearchParams(
     view: parseView(params.get("view")),
     tab: parseTab(params.get("tab")),
   };
+  const status = params.get("status");
+  if (status === "open" || status === "done") state.status = status;
+  const scheduled = params.get("scheduled");
+  if (scheduled === "true" || scheduled === "false") state.scheduled = scheduled === "true";
+  const columns = params.get("columns");
+  if (columns !== null) state.columns = parseTaskColumns(columns);
   const assignee = params.get("assignee");
   if (assignee) state.assignee = assignee;
   if (params.get("unassigned") === "1" || params.get("unassigned") === "true") {
@@ -223,7 +209,10 @@ export function serializeTaskState(state: TaskPageState): string {
   // `view` is always present so a shared link keeps its view; `tab` only when
   // it isn't the default (keeps the common List·Open URL clean).
   if (state.view !== "list") params.set("view", state.view);
-  if (state.tab !== "open") params.set("tab", state.tab);
+  if (state.tab !== "all") params.set("tab", state.tab);
+  if (state.status) params.set("status", state.status);
+  if (state.scheduled !== undefined) params.set("scheduled", String(state.scheduled));
+  if (state.columns && state.columns.length !== TASK_COLUMNS.length) params.set("columns", state.columns.join(","));
   if (state.assignee) params.set("assignee", state.assignee);
   if (state.unassigned) params.set("unassigned", "1");
   if (state.notConfirmed) params.set("confirmed", "false");
@@ -300,6 +289,7 @@ export function toTaskFilters(
 ): TaskListFilters {
   const filters: TaskListFilters = {};
   if (state.notConfirmed) filters.confirmed = false;
+  if (state.scheduled !== undefined) filters.scheduled = state.scheduled;
 
   // Tab → status + assignee baseline.
   if (state.tab === "open") {
@@ -316,6 +306,8 @@ export function toTaskFilters(
     // Open·Mine default isn't re-applied.
     filters.assigned_user_id = "all";
   }
+
+  if (state.status) filters.status = state.status;
 
   // Chips refine. A specific-member assignee overrides the tab baseline (you
   // asked for that person's tasks); unassigned is its own dimension.
@@ -349,7 +341,9 @@ export function toTaskFilters(
 /** True when any refining chip is active (drives the "clear filters" affordance). */
 export function hasActiveChips(state: TaskPageState): boolean {
   return Boolean(
-    state.assignee ||
+    state.status ||
+      state.scheduled !== undefined ||
+      state.assignee ||
       state.unassigned ||
       state.notConfirmed ||
       state.due ||
