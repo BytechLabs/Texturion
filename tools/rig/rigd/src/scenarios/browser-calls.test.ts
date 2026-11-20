@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { HearOptions } from "@loonext/rig-lanes";
+import { CYCLE_MS, MIN_CYCLES } from "@loonext/rig-robot";
 import type { CallPlan, CallRecord, SegmentJudgement, Surface } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { TENANTS } from "../../../../../scripts/rig/tenants.mjs";
@@ -570,6 +571,21 @@ describe("S07, blind transfer and its variants", () => {
     }
     const timeout = transferTimeline("timeout");
     expect(timeout.after.start_ms).toBeGreaterThanOrEqual(timeout.targetBy + TRANSFER_RING_SECS * 1000);
+  });
+
+  it("has room for the detector's full cycles regardless of code phase", async () => {
+    const minimumMs = (MIN_CYCLES + 1) * CYCLE_MS;
+    const blind = s07World("blind");
+    const consult = s08World("inbound");
+    await S07.run(blind.ctx);
+    await S08.run(consult.ctx);
+    for (const world of [blind, consult]) {
+      const [plan] = world.robot.plans;
+      expect(plan!.window!.end_ms - plan!.window!.start_ms).toBeGreaterThanOrEqual(minimumMs);
+      for (const window of plan!.segments!) {
+        expect(window.end_ms - window.start_ms).toBeGreaterThanOrEqual(minimumMs);
+      }
+    }
   });
 });
 
