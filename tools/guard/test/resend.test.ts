@@ -80,41 +80,23 @@ describe("Resend", () => {
     expect((await send(h, robot)).status).toBe(200);
   });
 
-  it("halts the robot mailbox the first time a mail does not arrive within ten minutes", async () => {
+  it("still sends to a healthy mailbox after a late delivery", async () => {
     const h = await ready();
     await lease(h, "S34", "rig-api");
     liveMailbox(h);
-    const sentA = h.clock.now;
     expect((await send(h, "rig-robot+a@loonext.com")).status).toBe(200);
-    h.advance(60 * 1000);
-    liveMailbox(h, [{ tag: "a", at: sentA + 30_000 }]);
+    h.advance(11 * 60 * 1000);
+    liveMailbox(h);
     expect((await send(h, "rig-robot+b@loonext.com")).status).toBe(200);
-    h.advance(11 * 60 * 1000);
-    // b never shows up in the edge's recent mail.
-    liveMailbox(h, [{ tag: "a", at: sentA + 30_000 }]);
-    await expect(ruleOf(await send(h, "rig-robot+c@loonext.com"))).resolves.toBe("resend.robot_mail_halted");
-    // Test addresses are unaffected; the halt is the mailbox's alone.
-    expect((await send(h, "delivered@resend.dev")).status).toBe(200);
-    expect((await h.call("/admin/mail/resume", { caller: "admin", method: "POST" })).status).toBe(200);
-    expect((await send(h, "rig-robot+c@loonext.com")).status).toBe(200);
   });
 
-  it("does not count an older arrival with the same tag as this send's", async () => {
+  it("forwards mail beyond the old daily cap", async () => {
     const h = await ready();
-    await lease(h, "S34", "rig-api");
-    liveMailbox(h, [{ tag: "invite", at: h.clock.now - 60_000 }]);
-    expect((await send(h, "rig-robot+invite@loonext.com")).status).toBe(200);
-    h.advance(11 * 60 * 1000);
-    liveMailbox(h, [{ tag: "invite", at: h.clock.now - 12 * 60 * 1000 }]);
-    await expect(ruleOf(await send(h, "rig-robot+other@loonext.com"))).resolves.toBe("resend.robot_mail_halted");
-  });
-
-  it("sends at most ten a day", async () => {
-    const h = harness();
-    for (let i = 0; i < 10; i++) expect((await send(h, "delivered@resend.dev")).status).toBe(200);
-    await expect(ruleOf(await send(h, "delivered@resend.dev"))).resolves.toBe("budget.resend_day");
-    h.advance(24 * 60 * 60 * 1000);
-    expect((await send(h, "delivered@resend.dev")).status).toBe(200);
+    for (let count = 0; count < 11; count++) {
+      const response = await h.call("/resend/emails", { body: { to: "delivered@resend.dev" } });
+      expect(response.status).toBe(200);
+    }
+    expect(h.outbound.filter(({ url }) => url === "https://api.resend.com/emails")).toHaveLength(11);
   });
 
   it("fails closed without its key, and on any path but /emails", async () => {

@@ -6,7 +6,7 @@ import { EDGE_GUARD_ENTRYPOINT } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { withoutEdgeBinding } from "../scripts/without-edge-binding";
-import { parseConcurrentLimit, parseEdgeOrigin } from "../src/env";
+import { parseEdgeOrigin } from "../src/env";
 import { CRONS } from "../src/guard";
 import { GuardState } from "../src/index";
 import { AI_MODELS, PARTITION_CAPABILITY } from "../src/limits";
@@ -90,18 +90,8 @@ describe("wrangler.jsonc", () => {
     for (const id of declared) expect(Number(id), id).toBeLessThanOrEqual(3009);
   });
 
-  it("ships with the concurrency floor at 2, the lowest documented default, and says where it came from", () => {
-    const vars = wrangler.vars as Record<string, string>;
-    expect(parseConcurrentLimit(vars.TELNYX_CONCURRENT_FLOOR)).toBe(2);
-    expect(vars.TELNYX_CONCURRENT_LIMIT).toBeUndefined();
-    const source = readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8");
-    expect(source).toContain("support.telnyx.com/en/articles/1130717, fetched 2026-10-31");
-    expect(source).toMatch(/Raising the floor needs dated\s+(?:\/\/\s+)?evidence in a reviewed commit/);
-    expect(Boolean(vars.SIGNAL_LATCH_RESET)).toBe(true);
-  });
-
   it("commits no secret, edge origin or mailbox", () => {
-    const vars = wrangler.vars as Record<string, string>;
+    const vars = (wrangler.vars ?? {}) as Record<string, string>;
     for (const name of ["TELNYX_API_KEY", "RESEND_API_KEY", "FCM_SERVICE_ACCOUNT_JSON", "POSTHOG_PROJECT_KEY", "EDGE_ORIGIN", "ROBOT_MAILBOX"]) {
       expect(vars[name], name).toBeUndefined();
     }
@@ -109,13 +99,6 @@ describe("wrangler.jsonc", () => {
 });
 
 describe("config parsing", () => {
-  it("reads the concurrent limit as a positive integer or nothing", () => {
-    expect(parseConcurrentLimit("5")).toBe(5);
-    for (const value of [undefined, "", "unknown", "0", "-1", "2.5", "five", "10000"]) {
-      expect(parseConcurrentLimit(value), String(value)).toBeNull();
-    }
-  });
-
   it("reads the edge origin only as a bare https origin", () => {
     expect(parseEdgeOrigin("https://loonext-rig-edge.example.workers.dev")).toBe("https://loonext-rig-edge.example.workers.dev");
     expect(parseEdgeOrigin("https://loonext-rig-edge.example.workers.dev/")).toBe("https://loonext-rig-edge.example.workers.dev");

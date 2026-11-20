@@ -61,7 +61,6 @@ export const ORDER_KEYS = {
   health: "production:health",
   first: "orders:first",
   stopped: "orders:stopped",
-  last: "orders:last",
   resumes: "orders:resumes",
   unlisted: "orders:first-unlisted",
 } as const;

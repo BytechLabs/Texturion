@@ -5,31 +5,23 @@ import { handleAdmin } from "./admin";
 import { parseCaller, ROUTE_CALLERS, routeOf } from './caller';
 import type { GuardCaller } from './caller';
 import type { Ctx } from "./context";
-import { PAID_DIALS_PER_DAY, PAID_DIALS_PER_HOUR, PREEMPT_POLL_MS } from "./limits";
 import { json, Refusal, refuse } from "./refusal";
-import { limitProbeDue, runLimitProbe } from "./setup/limit-probe";
 import { requireSafe, SAFETY_KEY } from './setup/safety';
 import type { SafetyState } from './setup/safety';
-import { inWindow, paidState, productionCalls } from './state/admission';
-import type { PaidState, ProductionCalls } from './state/admission';
-import { balanceFloor, readBalance } from "./state/balance";
-import { recordLevelEvidence } from './state/concurrency';
-import type { LimitInForce } from './state/concurrency';
-import { readTier } from "./state/ledger";
-import { candidateLiveLegs, markEnded, pruneLegs, registerLeg } from "./state/legs";
+import { pruneLegs, registerLeg } from "./state/legs";
 import {
   acquireLease,
   activityKey,
   leaseActivity,
   liveLease,
-  markPreempted,
   noteActivity,
   releaseLease,
   toGrant,
 } from "./state/lease";
-import { mailHalted, mailSummary, readMailStatus } from "./state/mail";
+import { mailSummary } from "./state/mail";
 import { recordSignal, signalSummary } from "./state/signals";
-import { detachFlooded, enforceCap } from "./telnyx/detach";
+import { TelnyxError } from "./telnyx/client";
+import { detachFlooded } from "./telnyx/detach";
 import { orderingBlockers, stoppedReason, verifyFirstOrder } from "./telnyx/ordering";
 import { loadPartition, toWire } from './telnyx/partition';
 import type { PartitionView } from './telnyx/partition';
@@ -40,35 +32,9 @@ import { handleDiag } from "./vendors/diag";
 import { handleFcm, handleFcmToken } from "./vendors/fcm";
 import { handleResend } from "./vendors/resend";
 
-function concurrencyWire(concurrency: LimitInForce): NonNullable<GuardHealth["concurrency"]> {
-  const { validation, ceiling } = concurrency;
-  return {
-    limit_in_force: concurrency.limit,
-    source: concurrency.source,
-    floor: concurrency.floor,
-    validation: validation
-      ? { result: validation.result, value: validation.value, measured_at: new Date(validation.measured_at).toISOString() }
-      : null,
-    history_lower_bound: concurrency.history,
-    ceiling: ceiling ? { value: ceiling.value, from: ceiling.from } : null,
-    conflict: concurrency.conflict,
-  };
-}
-
-function accountRateWire(state: PaidState): NonNullable<GuardHealth["account_rate"]> {
-  const record = state.accountRate;
-  return {
-    hour_limit: PAID_DIALS_PER_HOUR,
-    day_limit: PAID_DIALS_PER_DAY,
-    production_peak_hour: record?.peak_hour_dials ?? null,
-    production_peak_day: record?.peak_day_dials ?? null,
-    measured_at: record ? new Date(record.measured_at).toISOString() : null,
-  };
-}
-
 /**
  * The guard (docs/RIG.md). One instance, in one Durable Object,
- * so every count, lease and ledger entry is decided in one place.
+ * so the partition and lease state have one owner.
  */
 export const CRONS = {
   upkeep: "7 * * * *",
@@ -104,6 +70,9 @@ export class Guard {
       if (error instanceof Refusal) {
         console.log(`guard: refused ${request.method} ${new URL(request.url).pathname.split("/")[1]}: ${error.rule}`);
         return refuse(error.rule);
+      }
+      if (error instanceof TelnyxError) {
+        return json({ error: "telnyx_request_failed", status: error.status }, 502);
       }
       console.error("guard: request failed:", error instanceof Error ? error.message : String(error));
       return json({ error: "guard_error" }, 502);
@@ -221,7 +190,6 @@ export class Guard {
     if (request.method === "POST" && rest === "") {
       const body = await bodyOf(request);
       const lease = await acquireLease(ctx, body.scenario, caller, { noDials: body.dials === false });
-      await ctx.setAlarm(ctx.now() + PREEMPT_POLL_MS);
       return json(toGrant(lease), 201);
     }
     if (request.method === "DELETE" && rest.startsWith("/") && rest.length > 1) {
@@ -303,11 +271,6 @@ export class Guard {
     return json(await signalSummary(this.ctx));
   }
 
-  /**
-   * The robot heard Telnyx's automated-call announcement, which only accounts
-   * at Paid or below get. It can only add a ceiling, so a caller who sends it
-   * falsely can lower the limit and never raise it.
-   */
   private async evidence(request: Request, rest: string): Promise<Response> {
     if (request.method !== "POST" || rest !== "/level") throw new Refusal("route.unknown");
     const body = (await bodyOf(request)) as Partial<LevelEvidence>;
@@ -315,19 +278,16 @@ export class Guard {
     if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) throw new Refusal("request.body_invalid");
     if (typeof body.at !== "string" || !Number.isFinite(Date.parse(body.at))) throw new Refusal("request.body_invalid");
     if (ms === 0) return json({ recorded: false });
-    await recordLevelEvidence(this.ctx);
+    await this.ctx.store.put("voice:last-automated-announcement", { announcement_ms: ms, at: body.at });
     return json({ recorded: true, level: "paid_or_below" });
   }
 
   async health(): Promise<GuardHealth> {
     const { ctx } = this;
-    const now = ctx.now();
     let safety: GuardSafety = { state: "unchecked", reasons: [] };
     if (ctx.telnyx) {
       try {
         await requireSafe(ctx);
-        // Loading the partition notes the held numbers' rentals in the ledger,
-        // so the money reading below counts them.
         await loadPartition(ctx);
       } catch {
         // The stored result below says why.
@@ -335,17 +295,9 @@ export class Guard {
       safety = (await ctx.store.get<SafetyState>(SAFETY_KEY)) ?? { state: "unchecked", reasons: ["checks_failed_to_run"] };
     }
 
-    const state = await paidState(ctx, safety.state);
-    const { blockers: paid, room, window, balance, balanceAbove: above } = state;
-    const signals = await signalSummary(ctx);
-    const tier = await readTier(ctx);
-    const floor = await balanceFloor(ctx);
-
     const lease = await liveLease(ctx);
     return {
       ok: Boolean(ctx.telnyx) && safety.state === "ok",
-      balance_above_floor: above,
-      ...(room === null ? {} : { room }),
       version_id: ctx.versionId,
       telnyx: {
         key: ctx.telnyx ? "present" : "absent",
@@ -353,19 +305,7 @@ export class Guard {
         safety,
       },
       ordering: await this.ordering(),
-      paid_dials: {
-        enabled: paid.length === 0,
-        blockers: paid,
-        room,
-        window_start_hour_utc: window.startHour,
-        window_measured_at: window.measuredAt === null ? null : new Date(window.measuredAt).toISOString(),
-        in_window: inWindow(now, window.startHour),
-      },
-      concurrency: concurrencyWire(state.concurrency),
-      account_rate: accountRateWire(state),
-      money: { ...tier, balance_usd: balance, balance_floor_usd: floor },
       lease: lease ? toGrant(lease) : null,
-      signals,
       mail: await mailSummary(ctx),
       ai_neurons_today: await aiNeuronsToday(ctx),
       vendors: {
@@ -391,70 +331,13 @@ export class Guard {
       return;
     }
     await pruneLegs(ctx);
-    await mailHalted(ctx, await readMailStatus(ctx));
     if (!ctx.telnyx) return;
     try {
       await requireSafe(ctx);
       await verifyFirstOrder(ctx);
-      await readBalance(ctx, { fresh: true });
-      await enforceCap(ctx, await loadPartition(ctx, { fresh: true }));
     } catch (error) {
       const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
       console.error(`guard: upkeep stopped: ${rule}`);
     }
-    try {
-      if (await limitProbeDue(ctx)) await runLimitProbe(ctx);
-    } catch (error) {
-      const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
-      console.error(`guard: limit probe not run: ${rule}`);
-    }
-  }
-
-  /**
-   * Preemption (docs/RIG.md): while a lease is live,
-   * production's active calls are polled every two seconds, and the first
-   * production call hangs up every test leg. Only an active-calls read that
-   * does not exist stops the poll, leaving the room formula as the only
-   * protection, as the design's fallback says. A read that failed for now is
-   * asked again, and admission admits nothing while it cannot see.
-   */
-  async alarm(): Promise<void> {
-    const { ctx } = this;
-    const lease = await liveLease(ctx);
-    if (!lease || !ctx.telnyx) return;
-    let production: ProductionCalls = "unknown";
-    try {
-      production = await productionCalls(ctx, await loadPartition(ctx));
-    } catch (error) {
-      const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
-      console.error(`guard: preemption poll failed: ${rule}`);
-    }
-    if (production === "absent") {
-      console.error("guard: no active-calls read for production's connections; preemption off for this lease");
-      return;
-    }
-    if (production === "live" && (await this.hangUpTestLegs()) === 0) {
-      await markPreempted(ctx, lease.lease_id);
-      return;
-    }
-    await ctx.setAlarm(ctx.now() + PREEMPT_POLL_MS);
-  }
-
-  /** Hangs up every test leg that may be up; returns how many may still be. */
-  private async hangUpTestLegs(): Promise<number> {
-    const telnyx = this.ctx.telnyx!;
-    let left = 0;
-    for (const leg of await candidateLiveLegs(this.ctx)) {
-      const path = `/v2/calls/${encodeURIComponent(leg.call_control_id)}/actions/hangup`;
-      const reply = await telnyx.send("POST", path, {}).catch(() => undefined);
-      const status = reply?.status ?? 0;
-      // 404 and 422 are how Telnyx answers a command on a call that has already ended.
-      if ((status >= 200 && status <= 299) || status === 404 || status === 422) {
-        await markEnded(this.ctx, leg.call_control_id);
-      } else {
-        left += 1;
-      }
-    }
-    return left;
   }
 }

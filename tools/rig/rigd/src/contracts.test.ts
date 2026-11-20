@@ -13,10 +13,9 @@ import { numberBook, SecretFiles, storeNameOf } from "@loonext/rig-robot";
 import { STANDING_ROLES as CLI_STANDING_ROLES } from "../../src/guard.mjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppProbe, splitMember, stableUuid } from "./app-probe.ts";
-import { edgeOriginOf, loadConfig, readDeployedSha, readRoom } from "./config.ts";
+import { edgeOriginOf, loadConfig, readDeployedSha } from "./config.ts";
 import { cronExplainer, parseMatch } from "./cron-events.ts";
 import { runStarter } from "./daemon.ts";
-import { WindowSource } from "./guard-window.ts";
 import { RpcRouter } from "./rpc.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
 import { PostHogErrors, reportApiExceptions, seenException } from './posthog-errors.ts';
@@ -48,12 +47,9 @@ describe("config from $RIG_HOME", () => {
     expect(edgeOriginOf("http://127.0.0.1:8899")).toBe("http://127.0.0.1:8899");
   });
 
-  it("takes the room from rig health's report and the SHA from rig deploy's", () => {
+  it("takes the SHA from rig deploy's report", () => {
     const home = rigHomeDir();
     const config = loadConfig({ RIG_HOME: home });
-    expect(readRoom(config)).toBe(0);
-    writeFileSync(join(home, "state", "health.json"), JSON.stringify({ at: "x", sha: "abc1234", results: [], room: 3 }));
-    expect(readRoom(config)).toBe(3);
     expect(() => readDeployedSha(config)).toThrow(/run rig deploy/);
     writeFileSync(join(home, "state", "deployed.json"), JSON.stringify({ sha: "0123456789abcdef0123456789abcdef01234567", ref: "main" }));
     expect(readDeployedSha(config)).toBe("0123456789abcdef0123456789abcdef01234567");
@@ -474,36 +470,5 @@ describe("re-runs that triage starts", () => {
     );
     expect(launched[0]!.args.slice(-4)).toEqual(["run", "S02", "--run-id", started.run_id]);
     expect(() => runStarter({ home: config.home, systemd: true }, launch)("../x")).toThrow(/not a scenario/);
-  });
-});
-
-describe("the dial window", () => {
-  it("is the guard's measured one, the last one it gave when it does not answer, else the registry's", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "rigd-window-"));
-    dirs.push(dir);
-    let answer: Response | undefined = json({ paid_dials: { window_start_hour_utc: 13 } });
-    const { fetch, requests } = fakeFetch({ GET: () => answer ?? json({ error: "guard_error" }, 502) });
-    const source = () =>
-      new WindowSource({
-        edgeOrigin: "https://rig-edge.example.workers.dev",
-        token: "robot",
-        stateFile: join(dir, "guard-window.json"),
-        registry: { startHour: 4, hours: 6 },
-        fetch,
-      });
-    expect(source().known()).toEqual({ startHour: 4, hours: 6 });
-    await expect(source().current()).resolves.toEqual({ startHour: 13, hours: 6 });
-    expect(requests[0]).toMatchObject({ url: "https://rig-edge.example.workers.dev/g/health", headers: { authorization: "Bearer robot" } });
-    answer = undefined;
-    await expect(source().current()).resolves.toEqual({ startHour: 13, hours: 6 });
-    const pinned = new WindowSource({
-      edgeOrigin: "https://rig-edge.example.workers.dev",
-      token: "robot",
-      stateFile: join(dir, "guard-window.json"),
-      registry: { startHour: 4, hours: 6 },
-      override: { startHour: 5, hours: 3 },
-      fetch,
-    });
-    await expect(pinned.current()).resolves.toEqual({ startHour: 5, hours: 3 });
   });
 });

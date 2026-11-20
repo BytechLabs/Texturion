@@ -248,7 +248,7 @@ export interface HaltRequest {
   received_at: string;
   /**
    * The signature verified but its timestamp is more than five minutes old:
-   * a retry Telnyx sent late. It still halts; the guard keeps one signal per
+   * a retry Telnyx sent late. The guard keeps one signal per
    * notice id.
    */
   late?: boolean;
@@ -260,27 +260,6 @@ export interface LevelEvidence {
   announcement_ms: number;
   /** ISO 8601, when the robot judged the recording. */
   at: string;
-}
-
-/** The concurrency proof ladder, as /health reports it (tools/guard/src/state/concurrency.ts). */
-export interface GuardConcurrency {
-  limit_in_force: number | null;
-  source: "floor" | "validation" | "history";
-  floor: number | null;
-  validation: { result: "exact" | "not_enforced" | "inconclusive"; value: number | null; measured_at: string } | null;
-  history_lower_bound: number | null;
-  ceiling: { value: number | null; from: string } | null;
-  /** Why the evidence contradicts itself; paid dials are refused while it is set. */
-  conflict: string | null;
-}
-
-/** The account-wide dial caps the guard assumes, and production's measured share of them. */
-export interface GuardAccountRate {
-  hour_limit: number;
-  day_limit: number;
-  production_peak_hour: number | null;
-  production_peak_day: number | null;
-  measured_at: string | null;
 }
 
 /**
@@ -300,35 +279,19 @@ export type GuardSafety =
 /**
  * GET {@link GUARD_ROUTES.health}, for every caller class but the edge. The
  * fields typed here are the ones other pieces read; the rest is the guard's
- * own detail (money, lease, signals, mail, vendors) for whoever reads it.
+ * own detail (lease, mail, vendors) for whoever reads it.
  */
 export interface GuardHealth {
   /** The Telnyx key is present and the start-up checks passed on this deployment. */
   ok: boolean;
-  balance_above_floor: boolean;
-  /** Test legs the limit in force leaves after production's reserve; 0 while only the floor is proven, absent while either is unknown. */
-  room?: number;
   version_id: string;
   telnyx: { key: "present" | "absent"; rule?: string; safety: GuardSafety };
-  paid_dials: {
-    enabled: boolean;
-    /** Refusal rules that would stop a paid dial now. */
-    blockers: string[];
-    room: number | null;
-    /** The dial window's first UTC hour: the measured one while fresh, else the default. */
-    window_start_hour_utc: number;
-    /** When the window in force was measured, or null when the default applies. */
-    window_measured_at: string | null;
-    in_window: boolean;
-  };
   /** Whether the guard would order a number now; `blockers` are its reasons when not. */
   ordering?: { enabled: boolean; blockers: string[]; stopped_reason?: string };
-  /** The robot mailbox: the edge's heartbeat, a halt after a lost mail, and sends not seen arriving yet. */
-  mail?: { heartbeat_fresh: boolean; halted: boolean; pending: number };
+  /** Whether the edge's robot mailbox handler is responding. */
+  mail?: { heartbeat_fresh: boolean };
   /** Neurons spent on the guard's AI day so far, UTC. */
   ai_neurons_today?: number;
-  concurrency?: GuardConcurrency;
-  account_rate?: GuardAccountRate;
   [detail: string]: unknown;
 }
 

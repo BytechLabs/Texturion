@@ -95,13 +95,6 @@ describe("FCM route", () => {
     expect(h.outbound.filter((item) => item.url === "https://oauth2.googleapis.com/token")).toHaveLength(1);
   });
 
-  it("sends at most 300 a day", async () => {
-    const h = harness({ env: { FCM_SERVICE_ACCOUNT_JSON: SERVICE_ACCOUNT } });
-    await h.store.put("count:fcm:2026-11-02", 300);
-    await expect(ruleOf(await send(h, IOS_SHAPED))).resolves.toBe("budget.fcm_day");
-    expect(fcmCalls(h)).toEqual([]);
-  });
-
   it("fails closed without a service account, and on any other path", async () => {
     const h = harness();
     await expect(ruleOf(await send(h, IOS_SHAPED))).resolves.toBe("fcm.key_missing");

@@ -1,17 +1,11 @@
 import { readFileSync } from "node:fs";
 
 import { EDGE_PATHS, HEADER } from '@loonext/rig-protocol';
-import type { GuardHealth } from '@loonext/rig-protocol';
 import { describe, expect, it } from "vitest";
 
-import { edgeHealth, edgePost, HEALTH_ROUTINE, healthLines, measurementPosts, measureProduction, ROUTINES, runRoutine } from '../scripts/admin-routine';
+import { edgePost, HEALTH_ROUTINE, ROUTINES, runRoutine } from '../scripts/admin-routine';
 import type { Post } from '../scripts/admin-routine';
-import { parseRead, planFiling, PRODUCTION_SQL, quietestWindow, readProduction, windowDue } from '../scripts/production-measurements';
-import type { ProductionRead, PsqlRunner } from '../scripts/production-measurements';
-import { ADMISSION_KEYS } from "../src/state/admission";
-import { LIMIT_KEYS } from "../src/state/concurrency";
-import { readTier } from "../src/state/ledger";
-import { EDGE, fileMeasurements, fileValidation, harness, N, ready, seedAccount } from './support';
+import { EDGE, harness, N, ready, seedAccount } from './support';
 import type { Harness } from './support';
 
 /** guard.yml's path to the guard: the edge's /g prefix, the admin class. */
@@ -38,9 +32,7 @@ function throughEdge(h: Harness): Post {
   return edgePost(EDGE, "admin-token", edgeFetcher(h));
 }
 
-const noWait = async () => {};
 
-const ROLES = ["ROBOT-1", "ROBOT-2", "STRANGER-1", "DEV-W1", "DEV-W2", "DEV-A1", "DEV-C1", "DEV-E1"];
 const EIGHT = ["+14165550170", "+14165550171", "+14165550172", "+14165550173", "+14165550174", "+14165550175", "+14165550176", "+14165550177"];
 
 /** Ids, numbers and addresses the fake account holds: none may reach a public log. */
@@ -79,87 +71,34 @@ describe("guard.yml's admin routines", () => {
 
   it("order every standing role, one per call, and say which without the numbers", async () => {
     const h = harness();
-    await fileMeasurements(h);
-    await fileValidation(h);
     h.telnyx.available = EIGHT;
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
-    const waits: number[] = [];
-    const outcome = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => {
-      waits.push(ms);
-      h.advance(ms);
-    });
+    const outcome = await runRoutine("order-standing", throughEdge(h));
     expect(outcome.ok).toBe(true);
     expect(outcome.lines.filter((line) => line.startsWith("ordered "))).toHaveLength(8);
     expect(outcome.lines.at(-1)).toBe("every standing role is held");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(8);
-    expect(waits.every((ms) => ms >= 10_000)).toBe(true);
     assertPublicSafe(outcome.lines);
-  });
-
-  it("order all eight roles with no voice connection while paid dials are refused, and say which wait", async () => {
-    const h = harness();
-    await fileMeasurements(h);
-    h.telnyx.available = EIGHT;
-    expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
-    const outcome = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
-    expect(outcome.ok).toBe(true);
-    expect(outcome.lines.filter((line) => line.startsWith("ordered "))).toEqual(ROLES.map((role) => `ordered ${role}`));
-    expect(outcome.lines.at(-1)).toBe(`every standing role is held; no voice connection until paid dials open: ${ROLES.join(", ")}`);
-    const orders = h.telnyx.requests("POST", "/v2/number_orders");
-    expect(orders).toHaveLength(8);
-    for (const sent of orders) {
-      expect(sent.body, "a bound number would take inbound calls").not.toHaveProperty("connection_id");
-      expect(sent.body).toHaveProperty("messaging_profile_id");
-    }
-    const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
-    expect(held.every((item) => typeof item.messaging_profile_id === "string")).toBe(true);
-    await expect(h.store.get("orders:first")).resolves.toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0].id });
-    assertPublicSafe(outcome.lines);
-  });
-
-  it("bind the voice-less standing numbers once paid dials open, but not a detached one", async () => {
-    const h = harness();
-    await fileMeasurements(h);
-    h.telnyx.available = EIGHT;
-    expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
-    expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
-    const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    const heldIds = held.map(({ id }) => {
-      if (typeof id !== "string") throw new TypeError("Expected a held number ID");
-      return id;
-    });
-    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
-    await h.store.put(`detached:${heldIds[7]}`, { at: h.clock.now, reason: "stranger_flood" });
-
-    await fileValidation(h);
-    h.telnyx.log.length = 0;
-    const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
-    await expect(answer.json()).resolves.toMatchObject({ ordered: null, bound: 7, voice_deferred: [ROLES[7]] });
-    const bound = h.telnyx.requests("PATCH").filter((entry) => (entry.body as Record<string, unknown>)?.connection_id !== undefined);
-    expect(bound.map((entry) => entry.path)).toEqual(heldIds.slice(0, 7).map((id) => `/v2/phone_numbers/${id}`));
-    expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, true, true, true, true, true, false]);
   });
 
   it("stop, red, when ordering is off, and name the rule", async () => {
     const h = await ready();
     h.production.capabilities = [];
-    const outcome = await runRoutine("order-standing", throughEdge(h), {}, noWait);
+    const outcome = await runRoutine("order-standing", throughEdge(h));
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.at(-1)).toContain("provisioning.ordering_off");
   });
 
   it("stop, red, after an order Telnyx did not confirm, then warn that its role's number is not listed", async () => {
     const h = harness();
-    await fileMeasurements(h);
     h.telnyx.available = EIGHT;
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     h.telnyx.failNext = { method: "POST", path: "/v2/number_orders", status: 500 };
-    const stopped = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
+    const stopped = await runRoutine("order-standing", throughEdge(h));
     expect(stopped.ok).toBe(false);
     expect(stopped.lines.at(-1)).toMatch(/^::error title=Order unconfirmed::Telnyx answered 500 to ROBOT-1's order/);
 
-    const done = await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms));
+    const done = await runRoutine("order-standing", throughEdge(h));
     expect(done.ok).toBe(true);
     expect(done.lines).toContain("::warning title=Standing numbers not listed::Held but not yet in the partition's group listing: ROBOT-1");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(8);
@@ -169,7 +108,7 @@ describe("guard.yml's admin routines", () => {
   it("resume ordering: name who and why to the guard, and print only states", async () => {
     const h = await ready();
     await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
-    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), { by: "operator-1", reason: "Read-back now lists the number" });
     expect(outcome).toEqual({ ok: true, lines: ["cleared stop number_unreadable for operator-1; the read-back answered none"] });
     await expect(h.store.get("orders:stopped")).resolves.toBeUndefined();
     await expect(h.store.get("orders:resumes")).resolves.toEqual([
@@ -182,7 +121,7 @@ describe("guard.yml's admin routines", () => {
     const h = await ready();
     await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
     for (const resume of [{}, { by: "operator-1" }, { reason: "Read-back now lists the number" }, { by: " ", reason: " " }]) {
-      const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, resume);
+      const outcome = await runRoutine("resume-ordering", throughEdge(h), resume);
       expect(outcome.ok).toBe(false);
       expect(outcome.lines[0]).toMatch(/^::error title=Resume refused::/);
     }
@@ -192,7 +131,7 @@ describe("guard.yml's admin routines", () => {
   it("resume ordering: fail, naming the rule, when the stop is not one a person may lift", async () => {
     const h = await ready();
     await h.store.put("orders:stopped", { at: h.clock.now, reason: "group_not_kept" });
-    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), { by: "operator-1", reason: "Read-back now lists the number" });
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.at(-1)).toContain("provisioning.resume_refused");
   });
@@ -202,55 +141,10 @@ describe("guard.yml's admin routines", () => {
     h.telnyx.orderStatus = "pending";
     await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
     await h.store.put("orders:first", { state: "pending", order_id: null, phone_number: "+14165550150", at: h.clock.now });
-    const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
+    const outcome = await runRoutine("resume-ordering", throughEdge(h), { by: "operator-1", reason: "Read-back now lists the number" });
     expect(outcome.ok).toBe(false);
     expect(outcome.lines[0]).toBe("cleared stop number_unreadable for operator-1; the read-back answered failed");
     expect(outcome.lines[1]).toMatch(/^::error title=Ordering stopped again::/);
-  });
-
-  it("file production's measurements, which admission then reads", async () => {
-    const h = await ready();
-    await h.store.delete(ADMISSION_KEYS.reserve);
-    await h.store.delete(ADMISSION_KEYS.ratios);
-    const outcome = await runRoutine("measurements", throughEdge(h), {
-      reserveLegs: "3",
-      calls: "120",
-      abandoned: "6",
-      short: "4",
-      windowStartHour: "5",
-    });
-    expect(outcome).toEqual({
-      ok: true,
-      lines: [
-        'filed reserve: {"legs":3}',
-        'filed ratios: {"calls":120,"abandoned":6,"short":4}',
-        'filed window: {"start_hour":5}',
-      ],
-    });
-    const health = await (await h.call("/health", { caller: "admin" })).json<GuardHealth>();
-    expect(health.paid_dials).toMatchObject({
-      blockers: [],
-      room: 2,
-      window_start_hour_utc: 5,
-      window_measured_at: new Date(h.clock.now).toISOString(),
-    });
-  });
-
-  it("refuse measurements that are partial or not whole numbers, before sending any", () => {
-    expect(measurementPosts({})).toEqual([]);
-    expect(() => measurementPosts({ calls: "10", abandoned: "1" })).toThrow(/together/);
-    expect(() => measurementPosts({ reserveLegs: "2.5" })).toThrow(/whole number/);
-    expect(() => measurementPosts({ windowStartHour: "-1" })).toThrow(/whole number/);
-    expect(() => measurementPosts({ usageUsd: "4,25" })).toThrow(/dollars/);
-    expect(measurementPosts({ reserveLegs: " 4 " })).toEqual([{ route: "/reserve", body: { legs: 4 } }]);
-  });
-
-  it("reconcile this month's ledger with the actual usage, which then counts", async () => {
-    const h = await ready();
-    const [post] = measurementPosts({ usageUsd: "12.5" }, new Date(h.clock.now));
-    expect(post).toEqual({ route: "/ledger", body: { month: "2026-11", usage_usd: 12.5 } });
-    expect((await throughEdge(h)(post.route, post.body)).status).toBe(200);
-    expect((await readTier(h.ctx)).month_to_date_usd).toBe(12.5);
   });
 
   it("reattach the standing numbers by role", async () => {
@@ -258,305 +152,6 @@ describe("guard.yml's admin routines", () => {
     await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
     const outcome = await runRoutine("reattach", throughEdge(h));
     expect(outcome).toEqual({ ok: true, lines: ["reattached: DEV-W1"] });
-  });
-
-  it("reattach only the messaging profile while paid dials are refused", async () => {
-    const h = await ready({ validated: null });
-    await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
-    const response = await h.call("/admin/numbers/reattach", { caller: "admin", method: "POST" });
-    await expect(response.json()).resolves.toEqual({ reattached: ["DEV-W1"], voice_deferred: ["DEV-W1"] });
-    expect(h.telnyx.requests("PATCH").map((entry) => entry.path)).toEqual(["/v2/phone_numbers/num-devw1/messaging"]);
-  });
-});
-
-/** Production's calls by UTC hour: `busy` in every hour but the quiet ones. */
-function hourly(quiet: readonly number[], busy = 9): number[] {
-  return Array.from({ length: 24 }, (_, hour) => (quiet.includes(hour) ? 0 : busy));
-}
-
-const AGENT_DIAG_URL = "postgresql://agent_diag.abcdefghijklmnopqrst:pw@pooler.example.invalid:5432/postgres";
-
-/** Production's call peaks, as the statement returns them beside the reserve and window. */
-const PEAKS = { peak_concurrent_calls: 3, peak_hour_dials: 4, peak_day_dials: 20 } as const;
-
-/** The ratio counts the same statement returns: 40 calls, 5 abandoned, 2 short. */
-const RATIOS = { ratio_calls: 40, ratio_abandoned: 5, ratio_short: 2 } as const;
-const READ = { ...PEAKS, ...RATIOS } as const;
-
-describe("guard.yml's limit-probe and health routines", () => {
-  it("run the validation check and print each write by status, code and field, never Telnyx's words", async () => {
-    const h = await ready({ validated: null });
-    h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
-    const outcome = await runRoutine("limit-probe", throughEdge(h));
-    expect(outcome.ok).toBe(true);
-    expect(JSON.parse(outcome.lines[0])).toMatchObject({ result: "exact", value: 4, refusal_code: "10015" });
-    expect(outcome.lines[1]).toBe("wrote 9999: HTTP 422, code 10015, field /concurrent_call_limit");
-    expect(outcome.lines.at(-1)).toBe("wrote 1: HTTP 200, code null, field null");
-    expect(outcome.lines.join(" ")).not.toContain("global concurrent call limit");
-    assertPublicSafe(outcome.lines);
-  });
-
-  it("show which answer stopped an inconclusive search", async () => {
-    const h = await ready({ validated: null });
-    h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
-    const realHandle = h.telnyx.handle.bind(h.telnyx);
-    h.telnyx.handle = async (request) => {
-      const body = request.method === "PATCH"
-        ? await request.clone().json<{ concurrent_call_limit?: number }>()
-        : {};
-      if (body.concurrent_call_limit === 4999) {
-        return Response.json({ errors: [{ code: "10099", detail: "private words", source: { pointer: "/concurrent_call_limit" } }] }, { status: 429 });
-      }
-      return realHandle(request);
-    };
-    const outcome = await runRoutine("limit-probe", throughEdge(h));
-    expect(outcome.lines).toContain("wrote 4999: HTTP 429, code 10099, field /concurrent_call_limit");
-    expect(outcome.lines.some((line) => line.startsWith("::warning title=Limit probe inconclusive"))).toBe(true);
-    expect(outcome.lines.join(" ")).not.toContain("private words");
-  });
-
-  it("print the guard's health as states, counts and rule names", async () => {
-    const h = await ready();
-    const lines = healthLines((await edgeHealth(EDGE, "admin-token", edgeFetcher(h))()).body);
-    expect(lines).toHaveLength(4);
-    expect(JSON.parse(lines[1])).toHaveProperty("paid_dials.blockers");
-    expect(JSON.parse(lines[2])).toHaveProperty("concurrency.limit_in_force");
-    assertPublicSafe(lines);
-    expect(healthLines(null)).toHaveLength(4);
-  });
-});
-
-describe("the daily measurements, read from production as agent_diag", () => {
-  it("read ops_diag's views and nothing else", () => {
-    // Qualified names only; the one-letter ones are the statement's own aliases.
-    const relations = new Set([...PRODUCTION_SQL.matchAll(/\b([a-z_]{2,}\.[a-z_]+)\b/gi)].map((match) => match[1]));
-    expect([...relations].toSorted()).toEqual([
-      "ops_diag.call_legs",
-      "ops_diag.call_sessions",
-      "ops_diag.hourly_call_counts",
-      "ops_diag.ring_audience_sizes",
-    ]);
-    expect(PRODUCTION_SQL).not.toMatch(/\b(insert|update|delete|create|alter|grant|set)\b/i);
-  });
-
-  it("place the window on the quietest six hours, keeping 04:00 when nothing tells them apart", () => {
-    expect(quietestWindow(Array.from({ length: 24 }, () => 0))).toBe(4);
-    expect(quietestWindow(hourly([6, 7, 8, 9, 10, 11]))).toBe(6);
-    expect(quietestWindow(hourly([22, 23, 0, 1, 2, 3]))).toBe(22);
-    expect(quietestWindow(hourly([5, 6, 7, 8, 9, 10, 11]))).toBe(5);
-  });
-
-  it("measure the window again only once the guard's is four weeks old", () => {
-    const now = new Date("2026-11-30T05:00:00.000Z");
-    expect(windowDue(null, now)).toBe(true);
-    expect(windowDue("not a date", now)).toBe(true);
-    expect(windowDue("2026-11-03T05:00:01.000Z", now)).toBe(false);
-    expect(windowDue("2026-11-02T05:00:00.000Z", now)).toBe(true);
-  });
-
-  it("reserve production's largest ring audience plus one, and never reserve for no number", () => {
-    const read: ProductionRead = { numbers: 1, largest_audience: 3, hourly_calls: hourly([6, 7, 8, 9, 10, 11]), ...READ };
-    expect(planFiling(read, true).inputs).toEqual({ reserveLegs: "4", windowStartHour: "6" });
-    expect(planFiling(read, false).inputs).toEqual({ reserveLegs: "4" });
-    const none = planFiling({ ...read, numbers: 0 }, false);
-    expect(none.inputs).toEqual({});
-    expect(none.lines[0]).toMatch(/^::warning title=Reserve not filed::/);
-    const quiet = planFiling({ ...read, hourly_calls: Array.from({ length: 24 }, () => 0) }, true);
-    expect(quiet.inputs).toEqual({ reserveLegs: "4" });
-  });
-
-  it("take only the statement's own document from psql", () => {
-    const document = JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ });
-    expect(parseRead(`${document}\n`)).toMatchObject({ numbers: 1, largest_audience: 2, ...READ });
-    expect(parseRead("")).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: -1, hourly_calls: hourly([]), ...READ }))).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: [1, 2], ...READ }))).toBeNull();
-    // Without the peaks or the ratios, or with counts that cannot be true, nothing is filed.
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]) }))).toBeNull();
-    expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...PEAKS }))).toBeNull();
-    for (const bad of [
-      { peak_concurrent_calls: 1.5 },
-      { peak_hour_dials: -1 },
-      { peak_day_dials: "9" },
-      { peak_hour_dials: 21 },
-      { ratio_calls: -1 },
-      { ratio_short: 1.5 },
-      { ratio_abandoned: 41 },
-      { ratio_short: 41 },
-    ]) {
-      expect(parseRead(JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ, ...bad })), JSON.stringify(bad)).toBeNull();
-    }
-  });
-
-  it("count overlapping answered calls with a sweep, and every outbound leg over a rolling hour and day", () => {
-    expect(PRODUCTION_SQL).toContain("'peak_concurrent_calls'");
-    expect(PRODUCTION_SQL).toMatch(/c\.answered_at as at, 1 as delta/);
-    expect(PRODUCTION_SQL).toMatch(/select c\.ended_at, -1/);
-    expect(PRODUCTION_SQL).toMatch(/c\.answered_at is not null and c\.ended_at is not null/);
-    // An end sorts before a start at the same instant: touching calls do not overlap.
-    expect(PRODUCTION_SQL).toContain("order by e.at, e.delta");
-    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_legs l/);
-    expect(PRODUCTION_SQL).toMatch(/c\.direction = 'outbound'/);
-    expect(PRODUCTION_SQL).toContain("count(*) over (order by o.at range between interval '1 hour' preceding and current row)");
-    expect(PRODUCTION_SQL).toContain("count(*) over (order by o.at range between interval '1 day' preceding and current row)");
-    expect(PRODUCTION_SQL).not.toContain("date_trunc");
-  });
-
-  it("count the ratios over 28 days from outbound calls and ring legs, as the costlier reading", () => {
-    expect(PRODUCTION_SQL).toContain("'ratio_calls'");
-    expect(PRODUCTION_SQL).toContain("'ratio_abandoned'");
-    expect(PRODUCTION_SQL).toContain("'ratio_short'");
-    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_legs l\s+where l\.kind = 'ring' and l\.created_at >= now\(\) - interval '28 days'/);
-    expect(PRODUCTION_SQL).toMatch(/from ops_diag\.call_sessions c\s+where c\.direction = 'outbound' and c\.started_at >= now\(\) - interval '28 days'/);
-    // A ring leg that did not answer is abandoned even when another leg of its call did; the answering member's own leg is not.
-    expect(PRODUCTION_SQL).toContain("and l.state <> 'answered'");
-    expect(PRODUCTION_SQL).toContain("a.answered_by_ref = l.member_ref");
-    // Calls still up are not abandoned yet.
-    expect(PRODUCTION_SQL).toContain("u.ended_at is null");
-    expect(PRODUCTION_SQL).toContain("c.answered_at is null and c.ended_at is not null");
-    expect(PRODUCTION_SQL).toContain("c.ended_at - c.answered_at <= interval '6 seconds'");
-  });
-
-  it("file the ratios with the peaks, from the read alone, and say when the sample is low", () => {
-    const base: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...READ };
-    const now = new Date("2026-11-02T05:00:00.000Z");
-    const ratios = (read: ProductionRead) => planFiling(read, false, now).measured.find((post) => post.route === "/ratios");
-    expect(ratios(base)).toEqual({ route: "/ratios", body: { calls: 40, abandoned: 5, short: 2, measured_at: now.toISOString() } });
-    expect(planFiling(base, false, now).lines).toContain("ratios over 40 call(s) in 28 days");
-    const few = { ...base, ratio_calls: 29 };
-    expect(ratios(few)?.body).toMatchObject({ calls: 29 });
-    expect(planFiling(few, false, now).lines).toContain("ratios over 29 call(s) in 28 days: below 30, filed as a low sample");
-    expect(planFiling({ ...base, ratio_calls: 30 }, false, now).lines).toContain("ratios over 30 call(s) in 28 days");
-    // No calls at all is still a filing: otherwise admission would refuse as unknown for ever.
-    expect(ratios({ ...base, ratio_calls: 0, ratio_abandoned: 0, ratio_short: 0 })?.body).toMatchObject({ calls: 0, abandoned: 0, short: 0 });
-  });
-
-  it("file the call peaks from the read alone: no typed input reaches them", async () => {
-    const read: ProductionRead = { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...READ };
-    const now = new Date("2026-11-02T05:00:00.000Z");
-    expect(planFiling(read, false, now).measured).toEqual([
-      { route: "/concurrency-history", body: { peak_calls: 3, measured_at: now.toISOString() } },
-      { route: "/account-rate", body: { peak_hour_dials: 4, peak_day_dials: 20, measured_at: now.toISOString() } },
-      { route: "/ratios", body: { calls: 40, abandoned: 5, short: 2, measured_at: now.toISOString() } },
-    ]);
-    const typed = measurementPosts({ reserveLegs: "2", calls: "1", abandoned: "0", short: "0", windowStartHour: "4", usageUsd: "1" });
-    expect(typed.map((post) => post.route)).toEqual(["/reserve", "/ratios", "/window", "/ledger"]);
-  });
-
-  it("run the agent_diag self-check in the same session, and refuse any other login before psql", () => {
-    const sessions: { sql: string; env: Record<string, string> }[] = [];
-    const psql: PsqlRunner = (sql, env) => {
-      sessions.push({ sql, env });
-      return { status: 0, stdout: JSON.stringify({ numbers: 1, largest_audience: 2, hourly_calls: hourly([]), ...READ }) };
-    };
-    expect(readProduction(AGENT_DIAG_URL, psql)).toMatchObject({ ok: true, read: { largest_audience: 2 } });
-    expect(sessions[0].sql.indexOf("current_user <> 'agent_diag'")).toBeLessThan(sessions[0].sql.indexOf(PRODUCTION_SQL));
-    expect(sessions[0].sql).toContain("REFUSED: this agent_diag login is no longer safe");
-    expect(sessions[0].env).toMatchObject({ PGUSER: "agent_diag.abcdefghijklmnopqrst", PGSSLMODE: "require" });
-
-    const other = readProduction("postgresql://postgres.abcdefghijklmnopqrst:pw@pooler.example.invalid:5432/postgres", psql);
-    expect(other).toMatchObject({ ok: false });
-    expect(sessions).toHaveLength(1);
-  });
-
-  it("say why production was not read without repeating psql, whose errors name the login and host", () => {
-    const failing: PsqlRunner = () => ({
-      status: 2,
-      stderr: 'psql: error: connection to server at "pooler.example.invalid" failed: FATAL: password authentication failed for user "agent_diag.abcdefghijklmnopqrst"',
-    });
-    const refused: PsqlRunner = () => ({ status: 3, stderr: "ERROR:  REFUSED: this agent_diag login is no longer safe: it can reach public.calls" });
-    const lines = [
-      ...(readProduction(AGENT_DIAG_URL, failing) as { lines: string[] }).lines,
-      ...(readProduction(AGENT_DIAG_URL, refused) as { lines: string[] }).lines,
-    ];
-    expect(lines).toEqual([
-      "::error title=Production not read::psql exited 2",
-      "::error title=Production not read::the agent_diag self-check refused this login; see scripts/ops/agent-diag.mjs --self-check",
-    ]);
-    expect(lines.join("\n")).not.toMatch(/abcdefghijklmnopqrst|pooler|public\.calls/);
-  });
-
-  it("file nothing, and stay green, while the guard environment has no agent_diag login", async () => {
-    const h = await ready();
-    await h.store.delete(ADMISSION_KEYS.reserve);
-    const outcome = await measureProduction(throughEdge(h), edgeHealth(EDGE, "admin-token", edgeFetcher(h)), () => readProduction(""));
-    expect(outcome.ok).toBe(true);
-    expect(outcome.lines).toEqual([expect.stringMatching(/^::notice title=Production not read::.*AGENT_DIAG_DATABASE_URL/)]);
-    await expect(h.store.get(ADMISSION_KEYS.reserve)).resolves.toBeUndefined();
-  });
-
-  it("file the reserve daily and the window monthly, which /health then shows", async () => {
-    const h = await ready();
-    await h.store.delete(ADMISSION_KEYS.reserve);
-    await h.store.delete(LIMIT_KEYS.history);
-    await h.store.delete(ADMISSION_KEYS.accountRate);
-    await h.store.delete(ADMISSION_KEYS.ratios);
-    const read = () => ({ ok: true, read: { numbers: 2, largest_audience: 2, hourly_calls: hourly([7, 8, 9, 10, 11, 12]), ...READ } }) as const;
-    const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
-
-    const first = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
-    expect(first.ok).toBe(true);
-    const at = new Date(h.clock.now).toISOString();
-    expect(first.lines).toEqual([
-      "reserve read over 2 active number(s)",
-      "ratios over 40 call(s) in 28 days",
-      `filed concurrency-history: {"peak_calls":3,"measured_at":"${at}"}`,
-      `filed account-rate: {"peak_hour_dials":4,"peak_day_dials":20,"measured_at":"${at}"}`,
-      `filed ratios: {"calls":40,"abandoned":5,"short":2,"measured_at":"${at}"}`,
-      'filed reserve: {"legs":3}',
-      'filed window: {"start_hour":7}',
-    ]);
-    await expect(h.store.get(LIMIT_KEYS.history)).resolves.toEqual({ peak_calls: 3, measured_at: h.clock.now });
-    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toEqual({ calls: 40, abandoned: 5, short: 2, low_sample: false, measured_at: h.clock.now });
-    await expect(h.store.get(ADMISSION_KEYS.accountRate)).resolves.toEqual({ peak_hour_dials: 4, peak_day_dials: 20, measured_at: h.clock.now });
-    expect(((await health()).body as GuardHealth).account_rate).toMatchObject({ production_peak_hour: 4, production_peak_day: 20 });
-    assertPublicSafe(first.lines);
-    const shown = (await health()).body as GuardHealth;
-    expect(shown.paid_dials).toMatchObject({ window_start_hour_utc: 7, window_measured_at: new Date(h.clock.now).toISOString() });
-
-    h.advance(24 * 60 * 60 * 1000);
-    const next = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
-    expect(next.lines).toContain("window: measured within the month, not due");
-    expect(next.lines).toContain('filed reserve: {"legs":3}');
-    expect(next.lines.some((line) => line.startsWith("filed window"))).toBe(false);
-    expect(next.lines).toContain(`filed ratios: {"calls":40,"abandoned":5,"short":2,"measured_at":"${new Date(h.clock.now).toISOString()}"}`);
-  });
-
-  it("file a low sample that admission does not refuse on, and refuse again once the filing is stale", async () => {
-    const h = await ready();
-    await h.store.delete(ADMISSION_KEYS.ratios);
-    const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
-    const blockers = async () => ((await health()).body as GuardHealth).paid_dials?.blockers;
-    await expect(blockers()).resolves.toContain("admission.ratios_unknown");
-    // Every call abandoned and short: 12 calls say nothing about a share.
-    const read = () =>
-      ({ ok: true, read: { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...PEAKS, ratio_calls: 12, ratio_abandoned: 12, ratio_short: 12 } }) as const;
-    const outcome = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
-    expect(outcome.ok).toBe(true);
-    expect(outcome.lines).toContain("ratios over 12 call(s) in 28 days: below 30, filed as a low sample");
-    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toEqual({ calls: 12, abandoned: 12, short: 12, low_sample: true, measured_at: h.clock.now });
-    await expect(blockers()).resolves.toEqual([]);
-    h.advance(37 * 60 * 60 * 1000);
-    await expect(blockers()).resolves.toContain("admission.ratios_unknown");
-  });
-
-  it("let a dispatch with values override the read, and keep the three counts together", async () => {
-    const h = await ready();
-    await h.store.delete(ADMISSION_KEYS.ratios);
-    const outcome = await runRoutine("measurements", throughEdge(h), { calls: "29", abandoned: "29", short: "0" });
-    expect(outcome).toEqual({ ok: true, lines: ['filed ratios: {"calls":29,"abandoned":29,"short":0}'] });
-    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toMatchObject({ calls: 29, abandoned: 29, short: 0, low_sample: true });
-    await runRoutine("measurements", throughEdge(h), { calls: "30", abandoned: "5", short: "0" });
-    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toMatchObject({ calls: 30, low_sample: false });
-  });
-
-  it("fail the run when production could not be read, so a reserve going stale is never quiet", async () => {
-    const h = await ready();
-    const outcome = await measureProduction(throughEdge(h), edgeHealth(EDGE, "admin-token", edgeFetcher(h)), () => ({
-      ok: false,
-      lines: ["::error title=Production not read::psql exited 2"],
-    }));
-    expect(outcome).toEqual({ ok: false, lines: ["::error title=Production not read::psql exited 2"] });
   });
 });
 

@@ -737,13 +737,10 @@ export class FakeBrowser implements BrowserApi {
 export class FakeGuard implements GuardApi {
   healthBody: GuardHealth = {
     ok: true,
-    balance_above_floor: true,
-    room: 4,
     version_id: "fake",
     telnyx: { key: "present", safety: { state: "ok", reasons: [], checked_at: 0 } },
-    paid_dials: { enabled: true, blockers: [], room: 4, window_start_hour_utc: 4, window_measured_at: null, in_window: true },
     ordering: { enabled: true, blockers: [] },
-    mail: { heartbeat_fresh: true, halted: false, pending: 0 },
+    mail: { heartbeat_fresh: true },
     ai_neurons_today: 0,
   };
   /** The lease's log, by `<caller> <METHOD> <path> <outcome>`. */
@@ -1035,7 +1032,7 @@ export class FakeDevices implements DevicesApi {
 }
 
 export class FakeRig implements RigApi {
-  report: RigHealthReport = { at: "2026-10-31T15:00:00.000Z", sha: "abc1234", results: [{ name: "api", pass: true }], room: 4 };
+  report: RigHealthReport = { at: "2026-10-31T15:00:00.000Z", sha: "abc1234", results: [{ name: "api", pass: true }] };
   events: SeenEvent[] = [];
   readonly faults: number[] = [];
   transcript = "";
@@ -1156,7 +1153,6 @@ export function fakeContext(scenario: string) {
     ...lanes,
     history,
     laneHeldBy: () => undefined,
-    blockedAt: () => [],
     now: () => time.now,
     sleep: time.sleep,
     nonce: "n0nce",

@@ -40,14 +40,7 @@ describe("AI", () => {
     await expect(h.store.get("count:ai-neurons:2026-11-02")).resolves.toBe(reportedNeurons(rate, { usage: { prompt_tokens: 1000, completion_tokens: 1000 } }));
   });
 
-  it("refuses once the day's 2,000 neurons would be passed, before running anything", async () => {
-    const h = harness();
-    await h.store.put("count:ai-neurons:2026-11-02", 1990);
-    await expect(ruleOf(await run(h, { prompt: "x", max_tokens: 1000 }))).resolves.toBe("budget.ai_neurons_day");
-    expect(h.aiCalls).toEqual([]);
-  });
-
-  it("gives back the reservation when the model fails", async () => {
+  it("does not count usage when the model fails", async () => {
     const h = harness({
       ai: {
         run: async () => {
@@ -56,7 +49,7 @@ describe("AI", () => {
       },
     });
     expect((await run(h, { prompt: "x" })).status).toBe(502);
-    await expect(h.store.get("count:ai-neurons:2026-11-02")).resolves.toBe(0);
+    await expect(h.store.get("count:ai-neurons:2026-11-02")).resolves.toBeUndefined();
   });
 
   it("fails closed without the binding", async () => {

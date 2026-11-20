@@ -1,16 +1,12 @@
 import { Refusal } from "../refusal";
-import { readTier } from "../state/ledger";
 import { liveLeg, markEnded } from "../state/legs";
-import { requirePaidLanesOpen } from "../state/signals";
 import { forward, isOk, relay } from './forward';
 import type { Handler } from './forward';
 import { bodyIsContained } from "./hazards";
 
 /**
  * The leg-command class (docs/RIG.md): any command on a call id
- * in the leg registry. Ending a call is always allowed, so a red tier or an
- * account signal can still hang up what is running; anything else on a leg
- * waits for the paid lanes to be open.
+ * in the leg registry.
  */
 const ENDING = new Set(["hangup", "reject"]);
 
@@ -24,10 +20,6 @@ export const handleLegCommand: Handler = async (request) => {
   const action = request.path.split("/").pop() ?? "";
   const ending = ENDING.has(action);
 
-  if (!ending) {
-    await requirePaidLanesOpen(ctx);
-    if ((await readTier(ctx)).tier === "red") throw new Refusal("budget.tier_red");
-  }
   if (request.body && !(await bodyIsContained(ctx, request.body, request.view.record.billing_group_id))) {
     throw new Refusal("leg.field_refused");
   }

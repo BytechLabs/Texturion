@@ -34,24 +34,8 @@ export interface TelnyxSpec {
   outbound_voice_profiles: {
     key: "voice" | "robot";
     name: string;
-    daily_spend_limit: string;
-    max_destination_rate: number;
     whitelisted_destinations: string[];
-    /** A number, or "room-minus-robot": the room left for the voice app. */
-    concurrent_call_limit: number | "room-minus-robot";
-    calls_per_cld: number;
   }[];
-  /**
-   * The validation check's own profile (setup/limit-probe.ts): attached to
-   * nothing, spending nothing, calling nowhere. Its concurrent limit is 1
-   * except while the check runs.
-   */
-  limit_probe: {
-    name: string;
-    concurrent_call_limit: number;
-    daily_spend_limit: string;
-    whitelisted_destinations: string[];
-  };
   call_control_applications: {
     key: "voice" | "robot";
     application_name: string;
@@ -59,8 +43,6 @@ export interface TelnyxSpec {
     failover?: WebhookPath;
     webhook_timeout_secs: number;
     outbound_voice_profile: "voice" | "robot";
-    /** A number, or "room": the room itself. */
-    channel_limit: number | "room";
     /** Telnyx's call.cost webhook, so the rig measures what each call cost. */
     call_cost_in_webhooks: boolean;
   }[];
@@ -69,14 +51,10 @@ export interface TelnyxSpec {
     connection_name: string;
     webhook: WebhookPath;
     sip_uri_calling_preference: "internal";
-    max_credentials: number | null;
   }[];
   messaging_profiles: {
-    max_profiles: number;
-    max_daily_spend_limit: string;
     whitelisted_destinations: string[];
-    /** The robot's profile is on the robot's path, so the robot sees its own texts' events. */
-    profiles: { key: string; name: string; daily_spend_limit: string; webhook: WebhookPath }[];
+    profiles: { key: string; name: string; webhook: WebhookPath }[];
   };
   numbers: {
     country: string;
@@ -86,7 +64,7 @@ export interface TelnyxSpec {
       connection: "voice" | "robot";
       messaging_profile: string;
       caller_name_lookup?: boolean;
-      /** The rig lanes the number serves. Every role is ordered whatever its lanes; voice binds once paid dials open. */
+      /** The rig lanes the number serves. Every role is ordered whatever its lanes. */
       lanes: ("texts" | "calls")[];
     }[];
   };
@@ -108,13 +86,4 @@ export function nonprodNames(spec: TelnyxSpec = SPEC): {
     credentialConnections: new Set(spec.credential_connections.map((item) => item.connection_name)),
     messagingProfiles: new Set(spec.messaging_profiles.profiles.map((item) => item.name)),
   };
-}
-
-export function callerNameNumbers(spec: TelnyxSpec = SPEC): number {
-  return spec.numbers.standing.filter((item) => item.caller_name_lookup).length;
-}
-
-/** The sentinel's credential cap; the webrtc connection has none. */
-export function sentinelCredentialCap(spec: TelnyxSpec = SPEC): number {
-  return spec.credential_connections.find((item) => item.key === "sentinel")?.max_credentials ?? 1;
 }

@@ -2,7 +2,6 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { blockedByRoom, inWindow, parseWindow, windowHours } from "./budget.ts";
 import { installUnits } from "./install.ts";
 import { instanceOf, loadRegistry, parseInstance, validateRegistry } from "./registry.ts";
 import { rawRegistry, registryOf, SAMPLE, scenario } from "./test-registry.ts";
@@ -15,9 +14,8 @@ const REAL_REGISTRY = resolve(import.meta.filename, "../../../scenarios.json");
 describe(validateRegistry, () => {
   it("reads tools/rig/scenarios.json's own shape", () => {
     const registry = registryOf(SAMPLE);
-    expect(registry.caps).toEqual({ daily: 18, hourly: 3, window: { startHour: 4, hours: 6 } });
-    expect(registry.byId.get("S02")).toMatchObject({ dials: 1, far_end_legs: 1, room_min: 2, paid: true, runs: [{ index: 0 }] });
-    expect(registry.byId.get("G01")).toMatchObject({ dials: 0, far_end_legs: 1, paid: true });
+    expect(registry.byId.get("S02")).toMatchObject({ dials: 1, far_end_legs: 1, runs: [{ index: 0 }] });
+    expect(registry.byId.get("G01")).toMatchObject({ dials: 0, far_end_legs: 1 });
     expect(registry.byId.get("S25")!.runs.map((run) => run.label)).toEqual(["daytime", "night"]);
     expect(registry.byId.get("H01")!.runsOn).toBe("ci");
   });
@@ -25,7 +23,6 @@ describe(validateRegistry, () => {
   it.skipIf(!existsSync(REAL_REGISTRY))("loads the registry in the checkout", () => {
     const registry = loadRegistry(REAL_REGISTRY);
     expect(registry.scenarios.length).toBeGreaterThan(40);
-    expect(registry.caps).toMatchObject({ daily: 18, hourly: 3 });
   });
 
   it("lists every problem at once", () => {
@@ -55,11 +52,9 @@ describe(validateRegistry, () => {
     expect(message).toMatch(/\(S12\): id repeats an earlier entry/);
   });
 
-  it("refuses the old array shape, another schema and broken caps", () => {
+  it("refuses the old array shape and an unknown schema", () => {
     expect(() => validateRegistry([scenario("S20")])).toThrow(/loonext\.rig-scenarios\.v2 object/);
     expect(() => validateRegistry({ ...rawRegistry([]), schema: "loonext.rig-scenarios.v1" })).toThrow(/schema must be/);
-    expect(() => validateRegistry(rawRegistry([], { window_utc: [10, 10] }))).toThrow(/window_utc/);
-    expect(() => validateRegistry(rawRegistry([], { daily_cap: 0 }))).toThrow(/daily_cap/);
     const dir = mkdtempSync(join(tmpdir(), "rig-registry-"));
     try {
       writeFileSync(join(dir, "scenarios.json"), "[ not json");
@@ -73,25 +68,6 @@ describe(validateRegistry, () => {
     const registry = registryOf([scenario("S20", { cadence: "Daily (0)", scheduled: false, runs: [{ every: "1d" }] })]);
     expect(registry.byId.get("S20")!.runs).toEqual([{ index: 0 }]);
     expect(Object.keys(registry.byId.get("S20")!)).not.toContain("scheduled");
-  });
-});
-
-describe("what may be dialled", () => {
-  it("keeps paid calls off below a room of 2, and under a scenario's own minimum", () => {
-    const registry = registryOf(SAMPLE);
-    const g01 = registry.byId.get("G01")!;
-    expect(blockedByRoom(g01, 1)).toBe(true);
-    expect(blockedByRoom(g01, 2)).toBe(true);
-    expect(blockedByRoom(g01, 3)).toBe(false);
-    expect(blockedByRoom(registry.byId.get("S20")!, 0)).toBe(false);
-  });
-
-  it("reads the window in UTC, wrapping midnight", () => {
-    expect(windowHours(parseWindow("04-10"))).toEqual([4, 5, 6, 7, 8, 9]);
-    expect(windowHours(parseWindow("22-02"))).toEqual([22, 23, 0, 1]);
-    expect(inWindow(parseWindow("04-10"), Date.UTC(2026, 9, 31, 9, 59))).toBe(true);
-    expect(inWindow(parseWindow("04-10"), Date.UTC(2026, 9, 31, 10, 0))).toBe(false);
-    expect(() => parseWindow("4am")).toThrow(/HH-HH/);
   });
 });
 

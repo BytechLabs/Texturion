@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { LEASE_SEARCH_SPACING_MS, SEARCH_PER_LEASE } from "../src/limits";
-import { charge, readTier } from "../src/state/ledger";
 import { ORDER_KEYS } from "../src/telnyx/ordering";
 import { EDGE, lease, N, ready, ruleOf } from './support';
 import type { Harness } from './support';
 
-const DAY = 24 * 60 * 60 * 1000;
 
 function order(h: Harness, body: Record<string, unknown> = {}) {
   return h.call("/telnyx/v2/number_orders", {
@@ -42,45 +39,11 @@ describe("number search", () => {
     expect(searches(h)).toBe(0);
   });
 
-  it("forwards S32's searches a second apart, up to the lease's cap", async () => {
-    const h = await ready();
-    await signUpLease(h);
-    expect((await h.call(SEARCH_PATH)).status).toBe(200);
-    expect(searches(h)).toBe(1);
-    h.advance(2000);
-    expect((await h.call(SEARCH_PATH)).status).toBe(200);
-    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_rate");
-    for (let i = 2; i < SEARCH_PER_LEASE; i++) {
-      h.advance(LEASE_SEARCH_SPACING_MS);
-      expect((await h.call(SEARCH_PATH)).status, `search ${i + 1}`).toBe(200);
-    }
-    h.advance(LEASE_SEARCH_SPACING_MS);
-    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_cap");
-    expect(searches(h)).toBe(SEARCH_PER_LEASE);
-  });
-
-  it("starts a new lease's count afresh", async () => {
-    const h = await ready();
-    const first = await signUpLease(h);
-    for (let i = 0; i < SEARCH_PER_LEASE; i++) {
-      expect((await h.call(SEARCH_PATH)).status).toBe(200);
-      h.advance(LEASE_SEARCH_SPACING_MS);
-    }
-    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_cap");
-    await h.call(`/lease/${first}`, { method: "DELETE" });
-    await signUpLease(h);
-    expect((await h.call(SEARCH_PATH)).status).toBe(200);
-  });
-
   it("never lets S32's lease order or change a standing number", async () => {
     const h = await ready();
     await signUpLease(h);
     await h.call("/partition", { caller: "rig-api" });
-    const before = await readTier(h.ctx);
-    const lastOrder = await h.store.get(ORDER_KEYS.last);
     await expect(ruleOf(await order(h))).resolves.toBe("provisioning.order_needs_lease");
-    await expect(h.store.get(ORDER_KEYS.last)).resolves.toEqual(lastOrder);
-    expect((await readTier(h.ctx)).month_to_date_usd).toBe(before.month_to_date_usd);
     await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).resolves.toBe(
       "provisioning.number_standing",
     );
@@ -97,15 +60,6 @@ describe("number orders", () => {
     h.production.capabilities = [];
     await expect(ruleOf(await order(h))).resolves.toBe("provisioning.ordering_off");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
-  });
-
-  it("waits for paid dials, since its number is bound to the voice app and takes inbound calls", async () => {
-    for (const env of [{ TELNYX_CONCURRENT_FLOOR: "unknown" }, {}]) {
-      const h = await ready({ env, validated: null });
-      await lease(h, "S28", "rig-api");
-      await expect(ruleOf(await order(h))).resolves.toBe("provisioning.voice_closed");
-      expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
-    }
   });
 
   it("needs the S28 lease", async () => {
@@ -143,66 +97,6 @@ describe("number orders", () => {
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
-  it("orders at most once every 25 days", async () => {
-    const h = await ready();
-    await lease(h, "S28", "rig-api");
-    expect((await order(h)).status).toBe(200);
-    h.advance(20 * 60 * 1000);
-    await lease(h, "S28", "rig-api");
-    await expect(ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).resolves.toBe(
-      "provisioning.order_interval",
-    );
-  });
-
-  it("holds at most ten numbers", async () => {
-    const h = await ready();
-    for (let i = 0; i < 3; i++) {
-      h.telnyx.numbers.push({
-        id: `num-extra-${i}`,
-        phone_number: `+1416555017${i}`,
-        billing_group_id: "bg-nonprod",
-        connection_id: "conn-voice",
-        messaging_profile_id: "prof-qa-c",
-        tags: [],
-      });
-    }
-    await h.store.delete("partition:owned");
-    await lease(h, "S28", "rig-api");
-    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.numbers_held");
-  });
-
-  it("counts a standing number Telnyx has not listed yet toward the ten", async () => {
-    const h = await ready();
-    for (let i = 0; i < 2; i++) {
-      h.telnyx.numbers.push({ id: `num-extra-${i}`, phone_number: `+1416555017${i}`, billing_group_id: "bg-nonprod", connection_id: "conn-voice", messaging_profile_id: "prof-qa-c", tags: [] });
-    }
-    await h.store.delete("partition:owned");
-    await lease(h, "S28", "rig-api");
-    await h.store.put("partition:standing", { "DEV-E1": { role: "DEV-E1", phone_number: "+14165550179" } });
-    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.numbers_held");
-    expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
-  });
-
-  it("refuses an order whose rental and reserve would take the month past its budget", async () => {
-    const h = await ready();
-    await lease(h, "S28", "rig-api");
-    await h.call("/partition", { caller: "rig-api" });
-    const before = await readTier(h.ctx);
-    await charge(h.ctx, before.usage_budget_usd - before.month_to_date_usd - 0.5);
-    expect((await readTier(h.ctx)).tier).not.toBe("red");
-    await expect(ruleOf(await order(h))).resolves.toBe("budget.tier_red");
-    expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
-  });
-
-  it("orders while the month stays in budget with the number counted", async () => {
-    const h = await ready();
-    await lease(h, "S28", "rig-api");
-    await h.call("/partition", { caller: "rig-api" });
-    const before = await readTier(h.ctx);
-    await charge(h.ctx, before.usage_budget_usd - before.month_to_date_usd - 5);
-    expect((await order(h)).status).toBe(200);
-  });
-
   it("stops ordering, deleting nothing, when the group did not stick", async () => {
     const h = await ready();
     h.telnyx.dropGroupOnOrder = true;
@@ -214,8 +108,7 @@ describe("number orders", () => {
     const event = h.outbound.find((item) => item.url.includes("posthog.com"));
     expect(event?.body).toContain('"$exception_fingerprint":"ops:telnyx-guard-order-group"');
     // The number is still in the account, bound to nonprod resources with no group: the start-up check now reads that as unsafe.
-    h.advance(30 * DAY);
-    await h.store.put("admission:reserve", { legs: 2, measured_at: h.clock.now });
+    h.advance(24 * 60 * 60 * 1000);
     await lease(h, "S28", "rig-api");
     await expect(ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).resolves.toBe("startup.unsafe");
   });
@@ -246,10 +139,6 @@ describe("number changes", () => {
     expect(h.telnyx.writes()).toEqual([]);
 
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } })).status).toBe(200);
-    await h.store.delete("limit:validation");
-    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } }))).resolves.toBe(
-      "provisioning.voice_closed",
-    );
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { customer_reference: "x" } })).status).toBe(200);
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "DELETE" })).status).toBe(200);
   });
@@ -300,27 +189,15 @@ describe("messaging profiles", () => {
   };
   const create = (h: Harness, body: Record<string, unknown>) => h.call("/telnyx/v2/messaging_profiles", { body: { ...PROFILE, ...body } });
 
-  it("needs a small daily limit, a US/CA whitelist and edge webhooks", async () => {
+  it("requires a US/CA whitelist and edge webhooks", async () => {
     const h = await ready();
     const cases: [Record<string, unknown>, string][] = [
-      [{ daily_spend_limit: "0.07" }, "provisioning.profile_spend_limit"],
-      [{ daily_spend_limit: undefined }, "provisioning.profile_spend_limit"],
-      [{ daily_spend_limit_enabled: false }, "provisioning.profile_spend_limit"],
       [{ whitelisted_destinations: ["US", "GB"] }, "provisioning.profile_whitelist"],
       [{ whitelisted_destinations: [] }, "provisioning.profile_whitelist"],
       [{ webhook_url: "https://api.loonext.com/webhooks/telnyx" }, "provisioning.profile_webhook"],
       [{ webhook_failover_url: "https://somewhere.example" }, "provisioning.profile_webhook"],
     ];
     for (const [body, rule] of cases) await expect(ruleOf(await create(h, body))).resolves.toBe(rule);
-  });
-
-  it("holds at most seven nonprod profiles, and counts the new one as nonprod", async () => {
-    const h = await ready();
-    const first = await create(h, {});
-    expect(first.status).toBe(201);
-    const {id} = (await first.json<{ data: { id: string } }>()).data;
-    await expect(h.store.get<string[]>("partition:app-profiles")).resolves.toContain(id);
-    await expect(ruleOf(await create(h, { name: "company-y" }))).resolves.toBe("provisioning.profile_count");
   });
 
   it("returns the new profile without its v1 secret", async () => {
@@ -346,23 +223,6 @@ describe("telephony credentials", () => {
     const {data} = (await created.json<{ data: Record<string, unknown> }>());
     expect(data.sip_username).toMatch(/^gencred/);
     expect(data).not.toHaveProperty("sip_password");
-  });
-
-  it("keeps the sentinel to one credential, counting what Telnyx holds", async () => {
-    const h = await ready();
-    const create = () => h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-sentinel" } });
-    await expect(ruleOf(await create())).resolves.toBe("provisioning.sentinel_full");
-    h.telnyx.lists.telephony_credentials = h.telnyx.lists.telephony_credentials.filter((item) => item.id !== "cred-sentinel");
-    expect((await create()).status).toBe(201);
-    await expect(ruleOf(await create())).resolves.toBe("provisioning.sentinel_full");
-  });
-
-  it("caps creations at 50 a day", async () => {
-    const h = await ready();
-    await h.store.put("count:credentials:2026-11-02", 50);
-    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc" } }))).resolves.toBe(
-      "budget.credentials_day",
-    );
   });
 
   it("deletes and mints tokens only for nonprod credentials", async () => {

@@ -16,15 +16,6 @@ name: Guard
 # routine through the edge (tools/guard/scripts/admin-routine.ts) after the
 # deploy, or on its own with `deploy` off. A push runs the start-up checks.
 #
-# EVERY DAY, `measure` files production's reserve, call ratios and call peaks,
-# and its dial window once a month, read as `agent_diag` from production's
-# non-personal ops_diag views (AGENT_DIAG_DATABASE_URL, a `guard` environment
-# secret, FA13). One read-only session runs the login's self-check and then one
-# SELECT, and the log gets counts only. Without the login it posts a notice and
-# files nothing: the reserve then goes stale after 36 hours and paid dials stop,
-# which is the safe side. It neither tests nor deploys, and it installs nothing
-# next to the production login.
-#
 # BEFORE THE FOUNDER CREATES THE TOKEN (FA4) the deploy says so and stops,
 # green. A red main for a credential nobody has made yet would be a standing red,
 # and a standing red hides the next real one.
@@ -39,9 +30,6 @@ on:
       - "tools/guard/**"
       - "tools/rig-protocol/**"
       - "apps/api/src/telnyx/endpoints.ts"
-  # Before the default 04:00 UTC window; the reserve is stale after 36 hours.
-  schedule:
-    - cron: "23 3 * * *"
   workflow_dispatch:
     inputs:
       routine:
@@ -54,37 +42,11 @@ on:
           - order-standing
           - resume-ordering
           - reattach
-          - measurements
-          - limit-probe
           - health
       deploy:
         description: "Deploy the guard from main before the routine"
         type: boolean
         default: true
-      reserve_legs:
-        description: "measurements: production's largest ring audience plus one (leave every measurement empty to read production instead)"
-        type: string
-        required: false
-      calls:
-        description: "measurements: the account's calls in the ratio window (an override: the daily run reads these from production)"
-        type: string
-        required: false
-      abandoned:
-        description: "measurements: of those, abandoned"
-        type: string
-        required: false
-      short:
-        description: "measurements: of those, short"
-        type: string
-        required: false
-      window_start_hour:
-        description: "measurements: the first UTC hour of the six with the fewest production calls"
-        type: string
-        required: false
-      usage_usd:
-        description: "measurements: this month's actual Telnyx usage for the partition, in dollars, from detail records"
-        type: string
-        required: false
       resume_reason:
         description: "resume-ordering: why ordering may resume (8 to 200 characters, no phone numbers or ids); the dispatcher's login is recorded with it"
         type: string
@@ -96,7 +58,6 @@ permissions:
 jobs:
   test:
     name: Guard policy tests
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -144,8 +105,7 @@ jobs:
     # deploys, and its admin routines run, from main only.
     if: github.ref == 'refs/heads/main'
     # Deploys never overlap or cancel each other: a half-applied deploy is
-    # worse than a queued one. Per job, so the daily measure, in a group of its
-    # own, never displaces a queued deploy.
+    # worse than a queued one.
     concurrency:
       group: guard-deploy
       cancel-in-progress: false
@@ -236,10 +196,8 @@ jobs:
 
       # Through the edge with the admin token: the guard has no URL of its own.
       # A failed start-up check fails this run on purpose. The guard is up but
-      # refusing everything, and that should be loud. `measurements` runs in
-      # `measure` below, after this job.
+      # refusing everything, and that should be loud.
       - name: Admin routine
-        if: inputs.routine != 'measurements'
         env:
           EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           GUARD_ADMIN_TOKEN: ${{ secrets.GUARD_ADMIN_TOKEN }}
@@ -247,45 +205,4 @@ jobs:
           # Who started this attempt, a re-run included: the guard records it beside the reason.
           RESUME_BY: ${{ github.triggering_actor }}
           RESUME_REASON: ${{ inputs.resume_reason }}
-        run: node --experimental-strip-types tools/guard/scripts/admin-routine.ts
-
-  measure:
-    name: File production's measurements
-    needs: deploy
-    # Daily, and on a `measurements` dispatch once its deploy, if any, is done.
-    # A failed test or deploy does not stop it: the measurements go to the
-    # live guard, whichever version that is.
-    if: >-
-      !cancelled() && github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.routine == 'measurements'))
-    concurrency:
-      group: guard-measure
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    environment: guard
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-
-      # Ubuntu's own client, only if the runner image lacks one.
-      - name: Postgres client
-        run: command -v psql >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
-
-      - name: Measure and file
-        env:
-          EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
-          GUARD_ADMIN_TOKEN: ${{ secrets.GUARD_ADMIN_TOKEN }}
-          AGENT_DIAG_DATABASE_URL: ${{ secrets.AGENT_DIAG_DATABASE_URL }}
-          ROUTINE: measurements
-          RESERVE_LEGS: ${{ inputs.reserve_legs }}
-          CALLS: ${{ inputs.calls }}
-          ABANDONED: ${{ inputs.abandoned }}
-          SHORT: ${{ inputs.short }}
-          WINDOW_START_HOUR: ${{ inputs.window_start_hour }}
-          USAGE_USD: ${{ inputs.usage_usd }}
         run: node --experimental-strip-types tools/guard/scripts/admin-routine.ts

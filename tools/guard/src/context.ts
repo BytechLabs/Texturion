@@ -22,7 +22,6 @@ export interface Ctx {
   /** Null without the EDGE binding; the robot mailbox then reads as dead. */
   edge: EdgeForGuardMethods | null;
   versionId: string;
-  setAlarm(at: number): Promise<void>;
   /** In-isolate caches that are fine to lose: the FCM access token. */
   memory: { fcmToken?: { token: string; expiresAt: number } };
 }

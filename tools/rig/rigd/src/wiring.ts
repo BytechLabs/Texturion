@@ -15,9 +15,8 @@ import { APK_DIR, CURRENT_APK, NONPROD_PACKAGE, PREVIOUS_APK } from "../../src/a
 import { readDeployHold } from "../../src/deploy-hold.mjs";
 import { AppProbe, splitMember } from './app-probe.ts';
 import type { TenantsFile } from './app-probe.ts';
-import { readDeployedSha, readRoom } from './config.ts';
+import { readDeployedSha } from './config.ts';
 import type { RigdConfig } from './config.ts';
-import { WindowSource } from "./guard-window.ts";
 import { LateDeliveries } from "./late.ts";
 import { LeaseClient } from './lease.ts';
 import type { UndoHandlers } from './lease.ts';
@@ -50,8 +49,6 @@ export interface Rig {
   posthog: PostHogErrors;
   marginsFile: string;
   registry(): Registry;
-  /** The dial window in force: the guard's measured one, else the registry's. */
-  windows(): WindowSource;
   numbers(): NumberBook;
   app(): AppProbe;
   browser(): BrowserApi;
@@ -240,16 +237,6 @@ export function buildRig(config: RigdConfig): Rig {
   });
 
   const registry = once(() => loadRegistry(config.registryPath));
-  const windows = once(
-    () =>
-      new WindowSource({
-        edgeOrigin: config.edgeOrigin,
-        token: store.read("guard-token-robot"),
-        stateFile: join(dir, "guard-window.json"),
-        registry: registry().caps.window,
-        override: config.windowOverride,
-      }),
-  );
   return {
     config,
     dir,
@@ -260,7 +247,6 @@ export function buildRig(config: RigdConfig): Rig {
     posthog,
     marginsFile,
     registry,
-    windows,
     numbers,
     app,
     browser,
@@ -275,9 +261,6 @@ export function buildRig(config: RigdConfig): Rig {
       lanes,
       posthog,
       sha: () => readDeployedSha(config),
-      room: () => readRoom(config),
-      dialWindow: () => windows().current(),
-      caps: config.capsOverride ?? registry().caps,
       clock: systemClock,
       sleep: (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
       lateDeliveries: (query) => late.matching(query).length,

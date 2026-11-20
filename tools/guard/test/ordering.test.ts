@@ -304,7 +304,7 @@ describe("the first order's read-back", () => {
   });
 
   it("orders a standing role again when its first order failed, since nothing was bought", async () => {
-    const h = await ready({ validated: null });
+    const h = await ready();
     h.telnyx.numbers = h.telnyx.numbers.filter((item) => item.id === "num-prod");
     h.telnyx.available = ["+14165550170", "+14165550171"];
     h.telnyx.orderStatus = "pending";
@@ -386,7 +386,7 @@ describe("resuming ordering after number_unreadable", () => {
 
   /** The incident: ROBOT-1 ordered and complete, then the old read-back's 404 stopped ordering as number_unreadable. */
   async function stoppedAfterRobot1(): Promise<Harness> {
-    const h = await ready({ validated: null });
+    const h = await ready();
     h.telnyx.numbers = h.telnyx.numbers.filter((item) => item.id === "num-prod");
     h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172", "+14165550173", "+14165550174", "+14165550175", "+14165550176", "+14165550177"];
     h.telnyx.orderStatus = "pending";
@@ -522,7 +522,7 @@ async function ruleOfOrderStanding(h: Harness): Promise<string | undefined> {
 
 describe("ordering's gate", () => {
   it("waits only on production's partition rule, the first order and a stop", async () => {
-    const h = await ready({ validated: null, env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
+    const h = await ready();
     await expect(orderingBlockers(h.ctx)).resolves.toEqual([]);
     h.production.capabilities = [];
     h.advance(11 * 60 * 1000);
@@ -537,7 +537,7 @@ describe("a standing order Telnyx does not confirm", () => {
   const standing = (h: Harness) => h.store.get<Record<string, { phone_number: string }>>("partition:standing");
 
   async function fresh(): Promise<Harness> {
-    const h = await ready({ validated: null });
+    const h = await ready();
     h.telnyx.numbers = h.telnyx.numbers.filter((item) => item.id === "num-prod");
     h.telnyx.available = ["+14165550170", "+14165550171", "+14165550172"];
     return h;
@@ -551,7 +551,6 @@ describe("a standing order Telnyx does not confirm", () => {
     await expect(answer.json()).resolves.toEqual({ error: "order_unconfirmed", role: "ROBOT-1", status: 503 });
     await expect(standing(h)).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
     await expect(first(h)).resolves.toBeUndefined();
-    expect((await h.store.get<{ one_time_usd: number }>("money:month:2026-11"))?.one_time_usd).toBe(1);
 
     h.advance(11_000);
     await expect(orderStanding(h).then((response) => response.json())).resolves.toMatchObject({ ordered: "ROBOT-2" });
@@ -590,21 +589,10 @@ describe("a standing order Telnyx does not confirm", () => {
     h.telnyx.failNext = { method: "POST", path: "/v2/number_orders", status: 422 };
     expect((await orderStanding(h)).status).toBe(502);
     await expect(standing(h)).resolves.toEqual({});
-    expect((await h.store.get<{ one_time_usd: number }>("money:month:2026-11"))?.one_time_usd ?? 0).toBe(0);
     h.advance(11_000);
     await expect(orderStanding(h).then((response) => response.json())).resolves.toMatchObject({ ordered: "ROBOT-1" });
     expect(ordersSent(h)).toEqual(["+14165550170", "+14165550170"]);
     await expect(standing(h)).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
   });
 
-  it("counts a held role's number toward the ten before Telnyx lists it", async () => {
-    const h = await fresh();
-    for (let i = 0; i < 9; i++) {
-      h.telnyx.numbers.push({ id: `num-held-${i}`, phone_number: `+1416555019${i}`, billing_group_id: "bg-nonprod", connection_id: null, messaging_profile_id: "prof-qa-c", tags: [] });
-    }
-    await h.store.put("partition:standing", { "DEV-E1": { role: "DEV-E1", phone_number: "+14165550189" } });
-    await expect(ruleOfOrderStanding(h)).resolves.toBe("provisioning.numbers_held");
-    expect(h.telnyx.requests("GET", "/v2/available_phone_numbers")).toEqual([]);
-    expect(ordersSent(h)).toEqual([]);
-  });
 });

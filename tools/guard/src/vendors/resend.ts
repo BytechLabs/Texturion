@@ -1,9 +1,8 @@
+import { MAILBOX_SCENARIO } from "../limits";
 import type { Ctx } from "../context";
-import { MAILBOX_SCENARIO, RESEND_PER_DAY } from "../limits";
 import { Refusal } from "../refusal";
-import { dayOf, giveBack, tryTake } from "../state/counters";
 import { liveLease } from "../state/lease";
-import { heartbeatFresh, mailHalted, readMailStatus, recordRobotSend } from "../state/mail";
+import { heartbeatFresh, readMailStatus } from "../state/mail";
 
 /**
  * Resend (docs/RIG.md). Recipients are Resend's test addresses,
@@ -91,22 +90,18 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
   }
   if (recipients.length === 0) throw new Refusal("resend.recipient_refused");
 
-  const robot: (string | null)[] = [];
+  let robotRecipient = false;
   for (const address of recipients) {
     const tag = robotTag(address, ctx.config.robotMailbox);
-    if (tag !== undefined) robot.push(tag);
+    if (tag !== undefined) robotRecipient = true;
     else if (!isTestAddress(address)) throw new Refusal("resend.recipient_refused");
   }
-  if (robot.length > 0) {
+  if (robotRecipient) {
     const lease = await liveLease(ctx);
     if (!lease || lease.scenario !== MAILBOX_SCENARIO) throw new Refusal("resend.robot_needs_lease");
     const status = await readMailStatus(ctx);
-    if (await mailHalted(ctx, status)) throw new Refusal("resend.robot_mail_halted");
     if (!heartbeatFresh(status, ctx.now())) throw new Refusal("resend.mail_heartbeat_stale");
   }
-
-  const day = dayOf(ctx.now());
-  if (!(await tryTake(ctx, "resend", day, 1, RESEND_PER_DAY))) throw new Refusal("budget.resend_day");
 
   const idempotency = request.headers.get("idempotency-key");
   const response = await ctx.fetch(`${RESEND_ORIGIN}/emails`, {
@@ -119,8 +114,6 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
     body: JSON.stringify(outgoing),
   });
   const text = await response.text();
-  if (response.status >= 400 && response.status <= 499) await giveBack(ctx, "resend", day, 1);
-  if (response.ok) for (const tag of robot) await recordRobotSend(ctx, tag);
   return new Response(text || null, {
     status: response.status,
     headers: { "content-type": response.headers.get("content-type") ?? "application/json" },

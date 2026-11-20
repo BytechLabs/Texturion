@@ -3,7 +3,7 @@
  *
  * The app calls a session id it has not seen a "new device" and mails the
  * account holder (`api_authorize_request` reports `session_new`), and each
- * mail spends the guard's Resend budget. A password sign-in always makes a new
+ * mail uses Resend. A password sign-in always makes a new
  * session, and every `rig run`, `rig health` and token expiry made one: over a
  * hundred mails a day to the rig's own addresses.
  *

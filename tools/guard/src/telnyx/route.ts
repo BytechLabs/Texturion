@@ -87,8 +87,7 @@ export async function handleTelnyx(ctx: Ctx, request: Request, caller: GuardCall
   if (wide) throw new Refusal(wide);
   if (!ctx.telnyx) throw new Refusal("telnyx.key_missing");
 
-  // The balance, as a number and nothing else: how the edge corroborates a
-  // low-balance notice, and how rigd shows the floor. Telnyx refusing the
+  // The edge uses the balance to corroborate a low-balance notice. Telnyx refusing the
   // read is passed on as Telnyx's own answer, with no refused-by header,
   // because that refusal is itself the edge's evidence of a disabled account.
   if (method === "GET" && path === "/v2/balance") {

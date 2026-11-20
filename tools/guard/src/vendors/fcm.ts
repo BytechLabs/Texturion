@@ -1,7 +1,6 @@
+import { FCM_NONPROD_PACKAGE } from "../limits";
 import type { Ctx } from "../context";
-import { FCM_NONPROD_PACKAGE, FCM_PER_DAY } from "../limits";
 import { Refusal } from "../refusal";
-import { dayOf, giveBack, tryTake } from "../state/counters";
 
 /**
  * FCM (docs/RIG.md). One service account reaches every app in
@@ -143,9 +142,6 @@ export async function handleFcm(ctx: Ctx, request: Request, path: string): Promi
   const outgoing: Item = { message: rewriteMessage(body.message as Item) };
   if (body.validate_only === true) outgoing.validate_only = true;
 
-  const day = dayOf(ctx.now());
-  if (!(await tryTake(ctx, "fcm", day, 1, FCM_PER_DAY))) throw new Refusal("budget.fcm_day");
-
   const token = await accessToken(ctx, account);
   // The project is the guard's own service account's, whatever path the
   // caller used: the rig's dummy key names a project that is not real.
@@ -155,7 +151,6 @@ export async function handleFcm(ctx: Ctx, request: Request, path: string): Promi
     body: JSON.stringify(outgoing),
   });
   const text = await response.text();
-  if (response.status >= 400 && response.status <= 499 && response.status !== 404) await giveBack(ctx, "fcm", day, 1);
   return new Response(text || null, {
     status: response.status,
     headers: { "content-type": response.headers.get("content-type") ?? "application/json" },

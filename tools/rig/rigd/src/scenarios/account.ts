@@ -45,7 +45,6 @@ const HANDOFF_MAX_AGE_MS = 2 * DAY_MS;
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
 export const SUGGEST_REPLY_MONTHLY_CAP = 1500;
 /** The guard's AI day (tools/guard/src/limits.ts); a spent day refuses the model, not the app. */
-const GUARD_AI_NEURONS_PER_DAY = 2000;
 
 const WIDGET_CODE = /\b(\d{6})\b/;
 
@@ -66,7 +65,7 @@ const BINDING_PATCHES: ReadonlySet<string> = new Set(["PATCH /v2/phone_numbers/:
 const INTERVAL_RULES: ReadonlySet<string> = new Set(["provisioning.order_interval", "provisioning.search_rate"]);
 
 function mailboxReady(health: GuardHealth): boolean {
-  return health.mail?.heartbeat_fresh === true && !health.mail.halted;
+  return health.mail?.heartbeat_fresh === true;
 }
 
 const is2xx = (status: number) => status >= 200 && status < 300;
@@ -655,7 +654,6 @@ export const S31: ScenarioRunner = {
   async run(ctx) {
     const neuronsBefore = (await ctx.guard.health()).ai_neurons_today;
     if (neuronsBefore === undefined) return infra("guard", "the guard's health reports no AI neuron count");
-    if (neuronsBefore >= GUARD_AI_NEURONS_PER_DAY) return infra("guard", `the guard's AI day is spent (${neuronsBefore} neurons)`);
     const countBefore = draftCount(await ctx.app.aiUsage({ tenant: "QA-W" }));
     const dayBefore = utcDay(ctx.now());
 
@@ -1042,7 +1040,7 @@ export const S34: ScenarioRunner = {
     const tag = `s34-acct-${nonceSlug(ctx.nonce)}`;
     const address = ctx.mail.robotAddress(tag);
     if (!address) return infra("robot-mailbox", "the rig's private config names no robot mailbox");
-    if (!mailboxReady(await ctx.guard.health())) return infra("robot-mailbox", "the guard's mailbox heartbeat is stale or its mail is halted");
+    if (!mailboxReady(await ctx.guard.health())) return infra("robot-mailbox", "the guard's mailbox heartbeat is stale");
     const lease = await ctx.guard.activity(ctx.lease.id).catch(() => undefined);
     if (!lease?.live) return infra("guard-lease", "the guard holds no live lease for this run, so it would refuse mail to the robot mailbox");
     ctx.evidence.missed_call_alert = "not_covered";

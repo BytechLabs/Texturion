@@ -3,14 +3,12 @@ import type { GuardHealth } from '@loonext/rig-protocol';
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
-import { ADMISSION_KEYS } from "../src/state/admission";
 import { harness, lease, N, ready, ruleOf } from './support';
 import type { Harness } from './support';
 
 /** The protocol's fields, and the guard-only detail these cases read. */
 type Health = GuardHealth & {
   ordering: { enabled: boolean; blockers: string[]; stopped_reason?: string };
-  money: Record<string, unknown>;
   lease: Record<string, unknown> | null;
 };
 
@@ -40,11 +38,7 @@ describe("without the Telnyx key", () => {
     const h = harness({ env: { TELNYX_API_KEY: "" } });
     const health = await healthOf(h, "robot");
     expect(health.ok).toBe(false);
-    expect(health.balance_above_floor).toBe(false);
-    expect(health.room).toBeUndefined();
     expect(health.telnyx).toMatchObject({ key: "absent", rule: "telnyx.key_missing" });
-    expect(health.paid_dials.enabled).toBe(false);
-    expect(health.paid_dials.blockers).toContain("telnyx.key_missing");
     expect((await h.call("/resend/emails", { body: { to: "delivered@resend.dev", subject: "s" } })).status).toBe(200);
   });
 
@@ -56,61 +50,15 @@ describe("without the Telnyx key", () => {
 });
 
 describe("/health", () => {
-  it("reports a ready partition with only the floor proven: no room, paid dials off, ordering on", async () => {
-    const h = await ready({ validated: null });
-    const health = await healthOf(h, "admin");
-    expect(health.ok).toBe(true);
-    expect(health.telnyx.safety.state).toBe("ok");
-    expect(health.paid_dials).toMatchObject({
-      enabled: false,
-      room: 0,
-      window_start_hour_utc: 4,
-      window_measured_at: null,
-      in_window: true,
-    });
-    expect(health.paid_dials.blockers).toEqual(["admission.limit_unproven"]);
-    expect(health.ordering).toEqual({ enabled: true, blockers: [] });
-    expect(health.concurrency).toEqual({
-      limit_in_force: 2,
-      source: "floor",
-      floor: 2,
-      validation: null,
-      history_lower_bound: null,
-      ceiling: null,
-      conflict: null,
-    });
-    expect(health.money).toMatchObject({ tier: "green", balance_usd: 500, balance_floor_usd: 30 });
-  });
-
-  it("names an unparseable floor, and stale production dial peaks, as paid blockers", async () => {
-    const h = await ready({ env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
-    await h.store.delete(ADMISSION_KEYS.accountRate);
-    const health = await healthOf(h, "admin");
-    expect(health.paid_dials.blockers).toEqual(["admission.limit_unknown", "admission.account_rate_unknown"]);
-    expect(health.room).toBeUndefined();
-    expect(health.account_rate).toEqual({
-      hour_limit: 10,
-      day_limit: 100,
-      production_peak_hour: null,
-      production_peak_day: null,
-      measured_at: null,
-    });
-  });
-
-  it("shows the room, the evidence behind it and the live lease once the validation check proves the limit", async () => {
+  it("reports a ready partition and the live lease without reading vendor account balance", async () => {
     const h = await ready();
     await lease(h, "S02");
     const health = await healthOf(h, "robot");
-    expect(health).toMatchObject({ ok: true, balance_above_floor: true, room: 3 });
-    expect(health.paid_dials).toMatchObject({ enabled: true, room: 3 });
+    expect(health.ok).toBe(true);
+    expect(health.telnyx.safety.state).toBe("ok");
     expect(health.ordering).toEqual({ enabled: true, blockers: [] });
-    expect(health.concurrency).toMatchObject({
-      limit_in_force: 5,
-      source: "validation",
-      validation: { result: "exact", value: 5, measured_at: new Date(h.clock.now).toISOString() },
-    });
-    expect(health.account_rate).toMatchObject({ production_peak_hour: 0, production_peak_day: 0 });
     expect(health.lease).toMatchObject({ scenario: "S02" });
+    expect(h.telnyx.requests("GET", "/v2/balance")).toEqual([]);
   });
 
   it("names production's missing capability as an ordering blocker", async () => {

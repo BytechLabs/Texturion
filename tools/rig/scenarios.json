@@ -1,18 +1,11 @@
 {
   "schema": "loonext.rig-scenarios.v2",
   "notes": [
-    "The catalogue of what the rig can run, on demand. name and far_end are docs/RIG.md 4.2's own text, and scripts/check-rig-scenarios.mjs fails when they differ, when 4.2's dials per run differ from dials + far_end_legs, or when min_room differs from what 4.1's room table implies. Nothing here says when a scenario runs: the rig runs nothing on a timer.",
+    "The catalogue of what the rig can run, on demand. name and far_end are docs/RIG.md 4.2's own text, and scripts/check-rig-scenarios.mjs fails when they differ, when 4.2's dials per run differ from dials + far_end_legs. Nothing here says when a scenario runs: the rig runs nothing on a timer.",
     "dials: legs Loonext creates. far_end_legs: legs the far end creates, on the rig the robot's. A run's rig dials are their sum, as in apps/api/e2e/call-journey-budget.json. peak_concurrent_outbound_legs counts Loonext's legs only; the robot holds its own.",
     "Scenarios that name a journey carry the journey's measured values. Every other split between dials and far_end_legs, and every other peak, is a planning estimate that keeps 4.2's dials for the run.",
-    "runs: the ways to run a scenario. One run, or one per named variant (S25-2 is the second); the labels are the ones 4.2's row names. A run with dials is admitted by the guard's own caps, window and room, not by anything here.",
-    "A run with more dials than the hourly cap cannot be admitted: the guard counts a clock hour, so a run of 4 dials never fits under 3 an hour. check-rig-scenarios.mjs lists them. They stay in the catalogue, and the cap is the guard's own."
+    "runs: the ways to run a scenario. One run, or one per named variant (S25-2 is the second); the labels are the ones 4.2's row names."
   ],
-  "caps": {
-    "daily_cap": 18,
-    "hourly_cap": 3,
-    "window_utc": [4, 10],
-    "source": "docs/RIG.md 4.1: the guard's own cap, inside the Paid level's 10 an hour and 100 a day account-wide; the window is 3.5's 04:00-10:00 UTC until production has 28 days of call history. The check reads each of these from the doc and fails when one here differs."
-  },
   "lanes": [
     {
       "id": "health",
@@ -86,8 +79,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "H01",
@@ -100,8 +92,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "G01",
@@ -115,7 +106,6 @@
       "dials": 0,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 2,
       "note": "STRANGER-1's call is rejected before any ring leg, so its one dial is the far end's."
     },
     {
@@ -130,7 +120,6 @@
       "dials": 1,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 1,
-      "min_room": 2,
       "note": "The SDK places the sentinel call itself, outside the guard; budgeted as one dial for both attempts, as 4.2 does."
     },
     {
@@ -146,7 +135,6 @@
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 2,
       "peak_concurrent_legs": 2,
-      "min_room": 2,
       "journey": "outbound-answered"
     },
     {
@@ -162,7 +150,6 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
       "peak_concurrent_legs": 2,
-      "min_room": 2,
       "journey": "inbound-answered"
     },
     {
@@ -177,7 +164,6 @@
       "dials": 3,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 3,
-      "min_room": 3,
       "note": "The QA-C page's two outbound legs, plus DEV-W1's ring leg to the QA-W owner."
     },
     {
@@ -193,7 +179,6 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
       "peak_concurrent_legs": 2,
-      "min_room": 2,
       "journey": "voicemail"
     },
     {
@@ -209,7 +194,6 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
       "peak_concurrent_legs": 2,
-      "min_room": 2,
       "journey": "inbound-missed"
     },
     {
@@ -223,8 +207,7 @@
       ],
       "dials": 1,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S07",
@@ -241,7 +224,6 @@
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
       "peak_concurrent_legs": 3,
-      "min_room": 3,
       "journey": "transfer-blind"
     },
     {
@@ -257,7 +239,6 @@
       "dials": 4,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 4,
-      "min_room": 4,
       "note": "The outbound direction holds the customer and sender legs plus both consult legs."
     },
     {
@@ -272,7 +253,6 @@
       "dials": 3,
       "far_end_legs": 2,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 3,
       "note": "ROBOT-1 and ROBOT-2 are on calls at once, and nonprod-robot-ovp allows the robot one concurrent call (3.6), so it cannot run as written even under a higher hourly cap."
     },
     {
@@ -286,8 +266,7 @@
       ],
       "dials": 4,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 4,
-      "min_room": 4
+      "peak_concurrent_outbound_legs": 4
     },
     {
       "id": "S11",
@@ -300,8 +279,7 @@
       ],
       "dials": 1,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S12",
@@ -315,7 +293,6 @@
       "dials": 0,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 2,
       "note": "The inbound call ends busy before a ring leg, and the outbound attempt gets 402 before a dial."
     },
     {
@@ -330,7 +307,6 @@
       "dials": 0,
       "far_end_legs": 2,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 2,
       "note": "Two robot calls, to the paused and the released number; neither gets a ring leg."
     },
     {
@@ -344,8 +320,7 @@
       ],
       "dials": 1,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S15",
@@ -358,8 +333,7 @@
       ],
       "dials": 1,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S16",
@@ -372,8 +346,7 @@
       ],
       "dials": 1,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S17",
@@ -386,8 +359,7 @@
       ],
       "dials": 2,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "S20",
@@ -400,8 +372,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S21",
@@ -414,8 +385,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S22",
@@ -428,8 +398,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S23",
@@ -442,8 +411,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S24",
@@ -457,7 +425,6 @@
       "dials": 2,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 2,
       "note": "The dials are the call to ROBOT-2 that must still connect after the STOP (D38)."
     },
     {
@@ -472,8 +439,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S26",
@@ -486,8 +452,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S27",
@@ -500,8 +465,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S28",
@@ -515,7 +479,6 @@
       "dials": 1,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
-      "min_room": 2,
       "note": "S28 buys the month's number into the grace workspace, QA-G (scripts/rig/tenants.mjs), which holds no standing number, binds it and has ROBOT-1 ring it, and does not release it. A passing S28 leaves the number to S29 in rigd's hand-off record (state/rigd/handoff). Its undo, registered before the purchase, releases every number QA-G holds unreleased through the guard, only when S28 itself did not pass, and S28 takes back a hand-off no S29 took within two days. The guard's one order per 25 days means a retry after a failed attempt cannot buy again."
     },
     {
@@ -530,7 +493,6 @@
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 0,
       "note": "S29 runs the day after S28 and takes over the number S28 handed off. Under its lease it backdates QA-G's canceled_at and fires the grace cron, so grace's releaseCompanyNumbers releases that number (a 404 at Telnyx, read through the guard) and the workspace moves through grace; its undo releases the number through the guard if grace did not, and puts the workspace back. QA-G holds no standing number: grace releases every number a workspace holds, and the guard refuses a DELETE on a standing one, which fails the job before it deactivates the campaign (tools/rig/crons.json, the 0 14 cron's defect). With no number handed off, S29 still runs grace and does not pass the release half."
     },
     {
@@ -544,8 +506,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S32",
@@ -559,7 +520,6 @@
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 0,
       "note": "S32 drives a new owner through sign-up (confirmed by Mailpit) and every step of the Canadian wizard: name, number (Canada, the first Toronto area code with numbers, Canadian customers only) and plan, then Stripe's hosted Checkout in test mode with the 4242 card, the subscription, setting-up to the inbox, and the customer portal. It holds a guard lease of its own, the only one under which the guard lets the number picker search; ordering stays refused under it. Before Checkout rigd gives the new workspace a fixture number row (active, no Telnyx id, a fictional 555-01xx number keyed rig-signup-s32-<nonce>), so the paid webhook's provisioning finds a number and buys none, and S32 proves both: no row keyed by the Checkout session, and no number write forwarded by the guard. Its undos delete the test-mode subscription and customer, release the fixture row in the database and delete the sign-up. Not covered: the US branch (US texting, the $29 fee line, the business step after payment, 10DLC) and the number purchase itself."
     },
     {
@@ -573,8 +533,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S34",
@@ -587,8 +546,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "S35",
@@ -601,8 +559,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "D01",
@@ -615,8 +572,7 @@
       ],
       "dials": 3,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 3,
-      "min_room": 4
+      "peak_concurrent_outbound_legs": 3
     },
     {
       "id": "D02",
@@ -630,7 +586,6 @@
       "dials": 2,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 3,
       "note": "The ring leg to the device-lane emulator, plus the ring-me leg its answer opens."
     },
     {
@@ -644,8 +599,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "D03",
@@ -658,8 +612,7 @@
       ],
       "dials": 2,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 2,
-      "min_room": 3
+      "peak_concurrent_outbound_legs": 2
     },
     {
       "id": "D04",
@@ -672,8 +625,7 @@
       ],
       "dials": 2,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 2,
-      "min_room": 3
+      "peak_concurrent_outbound_legs": 2
     },
     {
       "id": "D07",
@@ -688,8 +640,7 @@
       ],
       "dials": 2,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 2,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 2
     },
     {
       "id": "D08",
@@ -702,8 +653,7 @@
       ],
       "dials": 1,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_outbound_legs": 1
     },
     {
       "id": "D09",
@@ -716,8 +666,7 @@
       ],
       "dials": 2,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 2,
-      "min_room": 3
+      "peak_concurrent_outbound_legs": 2
     },
     {
       "id": "D10",
@@ -731,7 +680,6 @@
       "dials": 2,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 3,
       "note": "Alternates weekly with D12, so each runs every other week."
     },
     {
@@ -746,7 +694,6 @@
       "dials": 2,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 3,
       "note": "Alternates weekly with D10, so each runs every other week."
     },
     {
@@ -760,8 +707,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "D13",
@@ -774,8 +720,7 @@
       ],
       "dials": 2,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 2,
-      "min_room": 3
+      "peak_concurrent_outbound_legs": 2
     },
     {
       "id": "D14",
@@ -788,8 +733,7 @@
       ],
       "dials": 0,
       "far_end_legs": 0,
-      "peak_concurrent_outbound_legs": 0,
-      "min_room": 0
+      "peak_concurrent_outbound_legs": 0
     },
     {
       "id": "E01",
@@ -805,7 +749,6 @@
       "dials": 2,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 2,
-      "min_room": 3,
       "note": "The two weekly variants are runs of their own, budgeted at E01's dials; they may dial one fewer, since nothing should answer."
     },
     {
@@ -820,7 +763,6 @@
       "dials": 0,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 0,
-      "min_room": 2,
       "note": "Optional, Phase 4, and off by default (2.3)."
     }
   ]

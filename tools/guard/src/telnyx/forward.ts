@@ -65,7 +65,6 @@ export function isOk(reply: TelnyxReply): boolean {
   return reply.status >= 200 && reply.status <= 299;
 }
 
-/** A definite refusal by Telnyx: nothing happened, so anything taken for it is given back. */
 export function isDefiniteFailure(reply: TelnyxReply): boolean {
   return reply.status >= 400 && reply.status <= 499;
 }

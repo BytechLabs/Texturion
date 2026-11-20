@@ -1,10 +1,6 @@
-import { HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { charge } from "../src/state/ledger";
-import { recordSignal } from "../src/state/signals";
-import { messageCostUsd, smsParts } from "../src/telnyx/message";
-import { EDGE, lease, N, ready, ruleOf } from './support';
+import { EDGE, N, ready, ruleOf } from './support';
 import type { Harness } from './support';
 
 const TEXT = { from: N.devW1, to: N.robot1, text: "hello" };
@@ -18,7 +14,6 @@ describe("messages", () => {
     const h = await ready();
     expect((await send(h)).status).toBe(200);
     expect(h.telnyx.requests("POST", "/v2/messages")).toHaveLength(1);
-    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(1);
   });
 
   it("needs an owned from and an owned to", async () => {
@@ -50,64 +45,9 @@ describe("messages", () => {
     expect((await send(h, { ...TEXT, webhook_url: `${EDGE}/t/m` })).status).toBe(200);
   });
 
-  it("caps texts at 20 a day and 300 a month", async () => {
+  it("forwards messages past the old daily allowance", async () => {
     const h = await ready();
-    await h.store.put("count:texts:2026-11-02", 20);
-    await expect(ruleOf(await send(h))).resolves.toBe("budget.texts_day");
-    await h.store.put("count:texts:2026-11-02", 0);
-    await h.store.put("count:texts-month:2026-11", 300);
-    await expect(ruleOf(await send(h))).resolves.toBe("budget.texts_month");
-    // The day's take is given back when the month refuses.
-    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(0);
-  });
-
-  it("sends at amber only under a core scenario's lease, and never at red", async () => {
-    const h = await ready();
-    await charge(h.ctx, 2);
-    await expect(ruleOf(await send(h))).resolves.toBe("budget.tier_amber");
-    const other = await lease(h, "S05");
-    // The scenario header is the caller's claim; the live lease decides.
-    await expect(ruleOf(await send(h, TEXT, { [HEADER.scenario]: "S01" }))).resolves.toBe("budget.tier_amber");
-    await h.call(`/lease/${other}`, { caller: "robot", method: "DELETE" });
-    await lease(h, "S20");
-    expect((await send(h)).status).toBe(200);
-    await charge(h.ctx, 40);
-    await expect(ruleOf(await send(h))).resolves.toBe("budget.tier_red");
-  });
-
-  it("refuses all test spend under the balance floor", async () => {
-    const h = await ready();
-    h.telnyx.balance = "29.00";
-    await expect(ruleOf(await send(h))).resolves.toBe("budget.balance_floor");
-    expect(h.telnyx.requests("POST", "/v2/messages")).toEqual([]);
-  });
-
-  it("stops during an account-signal halt", async () => {
-    const h = await ready();
-    await recordSignal(h.ctx, { signal: "Short duration calls", notice_id: null, corroborated_by: "signature" });
-    await expect(ruleOf(await send(h))).resolves.toBe("signal.halted");
-  });
-
-  it("gives everything back when Telnyx refuses outright", async () => {
-    const h = await ready();
-    h.telnyx.failNext = { method: "POST", path: "/v2/messages", status: 400 };
-    expect((await send(h)).status).toBe(400);
-    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(0);
-    expect((await h.store.get<{ usage_usd: number }>("money:month:2026-11"))?.usage_usd).toBe(0);
-  });
-});
-
-describe("text cost", () => {
-  it("counts GSM-7 and UCS-2 parts", () => {
-    expect(smsParts("a".repeat(160))).toBe(1);
-    expect(smsParts("a".repeat(161))).toBe(2);
-    expect(smsParts("é".repeat(70))).toBe(1);
-    expect(smsParts("é".repeat(71))).toBe(2);
-    expect(smsParts("{")).toBe(1);
-  });
-
-  it("prices an MMS above a text", () => {
-    expect(messageCostUsd({ text: "hi" })).toBeCloseTo(2 * 0.0025 + 2 * 0.008845, 4);
-    expect(messageCostUsd({ text: "hi", media_urls: ["https://x.example/a.png"] })).toBeGreaterThan(0.0227 * 3);
+    for (let count = 0; count < 21; count++) expect((await send(h)).status).toBe(200);
+    expect(h.telnyx.requests("POST", "/v2/messages")).toHaveLength(21);
   });
 });

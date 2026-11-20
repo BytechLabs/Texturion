@@ -2,10 +2,7 @@ import { EDGE_PATHS } from "@loonext/rig-protocol";
 
 import type { Ctx } from "../context";
 import { Refusal } from "../refusal";
-import { ADMISSION_KEYS, roomFor, windowStartHour } from "../state/admission";
-import type { ReserveRecord, WindowRecord } from "../state/admission";
-import { limitInForce } from "../state/concurrency";
-import { TelnyxError } from "../telnyx/client";
+import { KEYS } from "../telnyx/partition";
 import { connectionOfResource, rememberCredential } from "../telnyx/targets";
 import { runSafetyChecks } from "./safety";
 import type { SafetyState } from "./safety";
@@ -51,20 +48,6 @@ function randomSecret(length: number): string {
   return secret;
 }
 
-/**
- * The voice profile's and app's vendor-side limits from the room. Telnyx reads
- * a null concurrent limit as "unlimited", so an unknown room is written as 1,
- * and so is the floor's room of 0: the guard itself admits no paid dial then.
- */
-export function vendorLimits(room: number | null): { voiceOvp: number; voiceApp: number } {
-  if (room === null || room < 2) return { voiceOvp: 1, voiceApp: 1 };
-  return { voiceOvp: room - 1, voiceApp: room };
-}
-
-function hhmm(hour: number): string {
-  return `${String(hour % 24).padStart(2, "0")}:00:00.00Z`;
-}
-
 export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<SetupReport> {
   const { telnyx } = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
@@ -72,12 +55,7 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
   if (!edge) throw new Refusal("startup.unconfigured");
   const steps: SetupStep[] = [];
 
-  const room = roomFor(
-    await limitInForce(ctx),
-    await ctx.store.get<ReserveRecord>(ADMISSION_KEYS.reserve),
-    ctx.now(),
-  );
-  const limits = vendorLimits(room);
+  if ((await runSafetyChecks(ctx)).state === "unsafe") throw new Refusal("startup.unsafe");
 
   async function ensure(
     resource: string,
@@ -110,22 +88,15 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
 
   const groupId = await ensure("billing_group", "/v2/billing_groups", "name", spec.billing_group.name, {}, null);
 
-  const startHour = windowStartHour(await ctx.store.get<WindowRecord>(ADMISSION_KEYS.window), ctx.now());
   const ovpIds: Record<string, string> = {};
   for (const profile of spec.outbound_voice_profiles) {
     const settings: Item = {
-      daily_spend_limit: profile.daily_spend_limit,
-      daily_spend_limit_enabled: true,
-      max_destination_rate: profile.max_destination_rate,
+      daily_spend_limit_enabled: false,
+      max_destination_rate: null,
       whitelisted_destinations: profile.whitelisted_destinations,
-      concurrent_call_limit:
-        profile.concurrent_call_limit === "room-minus-robot" ? limits.voiceOvp : profile.concurrent_call_limit,
+      concurrent_call_limit: null,
       billing_group_id: groupId,
-      calling_window: {
-        start_time: hhmm(startHour),
-        end_time: hhmm(startHour + 6),
-        calls_per_cld: profile.calls_per_cld,
-      },
+      calling_window: null,
     };
     ovpIds[profile.key] = await ensure(
       "outbound_voice_profile",
@@ -133,23 +104,19 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
       "name",
       profile.name,
       settings,
-      settings,
+      { name: profile.name, ...settings },
     );
   }
 
-  const probe = await ensureLimitProbe(spec, groupId, ensure);
-  if (probe) steps.push(probe);
-
   for (const app of spec.call_control_applications) {
-    const channel = app.channel_limit === "room" ? limits.voiceApp : app.channel_limit;
     const settings: Item = {
       call_cost_in_webhooks: app.call_cost_in_webhooks,
       webhook_event_url: edgeUrl(edge, app.webhook),
       webhook_event_failover_url: app.failover ? edgeUrl(edge, app.failover) : null,
       webhook_timeout_secs: app.webhook_timeout_secs,
       webhook_api_version: "2",
-      outbound: { outbound_voice_profile_id: ovpIds[app.outbound_voice_profile], channel_limit: channel },
-      inbound: { channel_limit: channel },
+      outbound: { outbound_voice_profile_id: ovpIds[app.outbound_voice_profile], channel_limit: null },
+      inbound: { channel_limit: null },
     };
     await ensure("call_control_application", "/v2/call_control_applications", "application_name", app.application_name, settings, settings);
   }
@@ -183,41 +150,24 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
       webhook_failover_url: edgeUrl(edge, profile.webhook),
       webhook_api_version: "2",
       whitelisted_destinations: profiles.whitelisted_destinations,
-      daily_spend_limit: profile.daily_spend_limit,
-      daily_spend_limit_enabled: true,
+      daily_spend_limit_enabled: false,
     };
     await ensure("messaging_profile", "/v2/messaging_profiles", "name", profile.name, settings, settings);
+  }
+
+  const appProfiles = new Set(await ctx.store.get<string[]>(KEYS.appProfiles));
+  for (const profile of await telnyx.listAll<Item>("/v2/messaging_profiles")) {
+    const id = idOf(profile);
+    if (id && appProfiles.has(id) && profile.daily_spend_limit_enabled === true) {
+      await telnyx.call("PATCH", `/v2/messaging_profiles/${encodeURIComponent(id)}`, { daily_spend_limit_enabled: false });
+      steps.push({ resource: "messaging_profile", name: "app-created", action: "updated" });
+    }
   }
 
   steps.push(await ensureNotifications(ctx, spec));
 
   const safety = await runSafetyChecks(ctx);
   return { steps, safety };
-}
-
-type Ensure = (resource: string, listPath: string, nameField: string, name: string, create: Item, update: Item | null) => Promise<string>;
-
-/**
- * The validation check's profile, found or made by name and put back to the
- * spec's values. A failure here is reported, not thrown: the check is then
- * inconclusive and the floor stays in force, which refuses paid dials anyway.
- */
-async function ensureLimitProbe(spec: TelnyxSpec, groupId: string, ensure: Ensure): Promise<SetupStep | null> {
-  const probe = spec.limit_probe;
-  const settings: Item = {
-    concurrent_call_limit: probe.concurrent_call_limit,
-    daily_spend_limit: probe.daily_spend_limit,
-    daily_spend_limit_enabled: true,
-    whitelisted_destinations: probe.whitelisted_destinations,
-    billing_group_id: groupId,
-  };
-  try {
-    await ensure("limit_probe_profile", "/v2/outbound_voice_profiles", "name", probe.name, settings, { name: probe.name, ...settings });
-    return null;
-  } catch (error) {
-    const reason = error instanceof TelnyxError ? `Telnyx answered ${error.status}` : "the profile could not be listed or written";
-    return { resource: "limit_probe_profile", name: probe.name, action: "skipped", reason };
-  }
 }
 
 async function ensureSentinelCredential(ctx: Ctx, connectionId: string, steps: SetupStep[]): Promise<void> {

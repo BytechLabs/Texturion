@@ -7,7 +7,6 @@
  *   node tools/rig/rigd/src/cli.ts run <scenario>[-<run>] [--run-id <id>]
  *   node tools/rig/rigd/src/cli.ts units --install | --out <dir> [--node <path>]
  *   node tools/rig/rigd/src/cli.ts secrets
- *   node tools/rig/rigd/src/cli.ts budget
  *   node tools/rig/rigd/src/cli.ts verdicts [--unresolved]
  *   node tools/rig/rigd/src/cli.ts calibrate --surface <surface> --wav <file> [--own <surface>]
  *
@@ -18,12 +17,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { analyzeFrames, calibrate, decodeWav, isSurface, loadMargins, saveMargins, SURFACE_HZ, SURFACES } from "@loonext/rig-robot";
-import { clockHourStart, utcDayStart } from "./budget.ts";
 import { loadConfig } from "./config.ts";
 import { deliverSecrets } from "./secrets.ts";
 import { startDaemon } from "./daemon.ts";
 import { installUnits, userUnitDir } from "./install.ts";
-import { loadRegistry, parseInstance } from "./registry.ts";
+import { parseInstance } from "./registry.ts";
 import { runScenario } from "./runner.ts";
 import { NOT_RUNNABLE_YET } from "./scenarios/index.ts";
 import { buildUnits } from "./units.ts";
@@ -90,23 +88,6 @@ async function main(argv: string[]): Promise<number> {
       print({ units: units.map((unit) => unit.name) });
       return 0;
     }
-    case "budget": {
-      const config = loadConfig();
-      const registry = loadRegistry(config.registryPath);
-      const caps = config.capsOverride ?? registry.caps;
-      const store = new VerdictStore(join(rigdDir(config), "verdicts"));
-      const now = Date.now();
-      const spentIn = (from: number, to: number) => store.dialsBetween(from, to);
-      print({
-        caps: { daily: caps.daily, hourly: caps.hourly },
-        window: registry.caps.window,
-        spent: {
-          today: spentIn(utcDayStart(now), utcDayStart(now) + 86_400_000),
-          this_hour: spentIn(clockHourStart(now), clockHourStart(now) + 3_600_000),
-        },
-      });
-      return 0;
-    }
     case "verdicts": {
       const store = new VerdictStore(join(rigdDir(loadConfig()), "verdicts"));
       print(values.unresolved ? store.unresolved() : store.all().slice(-50));
@@ -130,7 +111,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     default: {
-      console.error("usage: cli.ts daemon | run <scenario> [--run-id <id>] | units --install | --out <dir> | budget | verdicts | secrets | calibrate");
+      console.error("usage: cli.ts daemon | run <scenario> [--run-id <id>] | units --install | --out <dir> | verdicts | secrets | calibrate");
       return 2;
     }
   }

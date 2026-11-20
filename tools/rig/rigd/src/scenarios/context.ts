@@ -613,7 +613,6 @@ export interface RigHealthReport {
   at: string;
   sha: string | null;
   results: { name: string; pass: boolean; reason?: string }[];
-  room?: number | null;
   [published: string]: unknown;
 }
 
@@ -743,8 +742,6 @@ export interface ScenarioContext {
   history: ScenarioHistoryApi;
   /** The scenario holding a lane while it prepares, when that is another run. */
   laneHeldBy(lane: string): string | undefined;
-  /** The scenarios the rig times that this room would block, by id, as the runner's admission blocks them. */
-  blockedAt(room: number): string[];
   now(): number;
   sleep(ms: number): Promise<void>;
   /** Unique to this attempt; every body a scenario sends carries it. */

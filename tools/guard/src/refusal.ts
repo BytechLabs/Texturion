@@ -53,59 +53,20 @@ export const RULES = [
   "message.field_refused",
 
   "provisioning.search_needs_lease",
-  "provisioning.search_rate",
-  "provisioning.search_cap",
   "provisioning.ordering_off",
   "provisioning.resume_refused",
   "provisioning.order_needs_lease",
-  "provisioning.order_interval",
   "provisioning.order_one_number",
-  "provisioning.numbers_held",
   "provisioning.order_group",
   "provisioning.order_profile",
   "provisioning.order_connection",
-  "provisioning.voice_closed",
   "provisioning.number_not_owned",
   "provisioning.number_standing",
   "provisioning.patch_field",
-  "provisioning.profile_count",
-  "provisioning.profile_spend_limit",
   "provisioning.profile_whitelist",
   "provisioning.profile_webhook",
   "provisioning.credential_connection",
   "provisioning.credential_not_nonprod",
-  "provisioning.sentinel_full",
-
-  "admission.limit_unknown",
-  "admission.limit_unproven",
-  "admission.limit_conflict",
-  "admission.account_rate_unknown",
-  "admission.account_hour_full",
-  "admission.account_day_full",
-  "admission.outside_window",
-  "admission.ratios_unknown",
-  "admission.abandoned_ratio",
-  "admission.short_ratio",
-  "admission.reserve_unknown",
-  "admission.no_room",
-  "admission.production_call_live",
-  "admission.production_calls_unknown",
-
-  "budget.dials_day",
-  "budget.dials_hour",
-  "budget.texts_day",
-  "budget.texts_month",
-  "budget.credentials_day",
-  "budget.tier_amber",
-  "budget.tier_red",
-  "budget.balance_floor",
-  "budget.balance_unknown",
-  "budget.resend_day",
-  "budget.fcm_day",
-  "budget.ai_neurons_day",
-
-  "signal.halted",
-  "signal.latched",
 
   "lease.busy",
   "lease.not_found",
@@ -119,7 +80,6 @@ export const RULES = [
   "resend.recipient_refused",
   "resend.robot_needs_lease",
   "resend.mail_heartbeat_stale",
-  "resend.robot_mail_halted",
 
   "fcm.key_missing",
   "fcm.path_refused",
@@ -135,16 +95,6 @@ export const RULES = [
 ] as const;
 
 export type RuleName = (typeof RULES)[number];
-
-/** The status a refusal under `rule` carries: 429 for a spent budget, else 403. */
-export function statusFor(rule: RuleName): 403 | 429 {
-  return rule.startsWith("budget.") ||
-    rule === "provisioning.search_rate" ||
-    rule === "provisioning.search_cap" ||
-    rule === "provisioning.order_interval"
-    ? 429
-    : 403;
-}
 
 class RefusalError extends Error {
   readonly rule: RuleName;
@@ -162,7 +112,7 @@ export { RefusalError as Refusal };
 export function refuse(rule: RuleName): Response {
   const body: GuardRefusal = { error: "guard_refused", rule };
   return Response.json(body, {
-    status: statusFor(rule),
+    status: 403,
     headers: {
       "content-type": "application/json",
       [HEADER.refusedBy]: rule,

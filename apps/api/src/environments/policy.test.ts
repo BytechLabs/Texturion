@@ -20,7 +20,6 @@ import {
   outboundDestinationRefusal,
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
-  RIG_MESSAGING_PROFILE_DAILY_LIMIT,
   servesRigRoutes,
   telemetryEnvironment,
   telnyxRequestRefusal,
@@ -244,7 +243,6 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
   },
   RIG_DESTINATION_REFUSED: "constant",
   RIG_ENDPOINT_REFUSED: "constant",
-  RIG_MESSAGING_PROFILE_DAILY_LIMIT: "constant",
 };
 
 describe("outside the rig, every policy answer is the permissive one", () => {
@@ -344,11 +342,11 @@ describe("the rig's FCM credential", () => {
   });
 });
 
-describe("the rig's messaging-profile limits", () => {
+describe("the rig's messaging-profile destinations", () => {
   const env = () => getEnv(rigEnv());
   const create = { method: "POST", path: "/v2/messaging_profiles" };
 
-  it("caps the daily spend and keeps US and Canada only", () => {
+  it("keeps US and Canada only and disables the profile spend cap", () => {
     expect(
       restrictTelnyxBody(env(), create, {
         name: "c",
@@ -357,46 +355,19 @@ describe("the rig's messaging-profile limits", () => {
     ).toEqual({
       name: "c",
       whitelisted_destinations: ["US", "CA"],
-      daily_spend_limit: RIG_MESSAGING_PROFILE_DAILY_LIMIT,
-      daily_spend_limit_enabled: true,
+      daily_spend_limit_enabled: false,
     });
   });
 
-  it("only narrows: a smaller whitelist and a lower limit survive", () => {
+  it("preserves a narrower whitelist and disables a requested spend cap", () => {
     expect(
       restrictTelnyxBody(env(), { method: "PATCH", path: "/v2/messaging_profiles/mp-1" }, {
         whitelisted_destinations: ["CA"],
-        daily_spend_limit: "0.01",
+        daily_spend_limit_enabled: true,
       }),
     ).toEqual({
       whitelisted_destinations: ["CA"],
-      daily_spend_limit: "0.01",
-      daily_spend_limit_enabled: true,
-    });
-    expect(
-      restrictTelnyxBody(env(), create, { daily_spend_limit: "250.00" }),
-    ).toMatchObject({ daily_spend_limit: RIG_MESSAGING_PROFILE_DAILY_LIMIT });
-  });
-
-  it.each([
-    ["null", null],
-    ["an empty string", ""],
-    ["blank", "  "],
-    ["false", false],
-    ["zero", "0"],
-    ["a negative amount", -1],
-    ["not a number", "lots"],
-    ["an array", []],
-  ])("caps a limit that is %s rather than keeping it", (_label, asked) => {
-    expect(restrictTelnyxBody(env(), create, { daily_spend_limit: asked })).toMatchObject({
-      daily_spend_limit: RIG_MESSAGING_PROFILE_DAILY_LIMIT,
-      daily_spend_limit_enabled: true,
-    });
-  });
-
-  it("keeps a lower limit given as a number", () => {
-    expect(restrictTelnyxBody(env(), create, { daily_spend_limit: 0.02 })).toMatchObject({
-      daily_spend_limit: 0.02,
+      daily_spend_limit_enabled: false,
     });
   });
 

@@ -1,9 +1,7 @@
 import type { DetachRequest } from "@loonext/rig-protocol";
 
 import type { Ctx } from "../context";
-import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
-import { readTier } from "../state/ledger";
 import { invalidateOwned } from './partition';
 import type { OwnedNumber, PartitionView } from './partition';
 
@@ -11,7 +9,7 @@ import type { OwnedNumber, PartitionView } from './partition';
  * Detach: clear a number's connection and messaging profile, so nothing
  * inbound reaches it and nothing inbound bills beyond the number's rental
  * (docs/RIG.md). The one write the guard makes to a standing number on its
- * own, for two reasons only: strangers flooding it, and the month's cap.
+ * own when strangers flood it.
  *
  * Telnyx documents `""` as "unassign" for the messaging profile. Clearing the
  * connection the same way is not in its docs, so anything but a 200 counts as
@@ -81,40 +79,6 @@ export async function detachFlooded(
     window_ms: request.window_ms,
   });
   return ok ? "detached" : "failed";
-}
-
-/**
- * At the month's cap every number off the robot's connection is detached, so
- * stranger inbound stops costing money too. What counts is the listing, not a
- * record of having run: a number that still shows a connection or profile is
- * detached again on the next pass (the hourly upkeep reads a fresh listing),
- * and every pass that leaves one attached raises a production event.
- */
-export async function enforceCap(ctx: Ctx, view: PartitionView): Promise<number> {
-  const reading = await readTier(ctx);
-  if (reading.month_to_date_usd < reading.usage_budget_usd) return 0;
-  const {robot} = view.record.connections;
-  const attached = view.numbers.filter(
-    (number) =>
-      !(robot && number.connection_id === robot) && (number.connection_id !== null || number.messaging_profile_id !== null),
-  );
-  let detached = 0;
-  for (const number of attached) {
-    if (await detachNumber(ctx, number, "monthly_cap")) detached += 1;
-  }
-  if (detached < attached.length) await alertCapDetachFailed(ctx, attached.length - detached);
-  return detached;
-}
-
-async function alertCapDetachFailed(ctx: Ctx, failed: number): Promise<void> {
-  await sendProductionEvent(ctx, {
-    key: "telnyx-guard-detach",
-    summary: `The rig is at its monthly cap and ${failed} number(s) would not detach`,
-    detail:
-      "Telnyx refused clearing a number's connection or messaging profile, so stranger calls and texts to it " +
-      "still bill. The guard tries again every hour. If it keeps failing, clear them in the portal.",
-    level: "error",
-  });
 }
 
 /** The connection and profile each standing role is bound to, from the spec. */

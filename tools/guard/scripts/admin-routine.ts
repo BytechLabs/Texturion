@@ -7,24 +7,15 @@
  * Its output lands in a public Actions log, so it prints states, reason codes,
  * roles and counts: never an id, a phone number, an address or a token.
  *
- *   ROUTINE=check|setup|order-standing|resume-ordering|reattach|measurements|limit-probe|health
+ *   ROUTINE=check|setup|order-standing|resume-ordering|reattach|health
  *   resume-ordering only: RESUME_BY, the dispatching GitHub login; RESUME_REASON, why a person lifts the stop.
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
- *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
- *     USAGE_USD, this month's actual Telnyx usage for the partition, from detail records.
- *     With none of them (the daily run), production's reserve, its window
- *     when due, its concurrent-call peak and its peak hour and day of dials
- *     are read as agent_diag from AGENT_DIAG_DATABASE_URL
- *     (production-measurements.ts) and filed. The peaks have no typed input.
- *
  *   node --experimental-strip-types tools/guard/scripts/admin-routine.ts
  */
 import { resolve as resolvePath } from "node:path";
 
 import { EDGE_PATHS, GUARD_ROUTES } from '../../rig-protocol/src/index.ts';
 import type { GuardHealth } from '../../rig-protocol/src/index.ts';
-import { planFiling, readProduction, windowDue } from './production-measurements.ts';
-import type { ReadOutcome } from './production-measurements.ts';
 
 export const ROUTINES = [
   "check",
@@ -32,8 +23,6 @@ export const ROUTINES = [
   "order-standing",
   "resume-ordering",
   "reattach",
-  "measurements",
-  "limit-probe",
 ] as const;
 
 /** Read through the edge's GET /health rather than posted, so it has no place in {@link runRoutine}. */
@@ -64,7 +53,6 @@ export interface Outcome {
 type Item = Record<string, unknown>;
 
 /** The order loop's pause: one search per call, and the guard's search interval is ten seconds. */
-export const SEARCH_PAUSE_MS = 11_000;
 const MAX_ORDER_CALLS = 80;
 
 function ruleOf(answer: Answer): string | null {
@@ -78,7 +66,11 @@ function ok(answer: Answer): boolean {
 
 function failed(title: string, answer: Answer): Outcome {
   const rule = ruleOf(answer);
-  return { ok: false, lines: [`::error title=${title}::HTTP ${answer.status}${rule ? `, refused under ${rule}` : ""}`] };
+  const vendor = answer.body as { error?: unknown; status?: unknown } | null;
+  const detail = vendor?.error === "telnyx_request_failed" && typeof vendor.status === "number"
+    ? `Telnyx returned HTTP ${vendor.status}`
+    : `HTTP ${answer.status}${rule ? `, refused under ${rule}` : ""}`;
+  return { ok: false, lines: [`::error title=${title}::${detail}`] };
 }
 
 function strings(value: unknown): string[] {
@@ -123,14 +115,10 @@ async function setup(post: Post): Promise<Outcome> {
 }
 
 /** Orders until every standing role is held; the guard orders one per call. */
-async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): Promise<Outcome> {
+async function orderStanding(post: Post): Promise<Outcome> {
   const lines: string[] = [];
   for (let call = 1; call <= MAX_ORDER_CALLS; call++) {
     const answer = await post("/numbers/order-standing");
-    if (ruleOf(answer) === "provisioning.search_rate") {
-      await wait(SEARCH_PAUSE_MS);
-      continue;
-    }
     const unconfirmed = answer.body as { error?: unknown; role?: unknown; status?: unknown } | null;
     if (unconfirmed?.error === "order_unconfirmed") {
       const role = typeof unconfirmed.role === "string" ? unconfirmed.role : "unknown";
@@ -146,27 +134,21 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
       ordered?: unknown;
       searched?: unknown;
       remaining?: unknown;
-      voice_deferred?: unknown;
       unlisted?: unknown;
       tagged?: unknown;
     };
     const remaining = strings(body.remaining);
-    const deferred = strings(body.voice_deferred);
     const unlisted = strings(body.unlisted);
     if (typeof body.ordered === "string") lines.push(`ordered ${body.ordered}`);
     else if (typeof body.searched === "string") lines.push(`no number free in area code ${body.searched}`);
     if (typeof body.tagged === "number" && body.tagged > 0) lines.push(`tagged ${body.tagged} standing number(s)`);
     if (remaining.length === 0) {
-      const done = deferred.length > 0
-        ? `every standing role is held; no voice connection until paid dials open: ${deferred.join(", ")}`
-        : "every standing role is held";
       if (unlisted.length > 0) {
         lines.push(`::warning title=Standing numbers not listed::Held but not yet in the partition's group listing: ${unlisted.join(", ")}`);
       }
-      return { ok: true, lines: [...lines, done] };
+      return { ok: true, lines: [...lines, "every standing role is held"] };
     }
     lines.push(`still to order: ${remaining.join(", ")}`);
-    await wait(SEARCH_PAUSE_MS);
   }
   return { ok: false, lines: [...lines, `::error title=Standing order unfinished::Stopped after ${MAX_ORDER_CALLS} calls.`] };
 }
@@ -194,122 +176,15 @@ async function reattach(post: Post): Promise<Outcome> {
   return { ok: true, lines: [`reattached: ${strings((answer.body as Item).reattached).join(", ") || "none"}`] };
 }
 
-/** The validation check, run now: what it found, and each write's answer by code and field, never Telnyx's words. */
-async function limitProbe(post: Post): Promise<Outcome> {
-  const answer = await post("/limit-probe");
-  if (!ok(answer)) return failed("Limit probe failed", answer);
-  const body = (answer.body ?? {}) as { result?: unknown; value?: unknown; writes?: unknown; refusal_code?: unknown; trace?: unknown };
-  const lines = [JSON.stringify({ result: body.result, value: body.value, writes: body.writes, refusal_code: body.refusal_code })];
-  for (const entry of Array.isArray(body.trace) ? (body.trace as Item[]) : []) {
-    lines.push(`wrote ${String(entry.value)}: HTTP ${String(entry.status)}, code ${String(entry.code)}, field ${String(entry.pointer)}`);
-  }
-  if (body.result === "inconclusive") {
-    lines.push("::warning title=Limit probe inconclusive::The writes above show which answer stopped the search.");
-  }
-  return { ok: true, lines };
-}
-
-/** The guard's /health, cut to what a public log may carry: states, counts, rule names and hours. */
+/** The guard's partition status, without vendor account data. */
 export function healthLines(body: unknown): string[] {
   const health = (body ?? {}) as Partial<GuardHealth>;
-  const dials = health.paid_dials;
-  const {concurrency} = health;
-  return [
-    JSON.stringify({ ok: health.ok, balance_above_floor: health.balance_above_floor, room: health.room ?? null }),
-    JSON.stringify({
-      paid_dials: dials
-        ? {
-            enabled: dials.enabled,
-            blockers: dials.blockers,
-            room: dials.room,
-            window_start_hour_utc: dials.window_start_hour_utc,
-            in_window: dials.in_window,
-          }
-        : null,
-    }),
-    JSON.stringify({
-      concurrency: concurrency
-        ? {
-            limit_in_force: concurrency.limit_in_force,
-            source: concurrency.source,
-            validation: concurrency.validation,
-            history_lower_bound: concurrency.history_lower_bound,
-            ceiling: concurrency.ceiling,
-            conflict: concurrency.conflict,
-          }
-        : null,
-    }),
-    JSON.stringify({ account_rate: health.account_rate ?? null }),
-  ];
-}
-
-export interface Measurements {
-  reserveLegs?: string;
-  calls?: string;
-  abandoned?: string;
-  short?: string;
-  windowStartHour?: string;
-  usageUsd?: string;
-}
-
-function count(name: string, value: string): number {
-  if (!/^\d{1,7}$/.test(value.trim())) throw new Error(`${name} must be a whole number`);
-  return Number(value.trim());
-}
-
-/** What the inputs ask to file, in the guard's own shapes; empty inputs file nothing. */
-export function measurementPosts(inputs: Measurements, now: Date = new Date()): { route: string; body: Item }[] {
-  const hasValue = (value: string | undefined): value is string => typeof value === "string" && value.trim() !== "";
-  const posts: { route: string; body: Item }[] = [];
-  if (hasValue(inputs.reserveLegs)) posts.push({ route: "/reserve", body: { legs: count("reserve_legs", inputs.reserveLegs) } });
-  const ratio = [inputs.calls, inputs.abandoned, inputs.short];
-  if (ratio.some(hasValue)) {
-    if (!ratio.every(hasValue)) throw new Error("calls, abandoned and short are filed together");
-    posts.push({
-      route: "/ratios",
-      body: {
-        calls: count("calls", inputs.calls!),
-        abandoned: count("abandoned", inputs.abandoned!),
-        short: count("short", inputs.short!),
-      },
-    });
-  }
-  if (hasValue(inputs.windowStartHour)) {
-    posts.push({ route: "/window", body: { start_hour: count("window_start_hour", inputs.windowStartHour) } });
-  }
-  if (hasValue(inputs.usageUsd)) {
-    if (!/^\d{1,5}(?:\.\d{1,6})?$/.test(inputs.usageUsd.trim())) throw new Error("usage_usd must be dollars, like 4.25");
-    posts.push({ route: "/ledger", body: { month: now.toISOString().slice(0, 7), usage_usd: Number(inputs.usageUsd.trim()) } });
-  }
-  return posts;
-}
-
-async function measurements(post: Post, inputs: Measurements): Promise<Outcome> {
-  let posts: { route: string; body: Item }[];
-  try {
-    posts = measurementPosts(inputs);
-  } catch (error) {
-    return { ok: false, lines: [`::error title=Measurements refused::${(error as Error).message}`] };
-  }
-  if (posts.length === 0) {
-    return { ok: false, lines: ["::error title=No measurements::Give reserve_legs, the three ratio counts, window_start_hour or usage_usd."] };
-  }
-  const lines: string[] = [];
-  for (const { route, body } of posts) {
-    const answer = await post(route, body);
-    if (!ok(answer)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, answer).lines] };
-    lines.push(`filed ${route.slice(1)}: ${JSON.stringify(body)}`);
-  }
-  return { ok: true, lines };
+  return [JSON.stringify({ ok: health.ok, safety: safety(health.telnyx?.safety), ordering: health.ordering })];
 }
 
 export async function runRoutine(
   routine: Routine,
   post: Post,
-  inputs: Measurements = {},
-  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  }),
   resume: Resume = {},
 ): Promise<Outcome> {
   switch (routine) {
@@ -320,19 +195,13 @@ export async function runRoutine(
       return setup(post);
     }
     case "order-standing": {
-      return orderStanding(post, wait);
+      return orderStanding(post);
     }
     case "resume-ordering": {
       return resumeOrdering(post, resume);
     }
     case "reattach": {
       return reattach(post);
-    }
-    case "measurements": {
-      return measurements(post, inputs);
-    }
-    case "limit-probe": {
-      return limitProbe(post);
     }
   }
 }
@@ -371,60 +240,16 @@ async function jsonOf(response: Response): Promise<unknown> {
   }
 }
 
-function given(inputs: Measurements): boolean {
-  return Object.values(inputs).some((value) => typeof value === "string" && value.trim() !== "");
-}
-
-/**
- * `measurements` with nothing typed in: production's reserve, ratios and call
- * peaks, and the window once the guard's is due, read as agent_diag and
- * filed. Without the login, a notice and nothing filed.
- */
-export async function measureProduction(
-  post: Post,
-  health: () => Promise<Answer>,
-  read: () => ReadOutcome,
-  now: Date = new Date(),
-): Promise<Outcome> {
-  const outcome = read();
-  if (outcome.ok === "absent") return { ok: true, lines: outcome.lines };
-  if (!outcome.ok) return { ok: false, lines: outcome.lines };
-  const answer = await health().catch(() => null);
-  const guard = answer && ok(answer) ? (answer.body as Partial<GuardHealth> | null) : null;
-  const lines: string[] = [];
-  if (!guard?.paid_dials) lines.push("::warning title=Window not checked::The guard's /health did not answer, so the window was not checked.");
-  const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false, now);
-  lines.push(...plan.lines);
-  for (const { route, body } of plan.measured) {
-    const postResult = await post(route, body);
-    if (!ok(postResult)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, postResult).lines] };
-    lines.push(`filed ${route.slice(1)}: ${JSON.stringify(body)}`);
-  }
-  if (!given(plan.inputs)) return { ok: true, lines };
-  const filed = await runRoutine("measurements", post, plan.inputs);
-  return { ok: filed.ok, lines: [...lines, ...filed.lines] };
-}
-
 async function main(): Promise<number> {
   const routine = (process.env.ROUTINE ?? "check") as Routine | typeof HEALTH_ROUTINE;
   if (routine !== HEALTH_ROUTINE && !ROUTINES.includes(routine)) {
     console.log(`::error title=Unknown routine::${routine} is not one of ${[...ROUTINES, HEALTH_ROUTINE].join(", ")}.`);
     return 1;
   }
-  const inputs: Measurements = {
-    reserveLegs: process.env.RESERVE_LEGS,
-    calls: process.env.CALLS,
-    abandoned: process.env.ABANDONED,
-    short: process.env.SHORT,
-    windowStartHour: process.env.WINDOW_START_HOUR,
-    usageUsd: process.env.USAGE_USD,
-  };
-  // The daily run: a routine that is not set up yet says so and stays green.
-  const fromProduction = routine === "measurements" && !given(inputs);
   const origin = process.env.EDGE_ORIGIN?.trim() ?? "";
   const token = process.env.GUARD_ADMIN_TOKEN?.trim() ?? "";
   if (!origin || !token) {
-    const quiet = routine === "check" || fromProduction;
+    const quiet = routine === "check";
     console.log(
       `::${quiet ? "notice" : "error"} title=Guard not reachable yet::EDGE_ORIGIN or GUARD_ADMIN_TOKEN is not set in the guard environment, so ${routine} did not run.`,
     );
@@ -443,14 +268,10 @@ async function main(): Promise<number> {
     for (const line of healthLines(answer.body)) console.log(line);
     return 0;
   }
-  const outcome = fromProduction
-    ? await measureProduction(edgePost(origin, token), edgeHealth(origin, token), () =>
-        readProduction(process.env.AGENT_DIAG_DATABASE_URL),
-      )
-    : await runRoutine(routine, edgePost(origin, token), inputs, undefined, {
-        by: process.env.RESUME_BY,
-        reason: process.env.RESUME_REASON,
-      });
+  const outcome = await runRoutine(routine, edgePost(origin, token), {
+    by: process.env.RESUME_BY,
+    reason: process.env.RESUME_REASON,
+  });
   for (const line of outcome.lines) console.log(line);
   return outcome.ok ? 0 : 1;
 }
