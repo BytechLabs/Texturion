@@ -22,7 +22,7 @@ import { join, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = resolve(__dirname, "../..");
+const SRC = resolve(import.meta.dirname, "../..");
 const CLIENT = "lib/api/exports.ts";
 
 const ALLOWED_CALLERS = new Map<string, string>([

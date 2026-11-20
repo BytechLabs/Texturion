@@ -65,11 +65,11 @@ describe("onboarding plan cards trace to PLAN_PRICING (finding 7)", () => {
 });
 
 describe("#522: one fee, one currency, on the screen before payment", () => {
-  const page = readFileSync(join(__dirname, "page.tsx"), "utf8");
+  const page = readFileSync(join(import.meta.dirname, "page.tsx"), "utf8");
 
   it("quotes and labels the same USD fee on the number and plan steps", () => {
-    const summary = readFileSync(join(__dirname, "workspace-summary.tsx"), "utf8");
-    const number = readFileSync(join(__dirname, "../number/page.tsx"), "utf8");
+    const summary = readFileSync(join(import.meta.dirname, "workspace-summary.tsx"), "utf8");
+    const number = readFileSync(join(import.meta.dirname, "../number/page.tsx"), "utf8");
     for (const source of [page, summary, number]) {
       expect(source).toMatch(/formatMoney\(\s*US_REGISTRATION_FEE_CENTS\.usd,\s*"usd",/);
       expect(source).toContain("currencyForCountry");

@@ -180,8 +180,8 @@ describe("Swift top-level helpers", () => {
       .filter(([, sites]) => {
         // Overloads inside ONE file are the author's deliberate choice, and the
         // compiler checks those on every build.
-        const files = new Set(sites.map((s) => s.file));
-        if (files.size < 2) return false;
+        const declaringFiles = new Set(sites.map((s) => s.file));
+        if (declaringFiles.size < 2) return false;
         // The only illegal mix: a file-scoped copy of a module-wide name.
         return (
           sites.some((s) => s.fileScoped) && sites.some((s) => !s.fileScoped)

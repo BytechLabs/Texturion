@@ -1,3 +1,4 @@
+import { requireString } from "../lib/api/test-support";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -38,6 +39,6 @@ describe("root not-found page", () => {
 
   it("uses no em-dashes or en-dashes", () => {
     expect(html).not.toMatch(/—|–/);
-    expect(String(metadata.title)).not.toMatch(/—|–/);
+    expect(requireString(metadata.title)).not.toMatch(/—|–/);
   });
 });

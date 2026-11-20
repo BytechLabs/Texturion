@@ -134,6 +134,7 @@ function loadPostHog(key: string): Promise<PostHog | null> {
         // Anonymous marketing traffic stays anonymous; a profile exists only
         // once a workspace (company UUID) is identified.
         person_profiles: "identified_only",
+        // oxlint-disable-next-line typescript/no-deprecated -- Keep this scrubber in the SDK's property pipeline before capture.
         sanitize_properties: (properties) => sanitizeEventProperties(properties),
         // D146: uncaught errors and unhandled rejections become `$exception`
         // events, scrubbed like every other event before they leave.

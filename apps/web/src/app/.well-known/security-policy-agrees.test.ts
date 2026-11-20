@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { GET } from "./security.txt/route";
+import { requireString } from "@/lib/api/test-support";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 const REPO_ROOT = join(
@@ -78,7 +79,7 @@ describe("#285 the security policy and security.txt agree", () => {
 
     const named = new Set(policy.match(/[\w.+-]+@[\w.-]+\.\w+/g));
     expect(named.size, "SECURITY.md names no address at all").toBeGreaterThan(0);
-    expect([...named].sort()).toEqual([address]);
+    expect([...named].toSorted()).toEqual([address]);
   });
 
   /** Same rule for the policy URL: every `/security` link is the served one. */
@@ -107,7 +108,7 @@ describe("#285 the security policy and security.txt agree", () => {
     // /security. The intent was never "exactly one link" — it was "no link that
     // sends somebody nowhere", so that is what is asserted.
     const liveUrls = new Set(
-      Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${path}`),
+      Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${requireString(path)}`),
     );
     for (const href of linked) {
       expect(

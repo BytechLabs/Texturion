@@ -298,7 +298,7 @@ export default function ApiKeysPage() {
     <SettingsPage title={t("apiKeys.title")} description={t("apiKeys.intro")}>
       {isError ? (
         <LoadError message={t("apiKeys.loadFailed")} onRetry={() => void refetch()} />
-      ) : isPending ? (
+      ) : (isPending ? (
         <Skeleton className="h-40 w-full rounded-lg" />
       ) : (
         <div className="space-y-4">
@@ -355,7 +355,7 @@ export default function ApiKeysPage() {
 
           <p className="text-xs text-muted-foreground">{t("apiKeys.developerNote")}</p>
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

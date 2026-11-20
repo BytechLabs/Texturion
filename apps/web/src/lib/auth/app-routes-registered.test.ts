@@ -18,7 +18,7 @@ import { isAppSurfacePath } from "@/lib/app-surface";
 
 import { isProtectedPath } from "./redirects";
 
-const APP_DIR = join(__dirname, "..", "..", "app");
+const APP_DIR = join(import.meta.dirname, "..", "..", "app");
 const APP_GROUP_DIR = join(APP_DIR, "(app)");
 const AUTH_GROUP_DIR = join(APP_DIR, "(auth)");
 

@@ -86,7 +86,7 @@ export default function NumbersSettingsPage() {
           <Skeleton className="h-24 w-full rounded-lg" />
           <Skeleton className="h-40 w-full rounded-lg" />
         </div>
-      ) : error ? (
+      ) : (error ? (
         <LoadError
           onRetry={() => {
             void company.refetch();
@@ -188,13 +188,13 @@ export default function NumbersSettingsPage() {
                     }
                   />
                 ))
-              ) : canProvision ? null : (
+              ) : (canProvision ? null : (
                 // No number AND no open slot to fill in-app (e.g. pre-checkout):
                 // the first number is created automatically once the plan starts.
                 <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
                   {t("appShell.numbersNoneYet")}
                 </p>
-              )}
+              ))}
 
               {/* Below the numbers they DO have, because it explains the
                   shape of the list above rather than competing with it.
@@ -219,11 +219,11 @@ export default function NumbersSettingsPage() {
                           price:
                             company.data.plan === "starter" ? "$5" : "$4",
                         })
-                      : usedSlots === 0
+                      : (usedSlots === 0
                         ? // A released/first included number: getting one back is
                           // part of the plan they already pay for.
                           t("appShell.numbersFirstIncluded")
-                        : t("appShell.numbersProSecond")}
+                        : t("appShell.numbersProSecond"))}
                   </p>
                   <ProvisionNumberDialog country={company.data.country} />
                 </div>
@@ -247,7 +247,7 @@ export default function NumbersSettingsPage() {
             </div>
           );
         })()
-      )}
+      ))}
     </SettingsPage>
   );
 }

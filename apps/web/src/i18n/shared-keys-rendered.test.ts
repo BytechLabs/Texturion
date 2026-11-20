@@ -14,7 +14,7 @@ import { makeTranslate } from "@/i18n/translate";
  * constant in a JSX slot (`{KEY}`, `? KEY :`, `: KEY}`) with no translator
  * call before it on the line.
  */
-const SRC = join(__dirname, "..");
+const SRC = join(import.meta.dirname, "..");
 const en = makeTranslate("en");
 
 it("translates the support response window into Canadian French", () => {

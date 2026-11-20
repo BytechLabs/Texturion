@@ -31,8 +31,7 @@ import { join, resolve } from "node:path";
 
 import { chromium } from "playwright";
 
-const __dirname = import.meta.dirname;
-const WEB_ROOT = resolve(__dirname, "..");
+const WEB_ROOT = resolve(import.meta.dirname, "..");
 const REPO_ROOT = resolve(WEB_ROOT, "..", "..");
 const SHOTS_DIR = join(WEB_ROOT, "public", "shots");
 const WORK_DIR = join(REPO_ROOT, ".next-shots"); // gitignored (.next-*)
@@ -435,7 +434,7 @@ async function main() {
   rmSync(WORK_DIR, { recursive: true, force: true });
 }
 
-main().catch((/** @type {unknown} */ error) => {
+await main().catch((/** @type {unknown} */ error) => {
   console.error(error);
   rmSync(WORK_DIR, { recursive: true, force: true });
   throw error;

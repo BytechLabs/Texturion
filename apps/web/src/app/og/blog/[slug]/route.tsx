@@ -99,9 +99,9 @@ export async function GET(
               strokeOpacity={
                 trail.role === "lead"
                   ? 0.85
-                  : trail.role === "mid"
+                  : (trail.role === "mid"
                     ? 0.3
-                    : 0.14
+                    : 0.14)
               }
               strokeWidth={trail.role === "lead" ? 3 : 2.5}
               strokeLinecap="round"

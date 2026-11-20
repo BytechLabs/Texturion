@@ -15,6 +15,7 @@
  * this hook at all. These do: the real hook, the real request pipeline, and a
  * fetch that only records what was sent.
  */
+import { requireString } from "./test-support";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,7 +83,7 @@ describe("useRecordCancellationReason (POST /v1/billing/cancellation-reason)", (
     expect(init.method).toBe("POST");
     expect(url.pathname).toBe("/v1/billing/cancellation-reason");
     expect(url.search).toBe("");
-    expect(JSON.parse(String(init.body))).toEqual({
+    expect(JSON.parse(requireString(init.body))).toEqual({
       reason: "too_expensive",
       detail: "Pro is more than we use.",
     });
@@ -103,7 +104,7 @@ describe("useRecordCancellationReason (POST /v1/billing/cancellation-reason)", (
     });
 
     const { init } = await sent();
-    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    const body = JSON.parse(requireString(init.body)) as Record<string, unknown>;
     expect(Object.keys(body).toSorted()).toEqual(["detail", "reason"]);
     expect(body).toEqual({ reason: null, detail: null });
   });

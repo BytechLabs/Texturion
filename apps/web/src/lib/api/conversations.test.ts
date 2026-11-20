@@ -404,7 +404,7 @@ describe("useUpdateConversation is optimistic", () => {
     const client = newClient();
     const { c1, c2 } = seedInbox(client);
     const staleRead = client
-      .fetchQuery({
+      .query({
         queryKey: OPEN,
         queryFn: () => apiFetch("/v1/conversations", {}) as Promise<ConversationListData>,
       })

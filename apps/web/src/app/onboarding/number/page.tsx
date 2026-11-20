@@ -91,7 +91,7 @@ export default function NumberStepPage() {
     setChosenNumber(draft.chosenNumber ?? draft.areaCode ?? null);
   }, [ready, seeded, draft, company]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
 
   const progress = stepProgress("number", {
@@ -338,19 +338,19 @@ export default function NumberStepPage() {
         <Button
           size="lg"
           className="w-full"
-          onClick={onContinue}
+          onClick={() => { void onContinue(); }}
           disabled={busy}
         >
           {busy ? (
             t("onboarding.settingUpWorkspace")
-          ) : mode === "port" ? (
+          ) : (mode === "port" ? (
             t("onboarding.continue")
           ) : (
             <>
               {t("onboarding.continue")}
               {chosenNumber ? <Check className="size-4" aria-hidden /> : null}
             </>
-          )}
+          ))}
         </Button>
       </div>
     </StepShell>

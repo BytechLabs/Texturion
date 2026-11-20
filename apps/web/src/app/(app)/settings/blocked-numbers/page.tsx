@@ -29,84 +29,93 @@ export default function BlockedNumbersPage() {
 
   const rows = list.data?.data ?? [];
 
+  let blockedNumbers;
+  if (list.isError) {
+    blockedNumbers = (
+      <LoadError
+        message={t("blockedNumbers.loadFailed")}
+        onRetry={() => void list.refetch()}
+      />
+    );
+  } else if (list.isPending) {
+    blockedNumbers = <Skeleton className="h-24 w-full" />;
+  } else if (rows.length === 0) {
+    blockedNumbers = (
+      <SettingsCard id="blocked-list" title={t("blockedNumbers.empty")}>
+        <p className="text-sm text-muted-foreground">
+          {t("blockedNumbers.emptyBody")}
+        </p>
+      </SettingsCard>
+    );
+  } else {
+    blockedNumbers = (
+      <ul id="blocked-list" className="divide-y rounded-lg border bg-card">
+        {rows.map((row) => {
+          const who = row.blocked_by
+            ? (memberNames.get(row.blocked_by) ?? t("blockedNumbers.teammate"))
+            : null;
+          return (
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center gap-3 px-4 py-3"
+            >
+              <Ban
+                className="size-4 shrink-0 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium tabular-nums">
+                  <CopyablePhoneNumber number={row.phone_e164} />
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {who
+                    ? t("blockedNumbers.blockedBy", { name: who })
+                    : t("blockedNumbers.blockedByUnknown")}
+                  {" · "}
+                  <Timestamp at={row.created_at} style="long" />
+                </p>
+                {row.reason && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("blockedNumbers.reason", { reason: row.reason })}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={unblock.isPending}
+                aria-label={t("blockedNumbers.unblockRowAria", {
+                  number: formatPhone(row.phone_e164),
+                })}
+                onClick={() =>
+                  unblock.mutate(row.id, {
+                    onSuccess: () => toast.success(t("blockedNumbers.unblocked")),
+                    onError: (e) =>
+                      toast.error(
+                        e instanceof ApiError
+                          ? e.message
+                          : t("blockedNumbers.unblockFailed"),
+                      ),
+                  })
+                }
+              >
+                {t("blockedNumbers.unblockRowAction")}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   return (
     <SettingsPage
       title={t("blockedNumbers.title")}
       description={t("blockedNumbers.intro")}
     >
       <CallEffectNote reason="blocked" />
-      {list.isError ? (
-        <LoadError
-          message={t("blockedNumbers.loadFailed")}
-          onRetry={() => void list.refetch()}
-        />
-      ) : list.isPending ? (
-        <Skeleton className="h-24 w-full" />
-      ) : rows.length === 0 ? (
-        <SettingsCard id="blocked-list" title={t("blockedNumbers.empty")}>
-          <p className="text-sm text-muted-foreground">
-            {t("blockedNumbers.emptyBody")}
-          </p>
-        </SettingsCard>
-      ) : (
-        <ul id="blocked-list" className="divide-y rounded-lg border bg-card">
-          {rows.map((row) => {
-            const who = row.blocked_by
-              ? (memberNames.get(row.blocked_by) ?? t("blockedNumbers.teammate"))
-              : null;
-            return (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-center gap-3 px-4 py-3"
-              >
-                <Ban
-                  className="size-4 shrink-0 text-muted-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium tabular-nums">
-                    <CopyablePhoneNumber number={row.phone_e164} />
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {who
-                      ? t("blockedNumbers.blockedBy", { name: who })
-                      : t("blockedNumbers.blockedByUnknown")}
-                    {" · "}
-                    <Timestamp at={row.created_at} style="long" />
-                  </p>
-                  {row.reason && (
-                    <p className="text-xs text-muted-foreground">
-                      {t("blockedNumbers.reason", { reason: row.reason })}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={unblock.isPending}
-                  aria-label={t("blockedNumbers.unblockRowAria", {
-                    number: formatPhone(row.phone_e164),
-                  })}
-                  onClick={() =>
-                    unblock.mutate(row.id, {
-                      onSuccess: () => toast.success(t("blockedNumbers.unblocked")),
-                      onError: (e) =>
-                        toast.error(
-                          e instanceof ApiError
-                            ? e.message
-                            : t("blockedNumbers.unblockFailed"),
-                        ),
-                    })
-                  }
-                >
-                  {t("blockedNumbers.unblockRowAction")}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {blockedNumbers}
     </SettingsPage>
   );
 }

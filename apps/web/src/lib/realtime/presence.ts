@@ -1,5 +1,6 @@
 "use client";
 
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { PRESENCE_HEARTBEAT_MS, presenceFor, TYPING_THROTTLE_MS, TYPING_TTL_MS } from '@loonext/shared';
 import type { PresenceEntry, Viewer } from '@loonext/shared';
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -94,7 +95,7 @@ export function useConversationPresence(options: {
       .on("presence", { event: "join" }, readState)
       .on("presence", { event: "leave" }, readState)
       .subscribe((status) => {
-        const up = status === "SUBSCRIBED";
+        const up = status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED;
         setHealthy(up);
         if (up) announce(false);
         // Anything other than SUBSCRIBED means we are no longer being told who

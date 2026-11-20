@@ -1,5 +1,6 @@
 "use client";
 
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -67,7 +68,7 @@ export function useProvisioningEvents(companyId: string | null): void {
       }
       channel.subscribe((status) => {
         // Anything missed while disconnected is re-read on resubscribe.
-        if (status === "SUBSCRIBED") invalidate();
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) invalidate();
       });
     })();
 

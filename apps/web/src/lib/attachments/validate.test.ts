@@ -61,7 +61,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
   it("rejects an empty file with a plain reason", () => {
     const result = validateAttachment({ ...okFile, size: 0 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/empty/i);
+    expect(result).toMatchObject({ reason: expect.stringMatching(/empty/i) });
   });
 
   it("rejects a file over the 25 MB ceiling", () => {
@@ -70,7 +70,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
       size: MAX_ATTACHMENT_BYTES + 1,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/25 MB/);
+    expect(result).toMatchObject({ reason: expect.stringMatching(/25 MB/) });
   });
 
   it("accepts a file exactly at the ceiling", () => {
@@ -86,7 +86,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
       size: 1000,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
+    expect(result).toMatchObject({ reason: expect.stringMatching(/isn't allowed/i) });
   });
 
   it("rejects an SVG with the plain type sentence", () => {
@@ -96,7 +96,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
       size: 1000,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
+    expect(result).toMatchObject({ reason: expect.stringMatching(/isn't allowed/i) });
   });
 
   it("trusts an empty declared type (the API sniffs the bytes)", () => {
@@ -110,10 +110,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
   it("enforces the soft per-owner cap before the network", () => {
     const result = validateAttachment(okFile, MAX_ATTACHMENTS_PER_OWNER);
     expect(result.ok).toBe(false);
-    if (!result.ok)
-      {expect(result.reason).toMatch(
-        new RegExp(String(MAX_ATTACHMENTS_PER_OWNER)),
-      );}
+    expect(result).toMatchObject({ reason: expect.stringMatching(new RegExp(String(MAX_ATTACHMENTS_PER_OWNER))) });
   });
 
   it("allows the tenth attachment but not the eleventh", () => {

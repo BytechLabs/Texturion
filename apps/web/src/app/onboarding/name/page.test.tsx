@@ -41,7 +41,7 @@ vi.mock("../use-onboarding-state", () => ({
     ready: true,
     state: {
       status: "ready",
-      retry: vi.fn(),
+      handleRetry: vi.fn(),
       companyId: null,
       company: null,
       registration: null,

@@ -41,7 +41,7 @@ export function useTemplates(
 }
 
 function sortByName(rows: Template[]): Template[] {
-  return [...rows].toSorted((a, b) => a.name.localeCompare(b.name));
+  return rows.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 /** POST /v1/templates — { name, body }. */

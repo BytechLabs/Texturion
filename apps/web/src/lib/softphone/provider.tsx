@@ -173,9 +173,9 @@ async function acquireMicOrThrow(t: Translate): Promise<void> {
     throw new MicPermissionError(
       name === "NotFoundError" || name === "DevicesNotFoundError"
         ? t("shell.micNotFound")
-        : name === "NotAllowedError" || name === "SecurityError"
+        : (name === "NotAllowedError" || name === "SecurityError"
           ? t("shell.micBlocked")
-          : t("shell.micFailed"),
+          : t("shell.micFailed")),
     );
   }
   for (const track of stream.getTracks()) track.stop();
@@ -200,14 +200,14 @@ function showRingNotification(
       body: number && number !== name ? `${name} · ${number}` : name,
       tag: `call-${session ?? id}`,
     });
-    note.onclick = () => {
+    note.addEventListener("click", () => {
       try {
         window.focus();
       } catch {
         /* cross-origin/embedded — ignore */
       }
       note.close();
-    };
+    });
     notes.set(id, note);
   } catch {
     /* Notifications unsupported in this context — non-fatal */
@@ -439,6 +439,13 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
    */
   const resolveSessionWithRetry = useCallback(
     async (legCcid: string, callId: string): Promise<void> => {
+      const waitForRetry = (delay: number) => new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          resolveTimersRef.current.delete(timer);
+          resolve();
+        }, delay);
+        resolveTimersRef.current.add(timer);
+      });
       let backoffMs = 600;
       for (let attempt = 0; attempt < 6; attempt += 1) {
         // The call ending mid-backoff makes the answer worthless: nothing is
@@ -455,13 +462,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         } catch {
           // Not ledgered yet (or a blip) — wait and ask again.
         }
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(() => {
-            resolveTimersRef.current.delete(timer);
-            resolve();
-          }, backoffMs);
-          resolveTimersRef.current.add(timer);
-        });
+        await waitForRetry(backoffMs);
         backoffMs = Math.min(backoffMs * 2, 5000);
       }
       // Give up on THIS pass but not on the call: clearing the guard lets a
@@ -809,28 +810,6 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (!entitled) return;
     const cache = queryClient.getQueryCache();
     let quietTimer: ReturnType<typeof setTimeout> | undefined;
-    const ceiling = setTimeout(register, REGISTER_CEILING_MS);
-    const unsubscribe = cache.subscribe(check);
-    document.addEventListener("visibilitychange", check);
-    check();
-    return stop;
-
-    function check() {
-      if (new URLSearchParams(window.location.search).has("call")) {
-        register();
-        return;
-      }
-      if (
-        queryClient.isFetching() > 0 ||
-        document.visibilityState !== "visible"
-      ) {
-        clearTimeout(quietTimer);
-        quietTimer = undefined;
-        return;
-      }
-      quietTimer ??= setTimeout(register, REGISTER_QUIET_MS);
-    }
-
     function stop() {
       clearTimeout(quietTimer);
       clearTimeout(ceiling);
@@ -838,7 +817,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", check);
     }
 
-    function register() {
+    const register = () => {
       stop();
       void ensureClient().catch(() => {
         // No toast: texting is unaffected and the Call button retries on use.
@@ -847,7 +826,26 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // believing their browser will ring when it never will.
         dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
       });
+    };
+
+    function check() {
+      if (new URLSearchParams(window.location.search).has("call")) {
+        register();
+        return;
+      }
+      if (queryClient.isFetching() > 0 || document.visibilityState !== "visible") {
+        clearTimeout(quietTimer);
+        quietTimer = undefined;
+        return;
+      }
+      quietTimer ??= setTimeout(register, REGISTER_QUIET_MS);
     }
+
+    const ceiling = setTimeout(register, REGISTER_CEILING_MS);
+    const unsubscribe = cache.subscribe(check);
+    document.addEventListener("visibilitychange", check);
+    check();
+    return stop;
   }, [entitled, ensureClient, queryClient, t]);
 
   // Keep the phone ring-ready across the real-world drops the SDK can't recover
@@ -890,6 +888,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (!callInProgress) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
+      // oxlint-disable-next-line typescript/no-deprecated -- Older browsers need this to show the unload prompt.
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
@@ -1116,9 +1115,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     const ringSession = ringSessionsRef.current.get(targetId);
     if (ringSession && call?.state === "ringing") {
       ringSessionsRef.current.delete(targetId);
-      const companyId = companyRef.current;
-      if (companyId) void declineIncomingCall(companyId, ringSession).catch(() => {});
-      void emitRingBeacon(companyId, "declined", ringSession);
+      const currentCompanyId = companyRef.current;
+      if (currentCompanyId) void declineIncomingCall(currentCompanyId, ringSession).catch(() => {});
+      void emitRingBeacon(currentCompanyId, "declined", ringSession);
     }
     try {
       call?.hangup();
@@ -1151,9 +1150,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   }, [attachActiveAudio]);
 
   const startConsult = useCallback(async (sessionId: string, targetId: string, targetName: string) => {
-    const companyId = companyRef.current;
+    const currentCompanyId = companyRef.current;
     const original = stateRef.current.calls.find((call) => call.id === stateRef.current.activeId);
-    if (!companyId || original?.sessionId !== sessionId || original.phase !== "active" || consultationRef.current ||
+    if (!currentCompanyId || original?.sessionId !== sessionId || original.phase !== "active" || consultationRef.current ||
         stateRef.current.calls.filter((call) => call.phase !== "ended").length !== 1) {
       throw new Error(t("shell.consultUnavailable"));
     }
@@ -1163,7 +1162,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       toast.error(t("shell.consultUnavailable"));
     }, CONSULT_INVITE_TIMEOUT_MS);
     try {
-      await requestConsult(companyId, sessionId, targetId);
+      await requestConsult(currentCompanyId, sessionId, targetId);
     } catch (error) {
       endLocalConsult(true);
       throw error;
@@ -1171,12 +1170,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   }, [endLocalConsult, t, updateConsultation]);
 
   const endConsult = useCallback(async (action: "complete" | "cancel") => {
-    const companyId = companyRef.current;
+    const currentCompanyId = companyRef.current;
     const pending = consultationRef.current;
-    if (!companyId || !pending || finishingConsultRef.current) return;
+    if (!currentCompanyId || !pending || finishingConsultRef.current) return;
     finishingConsultRef.current = true;
     try {
-      await settleConsult(companyId, pending.sessionId, action);
+      await settleConsult(currentCompanyId, pending.sessionId, action);
       endLocalConsult(action === "cancel");
     } catch (error) {
       if (pending.senderLegId && !callsRef.current.has(pending.senderLegId)) endLocalConsult(true);
@@ -1303,6 +1302,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         />
       )}
       {/* The single remote-audio sink; hidden, always mounted. */}
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- This element plays the live call audio stream. */}
       <audio ref={audioRef} autoPlay className="sr-only" aria-hidden />
     </SoftphoneContext.Provider>
   );

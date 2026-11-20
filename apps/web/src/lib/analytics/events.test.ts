@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // events.ts routes every helper through initPostHog — mock the module so the
 // tests control whether analytics is on (a capture spy) or off (null).
 const { captureSpy, initPostHogMock } = vi.hoisted(() => {
-  const captureSpy = vi.fn();
+  const captureMock = vi.fn();
   return {
-    captureSpy,
+    captureSpy: captureMock,
     // Return type spans both analytics states: a client with `capture`, or
     // null when NEXT_PUBLIC_POSTHOG_KEY is unset (the "off" test overrides it).
     initPostHogMock: vi.fn(
-      (): Promise<{ capture: typeof captureSpy } | null> =>
-        Promise.resolve({ capture: captureSpy }),
+      (): Promise<{ capture: typeof captureMock } | null> =>
+        Promise.resolve({ capture: captureMock }),
     ),
   };
 });

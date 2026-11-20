@@ -245,7 +245,7 @@ function CappedCard({ usage }: { usage: Usage }) {
   const states = capMeterStates(usage);
   const reached = states.filter((s) => s.used >= s.cap);
   const near = states.filter((s) => s.used < s.cap && s.used >= 0.9 * s.cap);
-  const active = reached.length > 0 ? reached : near.length > 0 ? near : states;
+  const active = reached.length > 0 ? reached : (near.length > 0 ? near : states);
   const isReached = reached.length > 0;
 
   return (
@@ -603,86 +603,97 @@ export default function UsageSettingsPage() {
   const pending = usage.isPending || company.isPending;
   const error = usage.isError || company.isError;
 
+  let billingPeriod;
+  if (pending) {
+    billingPeriod = (
+      <div className="space-y-4" aria-label={t("appShell.usageLoading")}>
+        <Skeleton className="h-36 w-full rounded-lg" />
+        <Skeleton className="h-24 w-full rounded-lg" />
+      </div>
+    );
+  } else if (error) {
+    billingPeriod = (
+      <LoadError
+        onRetry={() => {
+          void usage.refetch();
+          void company.refetch();
+        }}
+      />
+    );
+  } else if (usage.data.period_start === null) {
+    billingPeriod = (
+      <SettingsCard>
+        <EmptyState
+          icon={<Gauge strokeWidth={1.5} aria-hidden />}
+          title={t("appShell.usageNoPlanTitle")}
+          description={t("appShell.usageNoPlanDescription")}
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/billing">
+                {t("appShell.usageSeeBilling")}
+              </Link>
+            </Button>
+          }
+        />
+      </SettingsCard>
+    );
+  } else {
+    billingPeriod = (
+      <div className="space-y-8">
+        {/* #178: the status the API derived is the whole story. 'quiet' is
+            the overwhelming default — one calm line, zero meters, matching
+            the fair-use promise on the marketing site word for word. */}
+        {usage.data.status === "pacing" ? (
+          <PacingCard usage={usage.data} />
+        ) : (usage.data.status === "capped" ? (
+          <CappedCard usage={usage.data} />
+        ) : (
+          <QuietCard />
+        ))}
+
+        {/* #426: the question that precedes cancelling. Placed above the
+            spending cap because "are my texts landing" outranks "what will
+            this cost" for someone who is already worried. */}
+        <DeliveryCard usage={usage.data} />
+
+        {/* The owner's protection stays reachable in every status — framed
+            as the thing that stops a bill, never as a quota. */}
+        <SettingsCard id="spending-cap"
+          title={t("appShell.usageSpendingCapTitle")}
+          description={t("appShell.usageSpendingCapDescription")}
+        >
+          <CapControl
+            current={normalizeMultiplier(company.data.overage_cap_multiplier)}
+            includedSegments={usage.data.included_segments}
+          />
+          <CallEffectNote reason="over_cap" />
+        </SettingsCard>
+
+        {/* #304: the file for whoever does the books, beside the numbers it
+            describes. Absent for anybody without `billing.manage`, which is
+            the bookkeeper's whole preset — so this is one of the few
+            surfaces they see and an owner-only check would hide it from the
+            person it is for. */}
+        <SettingsCard id="usage-export"
+          title={t("appShell.usageExportTitle")}
+          description={t("appShell.usageExportDescription")}
+        >
+          <ExportUsage />
+        </SettingsCard>
+
+        {/* #178: raw numbers only behind the owner-facing details
+            affordance, collapsed by default in every status. */}
+        {role === "owner" && <UsageDetails usage={usage.data} />}
+      </div>
+    );
+  }
+
   return (
     <SettingsPage
       title={t("appShell.usageTitle")}
       description={t("appShell.usageDescription")}
     >
-      {pending ? (
-        <div className="space-y-4" aria-label={t("appShell.usageLoading")}>
-          <Skeleton className="h-36 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
-        </div>
-      ) : error ? (
-        <LoadError
-          onRetry={() => {
-            void usage.refetch();
-            void company.refetch();
-          }}
-        />
-      ) : usage.data.period_start === null ? (
-        <SettingsCard>
-          <EmptyState
-            icon={<Gauge strokeWidth={1.5} aria-hidden />}
-            title={t("appShell.usageNoPlanTitle")}
-            description={t("appShell.usageNoPlanDescription")}
-            action={
-              <Button asChild variant="outline" size="sm">
-                <Link href="/settings/billing">
-                  {t("appShell.usageSeeBilling")}
-                </Link>
-              </Button>
-            }
-          />
-        </SettingsCard>
-      ) : (
-        <div className="space-y-8">
-          {/* #178: the status the API derived is the whole story. 'quiet' is
-              the overwhelming default — one calm line, zero meters, matching
-              the fair-use promise on the marketing site word for word. */}
-          {usage.data.status === "pacing" ? (
-            <PacingCard usage={usage.data} />
-          ) : usage.data.status === "capped" ? (
-            <CappedCard usage={usage.data} />
-          ) : (
-            <QuietCard />
-          )}
-
-          {/* #426: the question that precedes cancelling. Placed above the
-              spending cap because "are my texts landing" outranks "what will
-              this cost" for someone who is already worried. */}
-          <DeliveryCard usage={usage.data} />
-
-          {/* The owner's protection stays reachable in every status — framed
-              as the thing that stops a bill, never as a quota. */}
-          <SettingsCard id="spending-cap"
-            title={t("appShell.usageSpendingCapTitle")}
-            description={t("appShell.usageSpendingCapDescription")}
-          >
-            <CapControl
-              current={normalizeMultiplier(company.data.overage_cap_multiplier)}
-              includedSegments={usage.data.included_segments}
-            />
-            <CallEffectNote reason="over_cap" />
-          </SettingsCard>
-
-          {/* #304: the file for whoever does the books, beside the numbers it
-              describes. Absent for anybody without `billing.manage`, which is
-              the bookkeeper's whole preset — so this is one of the few
-              surfaces they see and an owner-only check would hide it from the
-              person it is for. */}
-          <SettingsCard id="usage-export"
-            title={t("appShell.usageExportTitle")}
-            description={t("appShell.usageExportDescription")}
-          >
-            <ExportUsage />
-          </SettingsCard>
-
-          {/* #178: raw numbers only behind the owner-facing details
-              affordance, collapsed by default in every status. */}
-          {role === "owner" && <UsageDetails usage={usage.data} />}
-        </div>
-      )}
+      {billingPeriod}
     </SettingsPage>
   );
 }

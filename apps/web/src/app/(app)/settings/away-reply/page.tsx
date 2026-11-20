@@ -397,8 +397,8 @@ export default function AwayReplySettingsPage() {
     >
       {company.isPending ? (
         <AwaySkeleton />
-      ) : company.isError ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : (company.isError ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
           <BusinessHoursCard company={company.data} canEdit={canEdit} />
@@ -434,7 +434,7 @@ export default function AwayReplySettingsPage() {
               gets tight grouping, not a seventeenth settings row.* */}
           <OnCallCard canEdit={canEdit} />
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

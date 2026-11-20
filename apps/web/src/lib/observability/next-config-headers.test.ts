@@ -21,7 +21,7 @@ import { isAppSurfacePath } from "@/lib/app-surface";
 import { TOKEN_PATH_PREFIXES } from "./scrub";
 
 const CONFIG = readFileSync(
-  join(__dirname, "../../../next.config.ts"),
+  join(import.meta.dirname, "../../../next.config.ts"),
   "utf8",
 ).replaceAll('\r\n', "\n");
 
@@ -111,7 +111,7 @@ describe("#559 the link stays on the host that minted it", () => {
     // between EXTRA_APP_PREFIXES and PROTECTED_PREFIXES, and getting it wrong
     // would replace an hour of staleness with a dead link.
     const redirects = readFileSync(
-      join(__dirname, "../auth/redirects.ts"),
+      join(import.meta.dirname, "../auth/redirects.ts"),
       "utf8",
     );
     const protectedList = /PROTECTED_PREFIXES = \[([^\]]*)\]/.exec(redirects);

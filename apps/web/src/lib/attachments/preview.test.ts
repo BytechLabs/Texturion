@@ -51,9 +51,8 @@ function stubCanvas(options: {
         this.width = width;
         this.height = height;
       }
-      getContext() {
-        return { drawImage };
-      }
+      getContext = vi.fn(() => ({ drawImage }));
+      // oxlint-disable-next-line eslint/class-methods-use-this -- The feature checks for this method on the prototype.
       async convertToBlob() {
         if (options.blobSize === null) return null;
         return new Blob([new Uint8Array(options.blobSize ?? 150 * 1024)], {

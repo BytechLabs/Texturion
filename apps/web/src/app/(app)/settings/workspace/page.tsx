@@ -121,13 +121,13 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
           <Form {...form}>
             <form
               className="flex flex-col gap-2 sm:flex-row sm:items-start"
-              onSubmit={form.handleSubmit(onSubmit)}
+              onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
               noValidate
             >
               <FormField
                 control={form.control}
                 name="name"
-                render={({ field }) => (
+                render={({ field: nameField }) => (
                   <FormItem className="flex-1">
                     <FormLabel className="sr-only">
                       {t("appShell.workspaceNameTitle")}
@@ -136,7 +136,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
                       <Input
                         maxLength={200}
                         autoComplete="organization"
-                        {...field}
+                        {...nameField}
                       />
                     </FormControl>
                     <FormMessage />
@@ -202,7 +202,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
   if (registration.isError) {
     return (
       <SettingsCard id="business-identification" title={title} description={description}>
-        <LoadError onRetry={() => registration.refetch()} />
+        <LoadError onRetry={() => void registration.refetch()} />
       </SettingsCard>
     );
   }
@@ -583,8 +583,8 @@ export default function WorkspaceSettingsPage() {
     >
       {company.isPending ? (
         <WorkspaceSkeleton />
-      ) : company.isError ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : (company.isError ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
           <CompanyNameCard company={company.data} />
@@ -626,7 +626,7 @@ export default function WorkspaceSettingsPage() {
               ask the person they may have just stopped working for. */}
           {role !== "owner" && <LeaveWorkspaceCard company={company.data} />}
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

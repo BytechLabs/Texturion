@@ -166,33 +166,28 @@ function importedPauseNames(file: TS.SourceFile): Set<string> {
  */
 function pauseDerivedNames(file: TS.SourceFile): Set<string> {
   const derived = importedPauseNames(file);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    const add = (name: string): void => {
-      if (derived.has(name)) return;
-      derived.add(name);
-      changed = true;
-    };
-    const carries = (node: TS.Node): boolean =>
-      mentioned(node).some((identifier) => derived.has(identifier.text));
-    const visit = (n: TS.Node): void => {
-      if (ts.isVariableDeclaration(n)) {
-        const names = boundNames(n.name);
-        if (
-          names.some(namesThePause) ||
-          (n.initializer !== undefined && carries(n.initializer))
-        ) {
-          for (const name of names) add(name);
-        }
+  const carries = (node: TS.Node): boolean =>
+    mentioned(node).some((identifier) => derived.has(identifier.text));
+  const visit = (n: TS.Node): void => {
+    if (ts.isVariableDeclaration(n)) {
+      const names = boundNames(n.name);
+      if (
+        names.some(namesThePause) ||
+        (n.initializer !== undefined && carries(n.initializer))
+      ) {
+        for (const name of names) derived.add(name);
       }
-      if (ts.isFunctionDeclaration(n) && n.name && n.body && (namesThePause(n.name.text) || carries(n.body))) {
-        add(n.name.text);
-      }
-      n.forEachChild(visit);
-    };
+    }
+    if (ts.isFunctionDeclaration(n) && n.name && n.body && (namesThePause(n.name.text) || carries(n.body))) {
+      derived.add(n.name.text);
+    }
+    n.forEachChild(visit);
+  };
+  let previousSize: number;
+  do {
+    previousSize = derived.size;
     visit(file);
-  }
+  } while (derived.size !== previousSize);
   return derived;
 }
 
@@ -219,7 +214,7 @@ function attributesOf(node: JsxNode): TS.JsxAttributes {
  * The element that puts the way out on screen.
  *
  * Found as the INNERMOST JSX element mentioning the marker, which is one rule
- * for both surfaces: in the card the marker is `CANCEL_ACTION`, the label, and
+ * for both surfaces: in the card the marker is `cancelActionLabel`, the label, and
  * the innermost element carrying it is the button; on the page the marker is
  * `CancelSubscriptionCard`, and the innermost element carrying it is the card
  * itself. Throws rather than returning null, so a rename upstream fails loudly
@@ -384,7 +379,7 @@ const SURFACES: {
   {
     label: "the cancel card",
     path: join(SRC, "components/settings/cancel-subscription-card.tsx"),
-    marker: "CANCEL_ACTION",
+    marker: "cancelActionLabel",
     tag: "Button",
   },
   {
@@ -474,7 +469,7 @@ function miniature(
   } = {},
 ): string {
   const exit = `<Button disabled={portal.isPending} onClick={leave}${parts.exitAttributes ?? ""}>
-            {portal.isPending ? "Opening…" : CANCEL_ACTION}
+            {portal.isPending ? "Opening…" : cancelActionLabel}
           </Button>`;
   return `
 import { pauseQueryEnabled } from "@/components/settings/pause-plan";
@@ -505,7 +500,7 @@ function findingsFor(source: string): string[] {
   return pauseDependenciesOnTheWayToTheExit(
     "miniature.tsx",
     source,
-    "CANCEL_ACTION",
+    "cancelActionLabel",
   );
 }
 

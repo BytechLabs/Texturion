@@ -44,5 +44,6 @@ export function writeCompanyCookie(companyId: string): void {
     location.protocol === "https:"
       ? "; Secure"
       : "";
+  // oxlint-disable-next-line unicorn/no-document-cookie -- The selected workspace must be saved before navigation.
   document.cookie = `${COMPANY_COOKIE}=${encodeURIComponent(companyId)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; SameSite=Lax${secure}`;
 }

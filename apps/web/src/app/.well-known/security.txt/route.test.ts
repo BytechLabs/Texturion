@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { dynamic, GET } from "./route";
+import { requireString } from "@/lib/api/test-support";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
@@ -50,7 +51,7 @@ describe("GET /.well-known/security.txt", () => {
       ?.slice("Policy: ".length);
     expect(Boolean(policy), "security.txt lost its Policy field").toBe(true);
     expect(
-      Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${path}`),
+      Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${requireString(path)}`),
     ).toContain(policy);
     expect(body).toContain(
       "Canonical: https://loonext.com/.well-known/security.txt",

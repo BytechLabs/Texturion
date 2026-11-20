@@ -2431,11 +2431,7 @@ describe("#277 the billing screen while paused", () => {
     // meant is below: the badge is not simply gone, it follows the ANSWER.
     for (const [name, apply] of READ_STATES) {
       renderBilling(apply);
-      if (name === "running") {
-        expect(screen.getByText("Active"), name).toBeInstanceOf(Element);
-      } else {
-        expect(screen.queryByText("Active"), name).toBeNull();
-      }
+      expect(screen.queryByText("Active") instanceof Element, name).toBe(name === "running");
       cleanup();
     }
 
@@ -2849,7 +2845,7 @@ describe("#524 the exit renders the same whatever the pause read says", () => {
     const attributes = element
       .getAttributeNames()
       .map((name) => `${name}=${JSON.stringify(element.getAttribute(name))}`)
-      .sort();
+      .toSorted();
     return `<${element.tagName.toLowerCase()} ${attributes.join(" ")}>`;
   }
 
@@ -2878,7 +2874,7 @@ describe("#524 the exit renders the same whatever the pause read says", () => {
       if (node.nodeType !== Node.ELEMENT_NODE) return;
       const element = node as Element;
       lines.push(openingTag(element));
-      element.childNodes.forEach(visit);
+      for (const child of element.childNodes) visit(child);
       lines.push(`</${element.tagName.toLowerCase()}>`);
       if (element === stopAfter) done = true;
     }

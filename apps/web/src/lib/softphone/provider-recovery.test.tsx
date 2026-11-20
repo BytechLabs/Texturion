@@ -34,7 +34,7 @@ vi.mock("@telnyx/webrtc", () => ({
     on(event: string, handler: Handler) {
       this.handlers.set(event, handler);
     }
-    connect() {}
+    connect = vi.fn();
     disconnect() {
       this.disconnected = true;
     }
@@ -314,7 +314,7 @@ describe("softphone registration", () => {
   it("waits for the app's own requests to finish before registering", async () => {
     let finish: (value: string) => void = () => {};
     void queryClient
-      .fetchQuery({
+      .query({
         queryKey: ["boot"],
         queryFn: () => new Promise<string>((resolve) => { finish = resolve; }),
       })
@@ -333,7 +333,7 @@ describe("softphone registration", () => {
 
   it("registers by five seconds even when the app never goes quiet", async () => {
     void queryClient
-      .fetchQuery({
+      .query({
         queryKey: ["endless"],
         queryFn: () => new Promise<string>(() => {}),
       })
@@ -543,7 +543,7 @@ describe("a live call", () => {
         constructor(_title: string, options?: NotificationOptions) {
           tags.push(options?.tag);
         }
-        close() {}
+        close = vi.fn();
       },
     );
     render(tree());

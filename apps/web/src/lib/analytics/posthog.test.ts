@@ -10,19 +10,19 @@ const PHONE = "+14165551234";
 // posthog-js is loaded via dynamic import inside initPostHog — mock it so the
 // tests can prove exactly when (and with what config) init/identify fire.
 const { client, initSpy, identifySpy, captureSpy, registerSpy, settle } = vi.hoisted(() => {
-  const identifySpy = vi.fn();
-  const captureSpy = vi.fn();
-  const registerSpy = vi.fn();
-  const client = {
-    identify: identifySpy,
-    capture: captureSpy,
-    register_for_session: registerSpy,
+  const identifyMock = vi.fn();
+  const captureMock = vi.fn();
+  const registerMock = vi.fn();
+  const mockClient = {
+    identify: identifyMock,
+    capture: captureMock,
+    register_for_session: registerMock,
     get_session_id: () => "session",
   };
   // Like the SDK, init calls `loaded` before it returns.
-  const initSpy = vi.fn();
-  initSpy.mockImplementation((_key, config) => config.loaded?.(client));
-  return { client, initSpy, identifySpy, captureSpy, registerSpy, settle: { gate: Promise.resolve() } };
+  const initMock = vi.fn();
+  initMock.mockImplementation((_key, config) => config.loaded?.(mockClient));
+  return { client: mockClient, initSpy: initMock, identifySpy: identifyMock, captureSpy: captureMock, registerSpy: registerMock, settle: { gate: Promise.resolve() } };
 });
 // The page-settled gate: open unless a test holds it shut.
 vi.mock("@/lib/perf/after-lcp-and-load", () => ({ whenPageSettles: () => settle.gate }));

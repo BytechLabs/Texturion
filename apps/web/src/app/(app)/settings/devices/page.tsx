@@ -60,7 +60,7 @@ function MyDevices() {
   const rows = sessions.data?.data ?? [];
   // "This device" first, always. It is the row the reader needs to identify
   // and dismiss before any of the others mean anything.
-  const ordered = [...rows].sort(
+  const ordered = rows.toSorted(
     (a, b) => Number(b.current) - Number(a.current),
   );
   const others = rows.filter((row) => !row.current).length;

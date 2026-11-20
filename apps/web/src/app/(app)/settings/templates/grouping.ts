@@ -27,7 +27,7 @@ export function groupTemplates(
     else byCategory.set(category, [row]);
   }
   const groups = [...byCategory.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([label, groupRows]) => ({ label: label as string | null, rows: groupRows }));
   if (ungrouped.length > 0) groups.push({ label: null, rows: ungrouped });
   return groups;

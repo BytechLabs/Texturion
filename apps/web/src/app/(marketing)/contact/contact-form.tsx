@@ -63,7 +63,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
     });
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.SubmitEvent) {
     e.preventDefault();
     if (status === "submitting") return; // prevent double submit
 
@@ -128,7 +128,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
   const showSummary = formError !== null || hasFieldErrors(fieldErrors);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" noValidate>
+    <form onSubmit={(e) => { void onSubmit(e); }} className="space-y-5" noValidate>
       {showSummary && (
         <div
           ref={errorRef}

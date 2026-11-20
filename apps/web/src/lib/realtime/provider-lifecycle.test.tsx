@@ -169,7 +169,7 @@ vi.mock("@/lib/api/me-company", () => ({
   useMeCompany: () =>
     numberListRead === "pending"
       ? { data: undefined, isPending: true, isError: false }
-      : numberListRead === "failed"
+      : (numberListRead === "failed"
         ? { data: undefined, isPending: false, isError: true }
         : {
             data: {
@@ -179,7 +179,7 @@ vi.mock("@/lib/api/me-company", () => ({
             },
             isPending: false,
             isError: false,
-          },
+          }),
 }));
 // The provider reads the active thread from the path and pushes on a toast
 // action; neither is under test, and both throw outside a Next router.
@@ -934,7 +934,7 @@ describe("payment.updated", () => {
     // is every thread the reader is not currently looking at.
     const fetcher = vi.fn().mockResolvedValue({ payment_requests: [] });
     await act(async () => {
-      await queryClient.fetchQuery({
+      await queryClient.query({
         queryKey: keys.payments.requests(COMPANY, CONVERSATION),
         queryFn: fetcher,
       });

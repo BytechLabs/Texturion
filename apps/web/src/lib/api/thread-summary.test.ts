@@ -262,18 +262,18 @@ describe("threadSummaryRequestFailure — when the ask never landed", () => {
    */
   it("tells a refusal about the workspace apart from one about this thread", () => {
     const role = failed("forbidden", "Insufficient role for this action.", 403);
-    const thread = failed("not_found", "No such conversation.", 404);
+    const missingThread = failed("not_found", "No such conversation.", 404);
 
-    expect(role.message).not.toBe(thread.message);
+    expect(role.message).not.toBe(missingThread.message);
     expect(role.message.length).toBeGreaterThan(0);
-    expect(thread.message.length).toBeGreaterThan(0);
+    expect(missingThread.message.length).toBeGreaterThan(0);
     // Neither falls through to the server's own wording, which is written for
     // an API consumer and says nothing about what is still readable.
     expect(role.message).not.toBe("Insufficient role for this action.");
-    expect(thread.message).not.toBe("No such conversation.");
+    expect(missingThread.message).not.toBe("No such conversation.");
     // And neither offers a press that cannot succeed.
     expect(role.retry).toBe(false);
-    expect(thread.retry).toBe(false);
+    expect(missingThread.retry).toBe(false);
   });
 
   /**
@@ -332,7 +332,7 @@ describe("threadSummaryRequestFailure — when the ask never landed", () => {
   it("answers anything at all that gets thrown at it", () => {
     for (const thrown of [null, undefined, "a string", { code: "forbidden" }]) {
       const failure = threadSummaryRequestFailure(thrown);
-      expect(failure.message.length, String(thrown)).toBeGreaterThan(0);
+      expect(failure.message.length, JSON.stringify(thrown)).toBeGreaterThan(0);
       expect(failure.retry).toBeTypeOf("boolean");
     }
   });

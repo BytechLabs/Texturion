@@ -113,8 +113,8 @@ export default function NotificationsSettingsPage() {
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-20 w-full rounded-lg" />
         </div>
-      ) : prefs.isError ? (
-        <LoadError onRetry={() => prefs.refetch()} />
+      ) : (prefs.isError ? (
+        <LoadError onRetry={() => void prefs.refetch()} />
       ) : (
         <div className="space-y-6">
           {/* #244: with the other per-member switches, because it IS one —
@@ -207,7 +207,7 @@ export default function NotificationsSettingsPage() {
             {t("appShell.notifAlwaysEmails")}
           </p>
         </div>
-      )}
+      ))}
     </SettingsPage>
     </>
   );

@@ -248,7 +248,7 @@ export default function SignupPage() {
           // but method="post" ensures a pre-hydration native submit sends
           // credentials in the request BODY, never the URL query string.
           method="post"
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
           className="space-y-4"
           noValidate
         >

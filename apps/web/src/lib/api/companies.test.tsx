@@ -72,7 +72,7 @@ describe(useCompany, () => {
     );
     const queryClient = newClient();
     // What CompanyProvider starts at boot, before the shell mounts.
-    void queryClient.prefetchQuery(meCompanyQueryOptions(queryClient, COMPANY));
+    void queryClient.query(meCompanyQueryOptions(queryClient, COMPANY)).catch(() => undefined);
 
     const { result } = renderHook(() => useCompany(), {
       wrapper: wrapperFor(queryClient),

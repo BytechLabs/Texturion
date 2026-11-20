@@ -111,6 +111,62 @@ export default function TemplatesSettingsPage() {
     setDialogOpen(true);
   }
 
+  let templateRows;
+  if (templates.isPending) {
+    templateRows = (
+      <ListSkeleton
+        rows={3}
+        lines={2}
+        label={t("appShell.templatesLoading")}
+        className="rounded-lg border bg-card p-4"
+      />
+    );
+  } else if (templates.isError) {
+    templateRows = <LoadError onRetry={() => void templates.refetch()} />;
+  } else if (templates.data.data.length === 0) {
+    templateRows = (
+      <div className="rounded-lg border bg-card px-4 py-10 text-center">
+        <p className="text-sm text-muted-foreground">
+          {t("appShell.templatesEmpty")}
+        </p>
+        {canCurate && (
+          <Button className="mt-4" onClick={openCreate}>
+            {t("appShell.templatesCreateFirst")}
+          </Button>
+        )}
+      </div>
+    );
+  } else {
+    templateRows = (
+      <div className="space-y-5">
+        {groupTemplates(templates.data.data).map((group) => (
+          <div key={group.label ?? "__ungrouped"} className="space-y-2">
+            {/* #274: the heading appears only once a workspace has actually
+                grouped something. A single "Uncategorised" band over every
+                template in a five-template shop is chrome that describes
+                nothing. */}
+            {group.label !== null && (
+              <h3 className={cn(SECTION_LABEL_CLASS, "px-1")}>
+                {group.label}
+              </h3>
+            )}
+            <div className="divide-y rounded-lg border bg-card">
+              {group.rows.map((template) => (
+                <TemplateRow
+                  key={template.id}
+                  template={template}
+                  editorName={template.updated_by_name}
+                  onEdit={() => openEdit(template)}
+                  onDelete={() => setDeleting(template)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <SettingsPage
       title={t("appShell.templatesTitle")}
@@ -135,54 +191,7 @@ export default function TemplatesSettingsPage() {
           </p>
         )}
 
-        {templates.isPending ? (
-          <ListSkeleton
-            rows={3}
-            lines={2}
-            label={t("appShell.templatesLoading")}
-            className="rounded-lg border bg-card p-4"
-          />
-        ) : templates.isError ? (
-          <LoadError onRetry={() => templates.refetch()} />
-        ) : templates.data.data.length === 0 ? (
-          <div className="rounded-lg border bg-card px-4 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("appShell.templatesEmpty")}
-            </p>
-            {canCurate && (
-              <Button className="mt-4" onClick={openCreate}>
-                {t("appShell.templatesCreateFirst")}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {groupTemplates(templates.data.data).map((group) => (
-              <div key={group.label ?? "__ungrouped"} className="space-y-2">
-                {/* #274: the heading appears only once a workspace has actually
-                    grouped something. A single "Uncategorised" band over every
-                    template in a five-template shop is chrome that describes
-                    nothing. */}
-                {group.label !== null && (
-                  <h3 className={cn(SECTION_LABEL_CLASS, "px-1")}>
-                    {group.label}
-                  </h3>
-                )}
-                <div className="divide-y rounded-lg border bg-card">
-                  {group.rows.map((template) => (
-                    <TemplateRow
-                      key={template.id}
-                      template={template}
-                      editorName={template.updated_by_name}
-                      onEdit={() => openEdit(template)}
-                      onDelete={() => setDeleting(template)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {templateRows}
       </div>
 
       <TemplateDialog

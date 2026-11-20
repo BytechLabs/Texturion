@@ -16,9 +16,9 @@ function stubTransports() {
   vi.stubGlobal(
     "XMLHttpRequest",
     class {
-      open() {}
-      setRequestHeader() {}
-      send() {}
+      open = vi.fn();
+      setRequestHeader = vi.fn();
+      send = vi.fn();
     },
   );
   Object.defineProperty(navigator, "sendBeacon", { value: () => true, configurable: true });

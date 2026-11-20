@@ -246,7 +246,7 @@ export function CompanyProvider({
         <p className="text-sm text-muted-foreground">
           {t("misc.workspaceLoadFailed")}
         </p>
-        <Button onClick={() => me.refetch()} variant="outline" size="sm">
+        <Button onClick={() => void me.refetch()} variant="outline" size="sm">
           {t("common.retry")}
         </Button>
         <GateSignOut />

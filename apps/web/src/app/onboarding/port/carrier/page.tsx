@@ -43,7 +43,7 @@ export default function PortCarrierPage() {
   }, [ready, seeded, port]);
 
   if (onboarding.status === "error") {
-    return <StepError onRetry={onboarding.retry} />;
+    return <StepError onRetry={onboarding.handleRetry} />;
   }
   if (!ready || !onboarding.snapshot) return <StepLoading />;
 

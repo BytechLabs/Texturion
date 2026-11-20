@@ -3,6 +3,7 @@
  * checked by apps/api/src/routes/ring-beacons.test.ts; this covers what a
  * beacon carries and that it can fail every way without the ring noticing.
  */
+import { fetchInputUrl, requireString } from "../api/test-support";
 import { describe, expect, it, vi } from "vitest";
 import { createRingBeaconSender, webOs } from './beacons';
 import type { WebDeviceState } from './beacons';
@@ -25,7 +26,7 @@ function harness(options: { token?: string | null; fetch?: typeof fetch } = {}) 
   const fakeFetch =
     options.fetch ??
     (async (url: string | URL | Request, init?: RequestInit) => {
-      calls.push({ url: String(url), init: init ?? {} });
+      calls.push({ url: fetchInputUrl(url), init: init ?? {} });
       return new Response('{"recorded":true}', { status: 202 });
     });
   const send = createRingBeaconSender({
@@ -56,7 +57,7 @@ describe(createRingBeaconSender, () => {
       "X-App-Version": "0.18.2",
       "Content-Type": "application/json",
     });
-    expect(JSON.parse(String(init.body))).toEqual({
+    expect(JSON.parse(requireString(init.body))).toEqual({
       call_session_id: "v3:sess-1",
       stage: "ringing_shown",
       occurred_at: "2026-10-30T12:00:00.000Z",

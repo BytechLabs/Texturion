@@ -27,11 +27,11 @@ export default function AutomaticTextsSettingsPage() {
           <Skeleton className="h-64 w-full rounded-lg" />
           <Skeleton className="h-56 w-full rounded-lg" />
         </div>
-      ) : company.isError ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : (company.isError ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <AutomaticTextsGroups company={company.data} canEdit={canEdit} />
-      )}
+      ))}
     </SettingsPage>
   );
 }

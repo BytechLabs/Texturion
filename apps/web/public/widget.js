@@ -244,6 +244,11 @@
       .then((payload) => ({ ok: response.ok, payload }));
   }
 
+  function formText(data, field) {
+    const value = data.get(field);
+    return typeof value === "string" ? value : "";
+  }
+
   function post(path, body) {
     return fetch(origin.replace("//app.", "//api.") + path, {
       method: "POST",
@@ -292,15 +297,15 @@
       verificationId === null
         ? turnstileToken().then((token) => post("/widget/start", {
             widgetKey: key,
-            phone: String(data.get("phone") || ""),
-            website: String(data.get("website") || ""),
+            phone: formText(data, "phone"),
+            website: formText(data, "website"),
             turnstileToken: token,
           }))
         : post("/widget/verify", {
             verificationId,
-            code: String(data.get("code") || ""),
-            name: String(data.get("name") || ""),
-            message: String(data.get("message") || ""),
+            code: formText(data, "code"),
+            name: formText(data, "name"),
+            message: formText(data, "message"),
           });
 
     request

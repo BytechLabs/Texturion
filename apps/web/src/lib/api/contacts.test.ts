@@ -1,3 +1,4 @@
+import { requireString } from "./test-support";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -194,7 +195,7 @@ describe("#248 the column declaration leaves this client", () => {
 
     const sent = body.getAll(CONTACT_IMPORT_COLUMN_FIELD);
     expect(sent).toHaveLength(2);
-    expect(sent.map((raw) => parseContactImportColumn(String(raw)))).toEqual([
+    expect(sent.map((raw) => parseContactImportColumn(requireString(raw)))).toEqual([
       { index: 0, action: "phone", header: "phone" },
       { index: 1, action: CONTACT_IMPORT_IGNORE, header: "Region: N, W" },
     ]);
@@ -218,7 +219,7 @@ describe("#248 the column declaration leaves this client", () => {
     expect(
       body
         .getAll(CONTACT_IMPORT_COLUMN_FIELD)
-        .map((raw) => parseContactImportColumn(String(raw))?.index),
+        .map((raw) => parseContactImportColumn(requireString(raw))?.index),
     ).toEqual([0, 1, 2]);
   });
 
@@ -247,7 +248,7 @@ describe("#248 the column declaration leaves this client", () => {
     expect(
       body
         .getAll(CONTACT_IMPORT_VCARD_PROPERTY_FIELD)
-        .map((raw) => parseVCardProperty(String(raw))),
+        .map((raw) => parseVCardProperty(requireString(raw))),
     ).toEqual([
       { property: "CATEGORIES", action: "opted_out" },
       { property: "NOTE", action: CONTACT_IMPORT_IGNORE },

@@ -44,27 +44,28 @@ function ids(menuRoot: ParentNode = document): string[] {
 }
 
 /** What the ⋯ button lists. */
-function fromOverflow(actions: RecordAction[]): string[] {
+function fromOverflow(actions: RecordAction[]) {
   const view = render(<RecordOverflowMenu actions={actions} label="More" />);
-  fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
-  const listed = ids();
+  const trigger = screen.queryByRole("button", { name: "More" });
+  if (trigger) fireEvent.keyDown(trigger, { key: "Enter" });
+  const menu = { rendered: view.container.innerHTML !== "", listed: ids() };
   view.unmount();
   cleanup();
-  return listed;
+  return menu;
 }
 
 /** What a right-click on the record's row lists. */
-function fromContextMenu(actions: RecordAction[]): string[] {
+function fromContextMenu(actions: RecordAction[]) {
   const view = render(
     <RecordContextMenu actions={actions}>
       <div data-testid="row">row</div>
     </RecordContextMenu>,
   );
-  fireEvent.contextMenu(screen.getByTestId("row"));
-  const listed = ids();
+  const notPrevented = fireEvent.contextMenu(screen.getByTestId("row"));
+  const menu = { notPrevented, open: screen.queryByRole("menu") !== null, listed: ids() };
   view.unmount();
   cleanup();
-  return listed;
+  return menu;
 }
 
 /**
@@ -74,23 +75,10 @@ function fromContextMenu(actions: RecordAction[]): string[] {
  */
 function expectOneList(label: string, actions: RecordAction[], expected: string[]) {
   it(`${label}: ⋯ and right-click list the same actions, in order`, () => {
+    const hasActions = expected.length > 0;
     expect(actionIds(actions)).toEqual(expected);
-    if (expected.length === 0) {
-      render(
-        <RecordContextMenu actions={actions}>
-          <div data-testid="row">row</div>
-        </RecordContextMenu>,
-      );
-      const notPrevented = fireEvent.contextMenu(screen.getByTestId("row"));
-      expect(screen.queryByRole("menu")).toBeNull();
-      expect(notPrevented).toBe(true);
-      cleanup();
-      const overflow = render(<RecordOverflowMenu actions={actions} label="More" />);
-      expect(overflow.container.innerHTML).toBe("");
-      return;
-    }
-    expect(fromOverflow(actions)).toEqual(expected);
-    expect(fromContextMenu(actions)).toEqual(expected);
+    expect(fromOverflow(actions)).toEqual({ rendered: hasActions, listed: expected });
+    expect(fromContextMenu(actions)).toEqual({ notPrevented: !hasActions, open: hasActions, listed: expected });
   });
 }
 

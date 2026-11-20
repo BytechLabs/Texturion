@@ -1,5 +1,6 @@
 "use client";
 
+import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { useQueryClient } from '@tanstack/react-query';
 import type { Query } from '@tanstack/react-query';
 import { usePathname, useRouter } from "next/navigation";
@@ -1205,7 +1206,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       if (data.session?.access_token) {
         await supabase.realtime.setAuth(data.session.access_token);
       }
-      for (const { topic, channel } of channels) {
+      for (const channel of channels) subscribeToTopic(channel);
+
+      function subscribeToTopic({ topic, channel }: (typeof channels)[number]) {
         const isCompanyTopic = topic === companyTopic;
         // Consecutive refusals of THIS topic. Per channel, because one number
         // being taken away says nothing about the others.
@@ -1215,7 +1218,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           // event after it only sets the baseline, and the gap backfill below
           // already covers whatever was missed in between.
           sequence.reset(topic);
-          if (status === "SUBSCRIBED") {
+          if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
             refusals = 0;
             // Backfill whenever there WAS a gap, whether or not this channel had
             // joined before. The old guard also required a previous successful
@@ -1250,7 +1253,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           // and that arrives as `access.changed`, which rebuilds this whole set
           // from the list the server now agrees with. So give up on it and drop
           // it; the siblings are already joined and stay joined.
-          if (status === "CHANNEL_ERROR" && supabase.realtime.isConnected()) {
+          if (status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR && supabase.realtime.isConnected()) {
             refusals += 1;
             // On the threshold crossing exactly: `removeChannel` reports CLOSED
             // back into this callback, and a leave in flight can still surface an
@@ -1274,7 +1277,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           // being lost for this number alone, which the company topic would not
           // have noticed). Both are gaps. CLOSED is not — nothing leaves a
           // per-number topic except this file.
-          if (status !== "CLOSED") hadDrop = true;
+          if (status !== REALTIME_SUBSCRIBE_STATES.CLOSED) hadDrop = true;
         });
       }
     })();
@@ -1299,6 +1302,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       authSubscription.unsubscribe();
       for (const { channel } of channels) void supabase.removeChannel(channel);
     };
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- a failed join schedules a rebuild of the same topics.
   }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration]);
 
   return children;

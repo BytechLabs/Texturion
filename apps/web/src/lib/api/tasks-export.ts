@@ -45,7 +45,7 @@ export async function fetchTasksExport(
     headers: { Authorization: `Bearer ${token}`, "X-Company-Id": companyId },
   });
   if (!response.ok) {
-    let payload: unknown = null;
+    let payload: unknown;
     try {
       payload = await response.json();
     } catch {

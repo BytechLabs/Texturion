@@ -234,7 +234,7 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
   it("says what a notification carries by the workspace default, in both languages", () => {
     // #430: the first line of a text rides the push unless an owner turns
     // push_include_content off, and then the server strips it before sending.
-    const carriesText =  COMPANY_SETTING_DEFAULTS.push_include_content.value;
+    const carriesText = COMPANY_SETTING_DEFAULTS.push_include_content.value;
     const copy = {
       en: { never: "never contain a message", where: "Settings → Notifications" },
       "fr-CA": { never: "ne contiennent jamais de message", where: "Paramètres → Notifications" },
@@ -242,14 +242,9 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
     for (const locale of ["en", "fr-CA"] as const) {
       const phone = visibleText(section(PRIVACY[locale], "on-your-phone"));
       const switchLabel = say(locale, "settingsMore.pushContentLabel");
-      if (carriesText) {
-        expect(phone, locale).toContain(copy[locale].where);
-        expect(phone, locale).toContain(switchLabel);
-        expect(phone, locale).not.toContain(copy[locale].never);
-      } else {
-        expect(phone, locale).toContain(copy[locale].never);
-        expect(phone, locale).not.toContain(switchLabel);
-      }
+      expect(phone, locale).toContain(carriesText ? copy[locale].where : copy[locale].never);
+      expect(phone.includes(switchLabel), locale).toBe(carriesText);
+      expect(phone.includes(copy[locale].never), locale).toBe(!carriesText);
     }
   });
 
@@ -425,9 +420,9 @@ describe("subprocessors — the vendor ledger survives", () => {
   const { 4: {html} } = PAGES;
 
   it("lists the current service providers", () => {
-    const html = renderToStaticMarkup(<SubprocessorsPage />);
+    const subprocessorsHtml = renderToStaticMarkup(<SubprocessorsPage />);
     for (const { name } of SUBPROCESSORS) {
-      expect(html).toContain(name);
+      expect(subprocessorsHtml).toContain(name);
     }
   });
 

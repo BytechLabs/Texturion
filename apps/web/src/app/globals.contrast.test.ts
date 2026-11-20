@@ -139,11 +139,11 @@ describe.each([
       // The composer Send hover fill (hover:bg-app-olive-deep).
       ["--app-olive-deep", "--app-olive-deep", "--app-olive-foreground"],
     ];
-    for (const [label, fillToken, fgToken] of pairs) {
+    for (const [pairLabel, fillToken, fgToken] of pairs) {
       const bg = token(theme, fillToken);
       const fg = token(theme, fgToken);
       expect
-        .soft(contrast(fg, bg), `${fgToken} ${fg} on ${label} ${bg}`)
+        .soft(contrast(fg, bg), `${fgToken} ${fg} on ${pairLabel} ${bg}`)
         .toBeGreaterThanOrEqual(AA);
     }
   });

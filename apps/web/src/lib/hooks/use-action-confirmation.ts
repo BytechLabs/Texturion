@@ -47,10 +47,10 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * ```tsx
  * const gate = useActionConfirmation();
  * release.mutate(id, {
- *   onSuccess: () => gate.dismiss(),
+ *   onSuccess: () => gate.handleDismiss(),
  *   onError: (error) => {
  *     if (gate.demanded(error, "release_number", (code) => release.mutate({ id, code }))) return;
- *     gate.dismiss();
+ *     gate.handleDismiss();
  *     toast.error(message(error));
  *   },
  * });
@@ -119,16 +119,16 @@ export interface ActionConfirmation {
    * one branch that is asynchronous reports itself through `requesting` and
    * `rejected` like everything else here.
    */
-  confirm: (code: string) => void;
+  handleConfirm: (code: string) => void;
   /** Email another one. Only offered on the email path. */
-  resend: () => void;
+  handleResend: () => void;
   /**
    * Put the dialog away — on success as well as on cancel.
    *
    * The hook cannot see a mutation succeed, so the caller says so. Forgetting it
    * leaves a confirmed action behind its own prompt.
    */
-  dismiss: () => void;
+  handleDismiss: () => void;
 }
 
 export function useActionConfirmation(): ActionConfirmation {
@@ -239,7 +239,7 @@ export function useActionConfirmation(): ActionConfirmation {
       return true;
     },
 
-    confirm(raw) {
+    handleConfirm(raw) {
       if (!held) return;
       // Nothing while Supabase is still deciding. A second submit would open a
       // second challenge against a code the first one has already burned, and the
@@ -269,13 +269,13 @@ export function useActionConfirmation(): ActionConfirmation {
       held.retry(code);
     },
 
-    resend() {
+    handleResend() {
       if (!held) return;
       setRejected(false);
       requestCode.mutate(held.action);
     },
 
-    dismiss() {
+    handleDismiss() {
       // Abandons any verify still in flight: its `retry` is skipped, and clearing
       // the flag here rather than in its `finally` is what stops the dialog being
       // left permanently mid-submit.

@@ -69,7 +69,9 @@ function itemError(error: BatchError): ApiError {
 
 function settle(item: Pending, outcome: Promise<AttachmentUrl>): void {
   void outcome
-    .then((url) => item.waiters.forEach((waiter) => waiter.resolve(url)))
+    .then((url) => {
+      for (const waiter of item.waiters) waiter.resolve(url);
+    })
     .catch((error: unknown) => rejectItem(item, error));
 }
 
