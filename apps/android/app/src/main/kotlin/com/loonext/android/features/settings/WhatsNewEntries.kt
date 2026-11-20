@@ -3,16 +3,16 @@ package com.loonext.android.features.settings
 
 /** Newest first, the newest 12. */
 val WHATS_NEW_ENTRIES: List<WhatsNewEntry> = listOf(
-    WhatsNewEntry("2026-11-11", "whatsNew.statusChangesAuditedTitle", "whatsNew.statusChangesAuditedBody"),
-    WhatsNewEntry("2026-11-11", "whatsNew.calendarCreateTitle", "whatsNew.calendarCreateBody"),
-    WhatsNewEntry("2026-11-11", "whatsNew.calendarLinkBackTitle", "whatsNew.calendarLinkBackBody"),
-    WhatsNewEntry("2026-11-11", "whatsNew.settingChoicesTitle", "whatsNew.settingChoicesBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.trashTitle", "whatsNew.trashBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.activityTitle", "whatsNew.activityBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.callEndingsTitle", "whatsNew.callEndingsBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.forYouLayoutTitle", "whatsNew.forYouLayoutBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.settingsSearchTitle", "whatsNew.settingsSearchBody"),
-    WhatsNewEntry("2026-11-10", "whatsNew.menusTitle", "whatsNew.menusBody"),
-    WhatsNewEntry("2026-10-29", "whatsNew.calendarSyncTitle", "whatsNew.calendarSyncBody"),
-    WhatsNewEntry("2026-08-17", "whatsNew.quotesFromConversationTitle", "whatsNew.quotesFromConversationBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.dispatchPlannerTitle", "whatsNew.dispatchPlannerBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.liveCallControlsTitle", "whatsNew.liveCallControlsBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.conversationMediaTitle", "whatsNew.conversationMediaBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.inboxLineFiltersTitle", "whatsNew.inboxLineFiltersBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.phoneNotificationActionsTitle", "whatsNew.phoneNotificationActionsBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.missedCallerReportsTitle", "whatsNew.missedCallerReportsBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.quoteDecisionsTitle", "whatsNew.quoteDecisionsBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.contactImportsAndExportsTitle", "whatsNew.contactImportsAndExportsBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.customerDataErasureTitle", "whatsNew.customerDataErasureBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.scheduledStarterDowngradeTitle", "whatsNew.scheduledStarterDowngradeBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.frenchAcrossLoonextTitle", "whatsNew.frenchAcrossLoonextBody"),
+    WhatsNewEntry("2026-11-20", "whatsNew.homepageAnimationPauseTitle", "whatsNew.homepageAnimationPauseBody"),
 )

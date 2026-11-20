@@ -10,6 +10,162 @@
   ],
   "entries": [
     {
+      "id": "dispatchPlanner",
+      "date": "2026-11-20",
+      "href": "/tasks/planner",
+      "en": {
+        "title": "Plan visits and dispatch your crew",
+        "body": "See bookings, shifts and breaks in the Tasks Planner. Schedule customer visits from the calendar or map, assign them to your crew and turn messages, calls or saved voicemails into tasks."
+      },
+      "fr": {
+        "title": "Planifiez les visites et répartissez le travail",
+        "body": "Voyez les visites, les quarts et les pauses. Planifiez et assignez les visites depuis le calendrier ou la carte. Créez des tâches à partir de textos, d'appels ou de messages vocaux enregistrés."
+      }
+    },
+    {
+      "id": "liveCallControls",
+      "date": "2026-11-20",
+      "href": "/calls",
+      "en": {
+        "title": "Keep calls in reach and talk before transferring",
+        "body": "Keep call controls in view while you work and speak privately with a teammate before transferring. Tap a number in a message to call or text it. On mobile, emergency calls open your phone app."
+      },
+      "fr": {
+        "title": "Gardez vos appels à portée et parlez avant le transfert",
+        "body": "Gardez les commandes visibles et parlez en privé à un collègue avant le transfert. Touchez un numéro dans un texto pour appeler ou écrire. Sur mobile, les appels d'urgence ouvrent l'appli Téléphone."
+      }
+    },
+    {
+      "id": "conversationMedia",
+      "date": "2026-11-20",
+      "href": "/inbox",
+      "en": {
+        "title": "View and share photos and videos in conversations",
+        "body": "Open photos and play videos without leaving the conversation. On your phone, take a photo or add shared files to a draft and review them before sending."
+      },
+      "fr": {
+        "title": "Consultez et partagez des photos et des vidéos",
+        "body": "Ouvrez les photos et visionnez les vidéos dans la conversation. Sur votre téléphone, prenez une photo ou ajoutez des fichiers partagés à un brouillon pour les vérifier avant l'envoi."
+      }
+    },
+    {
+      "id": "inboxLineFilters",
+      "date": "2026-11-20",
+      "href": "/inbox",
+      "en": {
+        "title": "Find the conversations that need you",
+        "body": "Filter your inbox by phone number or show only unassigned conversations. Search across conversations, sort contacts, and call, text or copy a customer's other numbers."
+      },
+      "fr": {
+        "title": "Trouvez les conversations qui demandent votre attention",
+        "body": "Filtrez la boîte de réception par numéro ou affichez les conversations sans responsable. Cherchez dans vos conversations, triez les contacts, puis appelez, textez ou copiez leurs autres numéros."
+      }
+    },
+    {
+      "id": "phoneNotificationActions",
+      "date": "2026-11-20",
+      "href": null,
+      "en": {
+        "title": "Reply and call back from phone notifications",
+        "body": "Reply to a message, mark it as read, return a missed call or acknowledge an alert while you're on call, right from a notification on your phone."
+      },
+      "fr": {
+        "title": "Répondez et rappelez depuis les notifications",
+        "body": "Répondez à un texto, marquez un message comme lu, rappelez après un appel manqué ou confirmez la réception d'une alerte de garde depuis une notification sur votre téléphone."
+      }
+    },
+    {
+      "id": "missedCallerReports",
+      "date": "2026-11-20",
+      "href": "/for-you",
+      "en": {
+        "title": "Find missed callers and work that needs attention",
+        "body": "See how many callers you missed and which sources brought in the most new customers. Open jobs and quotes that need your attention directly from your reports."
+      },
+      "fr": {
+        "title": "Retrouvez les appels manqués et les suivis à faire",
+        "body": "Voyez combien de personnes vous avez manquées et quelles sources ont attiré le plus de nouveaux clients. Ouvrez les tâches et les devis à relancer directement depuis vos rapports."
+      }
+    },
+    {
+      "id": "quoteDecisions",
+      "date": "2026-11-20",
+      "href": "/inbox",
+      "en": {
+        "title": "Manage quotes from draft to decision",
+        "body": "Edit or delete a draft and withdraw a sent quote that is still open. Customers can accept or decline from their link, and your crew gets a notification when a customer accepts."
+      },
+      "fr": {
+        "title": "Gérez vos devis du brouillon à la décision",
+        "body": "Modifiez ou supprimez un brouillon et retirez un devis envoyé qui attend une réponse. Vos clients peuvent accepter ou refuser le devis depuis leur lien. Une acceptation avise votre équipe."
+      }
+    },
+    {
+      "id": "contactImportsAndExports",
+      "date": "2026-11-20",
+      "href": "/contacts",
+      "en": {
+        "title": "Bring in contacts and take your data with you",
+        "body": "Import contacts with more of their details and review which records were updated. Download media with your workspace export and connect your tools to more events, including new contacts and tasks."
+      },
+      "fr": {
+        "title": "Importez vos contacts et emportez vos données",
+        "body": "Importez plus de détails sur vos contacts et voyez les fiches mises à jour. Téléchargez les médias avec votre exportation et reliez vos outils à plus d'événements, comme la création de tâches."
+      }
+    },
+    {
+      "id": "customerDataErasure",
+      "date": "2026-11-20",
+      "href": "/contacts",
+      "en": {
+        "title": "Erase customer data on request",
+        "body": "When a customer asks you to erase their data, start the request from the contact's Manage section if you have permission. A receipt shows which records were affected."
+      },
+      "fr": {
+        "title": "Effacez les données d'un client sur demande",
+        "body": "Si un client demande l'effacement de ses données, lancez la demande dans la section Gérer de sa fiche si vous avez l'autorisation. Un reçu indique les dossiers touchés."
+      }
+    },
+    {
+      "id": "scheduledStarterDowngrade",
+      "date": "2026-11-20",
+      "href": "/settings/billing",
+      "en": {
+        "title": "See or cancel a switch to Starter",
+        "body": "Open Billing to see when a scheduled switch to Starter will take effect. If your plans change, cancel the switch before that date."
+      },
+      "fr": {
+        "title": "Consultez ou annulez un passage à Starter",
+        "body": "Ouvrez la facturation pour voir quand le passage au forfait Starter prendra effet. Si vos plans changent, annulez ce passage avant la date prévue."
+      }
+    },
+    {
+      "id": "frenchAcrossLoonext",
+      "date": "2026-11-20",
+      "href": "/settings/profile",
+      "en": {
+        "title": "Use more of Loonext in Canadian French",
+        "body": "Sign up, manage your account and read billing and call alerts in Canadian French. Customers can open quote and payment links in French, and callers can hear Canadian French prompts."
+      },
+      "fr": {
+        "title": "Utilisez Loonext en français canadien",
+        "body": "Inscrivez-vous, gérez votre compte et lisez vos avis de facturation et d'appel en français canadien. Vos clients peuvent ouvrir leurs liens de devis et de paiement et entendre les messages d'appel en français."
+      }
+    },
+    {
+      "id": "homepageAnimationPause",
+      "date": "2026-11-20",
+      "href": null,
+      "en": {
+        "title": "Pause the homepage animation",
+        "body": "Pause the demo on the Loonext homepage whenever you want to take a closer look."
+      },
+      "fr": {
+        "title": "Mettez en pause l'animation de la page d'accueil",
+        "body": "Mettez la démo de la page d'accueil de Loonext en pause quand vous voulez la regarder de plus près."
+      }
+    },
+    {
       "id": "statusChangesAudited",
       "date": "2026-11-11",
       "href": "/settings/audit-log",

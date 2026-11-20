@@ -2,63 +2,63 @@
 /// Newest first, the newest 12.
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
     WhatsNewEntry(
-        date: "2026-11-11",
-        title: "whatsNew.statusChangesAuditedTitle",
-        body: "whatsNew.statusChangesAuditedBody"
+        date: "2026-11-20",
+        title: "whatsNew.dispatchPlannerTitle",
+        body: "whatsNew.dispatchPlannerBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-11",
-        title: "whatsNew.calendarCreateTitle",
-        body: "whatsNew.calendarCreateBody"
+        date: "2026-11-20",
+        title: "whatsNew.liveCallControlsTitle",
+        body: "whatsNew.liveCallControlsBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-11",
-        title: "whatsNew.calendarLinkBackTitle",
-        body: "whatsNew.calendarLinkBackBody"
+        date: "2026-11-20",
+        title: "whatsNew.conversationMediaTitle",
+        body: "whatsNew.conversationMediaBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-11",
-        title: "whatsNew.settingChoicesTitle",
-        body: "whatsNew.settingChoicesBody"
+        date: "2026-11-20",
+        title: "whatsNew.inboxLineFiltersTitle",
+        body: "whatsNew.inboxLineFiltersBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.trashTitle",
-        body: "whatsNew.trashBody"
+        date: "2026-11-20",
+        title: "whatsNew.phoneNotificationActionsTitle",
+        body: "whatsNew.phoneNotificationActionsBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.activityTitle",
-        body: "whatsNew.activityBody"
+        date: "2026-11-20",
+        title: "whatsNew.missedCallerReportsTitle",
+        body: "whatsNew.missedCallerReportsBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.callEndingsTitle",
-        body: "whatsNew.callEndingsBody"
+        date: "2026-11-20",
+        title: "whatsNew.quoteDecisionsTitle",
+        body: "whatsNew.quoteDecisionsBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.forYouLayoutTitle",
-        body: "whatsNew.forYouLayoutBody"
+        date: "2026-11-20",
+        title: "whatsNew.contactImportsAndExportsTitle",
+        body: "whatsNew.contactImportsAndExportsBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.settingsSearchTitle",
-        body: "whatsNew.settingsSearchBody"
+        date: "2026-11-20",
+        title: "whatsNew.customerDataErasureTitle",
+        body: "whatsNew.customerDataErasureBody"
     ),
     WhatsNewEntry(
-        date: "2026-11-10",
-        title: "whatsNew.menusTitle",
-        body: "whatsNew.menusBody"
+        date: "2026-11-20",
+        title: "whatsNew.scheduledStarterDowngradeTitle",
+        body: "whatsNew.scheduledStarterDowngradeBody"
     ),
     WhatsNewEntry(
-        date: "2026-10-29",
-        title: "whatsNew.calendarSyncTitle",
-        body: "whatsNew.calendarSyncBody"
+        date: "2026-11-20",
+        title: "whatsNew.frenchAcrossLoonextTitle",
+        body: "whatsNew.frenchAcrossLoonextBody"
     ),
     WhatsNewEntry(
-        date: "2026-08-17",
-        title: "whatsNew.quotesFromConversationTitle",
-        body: "whatsNew.quotesFromConversationBody"
+        date: "2026-11-20",
+        title: "whatsNew.homepageAnimationPauseTitle",
+        body: "whatsNew.homepageAnimationPauseBody"
     ),
 ]
