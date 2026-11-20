@@ -23,6 +23,7 @@ const call = { id: "test-call", call_session_id: sessionID, contact_id: contactI
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 const state = { mode: "online", writes: [], messages: [[], []], company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
+  us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
   { id: contactID, name: "Ada Fixture", phone_e164: "+14165550101", notes: "Test notes", created_at: now(), updated_at: now() },
   { id: "other-contact", name: "Ben Fixture", phone_e164: "+14165550102", created_at: now(), updated_at: now() },
@@ -133,12 +134,22 @@ const server = createServer(async (req, res) => {
         expires_in: 3600, user: { id: userID, email: "qa@example.invalid" } });
     }
     if (path === "/fixture.wav") {
-      res.writeHead(200, { "Content-Type": "audio/wav", "Content-Length": audio.length });
-      return res.end(audio);
+      const [, first, last] = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/) ?? [];
+      const start = Number(first ?? 0);
+      const end = last ? Math.min(Number(last), audio.length - 1) : audio.length - 1;
+      if (start > end) {
+        res.writeHead(416, { "Content-Range": `bytes */${audio.length}` });
+        return res.end();
+      }
+      const headers = { "Content-Type": "audio/wav", "Content-Length": end - start + 1, "Accept-Ranges": "bytes" };
+      if (first) headers["Content-Range"] = `bytes ${start}-${end}/${audio.length}`;
+      res.writeHead(first ? 206 : 200, headers);
+      return res.end(audio.subarray(start, end + 1));
     }
     if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: "en",
       company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
+    if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
     if (path === "/v1/numbers") return json(page([line]));
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
@@ -172,7 +183,7 @@ const server = createServer(async (req, res) => {
     if (index !== -1) {
       if (!tail) return json(thread(index));
       if (tail === "messages") return json(page(state.messages[index]));
-      if (tail === "read") return json({ last_seen_at: now() });
+      if (tail === "read") return json({ conversation_id: conversationID, user_id: userID, last_read_at: now() });
       if (["events", "pinned", "tasks", "mentionable-members"].includes(tail)) return json(page());
     }
     if (emptyLists.has(path) || path.endsWith("/activity") || path.endsWith("/linked-tasks")) return json(page());
