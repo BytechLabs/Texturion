@@ -60,7 +60,7 @@ update public.conversations set status = 'waiting'
 
 do $$
 begin
-  if (select count(*) from public.state_transition_outbox) <> 1
+  if (select count(*) from public.state_transition_outbox) is distinct from 1
      or not exists (select 1 from public.state_transition_outbox
        where company_id = '5c000000-0000-4000-8000-0000000000c1'
          and machine = 'conversation' and from_state = 'open' and to_state = 'waiting' and expected
