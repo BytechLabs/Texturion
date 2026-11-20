@@ -68,7 +68,7 @@ jobs:
                               for d in rows if d["name"].startswith("iPhone")]
           if not devices:
               sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
-          xcode = max(devices)[3]
+          _, _, _, _, xcode = max(devices)
           if requested:
               devices = [device for device in devices if ".".join(map(str, device[0])) == requested]
               if not devices:
