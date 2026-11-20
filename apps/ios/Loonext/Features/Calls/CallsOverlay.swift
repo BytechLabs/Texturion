@@ -135,28 +135,26 @@ struct CallChip: View {
             let isRingingChip = featured == nil && ringing != nil
             let heldCount = snapshot.liveCalls.count { $0.phase == .held }
 
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(call.phase == .ended ? BrandColor.muted300 : BrandColor.olive)
-                    .frame(width: 8, height: 8)
-                Text(call.peerName)
-                    .font(.golos(13.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                    .lineLimit(1)
-                ChipStatus(call: call, heldCount: heldCount)
-                Spacer(minLength: 8)
+            HStack(spacing: 8) {
+                if call.phase == .ended {
+                    identity(call, heldCount: heldCount)
+                } else {
+                    Button(action: onExpand) {
+                        identity(call, heldCount: heldCount)
+                    }
+                    .buttonStyle(.plain)
+                }
                 chipActions(call: call, isRingingChip: isRingingChip)
             }
-            .padding(.leading, 14)
+            .padding(.leading, 10)
             .padding(.trailing, 6)
-            .padding(.vertical, 8)
-            .glassEffect(.regular)
-            .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if call.phase != .ended { onExpand() }
+            .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 22))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22).strokeBorder(BrandColor.inset)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
             .task(id: ended.map(\.id)) {
                 guard !ended.isEmpty else { return }
                 try? await Task.sleep(for: .milliseconds(2_500))
@@ -168,6 +166,42 @@ struct CallChip: View {
         }
     }
 
+    private func identity(_ call: CallSnapshot, heldCount: Int) -> some View {
+        HStack(spacing: 9) {
+            CallPhaseIcon(phase: call.phase)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(call.peerName)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    CallPhaseBadge(phase: call.phase)
+                    if call.phase == .active, let anchor = call.activeSince {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let timer = formatTimer(
+                                elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
+                            )
+                            Text(heldCount > 0
+                                ? AppStrings.translate(
+                                    appLocale,
+                                    "contactsTasks.timerOnHold",
+                                    ["timer": timer, "count": "\(heldCount)"]
+                                )
+                                : timer
+                            )
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted700)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
     @ViewBuilder
     private func chipActions(call: CallSnapshot, isRingingChip: Bool) -> some View {
         if isRingingChip {
@@ -176,9 +210,9 @@ struct CallChip: View {
             } label: {
                 Image(systemName: "phone.down")
                     .font(.scaled(IconSize.standard, weight: .semibold))
-                    .foregroundStyle(BrandColor.paperFixed)
-                    .frame(width: 34, height: 34)
-                    .background(BrandColor.destructive, in: Circle())
+                    .foregroundStyle(BrandColor.destructive)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.destructiveContainer, in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.decline"))
@@ -188,7 +222,7 @@ struct CallChip: View {
                 Image(systemName: "phone")
                     .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.onLime)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .background(BrandColor.lime, in: Circle())
             }
             .buttonStyle(.plain)
@@ -200,7 +234,7 @@ struct CallChip: View {
                 Image(systemName: "xmark")
                     .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .background(BrandColor.inset, in: Circle())
             }
             .buttonStyle(.plain)
@@ -211,9 +245,9 @@ struct CallChip: View {
             } label: {
                 Image(systemName: "phone.down")
                     .font(.scaled(IconSize.standard, weight: .semibold))
-                    .foregroundStyle(BrandColor.paperFixed)
-                    .frame(width: 34, height: 34)
-                    .background(BrandColor.destructive, in: Circle())
+                    .foregroundStyle(BrandColor.destructive)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.destructiveContainer, in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.hangUp"))
@@ -237,51 +271,5 @@ struct CallChip: View {
                 )
             }
         }
-    }
-}
-
-/// "Incoming call" / "Calling…" / ticking timer (+ held count) / "On hold" /
-/// "Call ended".
-private struct ChipStatus: View {
-    let call: CallSnapshot
-    let heldCount: Int
-
-    @Environment(\.appLocale) private var appLocale
-
-    var body: some View {
-        switch call.phase {
-        case .ringing:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseIncoming"))
-        case .connecting:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseCalling"))
-        case .held:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseOnHold"))
-        case .ended:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseEnded"))
-        case .active:
-            if let anchor = call.activeSince {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let timer = formatTimer(
-                        elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
-                    )
-                    statusText(
-                        heldCount > 0
-                            ? AppStrings.translate(
-                                appLocale,
-                                "contactsTasks.timerOnHold",
-                                ["timer": timer, "count": "\(heldCount)"]
-                            )
-                            : timer
-                    )
-                }
-            }
-        }
-    }
-
-    private func statusText(_ text: String) -> some View {
-        Text(text)
-            .font(.golos(11))
-            .foregroundStyle(BrandColor.muted500)
-            .monospacedDigit()
     }
 }

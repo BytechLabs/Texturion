@@ -104,8 +104,11 @@ import com.loonext.android.core.model.TaskDetail
 import com.loonext.android.core.model.TaskProfile
 import com.loonext.android.core.model.TaskSourceMessage
 import com.loonext.android.core.time.TimestampFormat
+import com.loonext.android.features.calls.CallBackdrop
 import com.loonext.android.features.calls.CallRow
+import com.loonext.android.features.calls.CallStrip
 import com.loonext.android.features.calls.CallsRepository
+import com.loonext.android.features.calls.RingingSurface
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.ContactsSnapshot
@@ -120,6 +123,9 @@ import com.loonext.android.features.tasks.TaskListLoader
 import com.loonext.android.features.tasks.TaskListSnapshot
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.tasks.TasksTab
+import com.loonext.android.telephony.CallDirection
+import com.loonext.android.telephony.CallPhase
+import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
 import kotlinx.coroutines.cancelAndJoin
@@ -945,6 +951,43 @@ class IssueEvidenceScreenshotTest {
         role = role,
         showMessage = {},
     )
+
+    @Test fun ringingCallLight() = ringingCall(dark = false)
+
+    @Test fun ringingCallDark() = ringingCall(dark = true)
+
+    @Test fun callStripsLight() = callStrips(dark = false)
+
+    @Test fun callStripsDark() = callStrips(dark = true)
+
+    private fun ringingCall(dark: Boolean) = shoot("incoming-call", dark) {
+        Box(Modifier.fillMaxSize()) {
+            CallBackdrop(CallPhase.RINGING)
+            RingingSurface(
+                callerName = "Marta Reyes",
+                callerNumber = "+14155550123",
+                onAnswer = {},
+                onDecline = {},
+            )
+        }
+    }
+
+    private fun callStrips(dark: Boolean) = shoot("call-strips", dark) {
+        Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+            val call = CallSnapshot(
+                id = "evidence",
+                direction = CallDirection.INBOUND,
+                peerName = "Marta Reyes",
+                peerNumber = "+14155550123",
+                phase = CallPhase.ACTIVE,
+                activeSinceMs = System.currentTimeMillis() - 28_000,
+            )
+            CallStrip(call, heldCount = 1, onExpand = {}, onEnd = {})
+            CallStrip(call.copy(phase = CallPhase.HELD), heldCount = 1, onExpand = {}, onEnd = {})
+            CallStrip(call.copy(phase = CallPhase.CONNECTING), heldCount = 0, onExpand = {}, onEnd = {})
+            CallStrip(call.copy(phase = CallPhase.ENDED), heldCount = 0, onExpand = {}, onEnd = {})
+        }
+    }
 
     // --- harness --------------------------------------------------------------------------
 

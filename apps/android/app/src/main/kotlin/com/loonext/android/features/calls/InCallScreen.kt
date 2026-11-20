@@ -8,7 +8,6 @@ import com.loonext.android.ui.common.LoadErrorVariant
 import com.loonext.android.ui.common.LoadError
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -684,13 +683,18 @@ internal fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 /** "Ringing…" / "Connecting…" / the big live timer / "On hold" / "Call ended". */
 @Composable
 internal fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
-    // Phase swaps cross-animate; the per-second timer tick lives INSIDE the
-    // ACTIVE branch so it never retriggers the transition (#194).
-    AnimatedContent(targetState = call.phase, label = "callPhase") { phase ->
-        if (phase == CallPhase.ACTIVE) {
+    Column(
+        modifier = Modifier.padding(top = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CallPhaseBadge(
+            phase = call.phase,
+            announce = call.phase == CallPhase.HELD,
+        )
+        if (call.phase == CallPhase.ACTIVE) {
             val anchor = call.activeSinceMs
             if (anchor != null) {
-                val now by produceState(System.currentTimeMillis(), call.id) {
+                val now by produceState(System.currentTimeMillis(), call.id, anchor) {
                     while (true) {
                         value = System.currentTimeMillis()
                         delay(1_000)
@@ -698,38 +702,8 @@ internal fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
                 }
                 Text(
                     formatTimer(now - anchor),
-                    // #180: the 48sp timer eats a square/landscape viewport;
-                    // condense it (still the dominant element) when height is compact.
                     fontSize = if (compact) 34.sp else 48.sp,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = (-0.01).em,
                     color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-        } else {
-            val text = when (phase) {
-                CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
-                CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
-                CallPhase.HELD -> t("contactsTasks.phaseOnHold")
-                CallPhase.ENDED -> t("contactsTasks.phaseEnded")
-                else -> ""
-            }
-            if (text.isNotEmpty()) {
-                Text(
-                    text,
-                    fontSize = 15.sp,
-                    fontWeight = if (phase == CallPhase.HELD) {
-                        FontWeight.SemiBold
-                    } else {
-                        FontWeight.Normal
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // "On hold" is said when it happens. The end of a call is announced by the screen,
-                    // which closes right after, so a live region here would say it twice.
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                        .then(if (phase == CallPhase.HELD) Modifier.announcesChanges() else Modifier),
                 )
             }
         }
@@ -757,17 +731,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
         ) {
             Column(Modifier.weight(1f)) {
                 Text(call.peerName, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    when (call.phase) {
-                        CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
-                        CallPhase.HELD -> t("contactsTasks.phaseOnHold")
-                        CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
-                        else -> ""
-                    },
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                CallPhaseBadge(call.phase, modifier = Modifier.padding(top = 3.dp))
             }
             if (call.phase == CallPhase.RINGING) {
                 // #171 R1: an in-call second-ring Decline is the universal

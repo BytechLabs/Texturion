@@ -24,11 +24,13 @@ import { CallBar } from "./call-bar";
 const state: {
   calls: CallInfo[];
   activeId: string | null;
+  alertsPaused: boolean;
   live: { isSuccess: boolean; data?: { conversation_id: string | null } };
   consultation: { sessionId: string; originalCallId: string; targetName: string; senderLegId: string } | null;
 } = {
   calls: [],
   activeId: null,
+  alertsPaused: true,
   live: { isSuccess: false, data: undefined },
   consultation: null,
 };
@@ -58,7 +60,7 @@ vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [{ user_id: "sam", display_name: "Sam" }] } }),
 }));
 vi.mock("@/lib/api/notifications", () => ({
-  useNotificationsUnreadCount: () => ({ data: { alert_pause: { push_paused: true } }, isPending: false }),
+  useNotificationsUnreadCount: () => ({ data: { alert_pause: { push_paused: state.alertsPaused } }, isPending: false }),
 }));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => ({
@@ -137,10 +139,12 @@ afterEach(() => {
   cleanup();
   state.calls = [];
   state.activeId = null;
+  state.alertsPaused = true;
   state.live = { isSuccess: false, data: undefined };
   state.consultation = null;
   actions.startConsult.mockReset();
   actions.endConsult.mockReset();
+  vi.unstubAllGlobals();
 });
 
 it("offers a separate talk-first action and controls for a connected consult", async () => {
@@ -176,14 +180,41 @@ it("moves the focused hold button to Resume and back", () => {
   state.activeId = "c1";
   const view = mount(<CallBar />);
   const hold = screen.getByRole("button", { name: "Put on hold" });
+  expect(screen.getByText("On a call").closest<HTMLElement>("[data-phase]")?.dataset.phase).toBe("active");
   hold.focus();
   fireEvent.click(hold);
   view.rerender(<CallBar />);
   const resume = screen.getByRole("button", { name: /Resume/ });
+  expect(screen.getByText("On hold").closest<HTMLElement>("[data-phase]")?.dataset.phase).toBe("held");
   expect(document.activeElement).toBe(resume);
   fireEvent.click(resume);
   view.rerender(<CallBar />);
   expect(document.activeElement).toBe(screen.getByRole("button", { name: "Put on hold" }));
+});
+
+it("retries a blocked ringtone on interaction and stops it when ringing ends", async () => {
+  const play = vi.fn()
+    .mockRejectedValueOnce(new DOMException("Autoplay blocked", "NotAllowedError"))
+    .mockResolvedValue(undefined);
+  const pause = vi.fn();
+  vi.stubGlobal("Audio", class {
+    play = play;
+    pause = pause;
+  });
+  state.alertsPaused = false;
+  state.calls = [outboundCall({ direction: "inbound", phase: "ringing" })];
+  const view = mount(<CallBar />);
+  expect(screen.getByRole("alert").textContent).toContain("Incoming call");
+  expect(play).toHaveBeenCalledOnce();
+  fireEvent.click(document.body);
+  await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+
+  state.activeId = "c1";
+  state.calls = [outboundCall({ direction: "inbound" })];
+  view.rerender(<CallBar />);
+  expect(pause).toHaveBeenCalledOnce();
+  fireEvent.keyDown(document.body, { key: "Enter" });
+  expect(play).toHaveBeenCalledTimes(2);
 });
 
 it("keeps Answer exposed when New task opens over an existing ring", () => {

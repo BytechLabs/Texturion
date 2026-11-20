@@ -93,10 +93,17 @@ final class DashboardScreenshotTests: XCTestCase {
         )
     }
 
-    private func render(_ variant: Variant) throws -> RenderResult {
-        let dashboard = try dashboardFixture()
+    func testCallControlsInBothThemes() throws {
+        DesignFonts.register()
+        for variant in variants.prefix(2) {
+            _ = try render(variant, callControls: true)
+        }
+    }
+
+    private func render(_ variant: Variant, callControls: Bool = false) throws -> RenderResult {
+        let content = callControls ? AnyView(inCallControlsFixture()) : AnyView(try dashboardFixture())
         let root = AnyView(
-            dashboard
+            content
                 // AppStrings reads this environment; Locale also fixes any
                 // system formatting used by dates and numbers in the rows.
                 .environment(\.appLocale, "en")
@@ -144,6 +151,15 @@ final class DashboardScreenshotTests: XCTestCase {
         }
 
         settle(window)
+        if callControls {
+            let image = capture(host.view, scale: window.screen.scale)
+            XCTAssertTrue(hasMoreThanOneColour(image))
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "call-controls-\(variant.name).png"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            return RenderResult(contentHeight: host.view.bounds.height, pageCount: 1)
+        }
         let scrollView = try XCTUnwrap(
             descendants(of: UIScrollView.self, in: host.view)
                 .max(by: { $0.contentSize.height < $1.contentSize.height }),

@@ -1,15 +1,5 @@
 "use client";
 
-/**
- * D43 (#135) call bar — the persistent in-app call surface, phase 3:
- * multi-call. Renders the ACTIVE call's controls (mute, hold, transfer,
- * hang up, open-conversation) plus a compact chip per OTHER call — a held
- * call to flip back to, an incoming ring to answer (answering holds the
- * current call: call waiting), or a brief "Call ended". Absent entirely at
- * rest so it never occupies space.
- *
- * Fixed above the mobile tab bar; a slim floating card on desktop.
- */
 import {
   ArrowRightLeft,
   Grid3x3,
@@ -18,7 +8,9 @@ import {
   MicOff,
   Pause,
   Phone,
+  PhoneIncoming,
   PhoneOff,
+  PhoneOutgoing,
   Play,
   X,
 } from "lucide-react";
@@ -28,6 +20,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT } from "@/i18n/provider";
 import {
@@ -42,11 +35,20 @@ import { useNotificationsUnreadCount } from "@/lib/api/notifications";
 import { ApiError } from "@/lib/api/error";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
-import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { CALL_SHORTCUTS } from "@/lib/softphone/shortcuts";
 import type { CallInfo } from "@/lib/softphone/state";
 import { cn } from "@/lib/utils";
+
+const CALL_PHASE = {
+  ringing: { icon: PhoneIncoming, label: "shell.incomingCall" },
+  connecting: { icon: PhoneOutgoing, label: "shell.calling" },
+  active: { icon: Phone, label: "shell.onACall" },
+  held: { icon: Pause, label: "shell.onHold" },
+  ended: { icon: PhoneOff, label: "shell.callFinished" },
+} as const;
+const CALL_ROW = "pointer-events-auto flex min-w-0 items-center gap-x-3 gap-y-2";
+const END_BUTTON = "bg-[var(--app-call-ring-fill)] text-[var(--app-call-ring-label)] hover:bg-[var(--app-call-ring-fill)]/80 hover:text-[var(--app-call-ring-label)]";
 
 function LiveTimer({ since }: { since: number }) {
   const [elapsed, setElapsed] = useState(() =>
@@ -60,6 +62,40 @@ function LiveTimer({ since }: { since: number }) {
     return () => window.clearInterval(id);
   }, [since]);
   return <span className="tabular-nums">{formatCallDuration(elapsed)}</span>;
+}
+
+function CallIdentity({ call }: { call: CallInfo }) {
+  const t = useT();
+  const { icon: Icon, label } = CALL_PHASE[call.phase];
+  const number = call.peer.number ? formatPhone(call.peer.number) : "";
+  const name = call.peer.name || number || t("shell.unknownCaller");
+  const numberIsName = number && (name === number || name === call.peer.number);
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-app-card bg-[var(--call-fill)] text-[var(--call-label)]">
+        <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+      </span>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3">
+        <span className="min-w-0 truncate text-sm font-semibold text-app-ink">
+          {numberIsName ? <CopyablePhoneNumber number={call.peer.number} /> : name}
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-[var(--call-label)]">
+          <span className="call-signal" aria-hidden>
+            {Array.from({ length: 10 }, (_, index) => <i key={index} />)}
+          </span>
+          {t(label)}
+        </span>
+        {call.phase === "active" && call.activeSince !== null && (
+          <span className="text-xs text-app-muted-2"><LiveTimer since={call.activeSince} /></span>
+        )}
+        {number && !numberIsName && (
+          <span className="min-w-0 truncate text-xs text-app-muted-2">
+            <CopyablePhoneNumber number={call.peer.number} label={number} />
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /** The transfer picker: teammates who can take this call, busy flags honest. */
@@ -101,7 +137,7 @@ function TransferMenu({
       tabIndex={-1}
       role="group"
       aria-label={t("shell.transferTo")}
-      className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg"
+      className="absolute right-3 top-full z-10 mt-2 max-h-[60svh] w-[min(26rem,calc(100%-1.5rem))] overflow-y-auto rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg"
     >
       <p className={cn(SECTION_LABEL_CLASS, "px-2 pb-1.5")}>
         {t("shell.transferTo")}
@@ -181,7 +217,7 @@ function ConsultControls() {
     }
   }
   return (
-    <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
+    <div className="pointer-events-auto flex flex-wrap items-center gap-2 border-t border-app-line px-3 py-1.5">
       <span className="px-2 text-sm">{t("shell.consultingWith", { name: consult.targetName })}</span>
       <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void run("cancel")}>
         {t("shell.backToCaller")}
@@ -193,7 +229,6 @@ function ConsultControls() {
   );
 }
 
-/** A compact chip for a NON-active call (held / ringing / ended). */
 function CallChip({
   call,
   prominent,
@@ -205,122 +240,84 @@ function CallChip({
 }) {
   const t = useT();
   const softphone = useSoftphone()!;
-  const label = call.peer.name || formatPhone(call.peer.number);
-  const labelIsNumber = call.peer.number && (!call.peer.name || call.peer.name === formatPhone(call.peer.number));
-  // The "ended" chip is meant to be brief — auto-dismiss it after a few seconds
-  // (the manual X still works) so a stale "· ended" pill doesn't linger for the
-  // rest of the session.
+  const name = call.peer.name || formatPhone(call.peer.number) || t("shell.unknownCaller");
+  const { dismiss } = softphone;
+
   useEffect(() => {
     if (call.phase !== "ended") return;
-    const timer = setTimeout(() => softphone.dismiss(call.id), 6000);
+    const timer = setTimeout(() => dismiss(call.id), 6000);
     return () => clearTimeout(timer);
-  }, [call.phase, call.id, softphone]);
-  if (call.phase === "ringing") {
-    return (
-      <div
-        role="alert"
-        className={cn(
-          "pointer-events-auto flex items-center gap-2 border border-primary/40 bg-app-paper shadow-lg",
-          prominent ? "rounded-app-card px-4 py-2.5" : "rounded-full px-3 py-1.5",
-        )}
-      >
-        <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
-        <span className={cn("max-w-[140px] truncate font-medium", prominent ? "text-[15px]" : "text-[12.5px]")}>
-          <span className="sr-only">{t("shell.incomingCallFrom")} </span>
-          {labelIsNumber ? <CopyablePhoneNumber number={call.peer.number} /> : label}
-        </span>
-        <Button
-          size="sm"
-          className={cn(
-            "min-h-11 min-w-11 md:min-h-0 md:min-w-0",
-            !prominent && "gap-1 px-2 text-[12px] md:h-6",
-          )}
-          aria-keyshortcuts={CALL_SHORTCUTS.answer.keys}
-          onClick={() =>
-            void softphone.answer(call.id).catch((error: unknown) =>
-              toast.error(
-                error instanceof Error
-                  ? error.message
-                  : t("shell.answerFailed"),
-              ),
-            )
-          }
-        >
-          <Phone className="size-3" strokeWidth={1.75} />
-          {t("shell.answer")}
-        </Button>
-        <Button
-          variant="ghost"
-          size={prominent ? "sm" : "icon-sm"}
-          className={cn(
-            "min-h-11 min-w-11 text-destructive hover:bg-destructive/10 md:min-h-0 md:min-w-0",
-            !prominent && "md:size-6",
-          )}
-          aria-label={t("shell.decline")}
-          aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
-          onClick={() => softphone.hangup(call.id)}
-        >
-          <PhoneOff className="size-3.5" strokeWidth={1.75} />
-          {prominent && t("shell.decline")}
-        </Button>
-      </div>
-    );
-  }
-  if (call.phase === "held") {
-    return (
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
-        <Pause className="size-3 text-app-muted-2" strokeWidth={1.75} aria-hidden />
-        <span className="max-w-[140px] truncate text-[12.5px] text-app-muted">
-          {t("shell.callOnHold", { name: label })}
-        </span>
-        {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-6"
-          aria-label={t("shell.resumeCall", { name: label })}
-          data-hold-call={call.id}
-          onClick={(event) => onToggleHold(event.currentTarget)}
-        >
-          <Play className="size-3.5" strokeWidth={1.75} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 text-app-clay hover:bg-app-clay/10"
-          aria-label={t("shell.hangUpHeldCall")}
-          onClick={() => softphone.hangup(call.id)}
-        >
-          <PhoneOff className="size-3.5" strokeWidth={1.75} />
-        </Button>
-      </div>
-    );
-  }
-  if (call.phase === "ended") {
-    return (
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 text-app-muted-2 shadow-lg">
-        <span className="max-w-[140px] truncate text-[12.5px]">
-          {t("shell.callEnded", { name: label })}
-        </span>
-        {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-6"
-          aria-label={t("shell.dismiss")}
-          onClick={() => softphone.dismiss(call.id)}
-        >
-          <X className="size-3.5" strokeWidth={1.75} />
-        </Button>
-      </div>
-    );
-  }
-  // 'connecting' chips only exist while another call is active (rare).
+  }, [call.phase, call.id, dismiss]);
+
   return (
-    <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
-      <span aria-hidden className="size-2 rounded-full bg-warning animate-pulse" />
-      <span className="max-w-[140px] truncate text-[12.5px]">{label}…</span>
-      {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
+    <div
+      role={call.phase === "ringing" ? "alert" : undefined}
+      data-phase={call.phase}
+      className={cn("call-strip", CALL_ROW, "justify-between px-3 py-1.5 sm:px-5", prominent && "py-2")}
+    >
+      <CallIdentity call={call} />
+      {call.phase === "ringing" && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn("min-h-11 min-w-11 md:min-h-0 md:min-w-0", END_BUTTON)}
+            aria-label={t("shell.decline")}
+            aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
+            onClick={() => softphone.hangup(call.id)}
+          >
+            <PhoneOff className="size-4" strokeWidth={1.75} />
+            <span className="hidden sm:inline">{t("shell.decline")}</span>
+          </Button>
+          <Button
+            size="sm"
+            className="min-h-11 bg-[var(--app-lime)] text-[var(--app-lime-foreground)] hover:bg-[var(--app-lime)]/85 md:min-h-0"
+            aria-keyshortcuts={CALL_SHORTCUTS.answer.keys}
+            onClick={() =>
+              void softphone.answer(call.id).catch((error: unknown) =>
+                toast.error(error instanceof Error ? error.message : t("shell.answerFailed")),
+              )
+            }
+          >
+            <Phone className="size-4" strokeWidth={1.75} />
+            {t("shell.answer")}
+          </Button>
+        </div>
+      )}
+      {call.phase === "held" && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-h-11 md:min-h-0"
+            aria-label={t("shell.resumeCall", { name })}
+            data-hold-call={call.id}
+            onClick={(event) => onToggleHold(event.currentTarget)}
+          >
+            <Play className="size-4" strokeWidth={1.75} />
+            {t("shell.resume")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={END_BUTTON}
+            aria-label={t("shell.hangUpHeldCall")}
+            onClick={() => softphone.hangup(call.id)}
+          >
+            <PhoneOff className="size-4" strokeWidth={1.75} />
+          </Button>
+        </div>
+      )}
+      {call.phase === "ended" && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("shell.dismiss")}
+          onClick={() => dismiss(call.id)}
+        >
+          <X className="size-4" strokeWidth={1.75} />
+        </Button>
+      )}
     </div>
   );
 }
@@ -359,7 +356,7 @@ function DtmfKeypad({
       tabIndex={-1}
       role="group"
       aria-label={t("shell.keypad")}
-      className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg"
+      className="absolute right-3 top-full z-10 mt-2 w-[min(20rem,calc(100%-1.5rem))] rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg"
     >
       <div className="mb-2 flex items-center justify-between px-1">
         <span className={SECTION_LABEL_CLASS}>
@@ -427,8 +424,6 @@ function ActiveCard({
     return () => window.removeEventListener("keydown", closeOnEscape, true);
   }, [closePanel, panel]);
   const live = useLiveCall(call.sessionId);
-  const name = call.peer.name || formatPhone(call.peer.number);
-  const number = call.peer.number ? formatPhone(call.peer.number) : "";
   // #211 (C1): light transfer/consult on a serverAddressable signal (a
   // SUCCESSFUL GET /v1/calls/live/:session read), not on mere sessionId
   // presence. A 4-part outbound call that fell to the legacy webhook path
@@ -454,156 +449,127 @@ function ActiveCard({
   }, [call.sessionId]);
   const noteLinkPending =
     conversationId === null && !noteLookupGaveUp && !live.isError;
+  const muteLabel = t(call.muted ? "shell.unmute" : "shell.mute");
 
   return (
     <div
       ref={card}
-      className="pointer-events-auto relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-paper px-4 py-2.5 shadow-lg"
+      data-phase={call.phase}
+      className={cn("call-strip", CALL_ROW, "relative flex-wrap px-3 py-2 sm:px-5 xl:flex-nowrap")}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "size-2 shrink-0 rounded-full",
-          call.phase === "active"
-            ? "bg-primary animate-pulse"
-            : "bg-warning animate-pulse",
-        )}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-app-ink">{name}</p>
-        <p className="truncate text-xs text-app-muted-2">
-          {call.phase === "connecting" ? (
-            t("shell.calling")
-          ) : (call.activeSince === null ? (
-            ""
+      <CallIdentity call={call} />
+      <div className="flex w-full flex-wrap items-center justify-between gap-0.5 border-t border-app-line pt-1.5 sm:w-auto sm:flex-nowrap sm:justify-end sm:border-0 sm:pt-0">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="xl:w-auto xl:px-2.5 aria-pressed:bg-[var(--app-call-ring-fill)] aria-pressed:text-[var(--app-call-ring-label)]"
+          aria-label={muteLabel}
+          aria-keyshortcuts={CALL_SHORTCUTS.mute.keys}
+          aria-pressed={call.muted}
+          onClick={() => softphone.toggleMute(call.id)}
+        >
+          {call.muted ? (
+            <MicOff className="size-4" strokeWidth={1.75} />
           ) : (
-            <LiveTimer since={call.activeSince} />
-          ))}
-          {number && (
-            <>
-              {" · "}
-              <CopyablePhoneNumber number={call.peer.number} label={number} />
-            </>
+            <Mic className="size-4" strokeWidth={1.75} />
           )}
-        </p>
-      </div>
-
-      {/* In-call notes: the conversation IS the notepad (threaded at answer).
-          #516: PRESENT while the call is active, enabled once the thread is
-          known. It used to be absent until then, which on a transferred call
-          could be forever — and an absent control is indistinguishable from a
-          feature that does not exist, so the founder found hold/unhold before
-          they found the button. Both phones already keep it mounted and
-          disabled (InCallScreen.kt #202, InCallView.swift); this is the web
-          client catching up. */}
-      {call.phase === "active" &&
-        (conversationId ? (
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("shell.openConversationForNotes")}
-          >
-            <Link href={`/inbox/${conversationId}`}>
-              <MessageSquareText className="size-4" strokeWidth={1.75} />
-            </Link>
-          </Button>
-        ) : (
+          <span className="hidden xl:inline">{muteLabel}</span>
+        </Button>
+        {call.phase === "active" && (
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled
-            // Says WHICH of the two it is. "Not available" on a call that is
-            // still threading reads as broken; "Finding…" on one that already
-            // gave up is a lie the user waits on.
-            aria-label={
-              noteLinkPending
-                ? t("shell.findingConversation")
-                : t("shell.noConversationForCallAria")
-            }
-            title={
-              noteLinkPending
-                ? t("shell.findingConversation")
-                : t("shell.noConversationForCall")
-            }
+            className="xl:w-auto xl:px-2.5"
+            aria-label={t("shell.putOnHold")}
+            data-hold-call={call.id}
+            onClick={(event) => onToggleHold(event.currentTarget)}
           >
-            <MessageSquareText className="size-4" strokeWidth={1.75} />
+            <Pause className="size-4" strokeWidth={1.75} />
+            <span className="hidden xl:inline">{t("shell.hold")}</span>
           </Button>
-        ))}
-      {call.phase === "active" && !softphone.consultation && (
-        <Button
-          ref={transferTrigger}
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("shell.transferThisCall")}
-          aria-expanded={transferOpen}
-          // #516: mounted for the whole active call, enabled once the server
-          // can address the session. Disabled still communicates "this call can
-          // be transferred, just not this instant"; absent communicates nothing.
-          disabled={!call.sessionId || !serverAddressable}
-          title={
-            call.sessionId && serverAddressable
-              ? undefined
-              : t("shell.connectingCallToServer")
-          }
-          onClick={() => transferOpen ? closePanel() : setPanel("transfer")}
-        >
-          <ArrowRightLeft className="size-4" strokeWidth={1.75} />
-        </Button>
-      )}
-      {transferOpen && call.phase === "active" && call.sessionId && serverAddressable && !softphone.consultation && (
-        <TransferMenu sessionId={call.sessionId} onDone={closePanel} />
-      )}
-      {call.phase === "active" && (
-        <Button
-          ref={keypadTrigger}
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("shell.keypad")}
-          aria-expanded={keypadOpen}
-          onClick={() => keypadOpen ? closePanel() : setPanel("keypad")}
-        >
-          <Grid3x3 className="size-4" strokeWidth={1.75} />
-        </Button>
-      )}
-      {keypadOpen && call.phase === "active" && (
-        <DtmfKeypad callId={call.id} onClose={closePanel} />
-      )}
-      {call.phase === "active" && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("shell.putOnHold")}
-          data-hold-call={call.id}
-          onClick={(event) => onToggleHold(event.currentTarget)}
-        >
-          <Pause className="size-4" strokeWidth={1.75} />
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={call.muted ? t("shell.unmute") : t("shell.mute")}
-        aria-keyshortcuts={CALL_SHORTCUTS.mute.keys}
-        aria-pressed={call.muted}
-        onClick={() => softphone.toggleMute(call.id)}
-      >
-        {call.muted ? (
-          <MicOff className="size-4 text-app-clay" strokeWidth={1.75} />
-        ) : (
-          <Mic className="size-4" strokeWidth={1.75} />
         )}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={t("shell.hangUp")}
-        aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
-        onClick={() => softphone.hangup(call.id)}
-        className="text-app-clay hover:bg-app-clay/10"
-      >
-        <PhoneOff className="size-4" strokeWidth={1.75} />
-      </Button>
+        {call.phase === "active" && (
+          <Button
+            ref={keypadTrigger}
+            variant="ghost"
+            size="icon-sm"
+            className="xl:w-auto xl:px-2.5"
+            aria-label={t("shell.keypad")}
+            aria-expanded={keypadOpen}
+            onClick={() => keypadOpen ? closePanel() : setPanel("keypad")}
+          >
+            <Grid3x3 className="size-4" strokeWidth={1.75} />
+            <span className="hidden xl:inline">{t("shell.keypad")}</span>
+          </Button>
+        )}
+        {keypadOpen && call.phase === "active" && (
+          <DtmfKeypad callId={call.id} onClose={closePanel} />
+        )}
+        {call.phase === "active" &&
+          (conversationId ? (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("shell.openConversationForNotes")}
+              title={t("shell.openConversationForNotes")}
+            >
+              <Link href={`/inbox/${conversationId}`}>
+                <MessageSquareText className="size-4" strokeWidth={1.75} />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled
+              aria-label={
+                noteLinkPending
+                  ? t("shell.findingConversation")
+                  : t("shell.noConversationForCallAria")
+              }
+              title={
+                noteLinkPending
+                  ? t("shell.findingConversation")
+                  : t("shell.noConversationForCall")
+              }
+            >
+              <MessageSquareText className="size-4" strokeWidth={1.75} />
+            </Button>
+          ))}
+        {call.phase === "active" && !softphone.consultation && (
+          <Button
+            ref={transferTrigger}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("shell.transferThisCall")}
+            aria-expanded={transferOpen}
+            disabled={!call.sessionId || !serverAddressable}
+            title={
+              call.sessionId && serverAddressable
+                ? t("shell.transferThisCall")
+                : t("shell.connectingCallToServer")
+            }
+            onClick={() => transferOpen ? closePanel() : setPanel("transfer")}
+          >
+            <ArrowRightLeft className="size-4" strokeWidth={1.75} />
+          </Button>
+        )}
+        {transferOpen && call.phase === "active" && call.sessionId && serverAddressable && !softphone.consultation && (
+          <TransferMenu sessionId={call.sessionId} onDone={closePanel} />
+        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("shell.hangUp")}
+          aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
+          onClick={() => softphone.hangup(call.id)}
+          className={cn(END_BUTTON, "sm:w-auto sm:px-3 md:w-auto")}
+        >
+          <PhoneOff className="size-4" strokeWidth={1.75} />
+          <span className="hidden sm:inline">{t("shell.hangUp")}</span>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -615,8 +581,17 @@ function Ringtone() {
     if (paused || isPending) return;
     const sound = new Audio("/incoming-call.mp3");
     sound.loop = true;
-    void sound.play().catch(() => {});
-    return () => sound.pause();
+    const interaction = new AbortController();
+    const play = () => {
+      void sound.play().then(() => interaction.abort()).catch(() => {});
+    };
+    document.addEventListener("click", play, { signal: interaction.signal });
+    document.addEventListener("keydown", play, { signal: interaction.signal });
+    play();
+    return () => {
+      interaction.abort();
+      sound.pause();
+    };
   }, [paused, isPending]);
   return null;
 }
@@ -625,6 +600,26 @@ export function CallBar() {
   const t = useT();
   const softphone = useSoftphone();
   const region = useRef<HTMLDivElement>(null);
+  const slot = useRef<HTMLDivElement>(null);
+  const showing = Boolean(softphone?.calls.length);
+  useLayoutEffect(() => {
+    const bar = region.current;
+    const space = slot.current;
+    if (!showing || !bar || !space) return;
+    // The strip must stay in the body portal so dialogs cannot trap or hide its controls.
+    const position = () => {
+      const { top, left, width } = space.getBoundingClientRect();
+      bar.style.top = `${top}px`;
+      bar.style.left = `${left}px`;
+      bar.style.width = `${width}px`;
+      space.style.height = `${bar.offsetHeight}px`;
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(space);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [showing]);
   const holdFocus = useRef<{ id: string; previous: HTMLButtonElement } | null>(null);
   useEffect(() => {
     // Radix's document-level focus trap would pull focus back from the call controls.
@@ -665,14 +660,14 @@ export function CallBar() {
   );
   const ringing = others.some((call) => call.phase === "ringing");
   const status = calls.map((call) => {
-    const name = call.peer.name || formatPhone(call.peer.number);
+    const name = call.peer.name || formatPhone(call.peer.number) || t("shell.unknownCaller");
     if (call.phase === "active") return t("shell.callConnected", { name });
     if (call.phase === "held") return t("shell.callOnHold", { name });
     if (call.phase === "ended") return t("shell.callEnded", { name });
     return "";
   }).filter(Boolean).join(". ");
 
-  return createPortal(
+  const portal = createPortal(
     <div aria-live="polite">
       <div role="status" className="sr-only">{status}</div>
       {ringing && <Ringtone />}
@@ -680,14 +675,27 @@ export function CallBar() {
         <div
           ref={region}
           data-call-bar=""
-          className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] z-[60] flex flex-col items-center gap-2 px-3 font-sans lg:bottom-4"
+          className={cn(
+            "call-arrive",
+            "pointer-events-none fixed inset-x-0 top-0 z-[60] flex flex-col border-b border-app-line bg-app-paper font-sans",
+            "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-[var(--call-signal)]",
+            "call-strip",
+          )}
+          data-phase={ringing ? "ringing" : active?.phase ?? others[0]?.phase}
           role="region"
           aria-live="off"
           aria-label={t("shell.navCalls")}
         >
+          {active && (
+            <ActiveCard
+              key={active.id}
+              call={active}
+              onToggleHold={(button) => holdWithFocus(active.id, button)}
+            />
+          )}
           <ConsultControls />
           {others.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="max-h-[38svh] divide-y divide-app-line overflow-y-auto [&:not(:first-child)]:border-t [&:not(:first-child)]:border-app-line">
               {others.map((call) => (
                 <CallChip
                   key={call.id}
@@ -698,16 +706,15 @@ export function CallBar() {
               ))}
             </div>
           )}
-          {active && (
-            <ActiveCard
-              key={active.id}
-              call={active}
-              onToggleHold={(button) => holdWithFocus(active.id, button)}
-            />
-          )}
         </div>
       )}
     </div>,
     document.body,
+  );
+  return (
+    <>
+      {showing && <div ref={slot} className="shrink-0" aria-hidden />}
+      {portal}
+    </>
   );
 }
