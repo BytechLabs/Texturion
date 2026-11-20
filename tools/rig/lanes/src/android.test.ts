@@ -324,6 +324,20 @@ describe("the device driver's commands (no device has run them)", () => {
     await expect(android.tapFieldLabelled("Phone")).resolves.toBe(false);
   });
 
+  it("taps a field whose accessible label overlays the edit control", async () => {
+    const signIn = `<hierarchy>
+<node text="" class="android.widget.EditText" bounds="[39,379][281,427]" />
+<node content-desc="Work email" class="android.view.View" bounds="[39,380][281,426]" />
+<node text="" class="android.widget.EditText" bounds="[39,460][233,508]" />
+<node content-desc="Password" class="android.view.View" bounds="[39,461][233,507]" />
+</hierarchy>`;
+    const { android, calls } = device({ "cat /sdcard/rig-ui.xml": signIn });
+    await expect(android.tapFieldLabelled("Email")).resolves.toBe(true);
+    expect(calls.at(-1)).toBe(`${ADB} shell input tap 160 403`);
+    await expect(android.tapFieldLabelled("Password")).resolves.toBe(true);
+    expect(calls.at(-1)).toBe(`${ADB} shell input tap 136 484`);
+  });
+
   it("waits for Telecom's ring and the full-screen notification, timing each", async () => {
     let polls = 0;
     let notes = 0;

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -40,6 +42,19 @@ test("without systemd a run is a plain child with the rig's home", () => {
     args: [CLI, "run", "D02p"],
     env: { RIG_HOME: "/var/lib/loonext-rig" },
   });
+});
+
+test("both launch modes trust the installed rig CA", (t) => {
+  const secrets = mkdtempSync(join(tmpdir(), "rig-run-ca-"));
+  const ca = join(secrets, "rig-ca.crt");
+  writeFileSync(ca, "");
+  t.after(() => {
+    unlinkSync(ca);
+    rmdirSync(secrets);
+  });
+  const input = { instance: "S34", layout: { ...layout, secrets }, node: NODE };
+  assert.equal(runCommand({ ...input, systemd: false }).env.NODE_EXTRA_CA_CERTS, ca);
+  assert.ok(runCommand({ ...input, systemd: true }).args.includes(`--setenv=NODE_EXTRA_CA_CERTS=${ca}`));
 });
 
 test("only a scenario id, and a plain run id, are taken", () => {

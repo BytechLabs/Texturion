@@ -411,11 +411,20 @@ export class AndroidDevice {
     return this.#tapWhere((node) => node.text === text || node.description === text);
   }
 
-  /** Taps the text field after the label that holds `label`, ignoring case: the app draws a field's label as a separate text. */
   async tapFieldLabelled(label: string): Promise<boolean> {
     const nodes = await this.#nodes();
-    const at = nodes.findIndex((node) => node.text.toLowerCase().includes(label.toLowerCase()));
-    const field = at === -1 ? undefined : nodes.slice(at + 1).find((node) => node.className.endsWith("EditText"));
+    const expected = label.toLowerCase();
+    const at = nodes.findIndex((node) =>
+      node.text.toLowerCase().includes(expected) || node.description.toLowerCase().includes(expected),
+    );
+    if (at === -1) return false;
+    const { x, y } = centre(nodes[at]!);
+    const isField = (node: UiNode) => node.className.endsWith("EditText");
+    const field = nodes.find((node) =>
+      isField(node) &&
+      node.bounds.left <= x && x <= node.bounds.right &&
+      node.bounds.top <= y && y <= node.bounds.bottom,
+    ) ?? nodes.slice(at + 1).find(isField);
     if (!field) return false;
     await this.#tapNode(field);
     return true;

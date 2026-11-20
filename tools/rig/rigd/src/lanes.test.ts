@@ -556,9 +556,9 @@ describe("the held number's undo", () => {
 });
 
 describe("mail", () => {
-  it("finds every link in a quoted-printable body", () => {
-    expect(linksIn("Open https://app.rig.internal/invite?token=3D=\nabc and https://x.example/a.")).toEqual([
-      "https://app.rig.internal/invite?token=abc",
+  it("extracts links from decoded mail text", () => {
+    expect(linksIn("Open https://app.rig.internal/invite?token=ABcd and https://x.example/a.")).toEqual([
+      "https://app.rig.internal/invite?token=ABcd",
       "https://x.example/a",
     ]);
   });
@@ -567,22 +567,22 @@ describe("mail", () => {
     const { fetch, requests } = fakeFetch({
       "GET http://127.0.0.1:54324/api/v1/search": () =>
         json({ messages: [{ ID: "m1", Created: "2026-10-31T15:01:00Z", Subject: "Confirm", To: [{ Address: "a@resend.dev" }] }] }),
-      "GET http://127.0.0.1:54324/api/v1/message/m1": () => json({ Text: "Confirm: https://app.rig.internal/auth/confirm?t=1" }),
+      "GET http://127.0.0.1:54324/api/v1/message/m1": () => json({ Text: "Confirm: https://app.rig.internal/auth/confirm?t=ABcd" }),
       "GET https://app.rig.internal/auth/confirm": () => new Response(null, { status: 303, headers: { location: "/inbox" } }),
     });
     const mail = new MailClient({
       robotMailbox: "rig-robot@example.invalid",
       storedMail: () => [
-        { id: "1", to: "rig-robot+s34@example.invalid", from: "f", subject: "Invite", raw: "Subject: Invite\r\n\r\nJoin https://app.rig.internal/join", received_at: "2026-10-31T15:00:00Z" },
+        { id: "1", to: "rig-robot+s34@example.invalid", from: "f", subject: "Invite", raw: "Subject: Invite\r\n\r\nJoin https://app.rig.internal/join?token_hash=3D=\r\nABcd", received_at: "2026-10-31T15:00:00Z" },
         { id: "2", to: "rig-robot+other@example.invalid", from: "f", subject: "x", raw: "\r\n\r\nx", received_at: "2026-10-31T15:00:00Z" },
       ],
       mailpitUrl: "http://127.0.0.1:54324",
       fetch,
     });
     expect(mail.robotAddress("s34")).toBe("rig-robot+s34@example.invalid");
-    expect((await mail.robotMail({ since: 0, tag: "s34" })).map((m) => m.links)).toEqual([["https://app.rig.internal/join"]]);
+    expect((await mail.robotMail({ since: 0, tag: "s34" })).map((m) => m.links)).toEqual([["https://app.rig.internal/join?token_hash=ABcd"]]);
     const [confirm] = await mail.mailpit({ to: "a@resend.dev", since: Date.UTC(2026, 9, 31, 15) });
-    expect(confirm!.links).toEqual(["https://app.rig.internal/auth/confirm?t=1"]);
+    expect(confirm!.links).toEqual(["https://app.rig.internal/auth/confirm?t=ABcd"]);
     await expect(mail.openLink(confirm!.links[0]!)).resolves.toEqual({ status: 303, location: "/inbox" });
     expect(decodeURIComponent(requests[0]!.url)).toContain('to:"a@resend.dev"');
   });
