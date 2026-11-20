@@ -159,6 +159,11 @@ export function allowsCarrierReceiptLookup(env: Env): boolean {
   return deployEnv(env) === "production";
 }
 
+export function rigResendBudgetRefused(env: Env, response: Response): boolean {
+  return deployEnv(env) === "rig" && env.RESEND_API_BASE !== undefined &&
+    response.status === 429 && response.headers.get("x-rig-refused-by") === "budget.resend_day";
+}
+
 /**
  * How an FCM send authenticates.
  *

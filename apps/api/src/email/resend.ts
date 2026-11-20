@@ -3,6 +3,7 @@ import type { Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { rigResendBudgetRefused } from "../environments/policy";
 import { fetchWithDeadline } from "../http/deadline";
 import { captureEvent, reportHandledFailure, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { emailTextFooter } from "./html";
@@ -73,6 +74,13 @@ export interface SentEmail {
 }
 
 const DEFAULT_RESEND_API_BASE = "https://api.resend.com";
+
+export class RigResendBudgetError extends Error {
+  constructor() {
+    super("The rig's daily Resend allowance is exhausted");
+    this.name = "RigResendBudgetError";
+  }
+}
 
 /**
  * D142: the rig sends through its guard, which holds the only key and keeps
@@ -163,6 +171,7 @@ export async function sendEmail(
     // Resend error bodies are JSON `{ name, message }`; keep whatever we got
     // for the thrown message but never let a broken body mask the status.
     const body = await response.text().catch(() => "");
+    if (rigResendBudgetRefused(env, response)) throw new RigResendBudgetError();
     throw new Error(
       `Resend send failed: HTTP ${response.status}${body ? ` — ${body.slice(0, 500)}` : ""}`,
     );
