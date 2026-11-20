@@ -28,6 +28,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ios-qa-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   simulator:
     runs-on: macos-latest
@@ -36,7 +40,7 @@ jobs:
       run:
         working-directory: apps/ios
     env:
-      QA_SCENARIO: ${{ inputs.scenario || 'all' }}
+      QA_SCENARIO: ${{ inputs.scenario || 'calls' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -115,7 +119,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-qa-${{ inputs.scenario || 'all' }}
+          name: ios-qa-${{ env.QA_SCENARIO }}
           path: ${{ runner.temp }}/ios-qa
           retention-days: 14
           if-no-files-found: error

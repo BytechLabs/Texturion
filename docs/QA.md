@@ -160,14 +160,14 @@ The rig can verify app UI, Google Phone's emulated modem and contacts behavior, 
 
 ## iOS Simulator
 
-Open **Actions → iOS QA → Run workflow** and choose a scenario or `all`. The CLI equivalent is `gh workflow run ios-qa.yml --ref main -f scenario=all`. The workflow also runs on pull requests that change the workflow or its test harness. It installs `com.loonext.ios.qa` on an iPhone Simulator and uses synthetic data on the runner. It needs no Apple account, Firebase configuration, customer credentials, carrier traffic, or founder's phone.
+Open **Actions → iOS QA → Run workflow** and choose a scenario or `all`. The CLI equivalent is `gh workflow run ios-qa.yml --ref main -f scenario=all`. Pull requests that change the workflow or test harness build the QA app, verify Release endpoints and run `calls` as a smoke test. The workflow installs `com.loonext.ios.qa` on an iPhone Simulator and uses synthetic data on the runner. It needs no Apple account, Firebase configuration, customer credentials, carrier traffic, or founder's phone.
 
 Each scenario records a video, a final screenshot, XCUITest screenshots and results, and its fixture server log. Network scenarios also capture the synthetic request bodies and any injected `.apns` payloads. Open the `ios-qa-*` artifact on the run page. The run summary lists each scenario's result.
 
 | Scenario | Issue | Simulator evidence |
 | --- | --- | --- |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
-| `notification-actions` | #777 | Injected message and missed-call alerts exercise the Notification Center, reply through the app outbox, and removal on thread open and on a read broadcast for the same user. The fixture records accepted sends and their idempotency keys. |
+| `notification-actions` | #777 | XCTest attempts a Reply from Notification Center and checks card removal on thread open and on a read broadcast for the same user. A separate test submits a synthetic reply action to the app's handler and checks the outgoing request and idempotency key. |
 | `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover synthetic VoIP payloads, caller privacy, wake policy, and the softphone behavior behind CallKit answer and end actions. |
 | `offline` | #778 | The fixture closes API and Realtime connections while Simulator networking stays active. The app reopens cached data after termination, flushes a queued send once after reconnect and returns to sign-in when refresh is refused. This exercises app behavior on transport failure. The iOS reachability strip and real radio transitions need a separate network-loss pass. |
 | `autosave` | #780 | UI tests edit contact notes and leave the screen, then edit Calling settings and immediately press Home. The fixture checks one PATCH with the latest value and the tests reopen the UI to confirm it. A debounce regression drives the sub-800 ms window independently of Simulator gesture timing. |
@@ -175,6 +175,8 @@ Each scenario records a video, a final screenshot, XCUITest screenshots and resu
 | `accessibility` | #238 | Apple's `performAccessibilityAudit` checks the app's primary flows using the same audit target as Gate / iOS. It reports properties such as labels, contrast, hit regions and large-text clipping. |
 
 `LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
+
+For interactive tests of throughput and packet loss, Xcode exposes Network Link Conditioner profiles in its Devices and Simulators window. The hosted test controls the fixture's sockets while leaving its control endpoint reachable. [Apple network conditioning guide](https://developer.apple.com/videos/play/tech-talks/111378/)
 
 ### Accepted iPhone hardware gaps
 
