@@ -104,7 +104,7 @@ export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<Setup
       "name",
       profile.name,
       settings,
-      settings,
+      { name: profile.name, ...settings },
     );
   }
 
