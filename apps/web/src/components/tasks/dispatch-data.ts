@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api/client";
 
 export interface DispatchWindow { start: string; end: string }
+export interface DispatchShift { start: string | null; end: string | null; breaks: DispatchWindow[] }
 
 export interface DispatchTask {
   id: string;
@@ -41,7 +42,7 @@ export interface DispatchDay {
 export interface DispatchPlan {
   revision: number;
   timezone: string;
-  members: { id: string; name: string | null }[];
+  members: { id: string; name: string | null; shifts?: Record<string, DispatchShift> }[];
   days: DispatchDay[];
   tasks: DispatchTask[];
   blocks: DispatchBlock[];
@@ -68,6 +69,7 @@ interface WorkloadCell {
   assignee_id: string;
   booked: number;
   available: number | null;
+  overloaded?: boolean;
 }
 
 export interface DispatchRoute {
@@ -104,6 +106,12 @@ export function previewDispatch(companyId: string, body: DispatchRequest & {
 
 export function publishDispatch(companyId: string, body: DispatchRequest) {
   return apiFetch<PlanResponse>("/v1/dispatch/publish", { companyId, method: "POST", body });
+}
+
+export function saveDispatchShift(companyId: string, body: DispatchRange & {
+  revision: number; worker_id: string; weekday: number; shift: DispatchShift | null;
+}) {
+  return apiFetch<PlanResponse>("/v1/dispatch/shifts", { companyId, method: "PUT", body });
 }
 
 export function blocksOnDay(plan: DispatchPlan, date: string) {

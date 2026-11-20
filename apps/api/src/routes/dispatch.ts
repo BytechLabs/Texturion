@@ -19,6 +19,15 @@ const duration = z.number().int().min(5).max(720);
 const date = z.iso.date();
 const id = z.uuid();
 const range = z.object({ day: date, days: z.coerce.number().int().min(1).max(14).default(7), task: id.optional() });
+const localTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+const shiftWindow = z.object({ start: localTime, end: localTime });
+const shift = z.object({
+  start: localTime.nullable(), end: localTime.nullable(), breaks: z.array(shiftWindow).max(6),
+});
+const shiftRequest = range.extend({
+  revision: z.number().int().nonnegative(), worker_id: id, weekday: z.number().int().min(1).max(7),
+  shift: shift.nullable(),
+});
 const taskVersion = z.object({ task_id: id, updated_at: timestamp });
 const blockEdit = taskVersion.extend({ id, reschedule: z.boolean().default(false) });
 const change = z.discriminatedUnion("remove", [
@@ -57,6 +66,7 @@ const PUBLISH_ISSUES = {
   travel: ["validation_failed", "This plan leaves too little travel time between visits.", "dispatchTravel"],
   address: ["validation_failed", "Confirm the service address before scheduling the visit.", "dispatchAddress"],
   hours: ["validation_failed", "Choose a time within the dispatch day and available hours.", "dispatchHours"],
+  shift: ["validation_failed", "Use a shift with a start before its end and breaks that fit without overlapping.", "dispatchShift"],
   duration: ["validation_failed", "Use a duration between 5 minutes and 12 hours.", "dispatchDuration"],
   assignee: ["validation_failed", "Choose an active teammate who can open this task.", "dispatchAssignee"],
   not_found: ["not_found", "No such task.", "bookingNotFound"],
@@ -121,6 +131,30 @@ export const dispatchRoutes = new Hono<AppEnv>();
 
 dispatchRoutes.get("/dispatch", requireCapability("conversations.read"), async (c) => {
   const plan = await readPlan(c, parseWith(range, c.req.query()));
+  return c.json({ plan, workload: dispatchWorkload(plan) });
+});
+
+dispatchRoutes.put("/dispatch/shifts", requireCapability("settings.manage"), async (c) => {
+  const body = await parseJsonBody(c, shiftRequest);
+  if (body.shift) {
+    const { start, end, breaks } = body.shift;
+    if (start === null || end === null) {
+      if (start !== end || breaks.length > 0) throw refusal("shift");
+    } else {
+      if (start >= end) throw refusal("shift");
+      const ordered = breaks.toSorted((a, b) => a.start.localeCompare(b.start));
+      if (ordered.some((pause, i) => pause.start < start || pause.end > end || pause.start >= pause.end ||
+        (i > 0 && ordered[i - 1].end > pause.start))) throw refusal("shift");
+    }
+  }
+  const db = getDb(getEnv(c.env));
+  const result = unwrap<string>(await db.rpc("api_dispatch_set_shift", {
+    p_company_id: c.get("companyId"), p_actor_id: c.get("userId"), p_worker_id: body.worker_id,
+    p_weekday: body.weekday, p_shift: body.shift, p_revision: body.revision,
+  }), "save worker shift");
+  if (result === "stale" || result === "not_found" || result === "hours") throw refusal(result);
+  if (result !== "ok") throw new Error("Unexpected availability outcome.");
+  const plan = await readPlan(c, body);
   return c.json({ plan, workload: dispatchWorkload(plan) });
 });
 

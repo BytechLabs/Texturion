@@ -1209,6 +1209,13 @@ final class ThreadController {
         }
     }
 
+    func linkedTasks(for source: TaskDraftSource) async throws -> [LinkedSourceTask] {
+        guard case .message(let message) = source else { return [] }
+        return try await TaskMutations(api: repo.api).sourceTasks(
+            companyId: companyId, conversationId: conversationId, query: ["message_id": message.id]
+        )
+    }
+
     /// #214: the company's enrichment opt-in, for the make-task sheet. Keeps
     /// `companyId` private (the sheet only ever reads through the controller).
     /// Throws-free — a failed read degrades to all-off (no enrichment attempted).
@@ -1986,6 +1993,7 @@ extension Message {
             attachments: attachments,
             has_task: has_task,
             promoted_task: promoted_task,
+            promoted_tasks: promoted_tasks,
             task_id: task_id,
             task: task,
             automated: automated,
@@ -2061,6 +2069,7 @@ extension Message {
             attachments: attachments,
             has_task: true,
             promoted_task: link,
+            promoted_tasks: (promoted_tasks ?? [promoted_task].compactMap { $0 }) + [link],
             task_id: task_id,
             task: task,
             automated: automated,

@@ -99,6 +99,7 @@ func taskCreateBody(
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
     if let sourceCallId { object["source_call_id"] = .string(sourceCallId) }
+    if title != nil && (messageId != nil || sourceCallId != nil) { object["independent_source"] = .bool(true) }
     if let title { object["title"] = .string(title) }
     if let description { object["description"] = .string(description) }
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
@@ -191,6 +192,7 @@ func taskBulkBody(
         if filters.hasAttachments { filter["has_attachments"] = .bool(true) }
         if filters.hasReferences { filter["has_references"] = .bool(true) }
         if let confirmed = filters.confirmed { filter["confirmed"] = .bool(confirmed) }
+        if let scheduled = filters.scheduled { filter["scheduled"] = .bool(scheduled) }
         if let day = filters.dueOnBefore { filter["due_on_before"] = .string(day) }
         if let day = filters.dueOnAfter { filter["due_on_after"] = .string(day) }
         body["filter"] = .object(filter)
@@ -303,6 +305,13 @@ struct TaskTagAdded: Decodable, Sendable {
 
 struct TaskMutations: Sendable {
     let api: ApiClient
+
+    func sourceTasks(companyId: String, conversationId: String, query: [String: String]) async throws -> [LinkedSourceTask] {
+        let reply: Page<LinkedSourceTask> = try await api.get(
+            "/v1/conversations/\(conversationId)/tasks/source", query: query, companyId: companyId
+        )
+        return reply.data
+    }
 
     func detail(companyId: String, taskId: String) async throws -> TaskDetail {
         try await api.get("/v1/tasks/\(taskId)", companyId: companyId)

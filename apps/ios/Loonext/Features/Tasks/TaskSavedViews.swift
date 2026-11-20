@@ -8,11 +8,7 @@ import Foundation
 /// before a filter was renamed still opens. The plumbing (`SavedViewsApi`,
 /// `SavedView`) is the inbox's, asked for `surface: "tasks"`.
 ///
-/// What a view cannot hold, and so is left out when one is saved:
-///  - the Today and This week chips. They are relative to the day, and a stored
-///    range would open as last Tuesday. Overdue is a flag and is kept; a range
-///    picked by date is kept as picked.
-///  - the search text. A question asked once is not a standing view.
+/// Relative due dates are resolved when the view opens. Search text belongs to the current list.
 ///
 /// `group` is a view-only key: how the list is laid out. It is never sent to the
 /// list request.
@@ -33,8 +29,10 @@ enum TaskGroup {
 }
 
 /// The Tasks screen's controls, as one value a view can describe.
+let taskListColumns = ["status", "assignee", "due", "scheduled"]
+
 struct TaskViewState: Equatable, Sendable {
-    var tab: TasksTabKind = .open
+    var tab: TasksTabKind = .all
     var assigneeUserId: String? = nil
     var unassigned: Bool = false
     var due: DueChip? = nil
@@ -88,11 +86,16 @@ func sanitizeTaskFilters(_ raw: [String: JSONValue]) -> [String: JSONValue] {
         let keep: Bool
         switch key {
         case "status": keep = text.map { taskStatuses.contains($0) } ?? false
-        case "assigned_user_id", "tag_id", "contact_id", "conversation_id", "source_line_id":
+        case "assigned_user_id": keep = text.map { $0 == "me" || isSavedViewUUID($0) } ?? false
+        case "tag_id", "contact_id", "conversation_id", "source_line_id":
             keep = text.map(isSavedViewUUID) ?? false
         case "unassigned", "overdue", "has_location", "has_attachments", "has_references":
             keep = flag != nil
         case "confirmed": keep = flag == false
+        case "scheduled": keep = flag != nil
+        case "due_relative": keep = text == "today" || text == "week"
+        case "columns":
+            keep = text.map { $0.isEmpty || $0.components(separatedBy: ",").allSatisfy(taskListColumns.contains) } ?? false
         case "due_before", "due_after": keep = text.map(isSavedViewIso) ?? false
         case "priority":
             if let text, !text.isEmpty {
@@ -133,7 +136,10 @@ func taskViewFilters(_ state: TaskViewState, meUserId: String) -> [String: JSONV
     }
 
     if state.due == .overdue { raw["overdue"] = .bool(true) }
+    if state.due == .today || state.due == .week { raw["due_relative"] = .string(state.due?.rawValue.lowercased() ?? "") }
     let meta = state.meta
+    if let scheduled = meta.scheduled { raw["scheduled"] = .bool(scheduled) }
+    if meta.columns != taskListColumns { raw["columns"] = .string(meta.columns.joined(separator: ",")) }
     if let after = meta.dueAfter { raw["due_after"] = .string(after) }
     if let before = meta.dueBefore { raw["due_before"] = .string(before) }
     if !meta.priority.isEmpty { raw["priority"] = .string(meta.priority.joined(separator: ",")) }
@@ -195,6 +201,12 @@ func taskViewState(_ filters: [String: JSONValue], meUserId: String) -> TaskView
     }
 
     if filterFlag(clean, "overdue") { state.due = .overdue }
+    else if filterText(clean, "due_relative") == "today" { state.due = .today }
+    else if filterText(clean, "due_relative") == "week" { state.due = .week }
+    if case let .bool(value) = clean["scheduled"] ?? .null { meta.scheduled = value }
+    if let columns = filterText(clean, "columns") {
+        meta.columns = taskListColumns.filter(columns.components(separatedBy: ",").contains)
+    }
     meta.dueAfter = filterText(clean, "due_after")
     meta.dueBefore = filterText(clean, "due_before")
     if let priority = filterText(clean, "priority") {
@@ -224,12 +236,6 @@ func taskViewMatches(
     var effective = state
     if saved["layout"] == nil { effective.layout = nil }
     return saved == taskViewFilters(effective, meUserId: meUserId)
-}
-
-/// True when the screen holds something a view would leave out (a relative due
-/// chip), so the save sheet can say so.
-func taskViewDropsDueChip(_ state: TaskViewState) -> Bool {
-    state.due == .today || state.due == .week
 }
 
 /// A name for the view about to be saved, from what is filtered. Never empty

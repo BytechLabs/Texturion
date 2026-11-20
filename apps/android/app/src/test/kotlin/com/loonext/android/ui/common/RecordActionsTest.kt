@@ -180,7 +180,7 @@ class RecordActionsTest {
         assertFalse("make-task" in ids)
         assertTrue(messageActions(note, viewer(MemberRole.OWNER)).last().labelKey == "recordMenu.deleteNote")
         assertFalse("copy-text" in messageActions(message(body = " "), viewer(MemberRole.OWNER)).visibleIds())
-        assertFalse("make-task" in messageActions(message(promoted = true), viewer(MemberRole.OWNER)).visibleIds())
+        assertTrue("make-task" in messageActions(message(promoted = true), viewer(MemberRole.OWNER)).visibleIds())
     }
 
     @Test

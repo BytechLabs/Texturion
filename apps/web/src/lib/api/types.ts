@@ -193,6 +193,7 @@ export type ConversationEventType =
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {
+  total_count?: number | null;
   data: T[];
   next_cursor: string | null;
 }
@@ -852,6 +853,7 @@ export interface Message {
    * on the bare compose row / optimistic patches (treated as not-yet-promoted).
    */
   promoted_task?: MessageTaskLink | null;
+  promoted_tasks?: MessageTaskLink[];
   /**
    * TASKS-V2 (D17 D-D): the task this note is linked to (a `direction='note'`
    * message composed from the task drawer). Null/absent for every non-note or
@@ -1131,6 +1133,14 @@ export interface BookingCorrection {
   recipient: string | null;
 }
 
+export interface PublishedWork {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  assignee_id: string;
+  visit: boolean;
+}
+
 export interface Task {
   id: string;
   company_id: string;
@@ -1165,6 +1175,7 @@ export interface Task {
   due_on?: string | null;
   due_time_set?: boolean;
   scheduled_at?: string | null;
+  published_work?: PublishedWork[];
   correction?: BookingCorrection;
   calendar_hold?: boolean;
   created_by_user_id: string;

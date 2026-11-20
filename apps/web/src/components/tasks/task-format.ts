@@ -132,9 +132,10 @@ export function taskSourceLink(
     };
   }
 
-  if (task.message_id === null) return null;
+  const messageId = task.source?.kind === "message" ? task.source.id : task.message_id;
+  if (messageId === null) return null;
   const href = threadHref(conversationId, {
-    messageId: task.message_id,
+    messageId,
     taskId,
   });
   if (task.source_message?.direction === "note" || task.source?.direction === "note") {

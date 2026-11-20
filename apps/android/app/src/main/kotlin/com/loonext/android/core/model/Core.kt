@@ -21,6 +21,7 @@ data class Page<T>(
      * today; defaulted so every other list decodes unchanged.
      */
     val hidden_count: Int = 0,
+    val total_count: Int? = null,
 )
 
 /**

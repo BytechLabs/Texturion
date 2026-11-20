@@ -31,6 +31,7 @@ import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
@@ -624,19 +625,26 @@ class IssueEvidenceScreenshotTest {
 
     @Test fun `planner light`() = planner(false)
     @Test fun `planner dark`() = planner(true)
+    @Test fun `planner shifts light`() = planner(false, shifts = true)
+    @Test fun `planner shifts dark`() = planner(true, shifts = true)
 
-    private fun planner(dark: Boolean) = shoot("dispatch-planner", dark = dark, afterShow = {
+    private fun planner(dark: Boolean, shifts: Boolean = false) = shoot(if (shifts) "dispatch-shifts" else "dispatch-planner", dark = dark,
+        captureTag = "dispatch-shift-editor".takeIf { shifts }, afterShow = {
         compose.waitUntil(10_000) { compose.onAllNodes(hasText("Replace kitchen shutoff valve")).fetchSemanticsNodes().isNotEmpty() }
+        if (shifts) {
+            compose.onNodeWithText("Shifts and breaks").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Break start")).fetchSemanticsNodes().isNotEmpty() }
+        }
     }) {
         DispatchPlanner(api = graph.api, companyId = "co_1", userId = "usr_1", timezone = "UTC",
-            editable = true, onClose = {}, onTask = {})
+            editable = true, onClose = {}, onTask = {}, canEditShifts = true)
     }
 
     private fun dispatchScreenshotData(): String {
         val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
         return """
             {"plan":{"revision":2,"timezone":"UTC",
-              "members":[{"id":"usr_1","name":"Dana Brightside"},{"id":"usr_2","name":"Sam Rivera"}],
+              "members":[{"id":"usr_1","name":"Dana Brightside","shifts":{"${today.dayOfWeek.value}":{"start":"08:30","end":"16:30","breaks":[{"start":"12:00","end":"12:45"}]}}},{"id":"usr_2","name":"Sam Rivera"}],
               "days":[{"date":"$today","start":"${today}T00:00:00Z","end":"${today.plusDays(1)}T00:00:00Z","opens_at":"${today}T08:00:00Z"}],
               "tasks":[
                 {"id":"t1","title":"Replace kitchen shutoff valve","updated_at":"${today}T08:00:00Z","dispatch_estimate":40},
@@ -1027,6 +1035,7 @@ class IssueEvidenceScreenshotTest {
         heightDp: Int = 844,
         settle: Boolean = false,
         afterShow: () -> Unit = {},
+        captureTag: String? = null,
         content: @Composable () -> Unit,
     ) {
         compose.setContent {
@@ -1054,7 +1063,7 @@ class IssueEvidenceScreenshotTest {
         } else {
             compose.waitForIdle()
         }
-        val bitmap = captureAll()
+        val bitmap = captureTag?.let { compose.onNodeWithTag(it).captureToImage().asAndroidBitmap() } ?: captureAll()
         val mode = if (dark) "dark" else "light"
         val dir = File("build/screenshots/evidence").apply { mkdirs() }
         File(dir, "$name-$mode.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

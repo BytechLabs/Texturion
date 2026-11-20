@@ -616,6 +616,7 @@ async function afterPromotedMessageDoneChange(
         .select("id,title")
         .eq("company_id", input.companyId)
         .eq("message_id", input.messageId)
+        .eq("independent_source", false)
         .is("deleted_at", null)
         .limit(1),
       "promoted task lookup",
@@ -821,7 +822,8 @@ messageRoutes.get(
         ...rest,
         attachments: message_attachments ?? [],
         has_task: promoted.has(rest.id),
-        promoted_task: promoted.get(rest.id) ?? null,
+        promoted_task: promoted.get(rest.id)?.[0] ?? null,
+        promoted_tasks: promoted.get(rest.id) ?? [],
         task:
           typeof rest.task_id === "string"
             ? taskLinks.get(rest.task_id) ?? null

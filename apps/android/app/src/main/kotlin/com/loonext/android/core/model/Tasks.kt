@@ -31,6 +31,7 @@ data class Task(
     val due_on: String? = null,
     val due_time_set: Boolean? = null,
     val scheduled_at: String? = null,
+    val published_work: List<PublishedWork> = emptyList(),
     val correction: BookingCorrection? = null,
     val calendar_hold: Boolean = false,
     val created_by_user_id: String,
@@ -108,6 +109,9 @@ data class Task(
     /** #722: what this member may do to the task now (complete, reopen, trash); null from an older API. */
     val allowed_actions: List<String>? = null,
 )
+
+@Serializable
+data class PublishedWork(val id: String, val starts_at: String, val ends_at: String, val assignee_id: String, val visit: Boolean)
 
 @Serializable
 data class BookingCorrection(val id: String, val body: String, val recipient: String? = null)

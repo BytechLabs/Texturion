@@ -64,6 +64,7 @@ final class TasksMutationBodyTests: XCTestCase {
             ),
             .object([
                 "message_id": .string("m1"),
+                "independent_source": .bool(true),
                 "title": .string("Send the quote"),
                 "assigned_user_id": .string("u2"),
                 "due_at": .string("2026-07-15T15:00:00-04:00"),

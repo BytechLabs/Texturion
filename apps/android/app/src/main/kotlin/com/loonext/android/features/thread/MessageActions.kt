@@ -91,6 +91,7 @@ import com.loonext.android.core.model.TaskLabel
 import com.loonext.android.core.model.TaskRepeat
 import com.loonext.android.core.model.VoicemailTaskDraft
 import com.loonext.android.features.tasks.LabelPickerSheet
+import com.loonext.android.features.tasks.LinkedSourceTask
 import com.loonext.android.features.tasks.MAX_TASK_ASSIGNEES
 import com.loonext.android.features.tasks.PlanChip
 import com.loonext.android.features.tasks.PriorityChips
@@ -105,6 +106,8 @@ import com.loonext.android.features.compose.AiOutcome
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.LoadErrorVariant
 import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.MessageActionId
@@ -362,7 +365,14 @@ fun MakeTaskSheet(
     customerReady: Boolean = true,
     /** The zone due chips and labels are read in; the workspace's where it differs. */
     zone: ZoneId = ZoneId.systemDefault(),
+    loadLinkedTasks: (suspend () -> List<LinkedSourceTask>)? = null,
+    onOpenLinkedTask: ((String) -> Unit)? = null,
 ) {
+    var linkedTasks by remember { mutableStateOf<Result<List<LinkedSourceTask>>?>(null) }
+    var sourceRetry by remember { mutableStateOf(0) }
+    LaunchedEffect(sourceRetry) {
+        loadLinkedTasks?.let { linkedTasks = runCatching { it() } }
+    }
     // Read in composition and held: `remember` runs outside it, and so does
     // every comparison below that has to line up with a chip's own label.
     val fallbackTitle = t("thread.taskTitleFallback")
@@ -547,6 +557,26 @@ fun MakeTaskSheet(
             // The quoted source message, lime-barred.
             if (message != null) {
                 QuotedMessageWell(message = message, contactName = contactName, zone = zone)
+            }
+            if (loadLinkedTasks != null) {
+                val existing = linkedTasks
+                if (existing == null) {
+                    Text(t("contactsTasks.loading"), style = MaterialTheme.typography.bodySmall)
+                } else if (existing.isFailure) {
+                    LoadError(onRetry = { linkedTasks = null; sourceRetry++ }, variant = LoadErrorVariant.Inline)
+                } else if (existing.getOrThrow().isNotEmpty()) {
+                    Column {
+                        SectionLabel(t("thread.tasksFromSource"))
+                        existing.getOrThrow().forEach { task ->
+                            val state = t(if (task.done) "contactsTasks.tabDone" else "contactsTasks.tabOpen")
+                            if (onOpenLinkedTask != null) {
+                                TextButton(onClick = { onDismiss(); onOpenLinkedTask(task.id) }) { Text("${task.title} · $state") }
+                            } else {
+                                Text("${task.title} · $state", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
 
             // Title.
@@ -834,7 +864,7 @@ fun MakeTaskSheet(
 
             // Create pill — gives under the finger like every other pill.
             val repeatDue = dueOn?.let(LocalDate::parse) ?: due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() }
-            val canCreate = customerReady && title.isNotBlank() &&
+            val canCreate = customerReady && title.isNotBlank() && (loadLinkedTasks == null || linkedTasks?.isSuccess == true) &&
                 (repeatDraft?.problem(repeatDue) == null)
             val createInteraction = remember { MutableInteractionSource() }
             Row(

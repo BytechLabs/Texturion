@@ -254,16 +254,16 @@ final class TaskSavedViewsTests: XCTestCase {
         XCTAssertEqual(taskViewFilters(state, meUserId: me)["group"], .string("priority"))
     }
 
-    func testRelativeDueChipsAreNotStoredAndTheSheetSaysSo() {
+    func testRelativeDueChipsStayRelativeWhenSaved() {
         var state = TaskViewState()
         state.due = .today
         let filters = taskViewFilters(state, meUserId: me)
         XCTAssertNil(filters["due_before"])
         XCTAssertNil(filters["due_after"])
         XCTAssertNil(filters["overdue"])
-        XCTAssertTrue(taskViewDropsDueChip(state))
+        XCTAssertEqual(filters["due_relative"], .string("today"))
+        XCTAssertEqual(taskViewState(filters, meUserId: me).due, .today)
         state.due = .overdue
-        XCTAssertFalse(taskViewDropsDueChip(state))
         XCTAssertEqual(taskViewFilters(state, meUserId: me)["overdue"], .bool(true))
     }
 

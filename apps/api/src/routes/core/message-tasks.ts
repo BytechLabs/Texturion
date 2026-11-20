@@ -6,8 +6,7 @@
  * `GET /conversations/:id/messages`) annotates each message with `has_task`.
  *
  * A single company-scoped batch query keeps this O(1) per page, mirroring
- * loadAttachments — the partial-unique `tasks_message_uq` (one live task per
- * message) means at most one row per message id.
+ * loadAttachments.
  */
 import type { getDb } from "../../db";
 import { unwrap } from "./http";
@@ -22,18 +21,14 @@ export interface NoteTaskLink {
 }
 
 /**
- * Map each message id (from `messageIds`) that currently has a LIVE task
- * promoted over it → that task's `{ id, title }`. The thread renders a "Task"
- * chip that OPENS the task, so the read surfaces need the task id, not just a
- * boolean. Empty input → empty map (no query issued). The partial-unique
- * `tasks_message_uq` (one live task per message) guarantees ≤1 row per id.
+ * List each message's live tasks in creation order for the source links.
  */
 export async function loadMessageTaskFlags(
   db: Db,
   companyId: string,
   messageIds: string[],
-): Promise<Map<string, NoteTaskLink>> {
-  const promoted = new Map<string, NoteTaskLink>();
+): Promise<Map<string, NoteTaskLink[]>> {
+  const promoted = new Map<string, NoteTaskLink[]>();
   if (messageIds.length === 0) return promoted;
   const rows = unwrap<{ id: string; title: string; message_id: string }[]>(
     await db
@@ -41,11 +36,15 @@ export async function loadMessageTaskFlags(
       .select("id,title,message_id")
       .eq("company_id", companyId)
       .is("deleted_at", null)
-      .in("message_id", messageIds),
+      .in("message_id", messageIds)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
     "message task-flags lookup",
   );
   for (const row of rows) {
-    promoted.set(row.message_id, { id: row.id, title: row.title });
+    const links = promoted.get(row.message_id) ?? [];
+    links.push({ id: row.id, title: row.title });
+    promoted.set(row.message_id, links);
   }
   return promoted;
 }

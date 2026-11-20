@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, MapPin } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -12,6 +13,7 @@ import { createdToast } from "@/components/ui/created-toast";
 import { CountryPicker } from "@/components/ui/country-picker";
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadError } from "@/components/ui/load-error";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { undoableToast } from "@/components/ui/optimistic-undo";
@@ -22,7 +24,7 @@ import { enrichTaskFromMessage, useAiSettings } from "@/lib/api/ai-settings";
 import { reportAiOutcome } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
-import { useCreateTaskFromMessage } from '@/lib/api/tasks';
+import { useCreateTaskFromMessage, useSourceTasks } from '@/lib/api/tasks';
 import { enrichTaskFromVoicemail } from "@/lib/api/task-enrichment";
 import type { TaskAddressInput } from '@/lib/api/tasks';
 import { useMembers } from "@/lib/api/team";
@@ -130,6 +132,7 @@ export function MakeTaskForm({
   const companyId = useCompanyId();
   const aiSettings = useAiSettings();
   const createTask = useCreateTaskFromMessage(conversationId);
+  const linked = useSourceTasks(conversationId, message?.id, call?.id);
   const router = useRouter();
 
   const [title, setTitle] = useState(() =>
@@ -247,6 +250,7 @@ export function MakeTaskForm({
   const hasAddressContent = Object.values(addr).some((v) => v.trim() !== "");
 
   const submit = async () => {
+    if (!linked.isSuccess) return;
     const trimmed = title.trim();
     if (trimmed === "") {
       toast.error(t("thread.taskTitleRequired"));
@@ -317,6 +321,20 @@ export function MakeTaskForm({
         void submit();
       }}
     >
+      {linked.isPending && <p role="status" className="text-sm text-muted-foreground">{t("thread.loadingMore")}</p>}
+      {linked.isError && <LoadError variant="inline" onRetry={() => void linked.refetch()} />}
+      {linked.isSuccess && linked.data.data.length > 0 && (
+          <section aria-label={t("thread.tasksFromSource")} className="rounded-md border bg-card p-3">
+            <h3 className="text-sm font-medium">{t("thread.tasksFromSource")}</h3>
+            <ul className="mt-1 space-y-1">
+              {linked.data.data.map((task) => <li key={task.id}>
+                <Link href={`/tasks?task=${task.id}`} className="text-sm underline" onClick={onDone}>{task.title}</Link>
+                <span className="ml-2 text-xs text-muted-foreground">{t(task.done ? "tasks.statusDone" : "tasks.statusOpen")}</span>
+              </li>)}
+            </ul>
+          </section>
+        )}
+      {message?.body.trim() && <blockquote className="line-clamp-4 rounded-md bg-muted p-2 text-sm text-muted-foreground">{message.body}</blockquote>}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="make-task-title">{t("thread.taskTitleLabel")}</Label>
         <Input
@@ -483,7 +501,7 @@ export function MakeTaskForm({
         >
           {t("common.cancel")}
         </Button>
-        <Button type="submit" size="sm" disabled={createTask.isPending}>
+        <Button type="submit" size="sm" disabled={createTask.isPending || !linked.isSuccess}>
           {createTask.isPending ? t("thread.creating") : t("thread.create")}
         </Button>
       </div>

@@ -421,6 +421,7 @@ export function useCreateTaskFromMessage(conversationId: string) {
         method: "POST",
         companyId,
         body: {
+          ...(input.message_id !== undefined || input.source_call_id !== undefined ? { independent_source: true } : {}),
           ...(input.message_id === undefined
             ? {}
             : { message_id: input.message_id }),
@@ -455,6 +456,7 @@ export function useCreateTaskFromMessage(conversationId: string) {
       }),
     onSuccess: (task) => {
       invalidateTasks(queryClient, companyId, task.conversation_id ?? conversationId);
+      void queryClient.invalidateQueries({ queryKey: ["source-tasks", companyId, task.conversation_id ?? conversationId] });
       // The `task_created` line lands in the open timeline (§4.3).
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
@@ -469,6 +471,20 @@ export function useCreateTaskFromMessage(conversationId: string) {
         queryKey: keys.conversations.detail(companyId, conversationId),
       });
     },
+  });
+}
+
+export function useSourceTasks(conversationId: string, messageId?: string, callId?: string) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: ["source-tasks", companyId, conversationId, messageId ?? callId],
+    enabled: messageId !== undefined || callId !== undefined,
+    queryFn: ({ signal }) => apiFetch<{ data: { id: string; title: string; done: boolean }[] }>(
+      `/v1/conversations/${conversationId}/tasks/source`, {
+        companyId, signal, searchParams: { message_id: messageId, call_id: callId },
+      },
+    ),
+    staleTime: 0,
   });
 }
 

@@ -255,6 +255,30 @@ jobs:
           path: ${{ runner.temp }}/ios-dashboard-screenshots
           retention-days: 14
 
+      - name: Export Planner shift screenshots
+        if: ${{ !cancelled() }}
+        run: |
+          SOURCE="$RUNNER_TEMP/ios-dashboard-screenshots"
+          TARGET="$RUNNER_TEMP/ios-task-dispatch"
+          if [ ! -f "$SOURCE/manifest.json" ]; then exit 0; fi
+          mkdir -p "$TARGET"
+          jq -r '.. | objects | select((.suggestedHumanReadableName? // "") | contains("issue-876 shifts and breaks")) | [.exportedFileName, .suggestedHumanReadableName] | @tsv' "$SOURCE/manifest.json" |
+            while IFS=$'\t' read -r file title; do
+              case "$title" in
+                *light*) cp "$SOURCE/$file" "$TARGET/shifts-light.png" ;;
+                *dark*) cp "$SOURCE/$file" "$TARGET/shifts-dark.png" ;;
+              esac
+            done
+          test -s "$TARGET/shifts-light.png" && test -s "$TARGET/shifts-dark.png"
+
+      - name: Upload Planner shift screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-task-dispatch
+          path: ${{ runner.temp }}/ios-task-dispatch
+          retention-days: 14
+
   schema:
     name: SQL tests (Supabase)
     # #493: skip the WORK for a release-please pull request.

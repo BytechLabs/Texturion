@@ -274,7 +274,7 @@ export function MessageMenuScope({
     // A promoted message can't be re-promoted (server 409); hide the
     // affordance when we already know it's a task. Promoting a never-sent
     // outbound is nonsensical, so it is withheld as well.
-    promotable: message.has_task !== true && !isUnsentOutbound(message),
+    promotable: !isUnsentOutbound(message),
     retryable: isRetryable(message),
     retrying: retry.isPending,
     deleting: deleteMessage.isPending,

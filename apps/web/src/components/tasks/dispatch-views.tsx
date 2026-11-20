@@ -160,7 +160,7 @@ export function DispatchWorkload({ plan, rows, onFocus }: {
                   const cell = rows.find((value) => value.assignee_id === member.id && value.date === day.date);
                   const available = cell?.available;
                   const booked = Math.round(cell?.booked ?? 0);
-                  const overloaded = available != null && booked > available;
+                    const overloaded = cell?.overloaded ?? (available != null && booked > available);
                   return <td key={day.date} className="p-1">
                     <button type="button" className={cn("min-h-12 w-full rounded-md p-2 text-left tabular-nums hover:bg-muted", overloaded && "text-destructive")}
                       onClick={() => onFocus(member.id, day.date)}>

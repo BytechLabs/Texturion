@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.LocalAppLocale
@@ -44,6 +45,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.PaperCard
@@ -67,12 +69,20 @@ import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.put
 
 @Serializable
-internal data class DispatchMember(val id: String, val name: String?)
+internal data class DispatchMember(val id: String, val name: String?, val shifts: Map<String, DispatchShift> = emptyMap())
 
 @Serializable
 internal data class DispatchWindow(val start: String, val end: String)
+
+@Serializable
+internal data class DispatchShift(val start: String?, val end: String?, val breaks: List<DispatchWindow>)
 
 @Serializable
 internal data class DispatchTask(
@@ -107,7 +117,7 @@ internal data class DispatchBlock(
 internal data class DispatchDay(val date: String, val start: String, val end: String, val opens_at: String?)
 
 @Serializable
-internal data class DispatchCell(val date: String, val assignee_id: String, val booked: Double, val available: Double?)
+internal data class DispatchCell(val date: String, val assignee_id: String, val booked: Double, val available: Double?, val overloaded: Boolean? = null)
 
 @Serializable
 internal data class DispatchSkip(val id: String, val reason: String)
@@ -211,6 +221,7 @@ internal fun DispatchPlanner(
     initialTask: String? = null,
     onClose: () -> Unit,
     onTask: (String) -> Unit,
+    canEditShifts: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val locale = LocalAppLocale.current
@@ -228,6 +239,8 @@ internal fun DispatchPlanner(
     var editor by remember { mutableStateOf<Pair<String, String?>?>(initialTask?.let { it to null }) }
     var busy by remember { mutableStateOf(false) }
     var review by remember { mutableStateOf(false) }
+    var shiftOpen by remember { mutableStateOf(false) }
+    var shiftError by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     val dirty = edits.isNotEmpty() || details.isNotEmpty()
@@ -331,6 +344,34 @@ internal fun DispatchPlanner(
         } else {
             val plan = response.plan
             val worker = person ?: plan.members.firstOrNull()?.id
+            if (canEditShifts && worker != null && pane != DispatchPane.MyDay) {
+                TextButton(enabled = !busy && !dirty, onClick = { shiftError = null; shiftOpen = true }) {
+                    Text(t("contactsTasks.dispatchShifts"))
+                }
+                if (shiftOpen) DispatchShiftSheet(date, plan.members, worker, busy, shiftError,
+                    onDismiss = { if (!busy) shiftOpen = false },
+                    onSave = { member, shift -> perform {
+                        try {
+                            val body = buildJsonObject {
+                                put("day", week.toString())
+                                initialTask?.let { put("task", it) }
+                                put("revision", base.plan.revision)
+                                put("worker_id", member)
+                                put("weekday", date.dayOfWeek.value)
+                                put("shift", shift?.let { Json.encodeToJsonElement(it) } ?: JsonNull)
+                            }
+                            saved = api.put("/v1/dispatch/shifts", body, companyId)
+                            route = null
+                            slots = null
+                            shiftOpen = false
+                        } catch (failure: CancellationException) {
+                            throw failure
+                        } catch (failure: Exception) {
+                            shiftError = failure.userMessage(locale)
+                        }
+                    } },
+                )
+            }
             val day = plan.days.firstOrNull { it.date == date.toString() }
             val blocks = plan.blocks(date)
             val proposals = route?.proposal.orEmpty().associateBy { it.id }
@@ -405,7 +446,7 @@ internal fun DispatchPlanner(
                             Text(member.name ?: t("contactsTasks.dispatchAssignee"), Modifier.padding(12.dp), style = MaterialTheme.typography.titleSmall)
                             Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 for (cell in response.workload.filter { it.assignee_id == member.id }) {
-                                    val overload = cell.available != null && cell.booked > cell.available
+                                    val overload = cell.overloaded ?: (cell.available != null && cell.booked > cell.available)
                                     TextButton(onClick = {
                                         person = member.id
                                         date = LocalDate.parse(cell.date)
@@ -530,6 +571,73 @@ internal fun DispatchPlanner(
                 },
             )
         }
+    }
+}
+
+@Composable
+internal fun DispatchShiftSheet(
+    date: LocalDate,
+    members: List<DispatchMember>,
+    initialWorker: String,
+    busy: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onSave: (String, DispatchShift?) -> Unit,
+) {
+    val weekday = date.dayOfWeek
+    var worker by remember { mutableStateOf(initialWorker) }
+    fun current(id: String) = members.firstOrNull { it.id == id }?.shifts?.get(weekday.value.toString())
+    var shift by remember { mutableStateOf(current(worker)) }
+    val mode = if (shift == null) "workspace" else if (shift?.start == null) "off" else "shift"
+    val locale = LocalAppLocale.current
+    AppSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.testTag("dispatch-shift-editor").verticalScroll(rememberScrollState()).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(t("contactsTasks.dispatchShifts"), style = MaterialTheme.typography.titleLarge)
+            Text(t("contactsTasks.dispatchShiftWeekday", "day" to TimestampFormat.weekday(weekday, locale)))
+            DispatchAssignee(members, worker, allowEmpty = false) { selected ->
+                if (selected != null) { worker = selected; shift = current(selected) }
+            }
+            SelectField(listOf(
+                SelectOption("workspace", t("contactsTasks.dispatchWorkspaceHours")),
+                SelectOption("shift", t("contactsTasks.dispatchCustomShift")),
+                SelectOption("off", t("contactsTasks.dispatchDayOff")),
+            ), mode, { choice ->
+                shift = when (choice) {
+                    "shift" -> DispatchShift("09:00", "17:00", emptyList())
+                    "off" -> DispatchShift(null, null, emptyList())
+                    else -> null
+                }
+            }, label = t("contactsTasks.dispatchAvailability"), fillWidth = true)
+            shift?.takeIf { mode == "shift" }?.let { working ->
+                ShiftTimeFields(working.start.orEmpty(), working.end.orEmpty(), "Shift",
+                    onStart = { shift = working.copy(start = it) }, onEnd = { shift = working.copy(end = it) })
+                working.breaks.forEachIndexed { index, pause ->
+                    fun update(next: DispatchWindow) = working.breaks.mapIndexed { i, value -> if (i == index) next else value }
+                    ShiftTimeFields(pause.start, pause.end, "Break",
+                        onStart = { shift = working.copy(breaks = update(pause.copy(start = it))) },
+                        onEnd = { shift = working.copy(breaks = update(pause.copy(end = it))) })
+                    TextButton(onClick = { shift = working.copy(breaks = working.breaks.filterIndexed { i, _ -> i != index }) }) {
+                        Text(t("contactsTasks.dispatchRemoveBreak"))
+                    }
+                }
+                TextButton(enabled = working.breaks.size < 6, onClick = {
+                    shift = working.copy(breaks = working.breaks + DispatchWindow("12:00", "12:30"))
+                }) { Text(t("contactsTasks.dispatchAddBreak")) }
+            }
+            if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
+            TextButton(enabled = !busy, onClick = { onSave(worker, shift) }) { Text(t("common.save")) }
+        }
+    }
+}
+
+@Composable
+private fun ShiftTimeFields(start: String, end: String, kind: String, onStart: (String) -> Unit, onEnd: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(start, onStart, Modifier.weight(1f), singleLine = true,
+            label = { Text(t("contactsTasks.dispatch${kind}Start")) }, placeholder = { Text("09:00") })
+        OutlinedTextField(end, onEnd, Modifier.weight(1f), singleLine = true,
+            label = { Text(t("contactsTasks.dispatch${kind}End")) }, placeholder = { Text("17:00") })
     }
 }
 

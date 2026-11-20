@@ -706,7 +706,7 @@ function TaskDetailLoaded({
         )}
 
         {/* Editable metadata. */}
-        {!noAccess && !task.message_id && !task.source_call_id && (
+        {!noAccess && !task.source && !task.message_id && !task.source_call_id && (
           <div className="flex items-end gap-2">
             <TaskCustomerField id="task-customer"
               name={selectedCustomer === undefined ? task.contact?.name : (selectedCustomer?.name ?? selectedCustomer?.phone_e164)}

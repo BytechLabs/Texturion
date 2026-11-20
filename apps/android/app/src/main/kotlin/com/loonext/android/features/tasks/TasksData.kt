@@ -101,6 +101,7 @@ class TaskMutations(private val api: ApiClient) {
                     if (filters.hasAttachments) put("has_attachments", true)
                     if (filters.hasReferences) put("has_references", true)
                     filters.confirmed?.let { put("confirmed", it) }
+                    filters.scheduled?.let { put("scheduled", it) }
                     filters.dueOnBefore?.let { put("due_on_before", it) }
                     filters.dueOnAfter?.let { put("due_on_after", it) }
                 }
@@ -465,6 +466,13 @@ class TaskMutations(private val api: ApiClient) {
         companyId = companyId,
     )
 
+    suspend fun sourceTasks(companyId: String, conversationId: String, messageId: String? = null, callId: String? = null): List<LinkedSourceTask> =
+        api.get<Page<LinkedSourceTask>>(
+            "/v1/conversations/$conversationId/tasks/source",
+            query = if (messageId != null) mapOf("message_id" to messageId) else mapOf("call_id" to requireNotNull(callId)),
+            companyId = companyId,
+        ).data
+
     /**
      * Promote a message, or (D64) an answered call, to a task ("Make a task"). 409 = already a task.
      * #214: [address] carries the confirmed enriched/hand-entered job address.
@@ -498,6 +506,7 @@ class TaskMutations(private val api: ApiClient) {
         buildJsonObject {
             if (messageId != null) put("message_id", messageId)
             if (sourceCallId != null) put("source_call_id", sourceCallId)
+            if (messageId != null || sourceCallId != null) put("independent_source", true)
             if (title != null) put("title", title)
             if (description != null) put("description", description)
             if (assigneeIds != null) {
@@ -515,6 +524,9 @@ class TaskMutations(private val api: ApiClient) {
         companyId = companyId,
     )
 }
+
+@Serializable
+data class LinkedSourceTask(val id: String, val title: String, val done: Boolean)
 
 @Serializable
 private data class BookingCorrectionResponse(val correction: BookingCorrection? = null)
@@ -581,7 +593,9 @@ class TaskListLoader(
  * should reach (40 × 100 rows); the id de-dupe absorbs rows that shift pages
  * while a drain is in flight.
  */
-suspend fun drainLocatedTasks(
+internal data class TaskMapRows(val located: List<Task>, val total: Int?)
+
+internal suspend fun drainLocatedTasks(
     mutations: TaskMutations,
     companyId: String,
     assigneeUserId: String?,
@@ -590,15 +604,15 @@ suspend fun drainLocatedTasks(
     q: String? = null,
     extra: TaskExtraFilters = TaskExtraFilters(),
     mapDay: java.time.LocalDate? = null,
-): List<Task> {
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+): TaskMapRows {
     // ASSIGNEE_ALL is UI sugar meaning "no assignee pin" (taskQueryParams
     // parity) — normalize it away before it reaches the wire.
     val assignee = assigneeUserId?.takeUnless { it == ASSIGNEE_ALL }
-    val dueFilters = due?.let { dueChipFilters(it) }
+    val dueFilters = due?.let { dueChipFilters(it, java.time.Clock.system(zone)) }
         ?: TaskListFilters(dueBefore = extra.dueBefore, dueAfter = extra.dueAfter)
-    val zone = java.time.ZoneId.systemDefault()
     val filters = dueFilters.copy(
-        status = TaskStatus.OPEN,
+        status = extra.statusOnly,
         assignedUserId = assignee,
         unassigned = unassigned,
         q = q?.trim()?.ifEmpty { null },
@@ -609,10 +623,9 @@ suspend fun drainLocatedTasks(
         source = extra.source,
         sourceLineId = extra.sourceLineId,
         confirmed = if (extra.notConfirmed) false else null,
-        dueAfter = mapDay?.let { isoAtStartOfDay(it, zone) } ?: dueFilters.dueAfter,
-        dueBefore = mapDay?.let { isoAtStartOfDay(it.plusDays(1), zone) } ?: dueFilters.dueBefore,
-        dueOnAfter = mapDay?.toString(),
-        dueOnBefore = mapDay?.toString(),
+        scheduled = extra.scheduled,
+        scheduleAfter = mapDay?.let { isoAtStartOfDay(it, zone) },
+        scheduleBefore = mapDay?.let { isoAtStartOfDay(it.plusDays(1), zone) },
     )
     val acc = mutableListOf<Task>()
     var cursor: String? = null
@@ -623,5 +636,7 @@ suspend fun drainLocatedTasks(
         cursor = page.next_cursor
         pages++
     } while (cursor != null && pages < 40)
-    return acc.distinctBy { it.id }
+    val total = mutations.list(companyId, filters.copy(includeCount = true, explicitScope = true,
+        assignedUserId = assignee ?: ASSIGNEE_ALL), cursor = null, limit = 1)
+    return TaskMapRows(acc.distinctBy { it.id }, total.total_count.takeUnless { cursor != null })
 }

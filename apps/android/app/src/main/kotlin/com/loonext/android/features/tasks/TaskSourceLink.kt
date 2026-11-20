@@ -45,13 +45,13 @@ fun taskSourceLink(
             callSessionId = call?.call_session_id,
         )
     }
-    if (messageId == null) return null
+    val anchor = source?.takeIf { it.kind == "message" }?.id ?: messageId ?: return null
     if (sourceMessageDirection == "note" || source?.direction == "note") {
         return TaskSourceLink(
             kind = TaskSourceKind.NOTE,
             label = say("contactsTasks.linkNote"),
             conversationId = conversationId,
-            messageId = messageId,
+            messageId = anchor,
             callSessionId = null,
         )
     }
@@ -61,7 +61,7 @@ fun taskSourceLink(
         label = if (name != null) say("contactsTasks.linkFromText", "name" to name)
         else say("contactsTasks.linkFromTextUnnamed"),
         conversationId = conversationId,
-        messageId = messageId,
+        messageId = anchor,
         callSessionId = null,
     )
 }

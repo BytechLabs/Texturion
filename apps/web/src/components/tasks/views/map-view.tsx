@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { LoadError } from "@/components/ui/load-error";
 import { ResultsStatus } from "@/components/ui/results-status";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCompany } from "@/lib/api/companies";
 import { useT } from "@/i18n/provider";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -18,10 +19,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { browserTimezone } from "@/lib/format/time";
 
 import { EmptyTasks } from "../task-empty";
-import { dayFromKey, windowInstants } from "./calendar-create";
+import { dayFromKey, todayInZone, windowInstants } from "./calendar-create";
 import type { TaskPageState } from "../task-view-url";
 import { toTaskFilters } from "../task-view-url";
-import { compareMapStops, mapDay, mapsRouteHref, taskCoords, taskMapDay } from './map-types';
+import { compareMapStops, mapDay, mapsRouteHref, taskCoords } from './map-types';
 import type { LocatedTask } from './map-types';
 import { useTaskDrawer } from "../use-task-drawer";
 
@@ -45,11 +46,13 @@ const MapIsland = dynamic(() => import("./map-island").then((m) => m.MapIsland),
 
 export function MapView({ state }: { state: TaskPageState }) {
   const t = useT();
+  const company = useCompany();
+  const timeZone = company.data?.timezone ?? browserTimezone() ?? "UTC";
   const [window, setWindow] = useState<"today" | "tomorrow" | "custom" | "all">("today");
-  const today = new Date();
-  const [pickedDay, setPickedDay] = useState(() => mapDay(today));
+  const today = todayInZone(new Date(), timeZone);
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-  const selectedDay = window === "custom" ? pickedDay : mapDay(window === "tomorrow" ? tomorrow : today);
+  const selectedDay = window === "custom" ? (pickedDay ?? mapDay(today)) : mapDay(window === "tomorrow" ? tomorrow : today);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -66,41 +69,39 @@ export function MapView({ state }: { state: TaskPageState }) {
         ))}
         {window === "custom" && (
           <Input type="date" className="w-auto" aria-label={t("tasks.mapPickDay")}
-            value={pickedDay} onChange={(event) => setPickedDay(event.target.value)} />
+            value={selectedDay} onChange={(event) => setPickedDay(event.target.value)} />
         )}
       </div>
-      <MapDayContent state={state} day={window === "all" ? undefined : selectedDay} />
+      <MapDayContent state={state} day={window === "all" ? undefined : selectedDay} timeZone={timeZone} />
     </div>
   );
 }
 
-function MapDayContent({ state, day }: { state: TaskPageState; day: string | undefined }) {
+function MapDayContent({ state, day, timeZone }: { state: TaskPageState; day: string | undefined; timeZone: string }) {
   const t = useT();
   const pickedDay = day ? dayFromKey(day) : null;
-  const range = pickedDay ? windowInstants(pickedDay, pickedDay, browserTimezone() ?? "UTC") : null;
+  const range = pickedDay ? windowInstants(pickedDay, pickedDay, timeZone) : null;
   const filters = {
     ...toTaskFilters(state),
-    ...(range ? { due_after: range.after, due_before: range.before, due_on_after: day, due_on_before: day } : {}),
+    ...(range ? { schedule_after: range.after, schedule_before: range.before } : {}),
     has_location: true,
     has_attachments: undefined,
     has_references: undefined,
   };
   // Drain every page so all located tasks are plotted, not just the first one.
   const query = useAllTasks(filters);
-  const tasks = flattenPages(query.data).filter((task) => day === undefined || taskMapDay(task) === day);
-  // A task without the location filter distinguishes an empty list from an empty map.
-  const noneLocated = query.isSuccess && !query.isPlaceholderData && tasks.length === 0;
+  const tasks = flattenPages(query.data);
   const unlocatedQuery = useTasks(
-    { ...filters, has_location: undefined, limit: 1 },
-    { enabled: noneLocated },
+    { ...filters, has_location: undefined, include_count: true, limit: 1 },
   );
-  const anyUnlocated = flattenPages(unlocatedQuery.data).some((task) => day === undefined || taskMapDay(task) === day);
 
   const [nearMe, setNearMe] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  const { located, missing } = useMemo(() => partitionLocated(tasks), [tasks]);
+  const { located, missing: invalid } = useMemo(() => partitionLocated(tasks), [tasks]);
+  const total = unlocatedQuery.data?.pages[0]?.total_count;
+  const missing = total == null || query.hasNextPage ? invalid : Math.max(0, total - located.length);
   const status = <ResultsStatus query={state.q} count={query.isPlaceholderData ? null : located.length} />;
 
   const requestNearMe = () => {
@@ -154,8 +155,8 @@ function MapDayContent({ state, day }: { state: TaskPageState; day: string | und
     return (
       <>
         {status}
-        {anyUnlocated ? (
-          <UnmappedTasks />
+        {missing > 0 || flattenPages(unlocatedQuery.data).length > 0 ? (
+          <UnmappedTasks count={missing || undefined} />
         ) : (
           <div className="space-y-3">
             <EmptyTasks state={state} />

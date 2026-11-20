@@ -421,7 +421,16 @@ private struct MessageMetaLine: View {
                         AppStrings.translate(appLocale, "thread.pinned")
                     )
             }
-            if message.has_task || message.promoted_task != nil {
+            if let links = message.promoted_tasks, links.count > 1 {
+                Menu {
+                    ForEach(links, id: \.id) { link in
+                        Button(link.title) { onOpenTask(link.id) }
+                    }
+                } label: {
+                    taskIcon.padding(6)
+                }
+                .accessibilityLabel(AppStrings.translate(appLocale, "thread.tasksFromSource"))
+            } else if message.has_task || message.promoted_task != nil {
                 if let taskId = message.linkedTaskId {
                     Button {
                         onOpenTask(taskId)

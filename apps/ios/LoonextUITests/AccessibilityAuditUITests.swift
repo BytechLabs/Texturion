@@ -95,6 +95,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testEvidenceScreens() throws {
         for theme in ["light", "dark"] {
             evidenceTaskCalendar(theme)
+            evidenceDispatchShifts(theme)
             evidenceContactDetail(theme)
             evidenceCalendarSettings(theme)
             evidenceTeam(theme)
@@ -102,6 +103,16 @@ final class AccessibilityAuditUITests: XCTestCase {
             evidenceCallingSettings(theme)
             evidenceWhatsNewMarker(theme)
         }
+    }
+
+    private func evidenceDispatchShifts(_ theme: String) {
+        let app = launchEvidence("taskDispatch", theme)
+        defer { app.terminate() }
+        let shifts = app.buttons["Shifts and breaks"].firstMatch
+        XCTAssertTrue(shifts.waitForExistence(timeout: 30))
+        shifts.tap()
+        XCTAssertTrue(app.textFields["Break start"].waitForExistence(timeout: 10))
+        attach(app, "issue-876 shifts and breaks", theme)
     }
 
     /// #756: the last settings group, with the What's new marker lit for an entry not yet opened.

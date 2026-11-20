@@ -44,7 +44,7 @@ func taskSourceLink(
             callSessionId: call?.call_session_id
         )
     }
-    guard let messageId else { return nil }
+    guard let messageId = (source?.kind == "message" ? source?.id : nil) ?? messageId else { return nil }
     if sourceMessageDirection == "note" || source?.direction == "note" {
         return TaskSourceLink(
             kind: .note,

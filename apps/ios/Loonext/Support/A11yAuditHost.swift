@@ -30,6 +30,7 @@ enum A11yAuditSurface: String, CaseIterable {
     case onCall
     /// #752: the Tasks map with pinned jobs around downtown Toronto.
     case taskMap
+    case taskDispatch
     /// #749: the Calling settings, with after-hours calls on voicemail and the note
     /// saying who chose it.
     case callingSettings
@@ -97,6 +98,8 @@ struct A11yAuditHost: View {
             A11yTasksSurface(initialView: .calendar)
         case .taskMap:
             A11yTasksSurface(initialView: .map)
+        case .taskDispatch:
+            A11yDispatchSurface()
         case .contactDetail:
             A11yContactSurface()
         case .calendarSettings:

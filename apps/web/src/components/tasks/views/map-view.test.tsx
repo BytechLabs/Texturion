@@ -21,6 +21,7 @@ vi.mock("@/lib/api/tasks", () => ({
   useAllTasks,
   useTasks,
 }));
+vi.mock("@/lib/api/companies", () => ({ useCompany: () => ({ data: { timezone: "UTC" } }) }));
 vi.mock("next/dynamic", () => ({
   default: () => function MapFixture({ tasks }: { tasks: { id: string }[] }) {
     return <div>{tasks.map(({ id }) => <span key={id}>{id}</span>)}</div>;
@@ -79,14 +80,14 @@ describe("Map view empty states (#752)", () => {
     expect(screen.getByText(EN.tasks.mapAddressLookupPaused)).toBeInstanceOf(Element);
   });
 
-  it("asks for one row without the location filter, and only once nothing is located", () => {
+  it("counts tasks without the location filter for the same booking date", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
-    const [[filters, options]] = useTasks.mock.calls;
-    expect(filters).toMatchObject({ limit: 1 });
+    const [[filters]] = useTasks.mock.calls;
+    expect(filters).toMatchObject({ limit: 1, include_count: true });
     expect(filters.has_location).toBeUndefined();
-    expect(options).toEqual({ enabled: true });
-    expect(useAllTasks.mock.calls[0][0]).toMatchObject({ has_location: true });
+    const [[mapped]] = useAllTasks.mock.calls;
+    expect(mapped).toMatchObject({ has_location: true, schedule_after: filters.schedule_after, schedule_before: filters.schedule_before });
   });
 
   it("keeps customer, creator and source filters when opening the map from a filtered list", () => {

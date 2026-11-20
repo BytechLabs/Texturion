@@ -66,7 +66,7 @@ let hold: Promise<void> | null = null;
 
 function tasksRequests(): Query[] {
   return apiFetch.mock.calls
-    .filter(([path]) => path === "/v1/tasks")
+    .filter(([path, options]) => path === "/v1/tasks" && !options?.searchParams?.calendar_undated)
     .map(([, options]) => options?.searchParams ?? {});
 }
 
@@ -102,13 +102,13 @@ afterEach(() => {
 describe("Calendar reads", () => {
   it("Week and a week step inside the month reuse the month's read", async () => {
     renderCalendar();
-    await waitFor(() => expect(tasksRequests()).toHaveLength(1));
+    await waitFor(() => expect(tasksRequests()).toHaveLength(2));
     expect(tasksRequests()[0]).toMatchObject({ limit: 100 });
 
     fireEvent.click(screen.getByRole("radio", { name: EN.tasks.calendarRangeWeek }));
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextWeek }));
     await act(() => Promise.resolve());
-    expect(tasksRequests()).toHaveLength(1);
+    expect(tasksRequests()).toHaveLength(2);
   });
 
   it("waits for the workspace clock before the first read", async () => {
@@ -119,9 +119,11 @@ describe("Calendar reads", () => {
 
     company.current = LOADED;
     rerender();
-    await waitFor(() => expect(tasksRequests()).toHaveLength(1));
+    await waitFor(() => expect(tasksRequests()).toHaveLength(2));
     // Midnight on Sunday 1 November in Toronto.
-    expect(tasksRequests()[0].due_after).toBe("2026-11-01T04:00:00.000Z");
+    const expected = "2026-11-01T04:00:00.000Z";
+    expect(tasksRequests().find((query) => query.due_after)?.due_after).toBe(expected);
+    expect(tasksRequests().find((query) => query.schedule_after)?.schedule_after).toBe(expected);
   });
 
   it("does not say the next month is empty while it loads", async () => {
@@ -136,7 +138,7 @@ describe("Calendar reads", () => {
     let release = () => {};
     hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
-    await waitFor(() => expect(tasksRequests()).toHaveLength(2));
+    await waitFor(() => expect(tasksRequests()).toHaveLength(4));
     expect(screen.queryByText(EN.tasks.calendarEmptyDueDate)).toBeNull();
 
     release();
@@ -152,7 +154,7 @@ describe("Calendar reads", () => {
     let release = () => {};
     hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
-    await waitFor(() => expect(tasksRequests()).toHaveLength(2));
+    await waitFor(() => expect(tasksRequests()).toHaveLength(4));
     expect(screen.getByRole("link", { name: "Service the furnace" })).toBeInstanceOf(Element);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 

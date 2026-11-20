@@ -103,6 +103,10 @@ enum TimestampFormat {
         draw(date, locale, timeZone, english: "h:mm a", french: "H 'h' mm")
     }
 
+    static func weekday(_ date: Date, locale: String? = nil, timeZone: TimeZone = .current) -> String {
+        draw(date, locale, timeZone, english: "EEEE", french: "EEEE")
+    }
+
     /// A bad or absent timestamp is blank, never "Invalid Date".
     static func label(
         _ iso: String?,

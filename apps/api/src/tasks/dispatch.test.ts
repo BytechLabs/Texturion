@@ -57,6 +57,23 @@ describe("dispatch planning", () => {
     expect(dispatchWorkload(next)[0]).toMatchObject({ booked: 68, available: 540, travel: 8 });
   });
 
+  it("skips a worker's break for slots and drive time and counts only available minutes", () => {
+    const onsite = { visit: true, address_confirmed: true };
+    const state = plan([
+      task("first", { address: "A", lat: 43.65, lng: -79.38 }),
+      task("second", { address: "B", lat: 43.68, lng: -79.4 }),
+      task("remote"),
+    ], [block("a", "first", "09:00", "10:00", onsite), block("b", "second", "11:00", "11:40", onsite)]);
+    state.members[0].availability = { [today]: {
+      start: time("09:00"), end: time("15:00"), breaks: [{ start: time("10:00"), end: time("11:00") }],
+    } };
+    expect(dispatchConflicts(state, new Set(["b"]))).toEqual([{ id: "b", reason: "travel", minutes: 8 }]);
+    expect(dispatchWorkload(state)).toMatchObject([{ available: 300, booked: 108, overloaded: true }]);
+    expect(dispatchSlots(state, day, {
+      id: "call", task_id: "remote", duration: 15, visit: false, confirm_address: false,
+    }, Date.parse(time("09:55")))).toMatchObject([{ starts_at: time("11:45") }]);
+  });
+
   it("explains a short drive gap and retains locked times in a route proposal", () => {
     const onsite = { visit: true, address_confirmed: true };
     const state = plan([

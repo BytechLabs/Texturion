@@ -60,6 +60,8 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.PublishedWork
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -114,7 +116,10 @@ internal data class TaskCalendarSnapshot(
     val undatedDone: Int,
     /** True when the undated count hit its page cap (render "N+"). */
     val undatedTruncated: Boolean,
+    val scheduledRows: List<Task> = emptyList(),
 )
+
+private data class CalendarEntry(val day: LocalDate?, val task: Task, val work: PublishedWork? = null)
 
 /** The workspace's zone, or the phone's when the id is missing or unknown. */
 internal fun workspaceZone(id: String?): ZoneId =
@@ -209,6 +214,7 @@ internal suspend fun fetchTaskCalendarSnapshot(
     companyId: String,
     monthArm: TaskListFilters,
     undatedArms: List<TaskListFilters>,
+    scheduledArms: List<TaskListFilters> = emptyList(),
 ): TaskCalendarSnapshot {
     val monthLoader = TaskListLoader(mutations, companyId, listOf(monthArm), limit = 100)
     val rows = mutableListOf<Task>()
@@ -224,18 +230,29 @@ internal suspend fun fetchTaskCalendarSnapshot(
     pages = 0
     do {
         undatedLoader.nextPage().forEach { task ->
-            if (task.due_at == null && task.due_on == null && !task.calendar_hold) {
+            if (task.due_at == null && task.due_on == null && task.scheduled_at == null && !task.calendar_hold) {
                 if (task.done) undatedDone++ else undatedOpen++
             }
         }
         pages++
     } while (undatedLoader.hasMore && pages < 10)
 
+    val scheduledRows = mutableListOf<Task>()
+    if (scheduledArms.isNotEmpty()) {
+        val loader = TaskListLoader(mutations, companyId, scheduledArms, limit = 100)
+        pages = 0
+        do {
+            scheduledRows += loader.nextPage()
+            pages++
+        } while (loader.hasMore && pages < 12)
+    }
+
     return TaskCalendarSnapshot(
         rows = rows,
         undatedOpen = undatedOpen,
         undatedDone = undatedDone,
         undatedTruncated = undatedLoader.hasMore,
+        scheduledRows = scheduledRows,
     )
 }
 
@@ -259,6 +276,7 @@ internal fun TaskCalendarView(
     /** #739: asked to open New task due on this day. */
     onCreateTask: (LocalDate) -> Unit = {},
     notConfirmed: Boolean = false,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ) {
     val haptics = rememberHaptics()
 
@@ -303,11 +321,14 @@ internal fun TaskCalendarView(
     val query = q?.trim()?.ifEmpty { null }
     val baseAssignee = taskCalendarBaseAssignee(tab, assigneeChip, unassignedChip)
     val unassigned = unassignedChip && assigneeChip == null
-    val cacheKey = CacheKeys.tasks(
-        companyId,
-        taskCalendarFilterKey(month, baseAssignee, unassigned, query) +
-            if (notConfirmed) "|unconfirmed" else "",
-    )
+    val filters = extra.copy(notConfirmed = notConfirmed || extra.notConfirmed)
+    val clock = Clock.system(zone)
+    val arms = taskListArms(tab, assigneeChip, unassigned, dueChip, q, clock, filters)
+    val firstDay = isoAtStartOfDay(gridStart, zone)
+    val lastDay = isoAtStartOfDay(gridEnd.plusDays(1), zone)
+    val filterKey = taskCalendarFilterKey(month, baseAssignee, unassigned, query)
+    val cacheKey = CacheKeys.tasks(companyId, if (!filters.isCustom && dueChip == null) filterKey
+        else "$filterKey|${filters.key()}|${dueChip?.name.orEmpty()}")
     val state = rememberCacheFirst(
         cache = cache,
         key = cacheKey,
@@ -316,26 +337,16 @@ internal fun TaskCalendarView(
         fetchTaskCalendarSnapshot(
             mutations = mutations,
             companyId = companyId,
-            monthArm = TaskListFilters(
-                assignedUserId = baseAssignee,
-                unassigned = unassigned,
-                dueAfter = isoAtStartOfDay(gridStart, zone),
-                // Exclusive end, one past the last grid day (the web's
-                // addDays(gridEnd, 1)).
-                dueBefore = isoAtStartOfDay(gridEnd.plusDays(1), zone),
+            monthArm = arms.first().copy(
+                status = arms.singleOrNull()?.status,
+                overdue = false,
+                dueAfter = firstDay,
+                dueBefore = lastDay,
                 dueOnBefore = gridEnd.toString(),
                 dueOnAfter = gridStart.toString(),
-                confirmed = if (notConfirmed) false else null,
-                q = query,
             ),
-            undatedArms = taskListArms(
-                tab = if (tab == TasksTabKind.All) TasksTabKind.All else TasksTabKind.Mine,
-                assigneeUserId = assigneeChip,
-                unassigned = unassignedChip,
-                due = null,
-                q = query,
-                extra = TaskExtraFilters(notConfirmed = notConfirmed),
-            ),
+            undatedArms = arms,
+            scheduledArms = arms.map { it.copy(scheduleAfter = firstDay, scheduleBefore = lastDay) },
         )
     }
 
@@ -353,13 +364,19 @@ internal fun TaskCalendarView(
             // cached month payload, so flipping them repaints with no fetch.
             val visibleRows = remember(snapshot, tab, dueChip) {
                 snapshot.rows.filter { task ->
-                    matchesCalendarTab(task, tab) && matchesDueChip(task, dueChip)
+                    val at = task.due_on?.let { LocalDate.parse(it).atStartOfDay(zone).toInstant() } ?: parseInstant(task.due_at)
+                    val after = parseInstant(filters.dueAfter)
+                    val before = parseInstant(filters.dueBefore)
+                    matchesCalendarTab(task, tab) && matchesDueChip(task, dueChip, clock) &&
+                        (after == null || (at != null && at >= after)) && (before == null || (at != null && at < before))
                 }
             }
-            val byDay = remember(visibleRows) {
-                visibleRows.groupBy { task ->
-                    task.due_on?.let(LocalDate::parse) ?: parseInstant(task.due_at)?.atZone(zone)?.toLocalDate()
-                }
+            val byDay = remember(visibleRows, snapshot.scheduledRows, zone) {
+                (visibleRows.map { task ->
+                    CalendarEntry(task.due_on?.let(LocalDate::parse) ?: parseInstant(task.due_at)?.atZone(zone)?.toLocalDate(), task)
+                } + snapshot.scheduledRows.flatMap { task ->
+                    task.published_work.map { work -> CalendarEntry(parseInstant(work.starts_at)?.atZone(zone)?.toLocalDate(), task, work) }
+                }).groupBy { it.day }.mapValues { (_, entries) -> entries.sortedBy { it.work?.starts_at.orEmpty() } }
             }
             val undatedCount = when (tab) {
                 TasksTabKind.Open -> snapshot.undatedOpen
@@ -404,7 +421,7 @@ internal fun TaskCalendarView(
                                         inMonth = YearMonth.from(day) == month,
                                         today = day == today,
                                         selected = day == selectedDay,
-                                        tasks = byDay[day].orEmpty(),
+                                        tasks = byDay[day].orEmpty().map { it.task },
                                         onClick = {
                                             haptics.tick()
                                             selectedKey =
@@ -473,7 +490,7 @@ internal fun TaskCalendarView(
                     }
                 }
 
-                if (selectionVisible && selectedDay != null) {
+                if (selectionVisible) {
                     item(key = "day-hdr") {
                         SectionHeader(
                             dayHeadingLabel(selectedDay, LocalAppLocale.current),
@@ -513,8 +530,9 @@ internal fun TaskCalendarView(
                         // shortcuts stay a List-view affordance, like Board.)
                         itemsIndexed(
                             dayTasks,
-                            key = { _, task -> "day-${task.id}" },
-                        ) { index, task ->
+                            key = { _, entry -> "day-${entry.work?.id ?: entry.task.id}" },
+                        ) { index, entry ->
+                            val task = entry.task
                             Column(
                                 Modifier
                                     .animateItem()
@@ -526,8 +544,16 @@ internal fun TaskCalendarView(
                                 val taskMenu = LocalTaskMenu.current
                                 var menuOpen by remember { mutableStateOf(false) }
                                 Box {
+                                    val locale = LocalAppLocale.current
+                                    val work = entry.work
+                                    val starts = parseInstant(work?.starts_at)
+                                    val ends = parseInstant(work?.ends_at)
+                                    val hours = if (starts != null && ends != null)
+                                        "${TimestampFormat.clock(starts, zone, locale)}–${TimestampFormat.clock(ends, zone, locale)}" else null
                                     TaskListRow(
                                         task = task,
+                                        columns = TASK_LIST_COLUMNS - if (hours != null) "due" else "scheduled",
+                                        scheduledLabel = hours,
                                         assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
                                         onClick = { onOpenTask(task.id) },
                                         onToggleDone = { done -> onToggleDone(task, done) },

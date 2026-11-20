@@ -122,21 +122,15 @@ func taskDay(_ key: String, calendar: Calendar = Calendar(identifier: .gregorian
     return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
 }
 
-private func orderedMapRows(_ rows: [TaskItem], day: Date?) -> [TaskItem] {
-    let requestedDay = day.map { taskDateKey($0) }
-    let stops: [(task: TaskItem, day: String, instant: Date)] = rows.compactMap { task in
-        guard !task.done else { return nil }
-        let instant = parseWireTimestamp(task.due_at)
-        let jobDay = task.due_on ?? instant.map { taskDateKey($0) }
-        guard requestedDay == nil || jobDay == requestedDay else { return nil }
-        return (task, jobDay ?? "9999", instant ?? .distantFuture)
+private func orderedMapRows(_ rows: [TaskItem], calendar: Calendar) -> [TaskItem] {
+    let stops = rows.map { task in
+        let booked = task.published_work?.first?.starts_at ?? task.scheduled_at
+        let instant = parseWireTimestamp(booked ?? task.due_at)
+        let dueDay = booked == nil ? task.due_on : nil
+        let day = dueDay ?? instant.map { taskDateKey($0, calendar: calendar) } ?? "9999"
+        return (task: task, day: day, instant: instant ?? .distantFuture)
     }
-    let sorted = stops.sorted { left, right in
-        let leftKey = (left.day, left.instant, left.task.id)
-        let rightKey = (right.day, right.instant, right.task.id)
-        return leftKey < rightKey
-    }
-    return sorted.map { $0.task }
+    return stops.sorted { ($0.day, $0.instant, $0.task.id) < ($1.day, $1.instant, $1.task.id) }.map(\.task)
 }
 
 // MARK: - Map view
@@ -153,7 +147,9 @@ struct TaskMapView: View {
     let meta: TaskMetaFilters
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
+    var timeZoneId: String? = nil
 
+    @State private var total: Int?
     @State private var state: LoadState<[TaskItem]> = .loading
     @State private var localRefresh = 0
     @State private var window = "today"
@@ -169,11 +165,13 @@ struct TaskMapView: View {
         ]
     }
 
+    private var calendar: Calendar { workspaceCalendar(timeZoneId: timeZoneId) }
+
     private var selectedDay: Date? {
         switch window {
         case "all": return nil
         case "custom": return pickedDay
-        case "tomorrow": return Calendar.current.date(byAdding: .day, value: 1, to: Date())
+        case "tomorrow": return calendar.date(byAdding: .day, value: 1, to: Date())
         default: return Date()
         }
     }
@@ -186,7 +184,7 @@ struct TaskMapView: View {
             dueChip?.rawValue ?? "-",
             q,
             meta.token,
-            selectedDay.map { taskDateKey($0) } ?? "-",
+            selectedDay.map { taskDateKey($0, calendar: calendar) } ?? "-",
             String(refreshKey),
             String(localRefresh),
         ].joined(separator: "|")
@@ -216,9 +214,10 @@ struct TaskMapView: View {
             case .failed(let message):
                 LoadError(message: message) { localRefresh += 1 }
             case .ready(let rows):
-                TaskMapContent(rows: orderedMapRows(rows, day: selectedDay), onOpenTask: onOpenTask)
+                TaskMapContent(rows: orderedMapRows(rows, calendar: calendar), onOpenTask: onOpenTask, total: total)
             }
         }
+        .environment(\.timeZone, calendar.timeZone)
         .task(id: fetchToken) { await reload() }
     }
 
@@ -244,44 +243,42 @@ struct TaskMapView: View {
         if meta.dueAfter != nil || meta.dueBefore != nil {
             dueFilters = TaskListFilters(dueBefore: meta.dueBefore, dueAfter: meta.dueAfter)
         } else {
-            dueFilters = dueChip.map { dueChipFilters($0) } ?? TaskListFilters()
+            dueFilters = dueChip.map { dueChipFilters($0, calendar: calendar) } ?? TaskListFilters()
         }
         let trimmedQuery = q.trimmingCharacters(in: .whitespacesAndNewlines)
         let query: String? = trimmedQuery.isEmpty ? nil : trimmedQuery
-        let calendar = Calendar.current
         let start = selectedDay.map { calendar.startOfDay(for: $0) }
         let end = start.flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
-        let dayKey = start.map { taskDateKey($0, calendar: calendar) }
+        var params: [String: String?] = [
+            "status": meta.statusOnly,
+            "assigned_user_id": assignee ?? (unassigned ? nil : "all"),
+            "unassigned": unassigned ? "true" : nil,
+            "due_before": dueFilters.dueBefore,
+            "due_after": dueFilters.dueAfter,
+            "due_on_before": dueFilters.dueOnBefore,
+            "due_on_after": dueFilters.dueOnAfter,
+            "schedule_after": start.map { isoOffsetString($0, timeZone: calendar.timeZone) },
+            "schedule_before": end.map { isoOffsetString($0, timeZone: calendar.timeZone) },
+            "overdue": dueFilters.overdue ? "true" : nil,
+            "q": query,
+            "priority": meta.priority.isEmpty ? nil : meta.priority.joined(separator: ","),
+            "tag_id": meta.tagId,
+            "contact_id": meta.contactId,
+            "created_by": meta.createdBy,
+            "source": meta.source,
+            "source_line_id": meta.sourceLineId,
+            "confirmed": meta.notConfirmed ? "false" : nil,
+            "scheduled": meta.scheduled.map { $0 ? "true" : "false" },
+        ]
         var accumulated: [TaskItem] = []
         var cursor: String?
         var pages = 0
         do {
             repeat {
                 let page: Page<TaskItem> = try await graph.api.get(
-                    "/v1/tasks",
-                    query: [
-                        "has_location": "true",
-                        "status": "open",
-                        "assigned_user_id": assignee,
-                        "unassigned": unassigned ? "true" : nil,
-                        "due_before": end.map { isoOffsetString($0, timeZone: calendar.timeZone) } ?? dueFilters.dueBefore,
-                        "due_after": start.map { isoOffsetString($0, timeZone: calendar.timeZone) } ?? dueFilters.dueAfter,
-                        "due_on_before": dayKey,
-                        "due_on_after": dayKey,
-                        "overdue": dueFilters.overdue ? "true" : nil,
-                        "q": query,
-                        "priority": meta.priority.isEmpty
-                            ? nil : meta.priority.joined(separator: ","),
-                        "tag_id": meta.tagId,
-                        "contact_id": meta.contactId,
-                        "created_by": meta.createdBy,
-                        "source": meta.source,
-                        "source_line_id": meta.sourceLineId,
-                        "confirmed": meta.notConfirmed ? "false" : nil,
-                        "cursor": cursor,
-                        "limit": "100",
-                    ],
-                    companyId: companyId
+                    "/v1/tasks", query: params.merging([
+                        "has_location": "true", "limit": "100", "cursor": cursor,
+                    ]) { _, new in new }, companyId: companyId
                 )
                 accumulated += page.data
                 cursor = page.next_cursor
@@ -289,6 +286,10 @@ struct TaskMapView: View {
             } while cursor != nil && pages < 40
             var seen = Set<String>()
             let deduped = accumulated.filter { seen.insert($0.id).inserted }
+            params["include_count"] = "true"
+            params["limit"] = "1"
+            let count: Page<TaskItem> = try await graph.api.get("/v1/tasks", query: params, companyId: companyId)
+            total = cursor == nil ? count.total_count : nil
             state = .ready(deduped)
         } catch {
             if case .ready = state {} else { state = .failed(error.userMessage) }
@@ -305,13 +306,18 @@ private let continentalUSRegion = MKCoordinateRegion(
 private struct TaskMapContent: View {
     let rows: [TaskItem]
     let onOpenTask: @MainActor (String) -> Void
+    var total: Int? = nil
 
     @State private var camera: MapCameraPosition = .region(continentalUSRegion)
     @State private var selectedGroupId: String?
 
     @Environment(\.appLocale) private var appLocale
 
-    private var model: TaskMapModel { buildTaskMapModel(rows) }
+    private var model: TaskMapModel {
+        let mapped = buildTaskMapModel(rows)
+        guard let total else { return mapped }
+        return TaskMapModel(groups: mapped.groups, located: mapped.located, missing: max(0, total - mapped.located))
+    }
     private var stops: [TaskItem] { rows.filter { taskPinCoords($0) != nil } }
     private var stopNumbers: [String: Int] {
         Dictionary(uniqueKeysWithValues: stops.enumerated().map { ($0.element.id, $0.offset + 1) })

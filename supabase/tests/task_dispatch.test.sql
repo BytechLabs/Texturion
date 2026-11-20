@@ -59,6 +59,26 @@ begin
   if (select count(*) from public.task_schedule_blocks where task_id = task) is distinct from 2
   then raise exception 'The second booking overwrote the first'; end if;
 
+  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-23', '2026-11-24')) <> 2
+  then raise exception 'The task calendar lost a booking'; end if;
+  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-27', '2026-11-28')) <> 0
+  then raise exception 'The calendar treated a deadline as a booking'; end if;
+
+  if public.api_dispatch_set_shift(company, crew_id, crew_id, 1, null, 2) is distinct from 'not_found'
+  then raise exception 'A worker could edit workspace availability'; end if;
+  if public.api_dispatch_set_shift(company, owner_id, crew_id, 1,
+    '{"start":"09:00","end":"16:00","breaks":[{"start":"11:00","end":"11:45"}]}', 2) is distinct from 'ok'
+  then raise exception 'Could not save a shift'; end if;
+  if public.api_dispatch_publish(company, owner_id, 2, '[]', '[]') is distinct from 'stale'
+  then raise exception 'A shift edit did not invalidate the prior draft'; end if;
+  next_booking := next_booking || '{"starts_at":"2026-11-23T16:35:00Z","ends_at":"2026-11-23T17:20:00Z"}';
+  if public.api_dispatch_publish(company, owner_id, 3, jsonb_build_array(next_booking), '[]') is distinct from 'hours'
+  then raise exception 'A booking crossed the break'; end if;
+  if public.dispatch_fits_worker_shift(company, crew_id, '2026-11-23T16:00Z', '2026-11-23T16:40Z') is distinct from false
+  then raise exception 'An existing break conflict was not detected'; end if;
+  if (select count(*) from public.task_schedule_blocks where task_id = task) <> 2
+  then raise exception 'Changing availability altered an existing booking'; end if;
+
   if public.api_dispatch_read(company, gen_random_uuid(), '2026-11-23', 7) is not null
   then raise exception 'A non-member could see the schedule'; end if;
   if has_table_privilege('authenticated', 'public.task_schedule_blocks', 'select') then

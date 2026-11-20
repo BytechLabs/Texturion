@@ -83,6 +83,11 @@ data class TaskListFilters(
     val confirmed: Boolean? = null,
     val dueOnBefore: String? = null,
     val dueOnAfter: String? = null,
+    val scheduled: Boolean? = null,
+    val scheduleAfter: String? = null,
+    val scheduleBefore: String? = null,
+    val includeCount: Boolean = false,
+    val explicitScope: Boolean = false,
 )
 
 /**
@@ -101,7 +106,7 @@ fun taskQueryParams(
     // the frozen route's Open·Mine default is not re-applied. `status=open` is
     // the only opt-out that keeps the query semantically clean, injected only
     // when no other explicit filter is already the opt-out.
-    val needsAllSentinel = explicitAll &&
+    val needsAllSentinel = explicitAll && !filters.explicitScope &&
         filters.status == null &&
         !filters.overdue &&
         filters.conversationId == null &&
@@ -113,7 +118,7 @@ fun taskQueryParams(
 
     return mapOf(
         "status" to status,
-        "assigned_user_id" to if (explicitAll) null else filters.assignedUserId,
+        "assigned_user_id" to if (explicitAll && !filters.explicitScope) null else filters.assignedUserId,
         "unassigned" to if (filters.unassigned) "true" else null,
         "conversation_id" to filters.conversationId,
         "due_before" to filters.dueBefore,
@@ -132,6 +137,10 @@ fun taskQueryParams(
         "confirmed" to filters.confirmed?.toString(),
         "due_on_before" to filters.dueOnBefore,
         "due_on_after" to filters.dueOnAfter,
+        "scheduled" to filters.scheduled?.toString(),
+        "schedule_after" to filters.scheduleAfter,
+        "schedule_before" to filters.scheduleBefore,
+        "include_count" to if (filters.includeCount) "true" else null,
         "cursor" to cursor,
         "limit" to limit.toString(),
     )
@@ -158,7 +167,8 @@ fun dueChipFilters(chip: DueChip, clock: Clock = Clock.systemDefaultZone()): Tas
     val end = if (chip == DueChip.Today) start.plusDays(1) else start.plusDays(7)
     val fmt = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     fun ZonedDateTime.iso(): String = toOffsetDateTime().format(fmt)
-    return TaskListFilters(dueAfter = start.iso(), dueBefore = end.iso())
+    return TaskListFilters(dueAfter = start.iso(), dueBefore = end.iso(),
+        dueOnAfter = start.toLocalDate().toString(), dueOnBefore = end.toLocalDate().minusDays(1).toString())
 }
 
 /**
@@ -200,6 +210,8 @@ fun taskListArms(
         unassigned = unassigned && assigneeUserId == null,
         dueBefore = dueFilters.dueBefore,
         dueAfter = dueFilters.dueAfter,
+        dueOnBefore = dueFilters.dueOnBefore,
+        dueOnAfter = dueFilters.dueOnAfter,
         overdue = dueFilters.overdue,
         q = query,
         priorities = TaskPriority.PICKER.filter { it in extra.priorities },
@@ -212,8 +224,10 @@ fun taskListArms(
         hasAttachments = extra.hasAttachments,
         confirmed = if (extra.notConfirmed) false else null,
         hasReferences = extra.hasReferences,
+        scheduled = extra.scheduled,
     )
 
+    extra.statusOnly?.let { return listOf(arm(it)) }
     return when (tab) {
         TasksTabKind.Open -> listOf(arm(TaskStatus.OPEN))
         TasksTabKind.Done -> listOf(arm(TaskStatus.DONE))

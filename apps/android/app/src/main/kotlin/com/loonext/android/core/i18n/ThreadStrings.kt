@@ -693,6 +693,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.taskCreated" to "Task created.",
         "thread.alreadyHasTask" to "This message already has a task.",
         // D64: an answered call can become a task.
+        "thread.tasksFromSource" to "Tasks from this source",
         "thread.taskCreatedFromCall" to "Made a task from this call.",
         "thread.alreadyHasCallTask" to "This call is already a task.",
         "thread.callTaskSourceUnavailable" to "Only an answered call or a saved voicemail can become a task.",
@@ -1533,6 +1534,7 @@ object ThreadStrings : AppStrings.Section {
             "pas été téléversés.",
         "thread.taskCreated" to "Tâche créée.",
         "thread.alreadyHasTask" to "Ce message a déjà une tâche.",
+        "thread.tasksFromSource" to "Tâches liées à cette source",
         "thread.taskCreatedFromCall" to "Tâche créée à partir de cet appel.",
         "thread.alreadyHasCallTask" to "Cet appel est déjà une tâche.",
         "thread.callTaskSourceUnavailable" to "Seuls un appel auquel on a répondu ou un message vocal enregistré peuvent devenir une tâche.",

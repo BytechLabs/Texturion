@@ -17,6 +17,7 @@ vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({ data: { timezone: tz.value } }),
 }));
 vi.mock("@/lib/api/tasks", () => ({
+  useTasks: () => ({ data: undefined }),
   useAllTasks: () => ({
     data: undefined,
     isPending: false,

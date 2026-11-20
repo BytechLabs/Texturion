@@ -233,7 +233,7 @@ final class RecordActionsTests: XCTestCase {
             messageActions(message(body: " "), viewer: viewer(MemberRole.owner))
                 .visibleIds.contains("select-text")
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             messageActions(message(hasTask: true), viewer: viewer(MemberRole.owner))
                 .visibleIds.contains("make-task")
         )

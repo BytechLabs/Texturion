@@ -2,11 +2,13 @@ package com.loonext.android.core.time
 
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MessageLocale
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
 import java.util.Locale
 
 /**
@@ -59,6 +61,9 @@ object TimestampFormat {
     /** A wall-clock time with no date or zone, such as the hour where a number is. */
     fun clock(at: java.time.LocalTime, locale: String? = null): String =
         clock(at.atDate(java.time.LocalDate.EPOCH).atZone(ZoneId.of("UTC")), locale)
+
+    fun weekday(day: DayOfWeek, locale: String? = null): String =
+        day.getDisplayName(TextStyle.FULL, tagOf(locale))
 
     private fun draw(at: ZonedDateTime, tag: Locale, english: String, french: String): String =
         at.format(DateTimeFormatter.ofPattern(if (isFrench(tag)) french else english, tag))

@@ -516,6 +516,34 @@ begin
   raise notice 'CA-4 PASSED: For You, search, timeline, holdings, bulk and the map keep call tasks';
 end $$;
 
+do $$
+declare
+  company constant uuid := 'ca000000-0000-4000-8000-0000000000c1';
+  actor constant uuid := 'ca000000-0000-4000-8000-00000000000a';
+  message constant uuid := 'ca000000-0000-4000-8000-0000000000d1';
+  call constant uuid := 'ca000000-0000-4000-8000-0000000000f1';
+  input jsonb := jsonb_build_object('p_company_id', company, 'p_actor_user_id', actor);
+  request jsonb;
+  one uuid;
+  two uuid;
+begin
+  foreach request in array array[jsonb_build_object('p_message_id', message), jsonb_build_object('p_call_id', call)] loop
+    one := (public.api_create_linked_task(input || request || '{"p_title":"Inspect the leak"}') -> 'task' ->> 'id')::uuid;
+    two := (public.api_create_linked_task(input || request || '{"p_title":"Send a quote","p_due_on":"2026-11-25"}') -> 'task' ->> 'id')::uuid;
+    if one is null or two is null or one = two then raise exception 'Source did not keep both tasks'; end if;
+    if not exists (select 1 from public.tasks t where t.id = two and t.independent_source and t.due_on = '2026-11-25'
+      and ((t.message_id = message and request ? 'p_message_id') or (t.source_call_id = call and request ? 'p_call_id')))
+    then raise exception 'New task lost its exact source or date-only deadline'; end if;
+    perform public.set_task_done(company, one, true, actor);
+    if not exists (select 1 from public.tasks t where t.id = one and public.task_done_at(t) is not null)
+      or exists (select 1 from public.tasks t where t.id = two and public.task_done_at(t) is not null)
+    then raise exception 'Completing one source task changed the other'; end if;
+    perform public.api_bulk_tasks(company, actor, 'mark_done', array[two], null, null);
+    if not exists (select 1 from public.task_map_rows t where t.id = two and t.done_at is not null)
+    then raise exception 'The map does not reflect independent bulk completion'; end if;
+  end loop;
+end $$;
+
 rollback;
 
 select 'ALL CALL-ANCHORED TASK TESTS PASSED' as result;

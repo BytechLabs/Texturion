@@ -86,7 +86,7 @@ final class CallTaskTests: XCTestCase {
         )
         XCTAssertEqual(
             String(decoding: try encoder.encode(body), as: UTF8.self),
-            "{\"source_call_id\":\"call1\",\"title\":\"Call from Ana\"}"
+            "{\"independent_source\":true,\"source_call_id\":\"call1\",\"title\":\"Call from Ana\"}"
         )
     }
 

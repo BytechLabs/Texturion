@@ -799,6 +799,7 @@ class MessagingRepository(private val api: ApiClient) {
         "/v1/tasks",
         buildJsonObject {
             put("message_id", messageId)
+            put("independent_source", true)
             put("title", title)
             if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAtIso != null) put("due_at", dueAtIso)

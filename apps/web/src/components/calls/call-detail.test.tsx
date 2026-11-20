@@ -17,6 +17,7 @@ const query = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/api/calls", () => ({ useCall: () => query.current }));
+vi.mock("@/lib/api/tasks", () => ({ useSourceTasks: () => ({ data: { data: [] } }) }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));

@@ -22,11 +22,12 @@ import { keys } from "@/lib/api/keys";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatScheduledTime } from "@/lib/format/time";
 
-import { blocksOnDay, dispatchEdit, fetchDispatch, previewDispatch, publishDispatch } from "./dispatch-data";
-import type { DispatchBlock, DispatchDetail, DispatchDraft, DispatchEdit, DispatchPreview, DispatchTask } from "./dispatch-data";
+import { blocksOnDay, dispatchEdit, fetchDispatch, previewDispatch, publishDispatch, saveDispatchShift } from "./dispatch-data";
+import type { DispatchBlock, DispatchDetail, DispatchDraft, DispatchEdit, DispatchPreview, DispatchShift, DispatchTask } from "./dispatch-data";
 import { DispatchEditor } from "./dispatch-editor";
 import type { SlotRequest } from "./dispatch-editor";
 import { DispatchRoutesView, DispatchSchedule, DispatchWorkload } from "./dispatch-views";
+import { DispatchShifts } from "./dispatch-shifts";
 import { dayFromKey, dayKey, todayInZone } from "./views/calendar-create";
 
 const EMPTY_DRAFT: DispatchDraft = { blocks: [], details: [] };
@@ -100,6 +101,8 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [review, setReview] = useState(false);
+  const [editingShift, setEditingShift] = useState(false);
+  const [shiftError, setShiftError] = useState("");
   const dirty = draft.blocks.length > 0 || draft.details.length > 0;
   const week = weekOf(date);
   const range = { day: week, days: WEEK_DAYS, task: job };
@@ -227,6 +230,22 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
     }
   }
 
+  async function saveShift(worker_id: string, weekday: number, availability: DispatchShift | null) {
+    setShiftError("");
+    setBusy(true);
+    try {
+      const result = await saveDispatchShift(companyId, { ...request, worker_id, weekday, shift: availability });
+      client.setQueryData(["dispatch", companyId, week, job], result);
+      setRoute(null);
+      setSlots(null);
+      setEditingShift(false);
+    } catch (error_) {
+      setShiftError(error_ instanceof Error ? error_.message : t("tasks.dispatchUnavailable"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function discard() {
     setReview(false);
     setDraft(EMPTY_DRAFT);
@@ -270,8 +289,17 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
           {pane === "routes" && <SimpleSelect ariaLabel={t("tasks.assignee")}
             className="w-auto" value={effectivePerson} disabled={busy} onValueChange={setPerson}
             options={plan.members.map((member) => ({ value: member.id, label: member.name ?? t("tasks.teammate") }))} />}
+          {roleHasCapability(role, "settings.manage") && effectivePerson && pane !== "day" && (
+            <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => { setShiftError(""); setEditingShift(true); }}>
+              {t("tasks.dispatchShifts")}
+            </Button>
+          )}
         </div>
       </div>
+      <Dialog open={editingShift} onOpenChange={(open) => { if (!busy) setEditingShift(open); }}>
+        {editingShift && <DispatchShifts date={date} person={effectivePerson} plan={plan} busy={busy}
+          error={shiftError} onSave={(worker, weekday, availability) => void saveShift(worker, weekday, availability)} />}
+      </Dialog>
       {error && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm text-destructive">
         <p>{error}</p>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => { discard(); void query.refetch(); }}>

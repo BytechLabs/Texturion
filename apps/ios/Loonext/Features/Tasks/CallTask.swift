@@ -1,5 +1,11 @@
 import SwiftUI
 
+struct LinkedSourceTask: Codable, Identifiable, Sendable {
+    let id: String
+    let title: String
+    let done: Bool
+}
+
 // D64: an answered call can become a task. The pure parts are free functions so
 // they unit-test without a view; the views below are thin.
 
@@ -44,6 +50,7 @@ enum TaskDraftSource {
 protocol TaskDraftHost: AnyObject {
     var members: [Member] { get }
     var meUserId: String { get }
+    func linkedTasks(for source: TaskDraftSource) async throws -> [LinkedSourceTask]
     func aiSettingsForTaskDraft() async -> CompanyAiSettings
     func enrichTaskDraft(for message: Message) async -> TaskEnrichment
     func enrichVoicemailTaskDraft(callId: String) async -> TaskEnrichment
@@ -73,6 +80,7 @@ protocol TaskDraftHost: AnyObject {
 }
 
 extension TaskDraftHost {
+    func linkedTasks(for source: TaskDraftSource) async throws -> [LinkedSourceTask] { [] }
     func enrichVoicemailTaskDraft(callId: String) async -> TaskEnrichment { .empty }
 
     func createTask(
@@ -175,6 +183,7 @@ final class CallTaskHost: TaskDraftHost {
     let meUserId: String
     private let graph: AppGraph
     private let companyId: String
+    private let conversationId: String
     /// The sentence, and (#724) the created task's id when Open should go to it.
     private let onNotice: @MainActor (String, String?) -> Void
     private let locale: String
@@ -183,6 +192,7 @@ final class CallTaskHost: TaskDraftHost {
     init(
         graph: AppGraph,
         companyId: String,
+        conversationId: String,
         members: [Member],
         meUserId: String,
         locale: String,
@@ -191,11 +201,19 @@ final class CallTaskHost: TaskDraftHost {
     ) {
         self.graph = graph
         self.companyId = companyId
+        self.conversationId = conversationId
         self.members = members
         self.meUserId = meUserId
         self.locale = locale
         self.isVoicemail = isVoicemail
         self.onNotice = onNotice
+    }
+
+    func linkedTasks(for source: TaskDraftSource) async throws -> [LinkedSourceTask] {
+        guard case .call(let id, _, _) = source else { return [] }
+        return try await TaskMutations(api: graph.api).sourceTasks(
+            companyId: companyId, conversationId: conversationId, query: ["call_id": id]
+        )
     }
 
     func aiSettingsForTaskDraft() async -> CompanyAiSettings {
@@ -343,6 +361,7 @@ struct CallTaskButton: View {
                 host = CallTaskHost(
                     graph: graph,
                     companyId: companyId,
+                    conversationId: conversationId,
                     members: page?.data ?? [],
                     meUserId: me.user_id,
                     locale: appLocale,

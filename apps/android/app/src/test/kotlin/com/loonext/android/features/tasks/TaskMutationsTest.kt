@@ -172,7 +172,7 @@ class TaskMutationsTest {
         assertEquals("POST", recorded.method)
         assertEquals("/v1/tasks", recorded.url.encodedPath)
         assertEquals(
-            """{"message_id":"m1","title":"Fix the sink","address":""" +
+            """{"message_id":"m1","independent_source":true,"title":"Fix the sink","address":""" +
                 """{"street":"12 Elm St","unit":null,"city":"Toronto","state":null,""" +
                 """"postal_code":null,"country":null,"provenance":"message"}}""",
             recorded.body?.utf8(),
@@ -271,7 +271,7 @@ class TaskMutationsTest {
         )
         val recorded = server.takeRequest()
         assertEquals("/v1/tasks", recorded.url.encodedPath)
-        assertEquals("""{"source_call_id":"call1","title":"Call from Ana"}""", recorded.body?.utf8())
+        assertEquals("""{"source_call_id":"call1","independent_source":true,"title":"Call from Ana"}""", recorded.body?.utf8())
     }
 
     @Test
