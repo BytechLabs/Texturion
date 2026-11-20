@@ -4,10 +4,8 @@
  * output device plays. The device lane's codes are injected and heard here,
  * at 48 kHz, signed 16-bit mono, and judged with the robot's detector.
  *
- * Neither call has run on this host yet. Until spike EA1 has passed and the
- * store holds `emulator-audio-proven`, hear, playCode and transcribe refuse
- * with `emulator-audio-unproven`, which a runner reports as infra and never
- * as a pass. On Windows the emulator forwards injected audio only to a
+ * The runner reports `emulator-audio-unproven` until the rig store records
+ * the EA1 proof. On Windows the emulator forwards injected audio only to a
  * microphone the guest has already opened (EA1's timing note), so injection
  * waits for `dumpsys audio` to list an active recording.
  *
@@ -24,6 +22,7 @@ export const AUDIO_UNPROVEN = "emulator-audio-unproven";
 export const AUDIO_RATE = 48_000;
 const PACKET_MS = 20;
 const PACKET_SAMPLES = (AUDIO_RATE * PACKET_MS) / 1000;
+const MIC_BUFFER_MS = 120;
 const WHISPER_RATE = 16_000;
 
 export const PROTO_PATH = fileURLToPath(new URL("../../proto/emulator_controller.proto", import.meta.url));
@@ -274,15 +273,17 @@ export class EmulatorAudioLink {
       if (error && error.code !== grpc.status.CANCELLED && !playing.stopped) this.lastError = `injectAudio: ${error.details || error.message}`;
     });
     playing.stream = stream;
-    const format: AudioFormat = { samplingRate: AUDIO_RATE, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_REAL_TIME" };
-    // Real-time mode overwrites what is queued, so each packet goes out on the clock, not as fast as it can.
+    const format: AudioFormat = { samplingRate: AUDIO_RATE, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_UNSPECIFIED" };
+    // Keep a short lead so host scheduling delays do not drop microphone samples.
     const started = this.#now();
     for (let packet = 0; !playing.stopped; packet++) {
       const offset = (packet * packetBytes) % code.length;
       const audio = code.subarray(offset, offset + packetBytes);
-      const sent = stream.write({ ...(packet === 0 ? { format } : {}), timestamp: Math.round(this.#now() * 1000), audio });
+      const at = started + packet * PACKET_MS;
+      const sent = stream.write({ ...(packet === 0 ? { format } : {}), timestamp: Math.round(at * 1000), audio });
       if (!sent) await new Promise((resolve) => { stream.once("drain", resolve); });
-      await this.#sleep(Math.max(0, started + (packet + 1) * PACKET_MS - this.#now()));
+      const wait = at + PACKET_MS - MIC_BUFFER_MS - this.#now();
+      if (wait > 0) await this.#sleep(wait);
     }
   }
 
