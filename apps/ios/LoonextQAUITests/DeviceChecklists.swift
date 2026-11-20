@@ -17,7 +17,7 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testForegroundAlertForAnotherThread() async throws {
-        try signIn()
+        try signIn(notifications: true)
         try openThread("Ada Fixture")
         try await control("push?thread=0&title=Current%20thread%20alert&inbound=1")
         XCTAssertFalse(notification("Current thread alert").waitForExistence(timeout: 2))
@@ -34,7 +34,7 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testNotificationReply() async throws {
-        try signIn()
+        try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
         openNotificationCenter()
@@ -55,7 +55,7 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testNotificationTrayClearance() async throws {
-        try signIn()
+        try signIn(notifications: true)
         try await control("push?thread=1&title=Clear%20on%20open")
         try waitFor(notification("Clear on open"), timeout: 5)
         openNotificationCenter()
@@ -176,7 +176,7 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
-    private func signIn() throws {
+    private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
         let email = app.textFields["Email"].firstMatch
@@ -190,12 +190,21 @@ final class DeviceChecklists: XCTestCase {
             try waitFor(app.buttons["Sign in"].firstMatch).tap()
         }
         let allow = app.buttons["Turn on notifications"].firstMatch
+        let savePassword = springboard.buttons["Not Now"].firstMatch
         if allow.waitForExistence(timeout: 4) {
-            allow.tap()
-            try waitFor(springboard.buttons["Allow"].firstMatch).tap()
+            if savePassword.exists { savePassword.tap() }
+            if notifications {
+                let permission = springboard.buttons["Allow"].firstMatch
+                for _ in 0..<2 where allow.exists && !permission.exists {
+                    allow.tap()
+                    if permission.waitForExistence(timeout: 3) { break }
+                }
+                try waitFor(permission).tap()
+            } else {
+                try waitFor(app.buttons["Not now"].firstMatch).tap()
+            }
         }
         try waitFor(shell, timeout: 30)
-        let savePassword = springboard.buttons["Not Now"].firstMatch
         if savePassword.exists { savePassword.tap() }
     }
 
