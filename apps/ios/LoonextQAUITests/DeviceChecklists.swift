@@ -41,8 +41,12 @@ final class DeviceChecklists: XCTestCase {
         let card = springboard.buttons.matching(identifier: "ShortLook.Platter.Content.Seamless").matching(
             NSPredicate(format: "label CONTAINS %@", "Reply from the shade")
         ).firstMatch
-        try waitFor(card).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.1)
-        try waitFor(springboard.buttons["Reply"].firstMatch).tap()
+        let frame = try waitFor(card).frame
+        let touch = springboard.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.minX + 90, dy: frame.midY))
+        touch.press(forDuration: 1.5)
+        shot("777 notification after touch and hold")
+        try waitFor(springboard.descendants(matching: .any)["Reply"].firstMatch).tap()
         let reply = try waitFor(springboard.textFields.firstMatch)
         reply.tap()
         reply.typeText("Simulator shade reply")

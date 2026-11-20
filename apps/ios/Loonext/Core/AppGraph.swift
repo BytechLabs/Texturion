@@ -226,7 +226,11 @@ final class AppGraph {
     ///   never reach the code under test.
     /// - Parameter transport: the audit host's canned `/v1` answers (`A11yAuditFixtures`);
     ///   production passes nothing and keeps `URLSession`.
-    init(sessionStore: SessionStore = SessionStore(), transport: HTTPClient = URLSessionHTTPClient()) {
+    init(
+        sessionStore: SessionStore = SessionStore(),
+        transport: HTTPClient = URLSessionHTTPClient(),
+        outboxStore: Outbox? = nil
+    ) {
         let prefs = AppPrefs()
         let supabaseAuth = SupabaseAuth()
         let offlineReads = transport is URLSessionHTTPClient ? StoreCache() : nil
@@ -236,7 +240,7 @@ final class AppGraph {
         let realtime = RealtimeClient()
         let meApi = MeApi(api: api)
         let outbox = OutboxCoordinator(
-            store: Outbox(),
+            store: outboxStore ?? Outbox(),
             repository: MessagingRepository(api: api),
             sessionStore: sessionStore
         )

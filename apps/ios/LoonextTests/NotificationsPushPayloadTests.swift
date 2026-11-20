@@ -25,6 +25,20 @@ final class NotificationsPushPayloadTests: XCTestCase {
         }
     }
 
+    private actor ReplyTransport: HTTPClient {
+        private(set) var requests: [URLRequest] = []
+
+        func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            requests.append(request)
+            let body = """
+            {"id":"sent","conversation_id":"thread","body":"Shade reply",
+             "direction":"outbound","status":"sent","created_at":"2026-11-20T00:00:00Z"}
+            """
+            let response = HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!
+            return (Data(body.utf8), response)
+        }
+    }
+
     func testOnlyAFullyScopedPageOffersAcknowledgement() {
         var data = [
             "alert_id": "aaaaaaaa-1111-2222-3333-444455556666",
@@ -76,6 +90,57 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(
             categories["ON_CALL_MISSED_CALL_FR"]?.map(\.identifier),
             ["ACKNOWLEDGE_ON_CALL", "CALL_MISSED_CALLER", "TEXT_MISSED_CALLER"]
+        )
+    }
+
+    @MainActor
+    func testNotificationReplyUsesScopedIdempotentOutboxSend() async throws {
+        let company = UUID().uuidString
+        let conversation = UUID().uuidString
+        let user = UUID().uuidString
+        let message = UUID().uuidString
+        let suite = "push-reply-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let mediaRoot = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: mediaRoot)
+        }
+        let session = SessionStore(storage: InMemorySessionStorage())
+        session.save(Session(
+            accessToken: "test-token", refreshToken: "test-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600, userId: user, email: "simulator@loonext.test"
+        ))
+        let transport = ReplyTransport()
+        let graph = AppGraph(
+            sessionStore: session,
+            transport: transport,
+            outboxStore: Outbox(defaults: defaults, mediaRoot: mediaRoot)
+        )
+        let payload = [
+            "thread_action": "message", "can_reply": "true",
+            "action_company_id": company, "action_user_id": user,
+            "action_conversation_id": conversation, "action_message_id": message,
+        ]
+        let accepted = try await performThreadPushAction(.reply, data: payload, replyText: " Shade reply ", graph: graph)
+        XCTAssertTrue(accepted)
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !graph.outbox.store.all().isEmpty && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertTrue(graph.outbox.store.all().isEmpty)
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/v1/messages/send")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Company-Id"), company)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "push-reply-\(message)-\(user)")
+        let body = try XCTUnwrap(request.httpBody)
+        XCTAssertEqual(
+            try JSONDecoder().decode([String: String].self, from: body),
+            ["conversation_id": conversation, "body": "Shade reply"]
         )
     }
 
