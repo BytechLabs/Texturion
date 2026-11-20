@@ -102,6 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           column (status banner + destination) fills the rest. */}
         <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
+          <CallBar />
           {/* #100: no mobile top header — the bottom tab bar's avatar sheet now
             carries the workspace switcher, the copyable number(s), the
             notifications feed, theme, Settings, and Sign out. Content starts at
@@ -134,7 +135,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
         <MobileTabBar />
-        <CallBar />
         <CommandPalette />
         <NewTaskDialog />
         {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable

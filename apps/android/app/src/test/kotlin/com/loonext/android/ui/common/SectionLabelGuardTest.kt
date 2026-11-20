@@ -23,7 +23,6 @@ class SectionLabelGuardTest {
             },
         ),
         roster = listOf(
-            GuardException("features/calls/CallActivity.kt", label, 1, "The incoming-call eyebrow inside its own pill over the hero, not a label over a group."),
             GuardException("features/calls/CallKit.kt", label, 1, "The letters under a dial pad key (ABC, DEF), part of the key."),
             GuardException("features/calls/InCallScreen.kt", label, 1, "The note card's eyebrow, tinted with the card's accent."),
             GuardException("features/tasks/TaskCalendar.kt", label, 1, "A weekday initial over a calendar column, centred, not a group heading."),

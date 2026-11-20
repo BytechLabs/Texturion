@@ -255,13 +255,13 @@ struct InCallView: View {
                 Image(systemName: "phone.down")
                     .font(.scaled(19, weight: .medium))
                     .frame(width: 44, height: 44)
-                    .background(BrandColor.paperFixed.opacity(0.16), in: Circle())
+                    .background(BrandColor.destructive.opacity(0.12), in: Circle())
             }
-            .foregroundStyle(BrandColor.paperFixed)
+            .foregroundStyle(BrandColor.destructive)
             .padding(.leading, 24)
             .padding(.trailing, 8)
             .padding(.vertical, 8)
-            .background(BrandColor.destructive, in: Capsule())
+            .background(BrandColor.destructiveContainer, in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(featured == nil)
@@ -280,9 +280,9 @@ struct InCallView: View {
                 } label: {
                     Image(systemName: "phone.down")
                         .font(.scaled(24, weight: .medium))
-                        .foregroundStyle(BrandColor.paperFixed)
+                        .foregroundStyle(BrandColor.destructive)
                         .frame(width: 72, height: 72)
-                        .background(BrandColor.destructive, in: Circle())
+                        .background(BrandColor.destructiveContainer, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(t("contactsTasks.decline"))
@@ -448,20 +448,10 @@ private struct ControlToggle: View {
 struct CallPhaseLine: View {
     let call: CallSnapshot
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
-        switch call.phase {
-        case .ringing:
-            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseIncoming"))
-        case .connecting:
-            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseCalling"))
-        case .held:
-            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseOnHold"))
-        case .ended:
-            phaseText(AppStrings.translate(appLocale, "contactsTasks.phaseEnded"))
-        case .active:
-            if let anchor = call.activeSince {
+        VStack(spacing: 4) {
+            CallPhaseBadge(phase: call.phase)
+            if call.phase == .active, let anchor = call.activeSince {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(formatTimer(
                         elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
@@ -472,12 +462,6 @@ struct CallPhaseLine: View {
                 }
             }
         }
-    }
-
-    private func phaseText(_ text: String) -> some View {
-        Text(text)
-            .font(.golos(15, weight: .semibold))
-            .foregroundStyle(BrandColor.muted600)
     }
 }
 
@@ -490,24 +474,13 @@ private struct OtherCallRow: View {
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
-    private var statusLine: String {
-        switch call.phase {
-        case .ringing: t("contactsTasks.phaseIncoming")
-        case .held: t("contactsTasks.phaseOnHold")
-        case .connecting: t("contactsTasks.phaseCalling")
-        default: ""
-        }
-    }
-
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.peerName)
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text(statusLine)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted500)
+                CallPhaseBadge(phase: call.phase)
             }
             Spacer()
             if call.phase == .ringing {

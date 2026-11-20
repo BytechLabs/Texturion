@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.CallEnd
@@ -42,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -502,7 +500,7 @@ private fun CallSurfaceContent(
  * no scrim is needed.
  */
 @Composable
-private fun RingingSurface(
+internal fun RingingSurface(
     callerName: String,
     callerNumber: String,
     onAnswer: () -> Unit,
@@ -521,21 +519,7 @@ private fun RingingSurface(
     ) {
         // The caller sits in the upper third; the actions live under the thumb.
         Spacer(Modifier.weight(0.5f))
-        // The eyebrow names the moment but stays quiet — a small, tracked micro
-        // label so the caller, not the label, reads as the hero.
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
-        ) {
-            Text(
-                t("contactsTasks.incomingCallEyebrow"),
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.14.em,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            )
-        }
+        CallPhaseBadge(CallPhase.RINGING)
         Spacer(Modifier.height(30.dp))
         CallerAvatar(hero, size = 128.dp, ringing = true)
         Spacer(Modifier.height(28.dp))

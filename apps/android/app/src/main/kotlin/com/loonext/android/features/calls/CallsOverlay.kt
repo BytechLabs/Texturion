@@ -1,20 +1,21 @@
 package com.loonext.android.features.calls
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.outlined.CallEnd
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -40,7 +43,7 @@ import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneSnapshot
-import com.loonext.android.ui.theme.BrandColor
+import com.loonext.android.ui.common.IconSize
 import kotlinx.coroutines.delay
 
 /**
@@ -177,14 +180,8 @@ private fun SoftphoneNotice(
     }
 }
 
-/**
- * The persistent chip above the tab bar. Nothing renders while the line is
- * idle — and nothing while a call only RINGS (the top banner owns ringing
- * presentation, #167). A live call shows identity + ticking duration + hang
- * up; an ended call flashes "Call ended" briefly, then dismisses itself.
- */
 @Composable
-fun CallChip(
+private fun CallChip(
     snapshot: SoftphoneSnapshot,
     manager: SoftphoneManager,
     onExpand: () -> Unit,
@@ -203,87 +200,103 @@ fun CallChip(
         ?: snapshot.liveCalls.firstOrNull { it.phase != CallPhase.RINGING }
     val endedChip = if (featured == null && ringing == null) ended.lastOrNull() else null
     val call = featured ?: endedChip ?: return
+    CallStrip(
+        call = call,
+        heldCount = snapshot.liveCalls.count { it.phase == CallPhase.HELD },
+        onExpand = onExpand,
+        onEnd = {
+            if (call.phase == CallPhase.ENDED) manager.dismiss(call.id) else manager.hangup(call.id)
+        },
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun CallStrip(
+    call: CallSnapshot,
+    heldCount: Int,
+    onExpand: () -> Unit,
+    onEnd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val ended = call.phase == CallPhase.ENDED
 
     Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.large,
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant),
+        shadowElevation = 2.dp,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clickable(enabled = call.phase != CallPhase.ENDED, onClick = onExpand),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Row(
-            Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            Modifier.padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
+            Row(
                 Modifier
-                    .size(8.dp)
-                    .background(
-                        if (call.phase == CallPhase.ENDED) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            BrandColor.LimeBright
-                        },
-                        CircleShape,
-                    ),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                call.peerName,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                chipStatus(call, heldCount = snapshot.liveCalls.count {
-                    it.phase == CallPhase.HELD
-                }),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(Modifier.weight(1f))
-            if (call.phase == CallPhase.ENDED) {
-                IconButton(onClick = { manager.dismiss(call.id) }) {
-                    Icon(
-                        Icons.Filled.CallEnd,
-                        contentDescription = t("contactsTasks.dismiss"),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    .weight(1f)
+                    .clickable(enabled = !ended, role = Role.Button, onClick = onExpand)
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CallPhaseIcon(call.phase)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        call.peerName,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CallPhaseBadge(call.phase)
+                        CallStripTimer(call, heldCount)
+                    }
                 }
-            } else {
-                IconButton(onClick = { manager.hangup(call.id) }) {
-                    Icon(
-                        Icons.Filled.CallEnd,
-                        contentDescription = t("contactsTasks.hangUp"),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                }
+            }
+            IconButton(
+                onClick = onEnd,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (ended) colors.surfaceContainer else colors.errorContainer,
+                    contentColor = if (ended) colors.onSurfaceVariant else colors.onErrorContainer,
+                ),
+            ) {
+                Icon(
+                    if (ended) Icons.Outlined.Close else Icons.Outlined.CallEnd,
+                    contentDescription = t(if (ended) "contactsTasks.dismiss" else "contactsTasks.hangUp"),
+                    modifier = Modifier.size(IconSize.Default),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun chipStatus(call: CallSnapshot, heldCount: Int): String = when (call.phase) {
-    CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
-    CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
-    CallPhase.HELD -> t("contactsTasks.phaseOnHold")
-    CallPhase.ENDED -> t("contactsTasks.phaseEnded")
-    CallPhase.ACTIVE -> {
-        val anchor = call.activeSinceMs
-        val timer = if (anchor == null) {
-            ""
-        } else {
-            val now by produceState(System.currentTimeMillis(), call.id) {
-                while (true) {
-                    value = System.currentTimeMillis()
-                    delay(1_000)
-                }
-            }
-            formatTimer(now - anchor)
+private fun CallStripTimer(call: CallSnapshot, heldCount: Int) {
+    val anchor = call.activeSinceMs ?: return
+    if (call.phase != CallPhase.ACTIVE) return
+    val now by produceState(System.currentTimeMillis(), call.id, anchor) {
+        while (true) {
+            value = System.currentTimeMillis()
+            delay(1_000)
         }
-        if (heldCount > 0 && timer.isNotEmpty()) "$timer · $heldCount on hold" else timer
     }
+    val elapsed = formatTimer(now - anchor)
+    Text(
+        if (heldCount > 0) {
+            t("contactsTasks.timerOnHold", "timer" to elapsed, "count" to heldCount.toString())
+        } else {
+            elapsed
+        },
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }

@@ -626,6 +626,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.dismiss" to "Dismiss",
         "contactsTasks.phaseIncoming" to "Incoming call",
         "contactsTasks.phaseCalling" to "Calling…",
+        "contactsTasks.phaseActive" to "On a call",
+        "contactsTasks.timerOnHold" to "{timer} · {count} on hold",
         "contactsTasks.phaseOnHold" to "On hold",
         "contactsTasks.phaseEnded" to "Call ended",
 
@@ -1557,6 +1559,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.dismiss" to "Ignorer",
         "contactsTasks.phaseIncoming" to "Appel entrant",
         "contactsTasks.phaseCalling" to "Appel en cours…",
+        "contactsTasks.phaseActive" to "En appel",
+        "contactsTasks.timerOnHold" to "{timer} · {count} en attente",
         "contactsTasks.phaseOnHold" to "En attente",
         "contactsTasks.phaseEnded" to "Appel terminé",
 

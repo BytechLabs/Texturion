@@ -650,6 +650,10 @@
   --app-amber-line: #e7e7e7;
   --app-amber-ink: #7a6535;
   --app-clay: #963d24;
+  --app-call-ring-fill: #f9e7df;
+  --app-call-ring-label: #963d24;
+  --app-call-live-fill: #e6f5cc;
+  --app-call-live-label: #3f5e13;
   --app-slate: #5b7a73;
 
   /* NO SHADOWS on structural surfaces (PORTAL-UX §4). The row/panel/bar shadow
@@ -779,6 +783,10 @@
   --app-amber-line: #3a3626;
   --app-amber-ink: #c8c8c8;
   --app-clay: #ed9c82;
+  --app-call-ring-fill: #39231c;
+  --app-call-ring-label: #ed9c82;
+  --app-call-live-fill: #29331c;
+  --app-call-live-label: #bdee6b;
   --app-slate: #9a9a9a;
 
   /* Still no structural shadows on dark; only the floating-layer whisper. */
@@ -1482,4 +1490,68 @@
   .cap-slider::-moz-range-thumb {
     transition: none;
   }
+}
+
+.call-strip {
+  --call-fill: var(--app-inset);
+  --call-label: var(--app-muted);
+  --call-signal: var(--app-muted-2);
+}
+
+.call-strip[data-phase="ringing"] {
+  --call-fill: var(--app-call-ring-fill);
+  --call-label: var(--app-call-ring-label);
+  --call-signal: var(--app-call-ring-label);
+}
+
+.call-strip[data-phase="active"] {
+  --call-fill: var(--app-call-live-fill);
+  --call-label: var(--app-call-live-label);
+  --call-signal: var(--app-call-live-label);
+}
+
+.call-strip[data-phase="held"] {
+  --call-fill: var(--app-amber-bg);
+  --call-label: var(--app-amber-ink);
+  --call-signal: var(--app-amber);
+}
+
+.call-signal {
+  display: grid;
+  grid-template-columns: repeat(5, 3px);
+  gap: 2px;
+  color: var(--call-signal);
+}
+
+.call-signal i {
+  height: 3px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.23;
+}
+
+.call-signal i:nth-child(-n + 5),
+.call-signal i:nth-child(7),
+.call-signal i:nth-child(9) { opacity: 1; }
+
+.call-strip[data-phase="ended"] .call-signal i:nth-child(n + 2),
+.call-strip[data-phase="held"] .call-signal i:nth-child(n + 3),
+.call-strip[data-phase="connecting"] .call-signal i:nth-child(n + 4),
+.call-strip[data-phase="active"] .call-signal i:nth-child(n + 5) {
+  opacity: 0.23;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .call-arrive { animation: call-arrive 180ms ease-out both; }
+  .call-strip[data-phase="ringing"] .call-signal i { animation: call-ring 1.35s ease-in-out 3; }
+  .call-strip[data-phase="ringing"] .call-signal i:nth-child(2n) { animation-delay: 100ms; }
+  .call-strip[data-phase="ringing"] .call-signal i:nth-child(3n) { animation-delay: 200ms; }
+}
+
+@keyframes call-arrive {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes call-ring {
+  50% { opacity: 0.32; }
 }
