@@ -127,7 +127,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
             // method="post" so a pre-hydration native submit stays out of the
             // URL (handleSubmit preventDefaults once hydrated).
             method="post"
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
             className="flex flex-col gap-2 sm:flex-row sm:items-start"
             noValidate
           >

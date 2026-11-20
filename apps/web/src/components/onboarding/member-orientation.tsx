@@ -291,7 +291,7 @@ export function NotificationStep({ onDone }: { onDone: () => void }) {
             <Button variant="ghost" onClick={onDone}>
               {t("onboarding.notNow")}
             </Button>
-            <Button onClick={enable} disabled={push.pending}>
+            <Button onClick={() => { void enable(); }} disabled={push.pending}>
               {push.pending
                 ? t("onboarding.turningOn")
                 : t("onboarding.turnOnNotifications")}

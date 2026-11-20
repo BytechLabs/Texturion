@@ -50,19 +50,27 @@ import { cn } from "@/lib/utils";
 /** The offsets an owner may pick between, in the order they fire. */
 const OFFSET_CHOICES = [2880, 1440, 240, 120, 60] as const;
 
+interface DraftRule extends ReminderRule {
+  draftId: string;
+}
+
+function draftRules(rules: ReminderRule[]): DraftRule[] {
+  return rules.map((rule) => ({ ...rule, draftId: rule.id ?? String(rule.offset_minutes) }));
+}
+
 export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
   const t = useT();
   const query = useReminderRules();
   const save = useSaveReminderRules();
-  const [draft, setDraft] = useState<ReminderRule[] | null>(
-    () => query.data?.rules ?? null,
+  const [draft, setDraft] = useState<DraftRule[] | null>(
+    () => query.data ? draftRules(query.data.rules) : null,
   );
 
   // Seeded once the server answers, and re-seeded whenever it does. Keeping a
   // draft rather than editing the query cache means navigating away discards
   // an unsaved edit, which is the whole of this card's friction model.
   useEffect(() => {
-    if (query.data) setDraft(query.data.rules);
+    if (query.data) setDraft(draftRules(query.data.rules));
   }, [query.data]);
 
   if (query.isPending || draft === null) {
@@ -79,7 +87,8 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
   const suggested = query.data?.suggested ?? [];
   const cap = query.data?.cap ?? REMINDER_RULES_CAP;
   const dirty =
-    JSON.stringify(draft) !== JSON.stringify(query.data?.rules ?? []);
+    JSON.stringify(draft.map(({ draftId: _draftId, ...rule }) => rule)) !==
+    JSON.stringify(query.data?.rules ?? []);
 
   function update(index: number, patch: Partial<ReminderRule>) {
     setDraft((current) =>
@@ -126,7 +135,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
               size="sm"
               onClick={() =>
                 setDraft(
-                  suggested.map((rule) => ({ ...rule, enabled: true })),
+                  draftRules(suggested.map((rule) => ({ ...rule, enabled: true }))),
                 )
               }
             >
@@ -138,7 +147,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
         <div className="space-y-4">
           {draft.map((rule, index) => (
             <div
-              key={index}
+              key={rule.draftId}
               className="space-y-2 rounded-app-ctrl border border-app-line p-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -205,7 +214,8 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
+              onClick={() => {
+                const draftId = crypto.randomUUID();
                 setDraft((current) => [
                   ...(current ?? []),
                   {
@@ -218,9 +228,10 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                       ) ?? 120,
                     body: suggested[1]?.body ?? "",
                     enabled: true,
+                    draftId,
                   },
-                ])
-              }
+                ]);
+              }}
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
               {t("settingsMore.remindersAddAnother")}
@@ -247,7 +258,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setDraft(query.data?.rules ?? [])}
+                  onClick={() => setDraft(draftRules(query.data?.rules ?? []))}
                 >
                   {t("settingsMore.discard")}
                 </Button>

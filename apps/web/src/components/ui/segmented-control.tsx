@@ -89,6 +89,7 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       role="radiogroup"
+      tabIndex={-1}
       aria-label={ariaLabel}
       aria-disabled={disabled || undefined}
       onKeyDown={onKeyDown}

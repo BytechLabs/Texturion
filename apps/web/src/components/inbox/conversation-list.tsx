@@ -1,7 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n/provider";
 import {
@@ -147,14 +147,16 @@ export function ConversationList({
   // filter pins out of the main rows to avoid a duplicate; the main list + its
   // keyset cursor are unchanged.
   const pinnedQuery = usePinnedConversations(filters);
-  const pinnedRows = pinnedQuery.data?.data ?? [];
-  const pinnedIds = new Set(pinnedRows.map((row) => row.id));
   // Dedup by id (not "drop every pin") so a pin beyond the supplement's page
   // still shows via the main list rather than vanishing.
-  const rows = [
-    ...pinnedRows,
-    ...flattenPages(query.data).filter((row) => !pinnedIds.has(row.id)),
-  ];
+  const rows = useMemo(() => {
+    const pinnedRows = pinnedQuery.data?.data ?? [];
+    const pinnedIds = new Set(pinnedRows.map((row) => row.id));
+    return [
+      ...pinnedRows,
+      ...flattenPages(query.data).filter((row) => !pinnedIds.has(row.id)),
+    ];
+  }, [pinnedQuery.data, query.data]);
 
   // #275 multi-select. `loadedIds` is what the client can name; anything wider
   // than that is filter mode, which the SERVER resolves — see

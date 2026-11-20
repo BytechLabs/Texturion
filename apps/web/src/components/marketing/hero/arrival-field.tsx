@@ -233,15 +233,14 @@ export function ArrivalField({
 
           settleCooldown -= dt;
 
+          const noiseAt = (ax: number, ay: number) => p.noise(ax * SCALE, ay * SCALE, t);
           for (const q of particles) {
             q.life += dt;
             q.boost = 1 + (q.boost - 1) * Math.max(0, 1 - dt * 2.5);
 
             // --- divergence-free curl of the scalar noise potential psi ---
-            const n = (ax: number, ay: number) =>
-              p.noise(ax * SCALE, ay * SCALE, t);
-            const dpdy = (n(q.x, q.y + EPS) - n(q.x, q.y - EPS)) / (2 * EPS);
-            const dpdx = (n(q.x + EPS, q.y) - n(q.x - EPS, q.y)) / (2 * EPS);
+            const dpdy = (noiseAt(q.x, q.y + EPS) - noiseAt(q.x, q.y - EPS)) / (2 * EPS);
+            const dpdx = (noiseAt(q.x + EPS, q.y) - noiseAt(q.x - EPS, q.y)) / (2 * EPS);
             let hx = dpdy;
             let hy = -dpdx;
             const hm = Math.hypot(hx, hy) || 1e-6;

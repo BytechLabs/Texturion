@@ -149,7 +149,7 @@ export function AttachmentsSection({
         <LoadError
           variant="inline"
           message={t("misc.attachmentsLoadFailed")}
-          onRetry={() => list.refetch()}
+          onRetry={() => void list.refetch()}
         />
       )}
 

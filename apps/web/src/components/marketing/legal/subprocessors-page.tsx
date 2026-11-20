@@ -72,7 +72,10 @@ export function SubprocessorsPageBody({
       locale={locale}
     >
       <LegalSectionBlock id="list" heading={copy.sectionList}>
-        <div className="overflow-x-auto" tabIndex={0}>
+        <div className="overflow-x-auto"
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users can scroll the table horizontally.
+          tabIndex={0}
+        >
           <table className="w-full border-collapse text-[0.9375rem]">
             <thead>
               <tr className="text-left">
@@ -134,7 +137,10 @@ export function SubprocessorsPageBody({
             slots={{ featureCount }}
           />
         </p>
-        <div className="overflow-x-auto" tabIndex={0}>
+        <div className="overflow-x-auto"
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users can scroll the table horizontally.
+          tabIndex={0}
+        >
           <table className="w-full border-collapse text-[0.9375rem]">
             <thead>
               <tr className="text-left">

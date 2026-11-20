@@ -170,13 +170,13 @@ export function MakeTaskForm({
     const text = message?.body?.trim();
     const pending = voicemailCallId && settings.enrich_task_address
       ? enrichTaskFromVoicemail(companyId, voicemailCallId)
-      : message && text && (settings.enrich_task_address || settings.enrich_task_due)
+      : (message && text && (settings.enrich_task_address || settings.enrich_task_due)
         ? enrichTaskFromMessage(companyId, {
             message_id: message.id,
             conversation_id: conversationId,
             text,
           })
-        : null;
+        : null);
     if (!pending) return;
 
     enrichedRef.current = true;
@@ -299,9 +299,9 @@ export function MakeTaskForm({
           ? (call
             ? t("thread.alreadyACallTask")
             : t("thread.alreadyATask"))
-          : call && error instanceof ApiError && error.code === "validation_failed"
+          : (call && error instanceof ApiError && error.code === "validation_failed"
             ? error.message
-            : t("thread.taskCreateFailed"),
+            : t("thread.taskCreateFailed")),
       );
     }
   };
@@ -323,6 +323,7 @@ export function MakeTaskForm({
           id="make-task-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- The Make task control opens this form.
           autoFocus
           maxLength={500}
           placeholder={t("thread.taskTitlePlaceholder")}

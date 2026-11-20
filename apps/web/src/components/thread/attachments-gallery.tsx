@@ -62,62 +62,65 @@ export function AttachmentsGallery({
 
   const hasNext = gallery.hasNextPage ?? false;
 
-  const panel = gallery.isPending ? (
-    <GallerySkeleton />
-  ) : gallery.isError ? (
-    <LoadError
+  let panel;
+  if (gallery.isPending) {
+    panel = <GallerySkeleton />;
+  } else if (gallery.isError) {
+    panel = <LoadError
       variant="fill"
       message={t("thread.galleryLoadFailed")}
       onRetry={() => void gallery.refetch()}
-    />
-  ) : tabItems.length === 0 && !hasNext ? (
+    />;
+  } else if (tabItems.length === 0 && !hasNext) {
     // Only truly empty once there are no more pages to load. With
     // items still unfetched (hasNext), fall through so the "Load more"
     // button shows instead of a false "nothing shared" on this tab.
-    <GalleryEmpty tab={tab} />
-  ) : (
-    <div className="space-y-6">
-      {groups.map((group) => (
-        <section key={group.label} className="space-y-2">
-          <h3 className="text-xs font-medium text-muted-foreground">
-            {group.label}
-          </h3>
-          {tab === "images" ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {group.items.map((item) => (
-                <GalleryThumb
-                  key={item.id}
-                  item={item}
-                  onOpen={() => setLightbox(item)}
-                />
-              ))}
-            </div>
-          ) : (
-            <ul className="space-y-1">
-              {group.items.map((item) => (
-                <GalleryFileRow key={item.id} item={item} />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+    panel = <GalleryEmpty tab={tab} />;
+  } else {
+    panel = (
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <section key={group.label} className="space-y-2">
+            <h3 className="text-xs font-medium text-muted-foreground">
+              {group.label}
+            </h3>
+            {tab === "images" ? (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {group.items.map((item) => (
+                  <GalleryThumb
+                    key={item.id}
+                    item={item}
+                    onOpen={() => setLightbox(item)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {group.items.map((item) => (
+                  <GalleryFileRow key={item.id} item={item} />
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
 
-      {hasNext && (
-        <div className="flex justify-center pt-1">
-          <button
-            type="button"
-            onClick={() => gallery.fetchNextPage()}
-            disabled={gallery.isFetchingNextPage}
-            className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground disabled:opacity-60"
-          >
-            {gallery.isFetchingNextPage
-              ? t("thread.loadingMore")
-              : t("thread.loadMore")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
+        {hasNext && (
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={() => void gallery.fetchNextPage()}
+              disabled={gallery.isFetchingNextPage}
+              className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground disabled:opacity-60"
+            >
+              {gallery.isFetchingNextPage
+                ? t("thread.loadingMore")
+                : t("thread.loadMore")}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -314,8 +317,8 @@ function GallerySkeleton() {
     <div aria-hidden className="space-y-4">
       <Skeleton className="h-3 w-16" />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square rounded-lg" />
+        {Array.from({ length: 8 }, (_, slot) => slot).map((slot) => (
+          <Skeleton key={slot} className="aspect-square rounded-lg" />
         ))}
       </div>
     </div>

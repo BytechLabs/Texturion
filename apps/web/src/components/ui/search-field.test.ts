@@ -9,7 +9,7 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {

@@ -74,7 +74,11 @@ export function LedgerTable({
           `aria-labelledby`-by-proxy: `role="group"` with `aria-label` would
           duplicate that name, so the region stays unlabelled and the caption
           does the announcing — which is what a caption is for. */}
-      <div className="overflow-x-auto" tabIndex={0}>
+      <div
+        className="overflow-x-auto"
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users can scroll the table horizontally.
+        tabIndex={0}
+      >
         <table className="w-full min-w-[40rem] border-collapse text-left">
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -125,13 +129,13 @@ export function LedgerTable({
                 </th>
                 {row.cells.map((raw, j) => {
                   const cell = asCell(raw);
-                  const highlight = columns[j]?.highlight;
+                  const column = columns[j];
                   return (
-                    <td key={j} className="px-5 py-4 align-top">
+                    <td key={column?.label ?? cell.value} className="px-5 py-4 align-top">
                       <span
                         className={cn(
                           "fr-mono-data block leading-snug text-[color:var(--fr-ink)]",
-                          (row.total || highlight) && "font-semibold",
+                          (row.total || column?.highlight) && "font-semibold",
                         )}
                       >
                         {cell.value}

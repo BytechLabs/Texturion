@@ -71,7 +71,7 @@ describe("TaskDetailPanel while the detail loads", () => {
   it("asks for the links, the activity and the timeline beside the detail", async () => {
     renderPanel();
     await waitFor(() =>
-      expect(apiFetch.mock.calls.map(([path]) => path).sort()).toEqual([
+      expect(apiFetch.mock.calls.map(([path]) => path).toSorted()).toEqual([
         "/v1/tasks/t1",
         "/v1/tasks/t1/activity",
         "/v1/tasks/t1/links",

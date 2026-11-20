@@ -333,6 +333,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   useEffect(() => {
     setShowWhatsNew(shouldShowWhatsNewMarker(company.data?.created_at ?? null));
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- navigation can update the seen marker in local storage.
   }, [company.data?.created_at, pathname]);
 
   const groups = grouped(sections);

@@ -63,7 +63,7 @@ export function ReleaseNumberDialog({
       { numberId: number.id, code },
       {
         onSuccess: () => {
-          gate.dismiss();
+          gate.handleDismiss();
           close(false);
           toast.success(t("settingsMore.releaseDone", { number: display }));
         },
@@ -71,7 +71,7 @@ export function ReleaseNumberDialog({
           if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
             return;
           }
-          gate.dismiss();
+          gate.handleDismiss();
           setError(
             cause instanceof ApiError
               ? cause.message
@@ -138,9 +138,9 @@ export function ReleaseNumberDialog({
       kind={gate.kind}
       pending={release.isPending || gate.requesting}
       rejected={gate.rejected}
-      onConfirm={gate.confirm}
-      onResend={gate.resend}
-      onCancel={gate.dismiss}
+      onConfirm={gate.handleConfirm}
+      onResend={gate.handleResend}
+      onCancel={gate.handleDismiss}
     />
     </>
   );

@@ -74,7 +74,7 @@ export function WorkspaceStatusBanner() {
     // `t` re-runs this on a language change and cannot double-toast: the guard
     // above needs the PREVIOUS kind to differ, and the line below has just set
     // it to this one.
-  }, [kind, t]);
+  }, [kind, previousKind, t]);
 
   // Loading and errors stay silent — this is an ambient status strip; the
   // screens it links to carry the full states.
@@ -87,31 +87,33 @@ export function WorkspaceStatusBanner() {
   const brandData = registration.data?.brand?.data;
   const otpPhone = typeof brandData?.mobilePhone === "string" ? brandData.mobilePhone : null;
 
-  const message =
-    completionStep
-      ? t(completionStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded")
-      : state.kind === "setup_unfinished_member"
-      ? t("shell.regSetupUnfinishedMember")
-      : state.kind === "subscription_canceled"
-        ? t("shell.regSubscriptionCanceled")
-        : state.kind === "payment_issue"
-          ? t("shell.regPaymentIssue")
-          : state.kind === "number_provisioning"
-            ? provisioningWaitCopy(state.createdAt, now, t)
-            : state.kind === "number_delayed"
-              ? t("shell.regNumberDelayed")
-              : state.kind === "number_action_needed"
-                ? REGISTRATION_COPY.numberActionNeeded(state.areaCode, t)
-                : state.kind === "number_hosted_review"
-                  ? t("shell.regHostedReview")
-                : state.kind === "otp_pending"
-                  ? REGISTRATION_COPY.otpPending(otpPhone ? formatPhone(otpPhone) : t("shell.regBannerYourMobile"), t)
-                  : state.kind === "rejected"
-                    ? REGISTRATION_COPY.rejected(
-                        state.reason ?? t("shell.regBannerReasonUnknown"),
-                        t,
-                      )
-                    : t("shell.regPending");
+  let message;
+  if (completionStep) {
+    message = t(completionStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded");
+  } else if (state.kind === "setup_unfinished_member") {
+    message = t("shell.regSetupUnfinishedMember");
+  } else if (state.kind === "subscription_canceled") {
+    message = t("shell.regSubscriptionCanceled");
+  } else if (state.kind === "payment_issue") {
+    message = t("shell.regPaymentIssue");
+  } else if (state.kind === "number_provisioning") {
+    message = provisioningWaitCopy(state.createdAt, now, t);
+  } else if (state.kind === "number_delayed") {
+    message = t("shell.regNumberDelayed");
+  } else if (state.kind === "number_action_needed") {
+    message = REGISTRATION_COPY.numberActionNeeded(state.areaCode, t);
+  } else if (state.kind === "number_hosted_review") {
+    message = t("shell.regHostedReview");
+  } else if (state.kind === "otp_pending") {
+    message = REGISTRATION_COPY.otpPending(otpPhone ? formatPhone(otpPhone) : t("shell.regBannerYourMobile"), t);
+  } else if (state.kind === "rejected") {
+    message = REGISTRATION_COPY.rejected(
+      state.reason ?? t("shell.regBannerReasonUnknown"),
+      t,
+    );
+  } else {
+    message = t("shell.regPending");
+  }
 
   // Members of an unpaid workspace can't act — the strip is informational only.
   //
@@ -121,38 +123,42 @@ export function WorkspaceStatusBanner() {
   // that part is everybody's business — it just stops handing out a door.
   const billing = "/settings/billing";
   const numbers = "/settings/numbers";
-  const rawAction: { href: string; label: string } | null =
-    completionStep
-      ? canOpen("numbers")
-        ? { href: `/onboarding/${completionStep}`, label: t("shell.regFinishRegistration") }
-        : null
-      : state.kind === "setup_unfinished_member"
-      ? null
-      : state.kind === "subscription_canceled"
-        ? { href: billing, label: t("shell.navBilling") }
-        : state.kind === "payment_issue"
-          ? { href: billing, label: t("shell.regBannerUpdateBilling") }
-          : state.kind === "otp_pending"
-            ? {
-                href: "/onboarding/setting-up",
-                label: t("shell.regBannerEnterCode"),
-              }
-            : state.kind === "rejected"
-              ? { href: numbers, label: t("shell.regBannerFixResubmit") }
-              : state.kind === "number_action_needed"
-                ? { href: numbers, label: t("shell.regBannerChooseNumber") }
-                : { href: numbers, label: t("shell.regBannerDetails") };
+  let rawAction: { href: string; label: string } | null;
+  if (completionStep) {
+    rawAction = canOpen("numbers")
+      ? { href: `/onboarding/${completionStep}`, label: t("shell.regFinishRegistration") }
+      : null;
+  } else if (state.kind === "setup_unfinished_member") {
+    rawAction = null;
+  } else if (state.kind === "subscription_canceled") {
+    rawAction = { href: billing, label: t("shell.navBilling") };
+  } else if (state.kind === "payment_issue") {
+    rawAction = { href: billing, label: t("shell.regBannerUpdateBilling") };
+  } else if (state.kind === "otp_pending") {
+    rawAction = {
+        href: "/onboarding/setting-up",
+        label: t("shell.regBannerEnterCode"),
+      };
+  } else if (state.kind === "rejected") {
+    rawAction = { href: numbers, label: t("shell.regBannerFixResubmit") };
+  } else if (state.kind === "number_action_needed") {
+    rawAction = { href: numbers, label: t("shell.regBannerChooseNumber") };
+  } else {
+    rawAction = { href: numbers, label: t("shell.regBannerDetails") };
+  }
 
   // Both destinations are Settings sections with a capability behind them.
   // Anything outside Settings (the onboarding code entry) is everybody's.
-  const action =
-    rawAction === null
-      ? null
-      : rawAction.href.startsWith("/settings/billing") && !canOpen("billing")
-        ? null
-        : rawAction.href.startsWith("/settings/numbers") && !canOpen("numbers")
-          ? null
-          : rawAction;
+  let action;
+  if (rawAction === null) {
+    action = null;
+  } else if (rawAction.href.startsWith("/settings/billing") && !canOpen("billing")) {
+    action = null;
+  } else if (rawAction.href.startsWith("/settings/numbers") && !canOpen("numbers")) {
+    action = null;
+  } else {
+    action = rawAction;
+  }
 
   return (
     <div

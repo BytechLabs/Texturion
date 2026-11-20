@@ -208,6 +208,7 @@ function DoneBadge({ message }: { message: Message }) {
       <TooltipTrigger asChild>
         <span
           className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Focus opens the same tooltip as hover.
           tabIndex={0}
         >
           <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />

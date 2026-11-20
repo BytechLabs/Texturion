@@ -38,18 +38,22 @@ interface SearchLink {
  */
 export function renderSnippet(snippet: string): React.ReactNode[] {
   const parts = snippet.split(/<\/?b>/);
-  return parts.map((part, index) =>
-    index % 2 === 1 ? (
+  let offset = 0;
+  return parts.map((part, index) => {
+    const highlighted = index % 2 === 1;
+    const start = offset;
+    offset += part.length + (highlighted ? "</b>".length : "<b>".length);
+    return highlighted ? (
       <mark
-        key={index}
+        key={start}
         className="rounded-none bg-transparent font-semibold text-foreground"
       >
         {part}
       </mark>
     ) : (
-      <Fragment key={index}>{part}</Fragment>
-    ),
-  );
+      <Fragment key={start}>{part}</Fragment>
+    );
+  });
 }
 
 export function SearchResults({
@@ -79,6 +83,7 @@ export function SearchResults({
     if (!link || link.closest('[aria-hidden="true"]')) return;
     focus.current = null;
     link.focus({ preventScroll: true });
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- changing scope can make the requested link visible.
   }, [activeConversationId, focus, scope, search.data]);
 
   if (search.isPending) {

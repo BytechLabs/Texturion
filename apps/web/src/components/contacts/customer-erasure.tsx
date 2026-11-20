@@ -45,7 +45,7 @@ export function CustomerErasureAction({ contactId }: { contactId: string }) {
         onConfirm={() => erase.mutate(confirmation)}
       >
         {preview.isPending && <p role="status">{t("appShell.contactLoading")}</p>}
-        {preview.isError && <LoadError onRetry={() => preview.refetch()} />}
+        {preview.isError && <LoadError onRetry={() => void preview.refetch()} />}
         {preview.data && <ErasureCounts status={preview.data} />}
         {preview.data?.legal_hold && <p role="status">{t("appShell.customerErasureHeld")}</p>}
         {allowed && (

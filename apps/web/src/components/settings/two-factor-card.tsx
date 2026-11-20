@@ -362,7 +362,7 @@ export function TwoFactorCard() {
                   variant="outline"
                   size="sm"
                   disabled={busy}
-                  onClick={beginPasskey}
+                  onClick={() => { void beginPasskey(); }}
                 >
                   {t("settingsMore.tfaAddPasskey")}
                 </Button>
@@ -373,7 +373,7 @@ export function TwoFactorCard() {
                   variant="outline"
                   size="sm"
                   disabled={busy}
-                  onClick={beginEnrolment}
+                  onClick={() => { void beginEnrolment(); }}
                 >
                   {t("settingsMore.tfaAddAuthenticator")}
                 </Button>
@@ -383,7 +383,7 @@ export function TwoFactorCard() {
                 variant="outline"
                 size="sm"
                 disabled={issueCodes.isPending}
-                onClick={regenerate}
+                onClick={() => { void regenerate(); }}
               >
                 {t("settingsMore.tfaNewCodes")}
               </Button>
@@ -411,14 +411,14 @@ export function TwoFactorCard() {
                   {t("settingsMore.tfaPasskeyPitch")}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" disabled={busy} onClick={beginPasskey}>
+                  <Button type="button" disabled={busy} onClick={() => { void beginPasskey(); }}>
                     {t("settingsMore.tfaUsePasskey")}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={busy}
-                    onClick={beginEnrolment}
+                    onClick={() => { void beginEnrolment(); }}
                   >
                     {t("settingsMore.tfaUseAuthenticator")}
                   </Button>
@@ -429,7 +429,7 @@ export function TwoFactorCard() {
                 <p className="text-sm text-muted-foreground">
                   {t("settingsMore.tfaAuthenticatorPitch")}
                 </p>
-                <Button type="button" disabled={busy} onClick={beginEnrolment}>
+                <Button type="button" disabled={busy} onClick={() => { void beginEnrolment(); }}>
                   {t("settingsMore.tfaSetUp")}
                 </Button>
               </>
@@ -504,7 +504,7 @@ export function TwoFactorCard() {
                 <Button
                   type="button"
                   disabled={busy || code.replaceAll(/\D/g, "").length < 6}
-                  onClick={() => verify(step.factorId)}
+                  onClick={() => void verify(step.factorId)}
                 >
                   {busy
                     ? t("settingsMore.regOtpChecking")
@@ -623,7 +623,7 @@ export function TwoFactorCard() {
               type="button"
               variant="destructive"
               disabled={busy}
-              onClick={turnOff}
+              onClick={() => { void turnOff(); }}
             >
               {t("settingsMore.tfaTurnItOff")}
             </Button>

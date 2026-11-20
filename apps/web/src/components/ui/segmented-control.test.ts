@@ -75,7 +75,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 const files = sourceFiles(SRC).map((file) => ({
   path: relative(SRC, file).split(sep).join("/"),
   text: readFileSync(file, "utf8"),

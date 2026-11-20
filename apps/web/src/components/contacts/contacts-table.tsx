@@ -132,13 +132,13 @@ function ContactRowView({
 
   // Starts the detail read before the route lands, so the page opens on it.
   function prefetch() {
-    void queryClient.prefetchQuery(contactDetailOptions(companyId, contact.id));
+    void queryClient.query(contactDetailOptions(companyId, contact.id)).catch(() => undefined);
   }
-  function cancelHover() {
+  const cancelHover = useCallback(() => {
     if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
     hoverTimer.current = null;
-  }
-  useEffect(() => cancelHover, []);
+  }, []);
+  useEffect(() => cancelHover, [cancelHover]);
 
   return (
     <ContactRowMenu contact={contact}>
@@ -284,6 +284,116 @@ export function ContactsTable({
     });
   }, []);
 
+  let tableBody;
+  if (contacts.isPending) {
+    tableBody = <SkeletonRows />;
+  } else if (contacts.isError) {
+    tableBody = (
+      <div className="p-4">
+        <LoadError onRetry={() => void contacts.refetch()} />
+      </div>
+    );
+  } else if (rows.length === 0) {
+    if (searching) {
+      tableBody = (
+        <EmptyState
+          title={t("contacts.noMatchesFor", { query: query.trim() })}
+          description={t("contacts.noMatchesDetail")}
+        />
+      );
+    } else if (tagFilter !== undefined) {
+      tableBody = (
+        <EmptyState
+          title={t("contacts.tagFilteredEmptyTitle")}
+          description={t("contacts.tagFilteredEmptyDetail")}
+        />
+      );
+    } else if (filtering) {
+      tableBody = (
+        <EmptyState
+          title={t("contacts.filteredEmptyTitle")}
+          description={t("contacts.filteredEmptyDetail")}
+        />
+      );
+    } else {
+      tableBody = (
+        <EmptyState
+          icon={<Users strokeWidth={1.5} aria-hidden />}
+          title={t("contacts.emptyTitle")}
+          description={t("contacts.emptyDetail")}
+          action={emptyAction ?? undefined}
+        />
+      );
+    }
+  } else {
+    tableBody = (
+      <>
+        {selectedRows.length > 0 && (
+          <ContactsBulkBar
+            selected={selectedRows}
+            canEdit={canEdit}
+            canMerge={canMerge}
+            onClear={() => setSelectedIds(new Set())}
+          />
+        )}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  aria-label={t("contacts.selectAllOnPage")}
+                  checked={
+                    allSelected
+                      ? true
+                      : (selectedRows.length > 0
+                        ? "indeterminate"
+                        : false)
+                  }
+                  onCheckedChange={(on) =>
+                    setSelectedIds(
+                      on === true
+                        ? new Set(rows.map((row) => row.id))
+                        : new Set(),
+                    )
+                  }
+                />
+              </TableHead>
+              <TableHead>{t("contacts.fieldName")}</TableHead>
+              <TableHead>{t("contacts.fieldNumber")}</TableHead>
+              <TableHead className="text-right">
+                {t("contacts.fieldLastActivity")}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((contact) => (
+              <ContactRow
+                key={contact.id}
+                contact={contact}
+                selected={selectedIds.has(contact.id)}
+                onToggle={toggleRow}
+              />
+            ))}
+          </TableBody>
+        </Table>
+        {contacts.hasNextPage && (
+          <div className="border-t p-3 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={contacts.isFetchingNextPage}
+              onClick={() => void contacts.fetchNextPage()}
+            >
+              {contacts.isFetchingNextPage
+                ? t("contacts.loading")
+                : t("contacts.loadMore")}
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -320,108 +430,7 @@ export function ContactsTable({
         count={contacts.isSuccess && !contacts.isPlaceholderData ? rows.length : null}
       />
       <div className="rounded-lg border bg-card">
-        {contacts.isPending ? (
-          <SkeletonRows />
-        ) : contacts.isError ? (
-          <div className="p-4">
-            <LoadError onRetry={() => contacts.refetch()} />
-          </div>
-        ) : rows.length === 0 ? (
-          searching ? (
-            <EmptyState
-              title={t("contacts.noMatchesFor", { query: query.trim() })}
-              description={t("contacts.noMatchesDetail")}
-            />
-          ) : tagFilter === undefined ? filtering ? (
-            // #291: NOT the brand-new empty state. "Your customers show up
-            // here on their own" under an active filter reads as "you have no
-            // customers", which is alarming and wrong — they are excluded, not
-            // missing.
-            <EmptyState
-              title={t("contacts.filteredEmptyTitle")}
-              description={t("contacts.filteredEmptyDetail")}
-            />
-          ) : (
-            // The §5 kind empty state (delight moment #2): one warm line, one
-            // action, generous air — never a generic "No data".
-            <EmptyState
-              icon={<Users strokeWidth={1.5} aria-hidden />}
-              title={t("contacts.emptyTitle")}
-              description={t("contacts.emptyDetail")}
-              action={emptyAction ?? undefined}
-            />
-          ) : (
-            <EmptyState
-              title={t("contacts.tagFilteredEmptyTitle")}
-              description={t("contacts.tagFilteredEmptyDetail")}
-            />
-          )
-        ) : (
-          <>
-            {selectedRows.length > 0 && (
-              <ContactsBulkBar
-                selected={selectedRows}
-                canEdit={canEdit}
-                canMerge={canMerge}
-                onClear={() => setSelectedIds(new Set())}
-              />
-            )}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      aria-label={t("contacts.selectAllOnPage")}
-                      checked={
-                        allSelected
-                          ? true
-                          : (selectedRows.length > 0
-                            ? "indeterminate"
-                            : false)
-                      }
-                      onCheckedChange={(on) =>
-                        setSelectedIds(
-                          on === true
-                            ? new Set(rows.map((row) => row.id))
-                            : new Set(),
-                        )
-                      }
-                    />
-                  </TableHead>
-                  <TableHead>{t("contacts.fieldName")}</TableHead>
-                  <TableHead>{t("contacts.fieldNumber")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("contacts.fieldLastActivity")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((contact) => (
-                  <ContactRow
-                    key={contact.id}
-                    contact={contact}
-                    selected={selectedIds.has(contact.id)}
-                    onToggle={toggleRow}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-            {contacts.hasNextPage && (
-              <div className="border-t p-3 text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={contacts.isFetchingNextPage}
-                  onClick={() => void contacts.fetchNextPage()}
-                >
-                  {contacts.isFetchingNextPage
-                    ? t("contacts.loading")
-                    : t("contacts.loadMore")}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+        {tableBody}
       </div>
     </div>
   );

@@ -124,7 +124,7 @@ function ConsentBannerInner({
       aria-label={copy.bannerAria}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-4 sm:px-6 sm:pb-6"
     >
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style>{CSS}</style>
       <div className="frcc-card pointer-events-auto mx-auto w-full max-w-2xl rounded-2xl bg-[color:var(--fr-card)] p-5 sm:p-6">
         <p className="font-body-mkt text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
           <strong className="font-semibold text-[color:var(--fr-ink)]">

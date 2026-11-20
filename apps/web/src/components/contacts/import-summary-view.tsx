@@ -23,8 +23,8 @@ export function ImportDetailsReport({ result }: { result: ImportResult }) {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{t("contacts.importDetailWarnings")}</p>
           <ul className="max-h-44 space-y-1 overflow-y-auto text-sm">
-            {visibleWarnings.map(({ row, reason }, index) => (
-              <li key={`${row}-${index}`}>{row}. {reason}</li>
+            {visibleWarnings.map(({ row, reason }) => (
+              <li key={`${row}-${reason}`}>{row}. {reason}</li>
             ))}
             {warnings.length > visibleWarnings.length && (
               <li>{t("contacts.andMore", { count: (warnings.length - visibleWarnings.length).toLocaleString(t.locale) })}</li>

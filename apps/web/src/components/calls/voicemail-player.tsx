@@ -53,6 +53,7 @@ export function VoicemailPlayer({
   if (showAudio) {
     return (
       <span className="block w-full">
+        {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- The voicemail transcript is shown as readable text. */}
         <audio
           ref={audio}
           src={src}
@@ -80,6 +81,19 @@ export function VoicemailPlayer({
     );
   }
 
+  let playbackLabel;
+  if (voicemail.isFetching) {
+    playbackLabel = t("shell.loading");
+  } else if (voicemail.isError) {
+    playbackLabel = t("shell.voicemailLoadFailed");
+  } else if (seconds) {
+    playbackLabel = t("shell.playVoicemailWithLength", {
+                duration: formatCallDuration(seconds),
+              });
+  } else {
+    playbackLabel = t("shell.playVoicemail");
+  }
+
   return (
     <button
       type="button"
@@ -98,15 +112,7 @@ export function VoicemailPlayer({
       className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-paper px-2.5 py-1 text-[12px] font-medium text-app-ink transition-colors duration-150 hover:bg-app-hover"
     >
       <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
-      {voicemail.isFetching
-        ? t("shell.loading")
-        : voicemail.isError
-          ? t("shell.voicemailLoadFailed")
-          : seconds
-            ? t("shell.playVoicemailWithLength", {
-                duration: formatCallDuration(seconds),
-              })
-            : t("shell.playVoicemail")}
+      {playbackLabel}
     </button>
   );
 }

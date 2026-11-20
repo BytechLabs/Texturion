@@ -124,9 +124,9 @@ export function ArrivalStatic({ className }: { className?: string }) {
       </defs>
 
       <g mask="url(#fr-still-mask)" fill="none" strokeLinecap="round">
-        {STREAMS.map((s, i) => (
+        {STREAMS.map((s) => (
           <path
-            key={i}
+            key={s.d}
             d={s.d}
             stroke={s.green ? "var(--fr-green)" : "var(--fr-olive)"}
             strokeOpacity={s.opacity}

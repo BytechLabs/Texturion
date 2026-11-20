@@ -106,16 +106,14 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
     }
   }
 
-  return (
-    <SettingsCard id="website-widget"
-      title={t("settings.widgetTitle")}
-      description={t("settings.widgetBlurb")}
-    >
-      {open ? key.isPending ? (
-        <p className="text-sm text-muted-foreground">{t("shell.loading")}</p>
-      ) : key.isError ? (
-        <p className="text-sm text-destructive">{t("settings.widgetLoadFailed")}</p>
-      ) : (
+  let widgetSettings;
+  if (open) {
+    if (key.isPending) {
+      widgetSettings = <p className="text-sm text-muted-foreground">{t("shell.loading")}</p>;
+    } else if (key.isError) {
+      widgetSettings = <p className="text-sm text-destructive">{t("settings.widgetLoadFailed")}</p>;
+    } else {
+      widgetSettings = (
         <div className="space-y-4">
           {/* #232 build item 1: "copy-paste from Settings with a LIVE
               preview". It loads the same widget.js that is about to be pasted,
@@ -135,6 +133,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
             src={`/widget-preview?lang=${locale}`}
             title={t("settings.widgetPreviewTitle")}
             loading="lazy"
+            sandbox="allow-scripts"
             // Tall enough for the panel, not just the button. Somebody looking
             // at a preview of a button WILL press it, and at 256px the opened
             // panel was cut off at the top — which reads as "the widget is
@@ -161,7 +160,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
           </pre>
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={copy}>{t("settings.widgetCopy")}</Button>
+            <Button onClick={() => { void copy(); }}>{t("settings.widgetCopy")}</Button>
             {confirming ? (
               <div className="flex w-full flex-col gap-2 rounded-app-card border border-app-line p-3">
                 {/* Loss Aversion, stated plainly: what they stand to LOSE is
@@ -255,11 +254,22 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
             </div>
           )}
         </div>
-      ) : (
-        <Button variant="outline" onClick={() => setOpen(true)}>
-          {t("settings.widgetShow")}
-        </Button>
-      )}
+      );
+    }
+  } else {
+    widgetSettings = (
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        {t("settings.widgetShow")}
+      </Button>
+    );
+  }
+
+  return (
+    <SettingsCard id="website-widget"
+      title={t("settings.widgetTitle")}
+      description={t("settings.widgetBlurb")}
+    >
+      {widgetSettings}
     </SettingsCard>
   );
 }

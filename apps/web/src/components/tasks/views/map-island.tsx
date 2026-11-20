@@ -112,7 +112,7 @@ export function MapIsland({
   // Fit the initial view to all pins; a single pin gets a sensible zoom.
   const bounds = useMemo<L.LatLngBoundsExpression | null>(() => {
     if (tasks.length === 0) return null;
-    return tasks.map((t) => [t.lat, t.lng] as [number, number]);
+    return tasks.map((task) => [task.lat, task.lng] as [number, number]);
   }, [tasks]);
 
   const center = useMemo<[number, number]>(() => {

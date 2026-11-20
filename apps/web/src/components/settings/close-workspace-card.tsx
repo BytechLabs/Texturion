@@ -60,7 +60,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
 
   async function confirm(code?: string) {
     close.mutate(code, {
-      onSuccess: async (result) => {
+      onSuccess: (result) => {
         // The gate cannot see a mutation succeed, so it is told — first, before
         // anything below is awaited. Every sibling call site dismisses on
         // success; this one did not, and the cost here is worse than a stale
@@ -70,31 +70,28 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         // ALREADY been closed. A second press fired a third `close.mutate` and a
         // second Supabase challenge — a double-fire on the one action nobody can
         // undo after 30 days.
-        gate.dismiss();
+        gate.handleDismiss();
         setOpen(false);
         // The session is already dead server-side; clear this browser too so
         // nothing lingers on a shared machine.
-        await endSessionOnThisDevice(company.id);
-        const when = result.purge_after
-          ? formatAbsoluteDateTime(result.purge_after, undefined, t.locale)
-          : t("settings.closeWorkspaceInThirtyDays");
-        // #371: the toast is the last thing they see before being signed out,
-        // so it has to say where the details went. Only claimed when the send
-        // actually landed — pointing someone at an inbox with nothing in it is
-        // worse than saying nothing.
-        toast.success(
-          t("settings.closeWorkspaceDone", { when }),
-          result.receipt_emailed
-            ? { description: t("settings.closeWorkspaceReceipt") }
-            : undefined,
-        );
-        router.replace("/login");
+        void endSessionOnThisDevice(company.id).then(() => {
+          const when = result.purge_after
+            ? formatAbsoluteDateTime(result.purge_after, undefined, t.locale)
+            : t("settings.closeWorkspaceInThirtyDays");
+          toast.success(
+            t("settings.closeWorkspaceDone", { when }),
+            result.receipt_emailed
+              ? { description: t("settings.closeWorkspaceReceipt") }
+              : undefined,
+          );
+          router.replace("/login");
+        });
       },
       onError: (cause) => {
         if (gate.demanded(cause, "close_workspace", (digits) => void confirm(digits))) {
           return;
         }
-        gate.dismiss();
+        gate.handleDismiss();
         toast.error(
           cause instanceof ApiError
             ? cause.message
@@ -217,9 +214,9 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         kind={gate.kind}
         pending={close.isPending || gate.requesting}
         rejected={gate.rejected}
-        onConfirm={gate.confirm}
-        onResend={gate.resend}
-        onCancel={gate.dismiss}
+        onConfirm={gate.handleConfirm}
+        onResend={gate.handleResend}
+        onCancel={gate.handleDismiss}
       />
     </SettingsCard>
   );

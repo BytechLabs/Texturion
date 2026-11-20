@@ -89,7 +89,7 @@ export function OwnershipView() {
         onConfirmed?.();
         // The gate cannot see a mutation succeed, so it is told. Without this an
         // accepted workspace is left sitting behind its own code prompt.
-        gate.dismiss();
+        gate.handleDismiss();
         toast.success(done);
       },
       onError: (error) => {
@@ -119,7 +119,7 @@ export function OwnershipView() {
         ) {
           return;
         }
-        gate.dismiss();
+        gate.handleDismiss();
         toast.error(
           error instanceof ApiError
             ? error.message
@@ -172,9 +172,9 @@ export function OwnershipView() {
         kind={gate.kind}
         pending={act.isPending || gate.requesting}
         rejected={gate.rejected}
-        onConfirm={gate.confirm}
-        onResend={gate.resend}
-        onCancel={gate.dismiss}
+        onConfirm={gate.handleConfirm}
+        onResend={gate.handleResend}
+        onCancel={gate.handleDismiss}
       />
 
       {/* Ethical friction: asking to take over a business is the one action

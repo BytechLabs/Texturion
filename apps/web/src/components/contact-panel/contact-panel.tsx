@@ -227,7 +227,7 @@ export function ContactPanel({
               label={t("shell.call")}
               variant="outline"
             />
-            <Button variant="outline" size="sm" onClick={copyNumber}>
+            <Button variant="outline" size="sm" onClick={() => { void copyNumber(); }}>
               {copied ? (
                 <Check className="text-success" strokeWidth={1.75} aria-hidden />
               ) : (
@@ -486,7 +486,7 @@ function ConversationTags({
 
   const attached = conversation.tags;
   const available = (tags.data?.data ?? []).filter(
-    (tag) => !attached.some((t) => t.id === tag.id),
+    (tag) => !attached.some((attachedTag) => attachedTag.id === tag.id),
   );
   const trimmed = query.trim();
   /**
@@ -504,7 +504,7 @@ function ConversationTags({
    */
   const suggestion = suggestExistingTag(trimmed, tags.data?.data ?? []);
   const suggested =
-    suggestion && !attached.some((t) => t.id === suggestion.tag.id)
+    suggestion && !attached.some((attachedTag) => attachedTag.id === suggestion.tag.id)
       ? suggestion
       : null;
   // An EXACT normalised match cannot be created: the find-or-create RPC keys on

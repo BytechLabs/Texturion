@@ -203,6 +203,7 @@ export function AskForPayment({
               // The phone keyboard a number belongs on, and the one this is
               // typed on nine times out of ten.
               inputMode="decimal"
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- The Ask for payment control opens this form.
               autoFocus
               placeholder="250.00"
               className={currency === "cad" ? "pl-11" : "pl-11"}

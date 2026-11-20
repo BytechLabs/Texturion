@@ -52,7 +52,7 @@ export function drawsPickerByHand(text: string): boolean {
   return HAND_BUILT.test(text);
 }
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 const files = sourceFiles(SRC, [".tsx"])
   .map((file) => ({ path: relative(SRC, file).split(sep).join("/"), file }))
   .filter(

@@ -199,6 +199,7 @@ export function ThreadHeader({
     // items, dialogs) — those aren't DOM descendants of the header, so
     // e.currentTarget.contains(target) is false and selecting a menu item
     // never spuriously toggles the panel.
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- The contact and Info buttons provide the keyboard action.
     <header
       onClick={(e) => {
         const target = e.target as HTMLElement;
@@ -349,7 +350,7 @@ export function ThreadHeader({
           )}
           <button
             type="button"
-            onClick={copyPhone}
+            onClick={() => { void copyPhone(); }}
             aria-label={t("thread.copyPhoneAria")}
             className="tap-target shrink-0 rounded p-0.5 text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >

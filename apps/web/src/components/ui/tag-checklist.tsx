@@ -57,6 +57,7 @@ export function TagChecklist({
   // A string, because callers build `itemTagIds` fresh on every render. Fresh
   // server data replaces what was remembered.
   const dataKey = itemTagIds === null ? "" : JSON.stringify(itemTagIds);
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- a new selection or server snapshot discards local changes.
   useEffect(() => setChanged({}), [selectionKey, dataKey]);
 
   const rows =

@@ -299,6 +299,7 @@ function NewTaskForm({
           id="new-task-title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- The New task control opens this form.
           autoFocus
           maxLength={500}
           placeholder={t("tasks.newTaskTitlePlaceholder")}
@@ -392,7 +393,7 @@ function NewTaskForm({
                 ]}
                 onRemove={(key) => {
                   if (key.startsWith("id:")) {
-                    setPickedTags((tags) => tags.filter((tag) => `id:${tag.id}` !== key));
+                    setPickedTags((currentTags) => currentTags.filter((tag) => `id:${tag.id}` !== key));
                   } else {
                     setNewNames((names) => names.filter((n) => `name:${n}` !== key));
                   }
@@ -402,7 +403,7 @@ function NewTaskForm({
                 <LabelPicker
                   excludeIds={new Set(pickedTags.map((tag) => tag.id))}
                   excludeNames={newNames}
-                  onPick={(tag) => setPickedTags((tags) => [...tags, tag])}
+                  onPick={(tag) => setPickedTags((currentTags) => [...currentTags, tag])}
                   onCreate={(name) => setNewNames((names) => [...names, name])}
                 />
               </div>

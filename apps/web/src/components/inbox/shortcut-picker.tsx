@@ -46,6 +46,7 @@ export function ShortcutPicker({
                 <Button
                   variant="ghost"
                   className="w-full justify-start"
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- The keyboard shortcut opens the picker and focuses its first choice.
                   autoFocus={index === 0}
                   onClick={() => {
                     onPick(option.id);

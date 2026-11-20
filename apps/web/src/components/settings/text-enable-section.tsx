@@ -52,7 +52,7 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
   if (enablements.isError) {
     return (
       <SettingsCard id="hosted-numbers" title={t("settingsMore.hostedSectionTitle")}>
-        <LoadError onRetry={() => enablements.refetch()} />
+        <LoadError onRetry={() => void enablements.refetch()} />
       </SettingsCard>
     );
   }

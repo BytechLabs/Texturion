@@ -74,7 +74,7 @@ export function ComparisonEmailForm({
   const fieldClass =
     "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:opacity-60";
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.SubmitEvent) {
     event.preventDefault();
     if (submitting) return;
 
@@ -144,7 +144,7 @@ export function ComparisonEmailForm({
   }
 
   return (
-    <form onSubmit={submit} className="max-w-xl space-y-3" noValidate>
+    <form onSubmit={(event) => { void submit(event); }} className="max-w-xl space-y-3" noValidate>
       <div className="space-y-1.5">
         <label
           htmlFor="comparison-email"
@@ -216,7 +216,7 @@ export function ComparisonEmailForm({
           width: 1,
           height: 1,
           overflow: "hidden",
-          clip: "rect(0 0 0 0)",
+            clipPath: "inset(50%)",
           whiteSpace: "nowrap",
         }}
       >

@@ -13,7 +13,7 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 const EXCEPTIONS: Record<string, string> = {
   "components/thread/attachments-gallery.tsx": "a grid of square photo tiles",

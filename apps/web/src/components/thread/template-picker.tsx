@@ -65,48 +65,51 @@ export function TemplatePicker({
   const rows = templates.data?.data ?? [];
   const coarse = usePointerCoarse();
 
+  function renderEmptyList() {
+    if (templates.isPending) return t("thread.loadingSavedReplies");
+    if (templates.isError) return t("thread.savedRepliesLoadFailed");
+    if (rows.length === 0) {
+      return (
+        // #66: templates live under Settings now — one human line plus
+        // the actual door, never a dead end (APP-UI-ELEVATION §5).
+        <span className="flex flex-col items-center gap-1.5">
+          {t("thread.noSavedRepliesYet")}
+          {/* #515: the door only for somebody who can walk through it.
+              This empty state is the link plus one line, so a member who
+              cannot make templates is told who can rather than left with
+              a sentence that trails off. */}
+          <SettingsLink
+            section="templates"
+            fallback={
+              <span className="text-muted-foreground">
+                {t("thread.ownerCanAddTemplates")}
+              </span>
+            }
+          >
+            <Link
+              href="/settings/templates"
+              onClick={() => onOpenChange(false)}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {t("thread.createOneInSettings")}
+            </Link>
+          </SettingsLink>
+        </span>
+      );
+    }
+    return t("thread.noSavedRepliesMatch");
+  }
+
   const list = (autoFocus: boolean) => (
     <Command>
       <CommandInput
         placeholder={t("thread.searchSavedReplies")}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus stays in the picker after the trigger opens it.
         autoFocus={autoFocus}
       />
       <CommandList>
         <CommandEmpty>
-          {templates.isPending ? (
-            t("thread.loadingSavedReplies")
-          ) : templates.isError ? (
-            t("thread.savedRepliesLoadFailed")
-          ) : rows.length === 0 ? (
-            // #66: templates live under Settings now — one human line plus
-            // the actual door, never a dead end (APP-UI-ELEVATION §5).
-            <span className="flex flex-col items-center gap-1.5">
-              {t("thread.noSavedRepliesYet")}
-              {/* #515: the door only for somebody who can walk through it.
-                  This empty state is the link plus one line, so a member who
-                  cannot make templates is told who can rather than left with
-                  a sentence that trails off. */}
-              <SettingsLink
-                section="templates"
-                fallback={
-                  <span className="text-muted-foreground">
-                    {t("thread.ownerCanAddTemplates")}
-                  </span>
-                }
-              >
-                <Link
-                  href="/settings/templates"
-                  onClick={() => onOpenChange(false)}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {t("thread.createOneInSettings")}
-                </Link>
-              </SettingsLink>
-            </span>
-          ) : (
-            // Rows exist but the search matched none.
-            t("thread.noSavedRepliesMatch")
-          )}
+          {renderEmptyList()}
         </CommandEmpty>
         {rows.length > 0 && (
           <CommandGroup heading={t("thread.savedReplies")}>

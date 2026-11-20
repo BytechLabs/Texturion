@@ -217,7 +217,7 @@ export function Faq({ locale = "en" }: { locale?: MarketingLocale } = {}) {
   const copy = homeCopy(locale);
   return (
     <FrSection ground="frost" id="faq">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style>{CSS}</style>
       <h2 className="fr-h2 max-w-2xl">{copy.faqTitle}</h2>
 
       {/* The two lists never coexist: SSR renders the US set (the default), and

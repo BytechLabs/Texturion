@@ -53,13 +53,13 @@ function Thread({ conversationId = "c-1" }: { conversationId?: string }) {
     <>
       <span data-testid="token">{catchUp.askToken}</span>
       <span data-testid="offered">{String(catchUp.offered)}</span>
-      <button type="button" data-testid="close-recap" onClick={catchUp.recapClosed}>
+      <button type="button" data-testid="close-recap" onClick={() => catchUp.recapClosed()}>
         Close recap
       </button>
       {catchUp.hintShown && (
         <CatchUpHint
-          onRecap={catchUp.ask}
-          onNotNow={catchUp.notNow}
+          onRecap={() => catchUp.ask()}
+          onNotNow={() => catchUp.notNow()}
           returnFocus={() => {}}
         />
       )}

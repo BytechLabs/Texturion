@@ -330,7 +330,7 @@ function TaskListBody({
           <Button
             variant="outline"
             size="sm"
-            onClick={loadMore.fetch}
+            onClick={() => loadMore.fetch()}
             disabled={loadMore.fetching}
           >
             {loadMore.fetching ? t("tasks.loadingMore") : t("tasks.loadMore")}

@@ -118,7 +118,9 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
         if (event.data.size > 0) chunks.current.push(event.data);
       };
       rec.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
         const blob = new Blob(chunks.current, { type: rec.mimeType });
         setTake({
           blob,

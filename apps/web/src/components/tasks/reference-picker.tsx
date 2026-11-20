@@ -64,6 +64,7 @@ export function ReferencePicker({
 
   const list = (autoFocus: boolean) => (
     <PickerList
+      // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus stays in the picker after the trigger opens it.
       autoFocus={autoFocus}
       tasksOnly={tasksOnly}
       onPick={(text, picked) => {
@@ -134,6 +135,7 @@ function PickerList({
     <Command shouldFilter={false}>
       <CommandInput
         placeholder={t(tasksOnly ? "tasks.refSearchTasks" : "tasks.refSearch")}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus stays in the picker after the trigger opens it.
         autoFocus={autoFocus}
         value={query}
         onValueChange={setQuery}

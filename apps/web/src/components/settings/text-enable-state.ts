@@ -98,18 +98,20 @@ export function deriveTextEnableUiState(
   const showDocumentsForm =
     uploadable && (documentsPending || status !== "pending");
 
-  const statusLine =
-    status === "pending"
-      ? t("settingsMore.hostedStatePending")
-      : status === "action-required"
-        ? t("settingsMore.hostedStateActionRequired")
-        : status === "in-progress"
-          ? t("settingsMore.hostedStateInProgress")
-          : status === "completed"
-            ? t("settingsMore.hostedStateCompleted")
-            : status === "failed"
-              ? textEnableFailedLine(order.last_error, t)
-              : t("settingsMore.hostedStateCancelled");
+  let statusLine;
+  if (status === "pending") {
+    statusLine = t("settingsMore.hostedStatePending");
+  } else if (status === "action-required") {
+    statusLine = t("settingsMore.hostedStateActionRequired");
+  } else if (status === "in-progress") {
+    statusLine = t("settingsMore.hostedStateInProgress");
+  } else if (status === "completed") {
+    statusLine = t("settingsMore.hostedStateCompleted");
+  } else if (status === "failed") {
+    statusLine = textEnableFailedLine(order.last_error, t);
+  } else {
+    statusLine = t("settingsMore.hostedStateCancelled");
+  }
 
   return {
     statusLine,

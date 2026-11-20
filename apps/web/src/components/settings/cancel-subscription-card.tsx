@@ -245,22 +245,12 @@ export function CancelSubscriptionCard({
   // #228: cancellationOffer names its sentences and takes the lookup, so the
   // cancel card says them in the reader's language.
   const say = sayWith(t);
-  /*
-   * The exit's own label, in the reader's language.
-   *
-   * It deliberately shadows the module constant of the same name. #524's
-   * exit-path guard finds the way out by looking for the JSX element that
-   * MENTIONS the identifier `CANCEL_ACTION` (`exit-path.test.ts`), and walks up
-   * from there to prove nothing on the path to it consults the pause read. The
-   * exit has to keep announcing itself by that name for the guard to keep
-   * proving anything; the module constant stays exactly what it was, the
-   * English, for the tests that assert the shipped sentence.
-   */
-  const CANCEL_ACTION = t("settings.cancelAction");
+  // The exit-path test uses this binding to find the button in either language.
+  const cancelActionLabel = t("settings.cancelAction");
   const portal = useBillingPortal();
   const record = useRecordCancellationReason();
   const exportContacts = useExportContacts();
-  const [reason, setReason] = useState<CancellationReasonCode | null>(null);
+  const [selectedReason, setSelectedReason] = useState<CancellationReasonCode | null>(null);
   const [detail, setDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -301,7 +291,7 @@ export function CancelSubscriptionCard({
   const pauseQuery = usePauseOffer(pauseAsked);
   const pause = pauseReadOf(pauseAsked, pauseQuery);
   const pauseOffer =
-    reason === "seasonal" &&
+    selectedReason === "seasonal" &&
     // #722: the server's list says this workspace may pause now.
     companyAllows(company, "pause") &&
     pauseQuery.data?.eligible === true &&
@@ -329,7 +319,7 @@ export function CancelSubscriptionCard({
    */
   const offer = cancellationOffer({
     locale: t.locale,
-    reason,
+    reason: selectedReason,
     plan: company.plan,
     billingCurrency: company.billing_currency,
     country: company.country,
@@ -381,7 +371,7 @@ export function CancelSubscriptionCard({
     // stays inside the mutation, and even a throw could not reach a handoff
     // that has already been issued above.
     record.mutate({
-      reason,
+      reason: selectedReason,
       detail: detail.trim().slice(0, DETAIL_MAX) || null,
     });
   }
@@ -438,8 +428,8 @@ export function CancelSubscriptionCard({
           <ChoiceCards
             // Controlled, with no initial value: nothing is selected until
             // somebody selects it.
-            value={reason}
-            onChange={setReason}
+            value={selectedReason}
+            onChange={setSelectedReason}
             ariaLabel={t("settings.cancelReasonGroupAria")}
             options={CANCELLATION_REASONS.map(({ code, labelKey }) => ({
               value: code,
@@ -447,10 +437,10 @@ export function CancelSubscriptionCard({
             }))}
           />
 
-          {reason !== null && (
+          {selectedReason !== null && (
             // A radio cannot be un-picked, and an answer given by accident
             // would otherwise be recorded as a considered one.
-            <Button variant="ghost" size="sm" onClick={() => setReason(null)}>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedReason(null)}>
               {t("settings.clearAction")}
             </Button>
           )}
@@ -507,7 +497,7 @@ export function CancelSubscriptionCard({
               Disabled by the in-flight request and by nothing else: an
               unanswered question must never hold the door shut. */}
           <Button disabled={portal.isPending} onClick={leave}>
-            {portal.isPending ? t("settings.opening") : CANCEL_ACTION}
+            {portal.isPending ? t("settings.opening") : cancelActionLabel}
             <ExternalLink strokeWidth={1.75} aria-hidden />
           </Button>
           {error && (

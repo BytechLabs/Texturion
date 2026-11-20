@@ -90,6 +90,7 @@ export function ContractorsPageBody({
     ),
     truthLines: [
       {
+        id: "suite-comparison",
         text: (
           <>
             {copy.truthSuiteBefore}{" "}

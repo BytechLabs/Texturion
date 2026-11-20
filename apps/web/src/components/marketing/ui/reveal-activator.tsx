@@ -35,12 +35,11 @@ const REVEALED = "true";
  * only for elements the observer never got to (below the fold in a headless run).
  */
 function revealAllInstant() {
-  document
-    .querySelectorAll<HTMLElement>("[data-reveal]:not([data-revealed])")
-    .forEach((el) => {
+  for (const el of document
+    .querySelectorAll<HTMLElement>("[data-reveal]:not([data-revealed])")) {
       el.dataset.revealInstant = REVEALED;
       el.dataset.revealed = REVEALED;
-    });
+    }
 }
 
 export function RevealActivator() {
@@ -67,9 +66,10 @@ export function RevealActivator() {
 
     // Observe the initial set once. Anything already on screen fires on the
     // first callback tick, so above-the-fold reveals land right away.
-    document
-      .querySelectorAll<HTMLElement>("[data-reveal]:not([data-revealed])")
-      .forEach((el) => observer.observe(el));
+    for (const el of document
+      .querySelectorAll<HTMLElement>("[data-reveal]:not([data-revealed])")) {
+      observer.observe(el);
+    }
 
     // Fail-safe: if anything is still hidden a moment after load (e.g. an
     // observer edge case, or a headless run that never scrolls the below-fold

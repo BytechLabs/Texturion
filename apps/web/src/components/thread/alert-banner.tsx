@@ -109,7 +109,7 @@ export function AlertBanner({
       </p>
       <button
         type="button"
-        onClick={claim}
+        onClick={() => { void claim(); }}
         disabled={acknowledge.isPending}
         className="tap-target rounded-app-input bg-app-ink px-3 py-1 text-[13px] font-semibold text-app-paper transition-opacity hover:opacity-90 disabled:opacity-50"
       >

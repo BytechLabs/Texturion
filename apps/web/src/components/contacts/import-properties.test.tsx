@@ -164,7 +164,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     expect(request.consentAttested).toBe(true);
     const fileText = await request.file.text();
     expect(fileText).toBe(BOOK);
-    expect(request.properties.map(formatVCardProperty).sort()).toEqual([
+    expect(request.properties.map(formatVCardProperty).toSorted()).toEqual([
       "CATEGORIES:opted_out",
       "NOTE:opted_out",
       `ORG:${CONTACT_IMPORT_IGNORE}`,
@@ -207,7 +207,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     const request = vcardMutate.mock.calls[0][0] as {
       properties: VCardPropertyDeclaration[];
     };
-    expect(request.properties.map(formatVCardProperty).sort()).toEqual([
+    expect(request.properties.map(formatVCardProperty).toSorted()).toEqual([
       `${vcardParameterProperty("TEL", "TYPE")}:${CONTACT_IMPORT_IGNORE}`,
       `${label}:opted_out`,
     ]);

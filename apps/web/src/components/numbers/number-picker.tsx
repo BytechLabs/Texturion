@@ -140,6 +140,124 @@ export function NumberPicker({
     matchesDigits(n.phone_number, digits, match),
   );
 
+  function renderNumberChoices() {
+    if (list.isError) {
+      return (
+        <p className="text-sm text-destructive">
+          {t("misc.numbersLoadFailed")}
+        </p>
+      );
+    }
+    if (list.isPending) {
+      return (
+        <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          {t("misc.numbersFinding")}
+        </div>
+      );
+    }
+    if (masked && areaCode) {
+      return (
+        // Canada: Telnyx doesn't reveal the exact digits before order, so the
+        // pick is the AREA CODE — we assign the actual number at setup.
+        <button
+          type="button"
+          role="radio"
+          aria-checked={selected === areaCode}
+          onClick={() => onSelect(areaCode)}
+          className={cn(
+            "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+            selected === areaCode
+              ? "border-primary bg-primary/10 ring-1 ring-primary"
+              : "border-border hover:bg-accent",
+          )}
+        >
+          <SelectDot on={selected === areaCode} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">
+              {t("misc.numbersGetInAreaCode", { code: areaCode })}
+            </span>
+            <span className="mt-0.5 block text-[13px] text-muted-foreground">
+              {t("misc.numbersMaskedInAreaCode", { code: areaCode })}
+            </span>
+          </span>
+        </button>
+      );
+    }
+    if (masked) {
+      return (
+        // Canada with no area code chosen: masked numbers can't be browsed,
+        // so guide the user to pick an area code above.
+        <p className="text-sm text-muted-foreground">
+          {t("misc.numbersMaskedPickAreaCode")}
+        </p>
+      );
+    }
+    if (filtered.length > 0) {
+      return (
+        <ul className="max-h-64 divide-y divide-border overflow-auto rounded-lg border">
+          {filtered.map((n) => {
+            const on = selected === n.phone_number;
+            return (
+              <li key={n.phone_number} className="flex items-center">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => onSelect(n.phone_number)}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors",
+                    on ? "bg-primary/10" : "hover:bg-accent",
+                  )}
+                >
+                  <SelectDot on={on} />
+                  <span
+                    className={cn(
+                      "flex-1 text-base tabular-nums",
+                      on ? "font-semibold text-primary" : "font-medium",
+                    )}
+                  >
+                    {formatPhone(n.phone_number)}
+                  </span>
+                  {n.region ? (
+                    <span className="shrink-0 text-[13px] text-muted-foreground">
+                      {n.region}
+                    </span>
+                  ) : null}
+                </button>
+                <CopyablePhoneNumber number={n.phone_number} iconOnly className="m-1 p-2" />
+              </li>
+            );
+          })}
+        </ul>
+      );
+    }
+    if (digits && numbers.length > 0) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {t("misc.numbersNoneMatchDigits", {
+            match:
+              match === "start"
+                ? t("misc.numbersMatchStart")
+                : (match === "end"
+                  ? t("misc.numbersMatchEnd")
+                  : t("misc.numbersMatchAnywhere")),
+            digits,
+          })}
+        </p>
+      );
+    }
+    return (
+      <p className="text-sm text-muted-foreground">
+        {bestEffort
+          ? t("misc.numbersNoneNearAreaCode", { code: areaCode ?? "" })
+          : (areaCode
+            ? t("misc.numbersNoneInAreaCode", { code: areaCode })
+            : t("misc.numbersNoneAtAll"))}
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Area code: an OPTIONAL filter, not a gate. */}
@@ -238,103 +356,7 @@ export function NumberPicker({
             </div>
           )}
 
-          {list.isError ? (
-            <p className="text-sm text-destructive">
-              {t("misc.numbersLoadFailed")}
-            </p>
-          ) : list.isPending ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              {t("misc.numbersFinding")}
-            </div>
-          ) : masked && areaCode ? (
-            // Canada: Telnyx doesn't reveal the exact digits before order, so the
-            // pick is the AREA CODE — we assign the actual number at setup.
-            <button
-              type="button"
-              role="radio"
-              aria-checked={selected === areaCode}
-              onClick={() => onSelect(areaCode)}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                selected === areaCode
-                  ? "border-primary bg-primary/10 ring-1 ring-primary"
-                  : "border-border hover:bg-accent",
-              )}
-            >
-              <SelectDot on={selected === areaCode} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">
-                  {t("misc.numbersGetInAreaCode", { code: areaCode })}
-                </span>
-                <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                  {t("misc.numbersMaskedInAreaCode", { code: areaCode })}
-                </span>
-              </span>
-            </button>
-          ) : masked ? (
-            // Canada with no area code chosen: masked numbers can't be browsed,
-            // so guide the user to pick an area code above.
-            <p className="text-sm text-muted-foreground">
-              {t("misc.numbersMaskedPickAreaCode")}
-            </p>
-          ) : filtered.length > 0 ? (
-            <ul className="max-h-64 divide-y divide-border overflow-auto rounded-lg border">
-              {filtered.map((n) => {
-                const on = selected === n.phone_number;
-                return (
-                  <li key={n.phone_number} className="flex items-center">
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      onClick={() => onSelect(n.phone_number)}
-                      className={cn(
-                        "flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors",
-                        on ? "bg-primary/10" : "hover:bg-accent",
-                      )}
-                    >
-                      <SelectDot on={on} />
-                      <span
-                        className={cn(
-                          "flex-1 text-base tabular-nums",
-                          on ? "font-semibold text-primary" : "font-medium",
-                        )}
-                      >
-                        {formatPhone(n.phone_number)}
-                      </span>
-                      {n.region ? (
-                        <span className="shrink-0 text-[13px] text-muted-foreground">
-                          {n.region}
-                        </span>
-                      ) : null}
-                    </button>
-                    <CopyablePhoneNumber number={n.phone_number} iconOnly className="m-1 p-2" />
-                  </li>
-                );
-              })}
-            </ul>
-          ) : digits && numbers.length > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("misc.numbersNoneMatchDigits", {
-                match:
-                  match === "start"
-                    ? t("misc.numbersMatchStart")
-                    : (match === "end"
-                      ? t("misc.numbersMatchEnd")
-                      : t("misc.numbersMatchAnywhere")),
-                digits,
-              })}
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {bestEffort
-                ? t("misc.numbersNoneNearAreaCode", { code: areaCode ?? "" })
-                : (areaCode
-                  ? t("misc.numbersNoneInAreaCode", { code: areaCode })
-                  : t("misc.numbersNoneAtAll"))}
-            </p>
-          )}
+          {renderNumberChoices()}
 
           {/* The masked (CA) case is a single area-code choice — no list to widen
               or refresh, so hide those controls there. */}

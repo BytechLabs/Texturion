@@ -188,7 +188,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
                 size="sm"
                 disabled={create.isPending || roster.length === 0}
                 title={say(preset.detail)}
-                onClick={() => put(preset.key)}
+                onClick={() => void put(preset.key)}
               >
                 {say(preset.label)}
               </Button>

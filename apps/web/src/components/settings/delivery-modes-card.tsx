@@ -158,7 +158,7 @@ export function DeliveryModesCard({
             disabled={saving}
             value={String(prefs.batch_window_minutes ?? DEFAULT_BATCH_WINDOW)}
             onValueChange={(next) =>
-              save({ batch_window_minutes: Number(next) })
+              void save({ batch_window_minutes: Number(next) })
             }
             options={BATCH_WINDOW_CHOICES.map((minutes) => ({
               value: String(minutes),

@@ -92,15 +92,15 @@ export function BoardView({ state }: { state: TaskPageState }) {
   // which query returned the row) so the flipped card shows in the right column
   // immediately, before either status query refetches.
   const byId = new Map<string, Task>();
-  for (const t of [
+  for (const task of [
     ...flattenPages(todoQuery.data),
     ...flattenPages(doneQuery.data),
   ]) {
-    byId.set(t.id, t);
+    byId.set(task.id, task);
   }
   const all = [...byId.values()];
-  const todo = all.filter((t) => !t.done);
-  const done = all.filter((t) => t.done);
+  const todo = all.filter((task) => !task.done);
+  const done = all.filter((task) => task.done);
   const status = <ResultsStatus query={state.q} count={busy ? null : all.length} />;
 
   // An empty last answer says nothing yet about the filter now loading.
@@ -148,7 +148,7 @@ function LoadMoreButton({ more }: { more: { fetching: boolean; fetch: () => void
   const t = useT();
   return (
     <div className="flex justify-center pt-1">
-      <Button variant="outline" size="sm" onClick={more.fetch} disabled={more.fetching}>
+      <Button variant="outline" size="sm" onClick={() => more.fetch()} disabled={more.fetching}>
         {more.fetching ? t("tasks.loadingMore") : t("tasks.loadMore")}
       </Button>
     </div>
@@ -242,6 +242,7 @@ function Column({
   const count = more ? `${tasks.length}+` : String(tasks.length);
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Each task has a button for moving it between columns.
     <section
       onDragOver={(e) => {
         if (busy) return;
@@ -334,6 +335,7 @@ function BoardCard({
   const { actions, dialogs } = useTaskRowActions(task);
   return (
     <RecordContextMenu actions={actions}>
+    {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The task's move button offers the same action. */}
     <article
       draggable={draggable}
       onDragStart={(e) => {
@@ -395,8 +397,8 @@ function BoardSkeleton() {
       {[0, 1].map((col) => (
         <div key={col} className="space-y-2 rounded-xl border border-border p-3">
           <Skeleton className="h-4 w-20" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          {Array.from({ length: 3 }, (_, slot) => slot).map((slot) => (
+            <Skeleton key={slot} className="h-20 w-full rounded-lg" />
           ))}
         </div>
       ))}

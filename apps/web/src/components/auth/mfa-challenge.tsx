@@ -55,6 +55,7 @@ export function MfaChallenge({
 
   useEffect(() => {
     inputRef.current?.focus();
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- switching verification methods replaces the input.
   }, [mode]);
 
   async function verifyCode(code: string) {

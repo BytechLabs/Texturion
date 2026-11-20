@@ -40,9 +40,9 @@ export function ReferenceText({
 export function ReferenceChips({ text, className }: { text: string; className?: string }) {
   const resolved = useResolvedReferences([text]);
   const chips = parseReferenceTokens(text)
-    .map((token, i) => {
+    .map((token) => {
       const chip = chipFor(token.kind, token.key, resolved.data);
-      return chip ? <Fragment key={`${token.start}-${i}`}>{chip}</Fragment> : null;
+      return chip ? <Fragment key={token.start}>{chip}</Fragment> : null;
     })
     .filter((chip) => chip !== null);
   if (chips.length === 0) return null;

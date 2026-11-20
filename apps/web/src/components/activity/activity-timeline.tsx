@@ -273,14 +273,16 @@ function ActivityRow({
   const t = useT();
   const line = activityLine(item, { t, recordType, recordId, nameOf });
   const Icon = ICONS[line.icon];
-  const who =
-    item.actor.type === "member"
-      ? (item.actor.display_name ?? nameOf(item.actor.user_id) ?? t("activity.actorTeammate"))
-      : item.actor.type === "customer"
-        ? t("activity.actorCustomer")
-        : item.actor.type === "automation"
-          ? automationName(item.payload.origin, t)
-          : t("activity.actorSystem");
+  let who;
+  if (item.actor.type === "member") {
+    who = (item.actor.display_name ?? nameOf(item.actor.user_id) ?? t("activity.actorTeammate"));
+  } else if (item.actor.type === "customer") {
+    who = t("activity.actorCustomer");
+  } else if (item.actor.type === "automation") {
+    who = automationName(item.payload.origin, t);
+  } else {
+    who = t("activity.actorSystem");
+  }
 
   const content = (
     <div className={cn("flex items-center gap-3", compact ? "px-1 py-2" : "p-3")}>

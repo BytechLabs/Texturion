@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 /**
  * Scroll-reveal wrapper (BLUEPRINT §1.5): opacity 0→1 + translateY 12px→0,
  * 300ms ease-out, ONCE, triggered at ~20% visibility.
@@ -47,27 +45,5 @@ export function Reveal({
     >
       {children}
     </Tag>
-  );
-}
-
-/**
- * Convenience wrapper for a staggered group (§1.5: 60ms steps, max 4). Wrap each
- * child once; items past the 4th share the last delay so the cap holds.
- */
-export function RevealGroup({
-  children,
-  className,
-}: {
-  children: React.ReactNode[];
-  className?: string;
-}) {
-  return (
-    <div className={cn(className)}>
-      {children.map((child, i) => (
-        <Reveal key={i} delay={Math.min(i, 3) * 60}>
-          {child}
-        </Reveal>
-      ))}
-    </div>
   );
 }

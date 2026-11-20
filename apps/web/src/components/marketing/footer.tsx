@@ -175,7 +175,7 @@ export function Footer({ locale = "en" }: { locale?: MarketingLocale } = {}) {
 
   return (
     <footer className="frf-root">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style>{CSS}</style>
       <div className="mx-auto w-full max-w-[72rem] px-6 py-16 md:px-8 md:py-20">
         <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12">
           {/* Brand block: the wordmark rule (#206, brand/README.md) — Golos

@@ -56,10 +56,11 @@ export function DeleteAccountCard() {
 
   async function confirm() {
     remove.mutate(undefined, {
-      onSuccess: async () => {
-        await endSessionOnThisDevice(null);
-        toast.success(t("settings.deleteAccountDone"));
-        router.replace("/login");
+      onSuccess: () => {
+        void endSessionOnThisDevice(null).then(() => {
+          toast.success(t("settings.deleteAccountDone"));
+          router.replace("/login");
+        });
       },
       onError: (cause) =>
         toast.error(
@@ -70,70 +71,81 @@ export function DeleteAccountCard() {
     });
   }
 
+  let deletionDetails;
+  if (expanded) {
+    if (preview.isPending) {
+      deletionDetails = <Skeleton className="h-24 w-full" />;
+    } else if (blocked) {
+      deletionDetails = (
+        <div className="space-y-2 text-sm">
+          <p>
+            {t("settings.deleteAccountOwnerLead")}{" "}
+            <strong>{owned.map((row) => row.name).join(", ")}</strong>
+            {t("settings.deleteAccountOwnerTail")}
+          </p>
+          <p className="text-muted-foreground">
+            {t("settings.deleteAccountOwnerWhere")}
+          </p>
+        </div>
+      );
+    } else {
+      deletionDetails = (
+        <div className="space-y-4">
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <li>{t("settings.deleteAccountSignedOut")}</li>
+            {preview.data && preview.data.memberships > 0 && (
+              <li>
+                {t("settings.deleteAccountLeaveLead")}{" "}
+                {preview.data.memberships === 1
+                  ? t("settings.deleteAccountLeaveOne")
+                  : t("settings.deleteAccountLeaveMany", {
+                      count: preview.data.memberships,
+                    })}
+                {preview.data.open_conversations + preview.data.open_tasks > 0
+                  ? t("settings.deleteAccountLeaveHandoff")
+                  : "."}
+              </li>
+            )}
+            <li>{t("settings.deleteAccountRecordStays")}</li>
+            {/* #371: said here rather than in a toast, because the moment
+                this succeeds you are signed out and there is no screen left
+                to read one on. */}
+            <li>{t("settings.deleteAccountEmailNote")}</li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setOpen(true)}
+            >
+              {t("settings.deleteAccountAction")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded(false)}
+            >
+              {t("settings.neverMind")}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+  } else {
+    deletionDetails = (
+      <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
+        {t("settings.deleteAccountAction")}
+      </Button>
+    );
+  }
+
   return (
     <SettingsCard id="delete-account"
       title={t("settings.deleteAccountTitle")}
       description={t("settings.deleteAccountDescription")}
     >
       <div className="space-y-4 p-4 pt-0">
-        {expanded ? preview.isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : blocked ? (
-          <div className="space-y-2 text-sm">
-            <p>
-              {t("settings.deleteAccountOwnerLead")}{" "}
-              <strong>{owned.map((row) => row.name).join(", ")}</strong>
-              {t("settings.deleteAccountOwnerTail")}
-            </p>
-            <p className="text-muted-foreground">
-              {t("settings.deleteAccountOwnerWhere")}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li>{t("settings.deleteAccountSignedOut")}</li>
-              {preview.data && preview.data.memberships > 0 && (
-                <li>
-                  {t("settings.deleteAccountLeaveLead")}{" "}
-                  {preview.data.memberships === 1
-                    ? t("settings.deleteAccountLeaveOne")
-                    : t("settings.deleteAccountLeaveMany", {
-                        count: preview.data.memberships,
-                      })}
-                  {preview.data.open_conversations + preview.data.open_tasks > 0
-                    ? t("settings.deleteAccountLeaveHandoff")
-                    : "."}
-                </li>
-              )}
-              <li>{t("settings.deleteAccountRecordStays")}</li>
-              {/* #371: said here rather than in a toast, because the moment
-                  this succeeds you are signed out and there is no screen left
-                  to read one on. */}
-              <li>{t("settings.deleteAccountEmailNote")}</li>
-            </ul>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setOpen(true)}
-              >
-                {t("settings.deleteAccountAction")}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(false)}
-              >
-                {t("settings.neverMind")}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
-            {t("settings.deleteAccountAction")}
-          </Button>
-        )}
+        {deletionDetails}
       </div>
 
       <Dialog

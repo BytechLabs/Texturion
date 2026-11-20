@@ -74,7 +74,7 @@ export function EmailReachabilityCard() {
             {t("settings.emailBouncing")}
           </p>
           <div className="mt-3 flex justify-end">
-            <Button size="sm" variant="outline" onClick={retry} disabled={retrying}>
+            <Button size="sm" variant="outline" onClick={() => { void retry(); }} disabled={retrying}>
               {retrying
                 ? t("settings.emailRetrying")
                 : t("settings.emailRetryAction")}

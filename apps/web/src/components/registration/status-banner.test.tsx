@@ -10,12 +10,12 @@ import type { RegistrationUiState } from "./registration-ui-state";
 import { WorkspaceStatusBanner } from "./status-banner";
 
 const { registration, derived, company } = vi.hoisted(() => {
-  const derived: { current: RegistrationUiState } = { current: { kind: "none" } };
-  const company: { current: { data: unknown } } = { current: { data: undefined } };
-  const registration = vi.fn<(enabled?: boolean) => { data: undefined }>(() => ({
+  const derivedState: { current: RegistrationUiState } = { current: { kind: "none" } };
+  const companyQuery: { current: { data: unknown } } = { current: { data: undefined } };
+  const registrationQuery = vi.fn<(enabled?: boolean) => { data: undefined }>(() => ({
     data: undefined,
   }));
-  return { registration, derived, company };
+  return { registration: registrationQuery, derived: derivedState, company: companyQuery };
 });
 
 vi.mock("@/lib/api/registration", () => ({ useRegistration: registration }));

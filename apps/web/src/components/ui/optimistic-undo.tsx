@@ -34,7 +34,7 @@ export interface UndoableToastOptions {
   /** The action's label in the reader's language, from `t("thread.undo")`. */
   undoLabel: string;
   /** Runs the inverse. Errors should surface their own toast/banner. */
-  onUndo: () => void;
+  onUndo: () => void | Promise<void>;
   /**
    * Optional: called once the undo window closes WITHOUT an undo — the point at
    * which the action is truly committed (e.g. flush a deferred server write).
@@ -63,7 +63,7 @@ export function undoableToast({
       label: undoLabel,
       onClick: () => {
         undone = true;
-        onUndo();
+        void onUndo();
       },
     },
     ...(secondary ? { cancel: secondary } : {}),

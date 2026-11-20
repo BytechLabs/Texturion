@@ -85,7 +85,7 @@ function ConsentPreferencesInner({ locale }: { locale: MarketingLocale }) {
 
   return (
     <div className="min-h-28 rounded-xl bg-[color:var(--fr-frost)] p-5">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style>{CSS}</style>
       {mounted ? (
         <ConsentPreferencesPanel choice={choice} onChoose={choose} locale={locale} />
       ) : null}

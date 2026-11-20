@@ -69,11 +69,11 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  async function setArchived(id: string, archived: boolean) {
+  async function setArchived(id: string, nextArchived: boolean) {
     try {
-      await update.mutateAsync({ id, archived });
+      await update.mutateAsync({ id, archived: nextArchived });
       toast.success(
-        archived
+        nextArchived
           ? t("settings.leadSourceArchived")
           : t("settings.leadSourceRestored"),
       );

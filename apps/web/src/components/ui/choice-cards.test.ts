@@ -32,7 +32,7 @@ export function drawsRadiosByHand(text: string): boolean {
   return BUILT_BY_HAND.test(text);
 }
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 const SHARED = new Set([
   "components/ui/choice-cards.tsx",
   "components/ui/segmented-control.tsx",

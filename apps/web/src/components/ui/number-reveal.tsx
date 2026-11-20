@@ -66,8 +66,8 @@ export function NumberReveal({
 
   useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), COPIED_RESET_MS);
-    return () => clearTimeout(t);
+    const resetTimer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
+    return () => clearTimeout(resetTimer);
   }, [copied]);
 
   async function onCopy() {
@@ -90,7 +90,7 @@ export function NumberReveal({
             type="button"
             variant="outline"
             size="sm"
-            onClick={onCopy}
+            onClick={() => { void onCopy(); }}
             aria-label={copyLabel ?? t("misc.copyAria", { value })}
           >
             {copied ? (
@@ -139,11 +139,11 @@ export function CheckCascade({
 
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)} aria-hidden>
-      {Array.from({ length: Math.max(0, count) }).map((_, i) => (
+      {Array.from({ length: Math.max(0, count) }, (_, slot) => slot).map((slot) => (
         <span
-          key={i}
+          key={slot}
           className="app-motion-check-cascade flex size-5 items-center justify-center rounded-full bg-success text-white"
-          style={{ "--cascade-delay": `${i * stepMs}ms` } as CSSProperties}
+          style={{ "--cascade-delay": `${slot * stepMs}ms` } as CSSProperties}
         >
           <Check className="size-3" strokeWidth={2.5} />
         </span>

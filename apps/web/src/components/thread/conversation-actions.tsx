@@ -115,7 +115,7 @@ export interface ConversationActionsInput {
   run: {
     open: () => void;
     openInNewTab: () => void;
-    copyNumber?: () => void;
+    copyNumber?: () => void | Promise<void>;
     markRead: () => void;
     markUnread: () => void;
     catchUp: () => void;

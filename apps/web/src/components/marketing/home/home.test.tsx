@@ -17,6 +17,7 @@
  *  - Owner rule 12: canonical domain is https://loonext.com.
  */
 
+import { requireString } from "../../../lib/api/test-support";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -512,7 +513,7 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
     const strings = [
       JSON.stringify(metadata.title),
       (metadata.description ?? ""),
-      String(metadata.openGraph?.title ?? ""),
+      requireString(metadata.openGraph?.title ?? ""),
       (metadata.openGraph?.description ?? ""),
     ].join(" ");
     expect(strings).not.toContain("—");

@@ -63,6 +63,8 @@ function kindLabels(t: Translate): Record<ContactFieldKind, string> {
 }
 
 interface DraftField extends ContactFieldDef {
+  /** Keeps the row mounted while typing changes its derived key. */
+  draftId?: string;
   /** Rows the owner added in this session, which have no key until saved. */
   isNew?: boolean;
 }
@@ -157,7 +159,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
 
         {draft.map((field, index) => (
           <div
-            key={index}
+            key={field.draftId ?? field.key}
             className="space-y-2 rounded-app-ctrl border border-app-line p-3"
           >
             <div className="flex flex-wrap items-end gap-2">
@@ -258,14 +260,15 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
+            onClick={() => {
+              const draftId = crypto.randomUUID();
               setDraft((current) => [
                 ...(current ?? []),
                 // Smart Defaults: a row arrives as Text with an empty name,
                 // which is the commonest field and one decision fewer.
-                { key: "", label: "", kind: "text", options: null, isNew: true },
-              ])
-            }
+                { key: "", label: "", kind: "text", options: null, isNew: true, draftId },
+              ]);
+            }}
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
             {t("settings.contactFieldsAdd")}

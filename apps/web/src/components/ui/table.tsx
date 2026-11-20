@@ -25,6 +25,7 @@ function Table({ className, ...props }: ComponentProps<"table">) {
       // unnamed landmark on every table in the app, which trades a keyboard
       // failure for a screen-reader one. Callers that want the region named
       // pass `aria-label` to the table itself, which is where the name belongs.
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The scroll container needs keyboard access.
       tabIndex={0}
     >
       <table

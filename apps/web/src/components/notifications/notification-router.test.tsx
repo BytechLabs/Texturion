@@ -78,7 +78,7 @@ describe(NotificationRouter, () => {
 describe("where it is mounted", () => {
   it("is in the signed-in layout, the only place with an in-app router to answer", () => {
     const layout = readFileSync(
-      join(__dirname, "../../app/(app)/layout.tsx"),
+      join(import.meta.dirname, "../../app/(app)/layout.tsx"),
       "utf8",
     );
     expect(layout).toContain("<NotificationRouter />");

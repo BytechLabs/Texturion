@@ -128,16 +128,18 @@ export function PanelResizeHandle({
       onKeyDown={(event) => {
         const step = event.shiftKey ? PANEL_WIDTH_BIG_NUDGE : PANEL_WIDTH_NUDGE;
         // The handle is the left edge, so left widens.
-        const target =
-          event.key === "ArrowLeft"
-            ? width + step
-            : event.key === "ArrowRight"
-              ? width - step
-              : event.key === "Home"
-                ? PANEL_MIN_WIDTH
-                : event.key === "End"
-                  ? PANEL_MAX_WIDTH
-                  : null;
+        let target;
+        if (event.key === "ArrowLeft") {
+          target = width + step;
+        } else if (event.key === "ArrowRight") {
+          target = width - step;
+        } else if (event.key === "Home") {
+          target = PANEL_MIN_WIDTH;
+        } else if (event.key === "End") {
+          target = PANEL_MAX_WIDTH;
+        } else {
+          target = null;
+        }
         if (target === null) return;
         event.preventDefault();
         onCommit(target);

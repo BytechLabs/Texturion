@@ -300,7 +300,7 @@ function ReleaseHostedNumberDialog({
             queryKey: keys.textEnablements.all(companyId),
             refetchType: "active",
           });
-          gate.dismiss();
+          gate.handleDismiss();
           close(false);
           toast.success(
             t("settingsMore.hostedTextingRemoved", { number: display }),
@@ -310,7 +310,7 @@ function ReleaseHostedNumberDialog({
           if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
             return;
           }
-          gate.dismiss();
+          gate.handleDismiss();
           setError(
             cause instanceof ApiError
               ? cause.message
@@ -400,9 +400,9 @@ function ReleaseHostedNumberDialog({
         kind={gate.kind}
         pending={release.isPending || gate.requesting}
         rejected={gate.rejected}
-        onConfirm={gate.confirm}
-        onResend={gate.resend}
-        onCancel={gate.dismiss}
+        onConfirm={gate.handleConfirm}
+        onResend={gate.handleResend}
+        onCancel={gate.handleDismiss}
       />
     </>
   );

@@ -866,8 +866,8 @@ function TaskDetailLoaded({
           <div className="relative">
             <ReferencePicker
               open={descriptionRefs.open}
-              onOpenChange={descriptionRefs.setOpen}
-              onPick={descriptionRefs.onPick}
+              onOpenChange={(value) => descriptionRefs.setOpen(value)}
+              onPick={(text) => descriptionRefs.onPick(text)}
             >
               <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
             </ReferencePicker>
@@ -1074,7 +1074,7 @@ function TaskNoteComposer({
       <DropOverlay active={drop.active} />
       <StagedFileChips
         files={stage.files}
-        onRemove={stage.remove}
+        onRemove={(id) => stage.remove(id)}
         className="pb-2"
       />
       <div className="flex items-end gap-2">
@@ -1102,7 +1102,7 @@ function TaskNoteComposer({
             e.target.value = "";
           }}
         />
-        <ReferencePicker open={refs.open} onOpenChange={refs.setOpen} onPick={refs.onPick}>
+        <ReferencePicker open={refs.open} onOpenChange={(value) => refs.setOpen(value)} onPick={(text) => refs.onPick(text)}>
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
         </ReferencePicker>
         <Textarea

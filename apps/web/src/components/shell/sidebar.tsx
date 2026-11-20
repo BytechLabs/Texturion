@@ -254,6 +254,11 @@ export function Sidebar({
   const forYouCount = useForYouNavCount();
   const inboxCount = useInboxNavCount();
   const taskCount = useTaskNavCount();
+  const navCounts: Partial<Record<string, number>> = {
+    "/for-you": forYouCount,
+    "/inbox": inboxCount,
+    "/tasks": taskCount,
+  };
 
   const multi = memberships.length > 1;
   // #315: was `role.charAt(0).toUpperCase() + role.slice(1)`, which renders
@@ -457,15 +462,7 @@ export function Sidebar({
                 key={row.href}
                 row={row}
                 active={isNavActive(pathname, row.href)}
-                count={
-                  row.href === "/for-you"
-                    ? forYouCount
-                    : row.href === "/inbox"
-                      ? inboxCount
-                      : row.href === "/tasks"
-                        ? taskCount
-                        : undefined
-                }
+                count={navCounts[row.href]}
                 collapsed={collapsed}
                 t={t}
               />

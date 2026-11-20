@@ -69,8 +69,8 @@ vi.mock("@/lib/api/contacts", () => ({
   }),
 }));
 vi.mock("@/components/contacts/contact-record-actions", () => ({
-  useContactActions: ({ contact }: { contact: { id: string } }) => {
-    actionsRendered.set(contact.id, (actionsRendered.get(contact.id) ?? 0) + 1);
+  useContactActions: ({ contact: actionContact }: { contact: { id: string } }) => {
+    actionsRendered.set(actionContact.id, (actionsRendered.get(actionContact.id) ?? 0) + 1);
     return { actions: [], dialogs: null };
   },
 }));
@@ -108,7 +108,7 @@ function contact(id: string, name: string): ContactListItem {
 }
 
 let client: QueryClient;
-let prefetch: MockInstance<QueryClient["prefetchQuery"]>;
+let prefetch: MockInstance<QueryClient["query"]>;
 
 function mount() {
   return render(
@@ -127,7 +127,7 @@ beforeEach(() => {
     pageParams: [undefined],
   };
   client = new QueryClient();
-  prefetch = vi.spyOn(client, "prefetchQuery");
+  prefetch = vi.spyOn(client, "query");
   const replace = window.history.replaceState.bind(window.history);
   vi.spyOn(window.history, "replaceState").mockImplementation((data, unused, url) => {
     replace(data, unused, url);

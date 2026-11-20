@@ -162,7 +162,7 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
             <Button
               size="sm"
               disabled={add.isPending || draftAddress.trim().length === 0}
-              onClick={submit}
+              onClick={() => { void submit(); }}
             >
               {t("contacts.add")}
             </Button>

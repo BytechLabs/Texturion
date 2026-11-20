@@ -113,7 +113,7 @@ export function focusSettingsAnchor(anchor: string): () => void {
 
   return () => {
     observer?.disconnect();
-    timers.forEach(clearTimeout);
+      for (const timer of timers) clearTimeout(timer);
     marked?.classList.remove(...MARK);
   };
 }
@@ -143,6 +143,7 @@ export function SettingsAnchorFocus() {
       window.removeEventListener(SETTINGS_ANCHOR_EVENT, onEvent);
       window.removeEventListener("hashchange", fromHash);
     };
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- a route change can replace the anchor with the same hash.
   }, [pathname]);
   return null;
 }

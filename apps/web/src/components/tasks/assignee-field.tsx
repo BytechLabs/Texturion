@@ -12,7 +12,7 @@ import {
 import { useLocale, useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import { useMembers } from "@/lib/api/team";
-import { cn } from "@/lib/utils";
+import { cn, withOccurrenceKeys } from "@/lib/utils";
 
 import {
   MAX_ASSIGNEES,
@@ -47,9 +47,9 @@ export function AssigneeStack({
       aria-label={t("tasks.assigneesAria", { names: spoken })}
       className={cn("flex shrink-0 items-center", className)}
     >
-      {shown.map((name, index) => (
+      {withOccurrenceKeys(shown, (name) => name).map(({ item: name, key }, index) => (
         <MemberAvatar
-          key={`${index}-${name}`}
+          key={key}
           name={name}
           className={cn("ring-2 ring-background", index > 0 && "-ml-1.5")}
         />
@@ -150,7 +150,7 @@ export function AssigneeField({
         className="w-64 p-1"
         onClick={(event) => event.stopPropagation()}
       >
-        <ul role="listbox" aria-multiselectable aria-label={ariaLabel} className="max-h-64 overflow-y-auto">
+        <div role="listbox" aria-multiselectable aria-label={ariaLabel} className="max-h-64 overflow-y-auto">
           {members.map((member) => {
             const selected = draft.includes(member.user_id);
             const blocked = !selected && atMax;
@@ -159,7 +159,7 @@ export function AssigneeField({
                 ? t("tasks.teammate")
                 : member.display_name;
             return (
-              <li key={member.id} role="presentation">
+              <div key={member.id} role="presentation">
                 <button
                   type="button"
                   role="option"
@@ -179,10 +179,10 @@ export function AssigneeField({
                   </span>
                   {selected && <Check className="size-4 text-primary" aria-hidden />}
                 </button>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
         {atMax && (
           <p className="px-2 pb-1 pt-2 text-xs text-muted-foreground">
             {t("tasks.assigneesMax", { max: MAX_ASSIGNEES })}

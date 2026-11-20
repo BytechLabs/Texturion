@@ -548,7 +548,7 @@ export function MessageList({
       <LoadError
         variant="fill"
         message={t("thread.conversationLoadFailed")}
-        onRetry={() => messagesQuery.refetch()}
+        onRetry={() => void messagesQuery.refetch()}
         className="p-8"
       />
     );
@@ -622,7 +622,7 @@ export function MessageList({
             // cited message that is filtered out or on an older page still
             // resolves instead of dead-ending.
             onJump={scrollToMessage}
-            onDismiss={catchUp.onDismiss}
+            onDismiss={() => catchUp.onDismiss()}
           />
         </div>
       )}

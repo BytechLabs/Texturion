@@ -126,16 +126,16 @@ export function StatusContent({
               </p>
             ) : (
               <ul className="mt-6 space-y-6">
-                {INCIDENTS.map((incident) => (
-                  <li key={`${incident.iso}-${incident.title}`}>
+                {INCIDENTS.map((entry) => (
+                  <li key={`${entry.iso}-${entry.title}`}>
                     <p className="fr-mono-data text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-                      <time dateTime={incident.iso}>{incident.date}</time>
+                      <time dateTime={entry.iso}>{entry.date}</time>
                     </p>
                     <p className="mt-1 font-semibold text-[color:var(--fr-ink)]">
-                      {incident.title}
+                      {entry.title}
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
-                      {incident.body}
+                      {entry.body}
                     </p>
                   </li>
                 ))}

@@ -17,8 +17,12 @@ function stubTarget() {
   return {
     set,
     classList: {
-      add: (...tokens: string[]) => tokens.forEach((t) => set.add(t)),
-      remove: (...tokens: string[]) => tokens.forEach((t) => set.delete(t)),
+      add(...tokens: string[]) {
+        for (const token of tokens) set.add(token);
+      },
+      remove(...tokens: string[]) {
+        for (const token of tokens) set.delete(token);
+      },
     },
   };
 }

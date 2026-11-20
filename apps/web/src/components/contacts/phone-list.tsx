@@ -167,7 +167,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
             <Button
               size="sm"
               disabled={add.isPending || draftPhone.trim().length === 0}
-              onClick={submit}
+              onClick={() => { void submit(); }}
             >
               {t("contacts.add")}
             </Button>

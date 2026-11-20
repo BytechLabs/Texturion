@@ -37,22 +37,25 @@ function renderMarks(
   grammar: RegExp,
   slots: Record<string, ReactNode>,
 ): ReactNode[] {
+  let offset = 0;
   return text.split(grammar).map((token, index) => {
+    const start = offset;
+    offset += token.length;
     if (index % 2 === 0) return token;
     if (token.startsWith("{")) {
       const name = token.slice(1, -1);
       if (!Object.hasOwn(slots, name)) {
         throw new Error(`Missing legal-copy slot: ${name}`);
       }
-      return <Fragment key={index}>{slots[name]}</Fragment>;
+      return <Fragment key={start}>{slots[name]}</Fragment>;
     }
     if (token.startsWith("**")) {
-      return <strong key={index}>{renderMarks(token.slice(2, -2), MARKS, slots)}</strong>;
+      return <strong key={start}>{renderMarks(token.slice(2, -2), MARKS, slots)}</strong>;
     }
     if (token.startsWith("`")) {
-      return <code key={index}>{renderMarks(token.slice(1, -1), SLOTS_ONLY, slots)}</code>;
+      return <code key={start}>{renderMarks(token.slice(1, -1), SLOTS_ONLY, slots)}</code>;
     }
-    return <em key={index}>{renderMarks(token.slice(1, -1), MARKS, slots)}</em>;
+    return <em key={start}>{renderMarks(token.slice(1, -1), MARKS, slots)}</em>;
   });
 }
 

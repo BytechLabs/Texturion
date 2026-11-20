@@ -10,7 +10,7 @@ export function JsonLd({ data }: { data: object | object[] }) {
   return (
     <script
       type="application/ld+json"
-      // Escaped via jsonLdScript (replaces "<"); content is our own static data.
+      // oxlint-disable-next-line react/no-danger -- jsonLdScript escapes "<" before embedding structured data.
       dangerouslySetInnerHTML={{ __html: jsonLdScript(payload) }}
     />
   );

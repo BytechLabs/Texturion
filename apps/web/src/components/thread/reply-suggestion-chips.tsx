@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AiStatus } from "@/components/ui/ai-orb";
 import { useT } from "@/i18n/provider";
+import { withOccurrenceKeys } from "@/lib/utils";
 
 /**
  * AI-drafted replies, offered above the pill. Each is a full message: tapping
@@ -63,9 +64,9 @@ export function ReplySuggestionChips({
                 aria-hidden
               />
             ))
-          : suggestions.map((suggestion, index) => (
+          : withOccurrenceKeys(suggestions, (suggestion) => suggestion).map(({ item: suggestion, key }) => (
               <button
-                key={index}
+                key={key}
                 type="button"
                 onClick={() => onUse(suggestion)}
                 className="rounded-app-card border border-app-line bg-app-paper px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-olive hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

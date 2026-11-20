@@ -324,6 +324,78 @@ export function PortCard({
     });
   }
 
+  let portStatus;
+  if (hold) {
+    portStatus = <NumberHoldNote hold={hold} />;
+  } else if (ui.live) {
+    portStatus = (
+      <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
+        {PORT_STATE_COPY.textingLive}
+      </p>
+    );
+  } else if (ui.exception === "voice" && rejection) {
+    portStatus = (
+      <RejectionNotice
+        domain="port"
+        reason={port.rejection_reason}
+        submissionCount={port.submission_count}
+        formRef={fixFormRef}
+        company={{
+          id: companyId,
+          name: company?.name ?? membership.name,
+          plan: company?.plan ?? null,
+        }}
+      />
+    );
+  } else if (ui.exception === "voice") {
+    portStatus = (
+      <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
+        <AlertTriangle
+          className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
+        <span className="min-w-0 break-words">
+          {PORT_STATE_COPY.voiceException(port.rejection_reason)}
+        </span>
+      </div>
+    );
+  } else if (ui.exception === "messaging") {
+    portStatus = (
+      <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
+        {PORT_STATE_COPY.messagingException}
+      </p>
+    );
+  } else if (port.status === "ported") {
+    portStatus = (
+      <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+        {PORT_STATE_COPY.numberSwitched}
+      </p>
+    );
+  } else if (port.status === "foc-date-confirmed" ||
+          port.status === "activation-in-progress") {
+    portStatus = (
+      <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+        {PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t))}
+      </p>
+    );
+  } else if (port.status === "in-process" || port.status === "submitted") {
+    portStatus = (
+      <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+        {PORT_STATE_COPY.submitted}
+      </p>
+    );
+  } else if (ui.documentsPending && port.status === "draft") {
+    portStatus = (
+      <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+        {PORT_STATE_COPY.documentsPending}
+      </p>
+    );
+  } else {
+    portStatus = null;
+  }
+
   return (
     <div className="rounded-lg border bg-card px-5 py-5 sm:px-6">
       {/* Heading: the number + a one-line state summary (no jargon).
@@ -382,66 +454,7 @@ export function PortCard({
             cannot coexist: `numberForPort` matches on the E.164, and a
             `phone_numbers` row only carries one after cutover. A transfer still
             with the carrier has no number to be suspended. */}
-        {hold ? (
-          <NumberHoldNote hold={hold} />
-        ) : ui.live ? (
-          <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
-            {PORT_STATE_COPY.textingLive}
-          </p>
-        ) : ui.exception === "voice" ? (
-          // #319: the carrier's token said in plain language, plus the one
-          // field to correct — the same catalogue and the same notice the
-          // registration surface reads. It keeps the carrier's own words on
-          // screen, demoted. An unrecognised reason keeps the raw banner
-          // instead: a generic sentence would hide the only concrete thing the
-          // customer was given.
-          rejection ? (
-            <RejectionNotice
-              domain="port"
-              reason={port.rejection_reason}
-              submissionCount={port.submission_count}
-              formRef={fixFormRef}
-              company={{
-                id: companyId,
-                name: company?.name ?? membership.name,
-                plan: company?.plan ?? null,
-              }}
-            />
-          ) : (
-            <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
-              <AlertTriangle
-                className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
-              <span className="min-w-0 break-words">
-                {PORT_STATE_COPY.voiceException(port.rejection_reason)}
-              </span>
-            </div>
-          )
-        ) : ui.exception === "messaging" ? (
-          <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
-            {PORT_STATE_COPY.messagingException}
-          </p>
-        ) : port.status === "ported" ? (
-          <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-            {PORT_STATE_COPY.numberSwitched}
-          </p>
-        ) : port.status === "foc-date-confirmed" ||
-          port.status === "activation-in-progress" ? (
-          <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-            {PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t))}
-          </p>
-        ) : port.status === "in-process" || port.status === "submitted" ? (
-          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            {PORT_STATE_COPY.submitted}
-          </p>
-        ) : ui.documentsPending && port.status === "draft" ? (
-          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            {PORT_STATE_COPY.documentsPending}
-          </p>
-        ) : null}
+        {portStatus}
 
         {/* #523: EVERY banner below this line predicts the number is about to
             work, and a held line is not about to work. They were gated one at a
