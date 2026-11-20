@@ -168,7 +168,7 @@ Each scenario records a video, a final screenshot, XCUITest screenshots and resu
 | --- | --- | --- |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
 | `notification-actions` | #777 | Injected message and missed-call alerts exercise the Notification Center, reply through the app outbox, and removal on thread open and on a read broadcast for the same user. The fixture records accepted sends and their idempotency keys. |
-| `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover VoIP payloads, caller privacy and wake policy. |
+| `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover synthetic VoIP payloads, caller privacy, wake policy, and the softphone behavior behind CallKit answer and end actions. |
 | `offline` | #778 | The fixture closes API and Realtime connections while Simulator networking stays active. The app reopens cached data after termination, flushes a queued send once after reconnect and returns to sign-in when refresh is refused. This exercises app behavior on transport failure. The iOS reachability strip and real radio transitions need a separate network-loss pass. |
 | `autosave` | #780 | UI tests edit contact notes and leave the screen, then edit Calling settings and immediately press Home. The fixture checks one PATCH with the latest value and the tests reopen the UI to confirm it. A debounce regression drives the sub-800 ms window independently of Simulator gesture timing. |
 | `copy-and-media` | #805 | UI tests check rendered settings labels, the task-list delete confirmation, and playback progress on synthetic audio. Unit tests check English and Canadian French permission strings, including Face ID, and playback session setup. |
@@ -176,8 +176,10 @@ Each scenario records a video, a final screenshot, XCUITest screenshots and resu
 
 `LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
 
-### Physical iPhone checks
+### Accepted iPhone hardware gaps
 
 `simctl push` injects ordinary alert payloads directly and bypasses FCM and APNs. Apple supports the APNs development sandbox on eligible Simulator hosts with a configured build. [Xcode release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-14-release-notes)
 
-Use a physical iPhone for alert sound with the phone locked or unlocked, ring/silent-switch behavior, receiver proximity, and real call audio, including voicemail immediately after ending a call. PushKit wake and CallKit answer or decline need a provisioned phone, an app signed for Push Notifications, and a valid VoIP credential on the nonproduction Telnyx connection. Use an iPhone for App Lock's actual Face ID prompt and for listening to VoiceOver, including focus order, announcement timing, French pronunciation and large text.
+X21 accepts the hardware-only gaps for iOS QA. These include alert sound with the phone locked or unlocked, ring/silent-switch behavior, receiver proximity, real call audio and voicemail audio immediately after a call. End-to-end PushKit wake and locked-device CallKit answer or decline require a provisioned iPhone and a VoIP credential on the relevant Telnyx connection. App Lock's physical Face ID prompt and a spoken VoiceOver pass, including announcement timing and French pronunciation, are also outside this lane.
+
+When the applicable Simulator, Android emulator and web checks pass, close the issue with one line naming its accepted iPhone hardware gap.

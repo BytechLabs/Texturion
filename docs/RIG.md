@@ -113,8 +113,6 @@ Any one of those would bypass an approval gate, which is why the amendment does 
 - any device-farm subscription;
 - any hosted nonprod database or hosted copy of the Loonext Workers.
 
-If an Apple Developer Program membership already exists, the separate-accounts design's iPhone lane can be added later. Nothing here depends on it.
-
 ### 2.2 What sharing accounts now risks for production, and what contains it
 
 | Shared thing | Risk to production | What contains it |
@@ -149,7 +147,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Separate Cloudflare accounts for the test app and the guard | **Rebuilt** with scoped tokens, disjoint ids and a guard with no public URL. Your own dashboard login still sits above everything. |
 | A hosted, always-on nonprod: real Workers runtime, hosted Supabase auth settings, and cloud lanes that survive a home outage | **Accepted.** Hosted behaviour is defect X23, partly covered by production's own events in PostHog. The rig is a single point of failure, and it is off whenever the workstation is; nothing watches it, because nothing on it is scheduled. |
 | A carrier SIM handset (K00-K05): real carrier calls both ways, carrier texts, STIR/SHAKEN, caller-name display, a STOP sent from a real phone | **Accepted** as defects X5, X10, X17 and X20. Production's ring events in PostHog measure real customers' rings passively, but with one production number today there are few of them. K01 could prove outbound carrier egress, but by default it never runs (Phase 4, optional). |
-| Physical iPhone wake, audio and sensors | **Accepted** as defect X21. The App Store app has an Apple Developer membership. GitHub Actions runs the [iOS Simulator QA lane](QA.md#ios-simulator) with nonproduction endpoints and injected ordinary notification payloads. PushKit wake, locked-device CallKit and real call audio still require a provisioned iPhone and the rig's own VoIP credentials. |
+| Physical iPhone wake, audio and sensors | **Accepted** as defect X21. GitHub Actions runs the [iOS Simulator QA lane](QA.md#ios-simulator) with nonproduction endpoints and injected ordinary notification payloads. Provisioned iPhone hardware is outside the rig's scope. |
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
 | A separate path to Telnyx's Verified level | **Accepted.** The shared account's level governs both production and the rig. |
 | Separate Supabase, Resend, PostHog and Firebase tenancy | **Supabase:** replaced by the local stack, which is better isolated but less faithful. **PostHog and Resend:** mitigated with environments and caps. **Firebase:** mitigated by package pinning. |
@@ -841,7 +839,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | X20 | A real carrier call into Loonext: ringback, early media, STIR/SHAKEN | All inbound calls come from the robot, on-net | The same. Production's ring events in PostHog measure it passively once production has volume. |
 | X10 | Outbound caller-name display on a recipient handset | No carrier handset | The same |
 | X17 | Wi-Fi to cellular handover; a cellular call interrupting a Loonext call | The emulators have no real radio; the console's `gsm call` simulates one and no lane runs it yet | None (no SIMs); a data SIM only if the rule is ever lifted |
-| X21 | PushKit wake, locked-device CallKit answer and decline, call audio and receiver proximity | Simulator alert injection bypasses APNs and cannot reproduce a Telnyx VoIP push waking a locked or terminated app. Simulator audio lacks the iPhone's receiver, proximity sensor and ring/silent switch. | The [iOS QA workflow](QA.md#ios-simulator) covers foreground alerts, notification actions, cache and reconnect, autosave, localized copy, playback progress and accessibility audits on synthetic data. The physical lane needs a signed nonproduction iPhone build, provisioned hardware and a VoIP credential attached to the rig's Telnyx connection. |
+| X21 | PushKit wake, locked-device CallKit answer and decline, call audio and receiver proximity | Simulator alert injection bypasses APNs and cannot reproduce a Telnyx VoIP push waking a locked or terminated app. Simulator audio lacks the iPhone's receiver, proximity sensor and ring/silent switch. | **Accepted.** The [iOS QA workflow](QA.md#ios-simulator) covers simulated alerts, app flows and accessibility audits. Its call tests exercise synthetic VoIP payloads and the softphone logic behind CallKit actions. The hardware gap is recorded on the issue when the applicable automated checks pass. |
 | X22 | Calendar consent, refresh revocation, and all of Microsoft | No test identities can be created | Phase 4 offers a Google partial: a service account in the existing project owns its own calendar, and a token-URL seam lets the guard hand the app service-account tokens. That covers the Google API, the sync worker and push channels (verify the push-channel domain rule). |
 | X23 | Hosted behaviour: Durable Object eviction under load, CPU limits, hosted Supabase auth settings, Realtime at scale, OpenNext on real Workers | The rig is local | Partly covered by production's events in PostHog and the hermetic workerd Durable Object test |
 | X24 | Supabase Auth mail over Resend SMTP; Resend bounce and complaint webhooks | Auth mail stays in Mailpit. Resend webhooks are team-wide and would carry production events. | Stays hermetic |
@@ -1335,7 +1333,7 @@ node scripts/ops/agent-diag.mjs --self-check
 
 - **A hosted twin of Loonext in the production accounts.** It would add configuration drift, a public login page on the production Cloudflare account and a hosted test database. Re-evaluate when #323's trigger fires: a second person shipping, or a customer whose outage is expensive.
 - **Synthetic tenants inside the production database.** Production point-in-time recovery is off. That approach also needed a session-minting endpoint in production, and its phone lane breaks on the first real Turnstile challenge.
-- **An iPhone attached to the rig.** The [GitHub-hosted Simulator](QA.md#ios-simulator) can run without a TCP relay. A provisioned iPhone is still needed for the hardware and VoIP checks in X21.
+- **An iPhone attached to the rig.** The [GitHub-hosted Simulator](QA.md#ios-simulator) is the iOS QA lane. X21 lists the accepted hardware gaps.
 - **A raw SSH relay through the edge as the primary way in.** Host agents already have a full shell on the rig over SSH on the workstation. The relay stays optional (Phase 4).
 - **A production probe number** for wiring checks. Cloudflare's monitor of webhook refusals in Workers Logs and the vendors' own notices stand in, with no dial and no exception to the guard's policy.
 - **New accounts of any kind:** SIM, Apple, Workspace or Microsoft 365, device farm.

@@ -108,6 +108,7 @@ jobs:
           xcrun simctl install "$QA_SIMULATOR" "$app"
 
       - name: Run scenario and capture evidence
+        timeout-minutes: 34
         run: bash qa/run.sh "$QA_SCENARIO"
 
       - name: Upload Simulator evidence

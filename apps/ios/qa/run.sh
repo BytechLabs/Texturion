@@ -10,8 +10,18 @@ recorder=
 fixture=
 
 stop_processes() {
+  local result=0
   if [[ -n "$recorder" ]]; then
     kill -INT "$recorder" 2>/dev/null || true
+    for _ in {1..15}; do
+      if ! kill -0 "$recorder" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    if kill -0 "$recorder" 2>/dev/null; then
+      echo "::error::Simulator recording did not finish after SIGINT"
+      kill -KILL "$recorder" 2>/dev/null || true
+      result=1
+    fi
     wait "$recorder" || true
     recorder=
   fi
@@ -20,6 +30,7 @@ stop_processes() {
     wait "$fixture" 2>/dev/null || true
     fixture=
   fi
+  return "$result"
 }
 trap stop_processes EXIT
 
@@ -50,11 +61,12 @@ run_scenario() {
   xcodebuild test-without-building -project Loonext.xcodeproj -scheme LoonextQA \
     -configuration QA -destination "id=$QA_SIMULATOR" \
     -derivedDataPath "$RUNNER_TEMP/ios-qa-build" -parallel-testing-enabled NO \
+    -test-timeouts-enabled YES -maximum-test-execution-time-allowance 180 \
     -resultBundlePath "$output/tests.xcresult" "${selection[@]}" \
     | tee "$output/xcodebuild.log" || result=$?
   xcrun simctl io "$QA_SIMULATOR" screenshot "$output/final.png" || result=1
   curl --silent --fail http://127.0.0.1:8765/__qa/writes > "$output/writes.json" || result=1
-  stop_processes
+  stop_processes || result=1
 
   if [[ -d "$output/tests.xcresult" ]]; then
     xcrun xcresulttool export attachments --path "$output/tests.xcresult" \
@@ -79,7 +91,7 @@ for name in foreground-alerts notification-actions calls offline autosave copy-a
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
     notification-actions) run_scenario "$name" "$ui/testNotificationReply" "$ui/testNotificationTrayClearance" || failed=1 ;;
     calls) run_scenario "$name" "$audit/testInCallControls" "$audit/testCallLog" \
-      "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" || failed=1 ;;
+      "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" "$unit/TelephonyMappingTests" || failed=1 ;;
     offline) run_scenario "$name" "$ui/testOfflineRelaunchAndOutbox" "$unit/OfflineReadCacheTests" || failed=1 ;;
     autosave) run_scenario "$name" "$ui/testContactNotesSaveOnBack" \
       "$ui/testCallingSettingSavesOnBackground" "$unit/DebouncedTextSaveTests" "$unit/DebouncedTextSaveWireTests" || failed=1 ;;
