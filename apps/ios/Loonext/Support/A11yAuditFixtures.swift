@@ -290,7 +290,7 @@ enum A11yFixtureData {
         let today = calendar.startOfDay(for: Date())
         let starts = calendar.date(byAdding: .hour, value: 10, to: today) ?? today
         let finish = starts.addingTimeInterval(40 * 60)
-        var row = task("job-kitchen", "Inspect kitchen sink", due: nil, site: (43.64, -79.38))
+        var row = task("job-kitchen", "Install sink", due: nil, site: (43.64, -79.38))
         row["published_work"] = [
             ["id": "work-am", "starts_at": iso(starts), "ends_at": iso(finish), "assignee_id": "u1", "visit": true] as [String: Any],
             ["id": "work-pm", "starts_at": iso(starts.addingTimeInterval(4 * 3600)),
@@ -312,7 +312,7 @@ enum A11yFixtureData {
             "revision": 1, "timezone": zoneId, "members": crew,
             "days": [["date": day, "start": iso(start), "end": iso(end)]],
             "tasks": [
-                ["id": "job-kitchen", "title": "Inspect kitchen sink", "scheduled_count": 0,
+                ["id": "job-kitchen", "title": "Install sink", "scheduled_count": 0,
                  "updated_at": iso(start), "done": false, "windows": [], "dispatch_estimate": 40] as [String: Any],
             ], "blocks": [],
         ]

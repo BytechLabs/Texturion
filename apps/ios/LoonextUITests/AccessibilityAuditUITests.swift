@@ -111,7 +111,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         let shifts = app.buttons["Shifts and breaks"].firstMatch
         XCTAssertTrue(shifts.waitForExistence(timeout: 30))
         shifts.tap()
-        XCTAssertTrue(app.textFields["Break start"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, labelContains: "Remove break").waitForExistence(timeout: 10))
         attach(app, "issue-876 shifts and breaks", theme)
     }
 
