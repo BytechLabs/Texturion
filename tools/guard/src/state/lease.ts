@@ -16,7 +16,7 @@ export interface LeaseRecord extends LeaseGrant {
   acquired_at: number;
   expires_ms: number;
   released_at?: number;
-  /** Set when a production call took the line and every test leg was hung up. */
+  /** Set on leases preempted by earlier guard versions. */
   preempted_at?: number;
   /** What reached the Telnyx route while the lease was live, by {@link activityKey}. */
   activity?: Record<string, number>;
@@ -58,11 +58,6 @@ export async function releaseLease(ctx: Ctx, leaseId: string): Promise<LeaseReco
   const released = { ...lease, released_at: ctx.now() };
   await ctx.store.put(KEY, released);
   return released;
-}
-
-export async function markPreempted(ctx: Ctx, leaseId: string): Promise<void> {
-  const lease = await ctx.store.get<LeaseRecord>(KEY);
-  if (lease?.lease_id === leaseId) await ctx.store.put(KEY, { ...lease, preempted_at: ctx.now() });
 }
 
 /**

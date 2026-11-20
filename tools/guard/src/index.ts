@@ -35,9 +35,6 @@ export class GuardState extends DurableObject<Env> {
       ai: env.AI ? { run: (model, inputs) => env.AI!.run(model as never, inputs as never) } : null,
       edge: env.EDGE ?? null,
       versionId: env.CF_VERSION_METADATA?.id ?? "unversioned",
-      setAlarm: async (at) => {
-        await state.storage.setAlarm(at);
-      },
       memory: {},
     };
     this.guard = new Guard(ctx);
@@ -45,10 +42,6 @@ export class GuardState extends DurableObject<Env> {
 
   override fetch(request: Request): Promise<Response> {
     return this.guard.handle(request);
-  }
-
-  override alarm(): Promise<void> {
-    return this.guard.alarm();
   }
 
   cron(expression: string): Promise<void> {

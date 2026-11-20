@@ -13,17 +13,9 @@ function healthWorld() {
 }
 
 describe("R00, rig health", () => {
-  it("passes when every check does, publishes the room and hostd's report, and boots no emulator", async () => {
+  it("passes when every check does, publishes hostd's report, and boots no emulator", async () => {
     const { ctx, devices } = healthWorld();
-    const asked: number[] = [];
-    ctx.blockedAt = (room) => {
-      asked.push(room);
-      return room < 4 ? ["D01"] : [];
-    };
     await expect(R00.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
-    expect(ctx.evidence.room).toBe(4);
-    expect(ctx.evidence.blocked_by_room).toEqual([]);
-    expect(asked).toEqual([4]);
     expect(ctx.evidence.emulators).toEqual({ 34: true, 35: true, 36: true });
     expect(ctx.evidence.pixel).toMatchObject({
       locked: false,
@@ -36,20 +28,6 @@ describe("R00, rig health", () => {
     });
     expect(ctx.evidence.host).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: false });
     expect(devices.actions).toEqual([]);
-  });
-
-  it("publishes the scenarios the room blocks beside the room, and nothing when health reports no room", async () => {
-    const tight = healthWorld();
-    tight.rig.report.room = 2;
-    tight.ctx.blockedAt = (room) => (room < 3 ? ["D01", "S10"] : []);
-    await R00.run(tight.ctx);
-    expect(tight.ctx.evidence).toMatchObject({ room: 2, blocked_by_room: ["D01", "S10"] });
-
-    const unknown = healthWorld();
-    unknown.rig.report.room = null;
-    await R00.run(unknown.ctx);
-    expect(unknown.ctx.evidence.room).toBeNull();
-    expect(unknown.ctx.evidence).not.toHaveProperty("blocked_by_room");
   });
 
   it("fails each health check that failed, by name", async () => {
@@ -74,14 +52,10 @@ describe("R00, rig health", () => {
     await expect(R00.run(unread.ctx)).resolves.toMatchObject({ outcome: "infra", component: "rig-health" });
   });
 
-  it("fails a guard that is not ok or under its balance floor, and calls an unsafe partition critical", async () => {
+  it("fails a guard that is not ok, and calls an unsafe partition critical", async () => {
     const down = healthWorld();
     down.guard.healthBody = { ...down.guard.healthBody, ok: false };
     await expect(R00.run(down.ctx)).resolves.toMatchObject({ failure_class: "guard_not_ok" });
-
-    const poor = healthWorld();
-    poor.guard.healthBody = { ...poor.guard.healthBody, balance_above_floor: false };
-    await expect(R00.run(poor.ctx)).resolves.toMatchObject({ failure_class: "balance_below_floor" });
 
     const unsafe = healthWorld();
     unsafe.guard.healthBody = {

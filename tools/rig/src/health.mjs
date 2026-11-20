@@ -2,7 +2,7 @@
  * `rig health`: the parts of R00 that need no emulator.
  * Each check passes or fails with a reason; a check that
  * cannot measure fails too, because "unknown" is not a pass. The result is
- * also written to state/health.json, with the guard's room, for rigd to
+ * also written to state/health.json, for rigd to
  * publish, and it is written even when nothing could be measured.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -193,7 +193,7 @@ export function healthChecks(context) {
     /**
      * Local auth signs ES256 and the API takes it. The owner's session is the
      * one rigd's probe keeps (member-sessions.mjs): a password sign-in here
-     * would be a new device, and a mail against the guard's Resend budget,
+     * would be a new device and send another security email,
      * every time this runs.
      */
     async signIn() {
@@ -228,9 +228,6 @@ export function healthChecks(context) {
     async guard() {
       const body = await guard();
       if (body?.ok !== true) return "the guard does not report ok";
-      if (body.balance_above_floor === false) return "the Telnyx balance is below the floor";
-      if (body.balance_above_floor !== true) return "the guard does not report the balance floor";
-      context.published.room = body.room ?? null;
       return null;
     },
 

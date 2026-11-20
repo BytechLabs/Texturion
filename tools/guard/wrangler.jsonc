@@ -17,7 +17,7 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GuardState"] }],
 
-  // The rig's AI shim runs here, under the guard's daily neuron cap.
+  // The rig's AI shim runs here, through its binding.
   "ai": { "binding": "AI" },
 
   // The edge's named entrypoint, for the robot mailbox's status before a send
@@ -29,23 +29,9 @@
 
   "triggers": {
     "crons": [
-      // Upkeep: the first order's read-back, the daily balance sample, the
-      // robot-mailbox arrival deadline, expired legs, the monthly limit probe.
+      // Upkeep: first-order read-back and expired legs.
       "7 * * * *"
     ]
-  },
-
-  "vars": {
-    // The lowest documented default concurrent call limit, 2
-    // (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). While it is
-    // the only evidence, admission adds no leg at all; the proof ladder in
-    // src/state/concurrency.ts is what lifts it. Raising the floor needs dated
-    // evidence in a reviewed commit.
-    "TELNYX_CONCURRENT_FLOOR": "2",
-    // A second account signal inside 30 days latches the paid lanes off until
-    // this value changes, which takes a reviewed commit: the design change the
-    // latch waits for.
-    "SIGNAL_LATCH_RESET": "2026-10-31"
   },
 
   // Only the guard's own console lines are kept: rule names and statuses,

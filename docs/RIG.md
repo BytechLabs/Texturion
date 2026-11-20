@@ -42,11 +42,11 @@ Two independent reviews scored three no-new-account designs, and both chose this
 1. Run one dedicated VMware Workstation VM on your workstation, **the rig**, with its Android emulators on the Windows host. It is on while the workstation is on. It runs all of Loonext locally at any version: local Supabase, the API and web Workers under wrangler, browsers with fake microphones, Android emulators (one with a Pixel 8 profile standing in for the technician's phone), and a robot that is the far end of every call. An agent drives it and works inside it completely, like an EDR developer's repro VM.
 2. The rig reaches real Telnyx only through **`loonext-telnyx-guard`**, a policy-enforcing Worker in the existing Cloudflare account.
    - It holds the one extra Telnyx key.
-   - It lets calls and texts flow only between numbers in a capped partition of the existing Telnyx account.
+   - It lets calls and texts flow only between numbers in a dedicated partition of the existing Telnyx account.
    - Production is changed first, through release-please, so that its account-wide number sweep acts only on numbers it positively owns.
-   - Test calls are sized so that they can never take the call capacity a customer's call needs.
+   - Test attempts are serialized. Telnyx applies the limits of the shared account.
 3. Nothing on the rig runs on a timer. An agent starts a run when there is something to reproduce, diagnose or verify; each scenario run is judged by machine, and a failure that survives its retry is reported to PostHog under environment `synthetic`, where an agent can triage it on request.
-   - Cost: about **$13/month** fixed, plus what the runs and ad-hoc calls spend (a judged call costs about $0.02-0.03). Telnyx is hard-capped at $35 all-in. Add an estimated $2-6 of workstation power and about **$8 one-time**. Hardware is $0.
+   - Cost: about **$13/month** fixed, plus what the runs and ad-hoc calls spend (a judged call costs about $0.02-0.03). Add an estimated $2-6 of workstation power and about **$8 one-time**. Hardware is $0.
    - No new vendor account anywhere.
    - No recurring founder act in operating it.
 
@@ -62,7 +62,7 @@ What is left beyond those is optional:
 - **FA1:** agents move to their own Windows user, and production keys leave every file they can read.
 - **FA2:** that user's GitHub login becomes a token that cannot approve deployments or change settings.
 - **FA16:** an elevated ONSTART task that starts the rig at boot, with your password stored. Without it the rig starts when you log on.
-- **Active hours and overnight power:** moving Windows Update's active hours to cover 04:00-10:00 UTC, and leaving the PC on overnight, keep the dial window open when you want a paid run. Without them a paid run started inside the window can be cut short by a restart, and a run started while the workstation was off simply does not happen (section 3.2).
+- **Workstation availability.** Runs need the workstation and VM online. An update or reboot can interrupt a run.
 
 **What FA1 and FA2 would close.** Today every agent runs as you, so it can:
 - drive your real Chrome, including your vendor console sessions, through Claude in Chrome;
@@ -93,7 +93,7 @@ Any one of those would bypass an approval gate, which is why the amendment does 
 
 | Existing account | What is created inside it |
 |---|---|
-| **Telnyx** (the production account) | **Key:** one API key, `nonprod-guard`, held only by the guard. **Billing group:** `loonext-nonprod`. **Voice:** three outbound voice profiles (one of them, `nonprod-limit-probe-ovp`, has no connection and exists only to measure the concurrent limit); two Call Control apps; two credential connections (`nonprod-webrtc`, with no outbound voice profile, and `nonprod-sentinel`, which has one credential, no numbers and is used only by test G02). **Messaging:** one robot messaging profile, plus five tenant profiles that the guard's setup routine creates, one each for QA-W, QA-A, QA-C, QA-E and QA-G (at most seven in all, which leaves the app room for one more). **Numbers:** eight Canadian local numbers, plus one bought and released each month. **Other:** one notification channel and its settings; telephony credentials created and deleted at runtime. |
+| **Telnyx** (the production account) | **Key:** one API key, `nonprod-guard`, held only by the guard. **Billing group:** `loonext-nonprod`. **Voice:** two outbound voice profiles; two Call Control apps; two credential connections (`nonprod-webrtc`, with no outbound voice profile, and `nonprod-sentinel`, which has one credential, no numbers and is used only by test G02). **Messaging:** one robot messaging profile, plus five tenant profiles that the guard's setup routine creates, one each for QA-W, QA-A, QA-C, QA-E and QA-G. **Numbers:** eight Canadian local numbers, plus one bought and released each month. **Other:** one notification channel and its settings; telephony credentials created and deleted at runtime. |
 | **Cloudflare** (the production account) | **Workers:** `loonext-rig-edge`, on workers.dev, and `loonext-telnyx-guard`, with no public URL and reached only through the edge. Each has its own Durable Object. **Rate-limit namespace ids:** 3001-3009. **Tokens:** none new. The existing Workers token, held only in the `main`-only environments `guard` and `rig-cloud`, deploys the guard and the edge (FA4 substitution). The five scoped tokens (`rig-deploy`, `guard-deploy`, `guard-attest-read`, `production-deploy` and `agent-logs-read`) are optional hardening; `guard-attest-read` is still wanted for attestation. **Email:** one Email Routing address on loonext.com that delivers to the edge. **Not created:** KV, D1, tunnels, Access apps, DNS records. |
 | **Supabase** | Nothing. The rig runs a local Supabase stack. |
 | **Stripe** | Nothing. The rig uses the existing account's test mode: its test-mode key and test prices (FA5 substitution). Test clocks are created per run. Every customer and subscription the rig creates carries `metadata[loonext_rig]=1`, and every test clock a name starting `loonext_rig `, because Stripe keeps no metadata on a clock. Before a delete or a clock advance the object is read, and the change is refused unless it carries the tag, so the rig never changes what a developer made. The customer and subscription from the app's own Checkout carry no metadata, so rigd tags each only after the rig's database shows that S32's own sign-up address owns the workspace that names it, and S32 deletes both at its end (4.2). |
@@ -120,21 +120,21 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Shared thing | Risk to production | What contains it |
 |---|---|---|
 | **Your workstation identity.** Agents run as you. | An agent drives your Chrome into a vendor console; reads your credential store; or reads production keys from settings or env files. Any of these bypasses every control below. | Accepted under the amendment (section 12, risk 4). The reach audit lists every credential an agent session can reach, and the secret scanner stops a push while any file git would stage holds a live key (section 3.1). FA1 and FA2 stay optional: with them, agents run only under a separate Windows user with no console sessions, no Claude in Chrome and no production keys, and its GitHub token cannot approve deployments. |
-| **Telnyx concurrent call limit.** It is account-wide: default 2, 10 after Level 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). At the Paid level it is 5 concurrent, 10 outbound an hour and 100 a day (developers.telnyx.com account levels, Paid, checked 2026-10-29). These come from two separate level frameworks, an account sits in one of them, and no API exposes the level or the limit. | A test call holds outbound legs (robot dial, ring legs, ring-me) while a customer calls in. The customer's ring legs are refused, and the customer reaches nobody. | The guard sets nonprod concurrency to **room = limit in force minus production reserve**. The reserve is production's largest ring audience plus 1, read daily from production counts. The limit in force comes from the guard's **proof ladder** (section 3.5): a floor of 2 while unproven, which leaves room 0 and no paid dials; a $0 validation check on a voice profile with no connection, because Telnyx's API spec says a profile's `concurrent_call_limit` "Must be no more than your global concurrent call limit"; a lower bound from production's own overlapping calls, which checks the validation but opens no room alone; and ceilings from Telnyx's refusal codes 90041, 90042 and 90043 (account, voice profile, connection) and 90103 with HTTP 429 (dial rate). Scenarios that need more legs than the room are not scheduled and are named (section 4.1). During a run, the guard also polls production's active calls every 2 seconds per connection and hangs up every test leg on the first production call; an unknown answer refuses. The dial window is the six quietest hours in production's own call history, rechecked monthly. |
-| **Telnyx surcharges and fraud profile, both computed on account totals.** Surcharges apply to short calls above 15%, at $0.01 a call, and to abandoned calls above 20%, at $0.005 a call (support.telnyx.com/en/articles/1130707 and /12805746, checked 2026-10-31). | With one production number, test traffic will probably be most of the account's calls. The account's ratios and fraud profile therefore become the rig's. | The guard keeps the **whole account's** ratios (production plus rig, counts from `ops_diag`, section 3.5) at or below 15% abandoned and 10% short once there are 30 calls in 28 days. Abandoned calls are assumed to include the ring legs Loonext cancels, since Telnyx counts a call the caller's side hangs up while ringing. Ring audiences are shrunk to one surface wherever the scenario does not test multi-ring, so cancelled legs are rare. If the projection goes above 15%, multi-ring scenarios run monthly. The dollar effect is cents; the profile effect is what matters. |
-| **Telnyx fraud holds.** Their scope is not disclosed (support.telnyx.com/en/articles/3610162 and /7915224, checked 2026-10-30), and the only stated way to lift one is emailing support. | A hold triggered by test calls also stops production calling. | Traffic is on-net only, with about 13 dials a day on average and calls of 20-50 seconds, inside the quiet window. A hold is assumed account-wide and irreversible, so the first fraud-type notice latches the paid lanes off until a reviewed change to `SIGNAL_LATCH_RESET`, and raises a production alert. Any other notice halts paid tests for 7 days. **Residual, accepted: the largest risk in this design.** |
-| **Telnyx prepaid balance.** Auto-recharge is off and the credit limit is 0 (read 2026-10-29). | Test traffic drains production's money. | Telnyx-enforced daily limits on every nonprod profile total $0.81 a day, about $36.40 a month with rentals. The guard's own cap is $35 all-in. Below a floor (the larger of $30 and 14 days of production spend), the guard refuses all test spend. A low balance reaches the account owner as Telnyx's own Low Available Credit email (`docs/MONITORING.md`, "Vendor notices"); nothing of ours alerts on it. Inbound legs and texts are not capped by Telnyx: the edge rejects strangers, and the guard detaches any number that strangers flood. |
+| **Telnyx concurrency.** The account has shared call capacity. | Telnyx can reject a call on either lane while channels are occupied. | The rig serializes its runs and reports any Telnyx refusal. Connections, numbers and SIP targets remain isolated. |
+| **Telnyx surcharges.** Telnyx bills account usage and may add surcharges. | Test traffic can increase the total. | Test call costs are recorded on the rig. |
+| **Telnyx fraud holds.** Telnyx can restrict the account. | A provider hold can affect production. | The rig reports corroborated Telnyx notices and forwards only owned traffic. |
+| **Telnyx prepaid balance.** Usage is billed on the shared account. | Test traffic uses the same balance. | Telnyx sends its Low Available Credit notice and enforces its own balance rules. |
 | **Production's account-wide number sweep.** `reconcileNumbers` runs every 15 minutes, lists every number and can DELETE. | Production flags or releases test numbers, or the rig's copy of the code releases production numbers. | Positive ownership: production acts only on numbers with no billing group, and the rig only on its own group. The group is set in the order body. The guard orders nothing until production's `/health` reports the rule. It checks the first order actually carries the group, and releases the number at once if not. Production raises an alert if a number it would own shows up with a group. |
 | **API keys with full account power.** Telnyx keys cannot be scoped (developers.telnyx.com authentication docs, checked 2026-10-30). | Any second key can release production numbers or text anyone. | Only the guard holds one. It has no public URL. It deploys only from `main`, after its policy tests pass (no approval, per the amendment). Attestation runs hourly and a key inventory runs weekly. **Residual, accepted:** a merged but faulty guard can reach production. |
 | **One webhook signing key for the whole account.** | A signature cannot tell test events from production events. | The edge decides ownership by resource: connection for call events, messaging profile for text events. Production's handler is deliberately left unchanged. |
 | **Internal SIP calling.** Production's WebRTC connection accepts SIP calls from any connection on the account. | A test could ring a real member's device. | The guard dials a SIP address only if its username is on the rig's own connection. Calls that the apps' SDK places itself bypass the guard, so test G02 checks, when it is run, whether a rig credential can ring a sentinel credential. If it can, that residual is named (X25). |
 | **Cloudflare account and tokens.** | A test token redeploys production or the guard. | The existing Workers token deploys the guard and the edge, and sits only in the `guard` and `rig-cloud` environments, which take deployments from `main` only, so what it deploys is merged code (FA4 substitution). The VM never holds it. Scoping each automation token to named Workers (granular Worker permissions, Cloudflare changelog 2026-09-15) stays optional hardening. |
 | **Cloudflare rate-limit namespaces.** Counters are shared per id across the account (developers.cloudflare.com rate-limit binding docs, updated 2026-10-21). | Test traffic spends production's limiters. | The local stack's limiters are emulated on the rig. The cloud Workers use ids 3001-3009, and CI forbids 1001-1013 and 2001. |
-| **Workers AI pool.** 10,000 free neurons a day per account, then $0.011 per 1,000 (developers.cloudflare.com/workers-ai/platform/pricing, updated 2026-10-20). | Local `wrangler dev` bills AI to the production account. | The rig's AI calls go through the guard, which caps them at 2,000 neurons a day. |
+| **Workers AI pool.** Rig AI calls share the vendor account. | Local development calls use the shared allocation. | The guard checks the model allowlist and records usage. |
 | **Cloudflare account standing.** | A Trust and Safety action against a test page hits the production account. | The edge serves no HTML and sets no cookies. The guard has no public URL. The Loonext app on the rig is never public. |
 | **Firebase project.** One FCM credential reaches every app in the project. | A leaked key could push to production iOS or Android devices. | The key is held only in the guard. The guard sends Android-only messages to the nonprod package: it moves any top-level notification into the Android block, drops the iOS and web blocks, and forces the package name. The rig never holds a production device token. |
 | **PostHog quota.** | Test events crowd out production's errors, or a rig event fires a production alert. | Rig events carry environment `rig` and rigd's `synthetic`, and every PostHog alert reads `environment = 'production'` only. The rig sends no product funnel events. A scenario failure is sent only after its retry fails, so volume follows failures, not runs. |
-| **Resend domain reputation and quota.** | A bounce from a failed robot mailbox, or a complaint, pauses sending for the whole team, which stops production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
+| **Resend domain reputation and quota.** | A bounce or complaint can affect the shared account and production password resets. | Default recipients are Resend's test addresses, which do not affect reputation (resend.com/docs, send-test-emails, checked 2026-10-30). The robot mailbox is used only by the S34 test, and only while the edge's mail heartbeat is fresh. The edge's mail handler never rejects. Sending to the mailbox halts the first time a sent mail fails to arrive within 10 minutes. At most 10 emails a day. |
 | **GitHub approval gate.** | Agents approve their own guard or ops run. | Under the amendment there is no gate to approve: guard and ops runs need no approval. Both environments take deployments from `main` only, so what runs is merged code (FA9). |
 | **Claude plan limits.** | Rig sessions compete with your other sessions. | Triage runs only when an agent is asked to triage failures. |
 
@@ -143,7 +143,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Lost | Status |
 |---|---|
 | A separate Telnyx balance behind a bank-card limit that no code could lift | **Rebuilt** with Telnyx daily limits sized to the cap, the guard ledger and the balance floor. Inbound is not vendor-capped, so it is bounded by stranger rejection and auto-detach. There is no bank-level backstop. |
-| Separate Telnyx fraud scoring, call limits, API buckets and surcharge ratios | **Mitigated** by the room formula, preemption, account-level ratio control and the halt. The fraud-hold residual is **accepted**. If the account's room is small, call lanes are **lost** rather than squeezed in (section 4.1). |
+| Separate Telnyx fraud scoring, call limits, API buckets and surcharge ratios | Account limits and billing stay shared. Telnyx applies them. |
 | A Telnyx key that physically could not touch production | **Rebuilt** as the guard's policy. This is weaker: a guard bug now reaches production. |
 | A separate webhook signing key | **Rebuilt** as ownership checks by resource. |
 | Separate Cloudflare accounts for the test app and the guard | **Rebuilt** with scoped tokens, disjoint ids and a guard with no public URL. Your own dashboard login still sits above everything. |
@@ -152,7 +152,7 @@ If an Apple Developer Program membership already exists, the separate-accounts d
 | Real-iPhone lanes and Loonext's own APNs wake path | **Accepted** as defect X21, unless an Apple membership already exists. The iOS Simulator lane was dropped too: it could not test wake, and the iOS app hard-codes production hosts. No customer runs an iOS build today, because `ship.yml` archives it unsigned. iOS keeps its CI unit tests. |
 | Calendar test accounts | **Accepted** as defect X22. A Google partial path that needs no new account is offered in Phase 4. |
 | A separate path to Telnyx's Verified level | **Accepted.** The shared account's level governs both production and the rig. |
-| Separate Supabase, Resend, PostHog and Firebase tenancy | **Supabase:** replaced by the local stack, which is better isolated but less faithful. **PostHog and Resend:** mitigated with environments and caps. **Firebase:** mitigated by package pinning. |
+| Separate Supabase, Resend, PostHog and Firebase tenancy | **Supabase:** replaced by the local stack, which is better isolated but less faithful. **PostHog and Resend:** scoped to the rig's environment and approved recipients. **Firebase:** mitigated by package pinning. |
 | Agents with production write keys in their shell | **Not changed** (the amendment). Agents keep the production keys they hold today, and production writes need no tap. FA1 and FA2 would remove them (section 12, risk 4). |
 
 **Gained in exchange:**
@@ -213,7 +213,7 @@ No hardware is bought (D142, update of 2026-11-01). The rig's Linux half is a ne
 - No shared folders, clipboard, drag and drop, USB, sound or `vhv`.
 - A marker line in its `.vmx` identifies it. hostd addresses only that file and never runs `vmrun list`. The 12 VMs already in VMware's inventory, WSL2 Ubuntu and docker-desktop are never used or touched.
 - Snapshots are taken powered off. The VM is never suspended, because Host VBS mode re-checks CPU features on resume.
-- Unattended upgrades reboot the VM outside the dial window. A Windows Update reboot of the host is a named risk (section 12, risk 15).
+- Unattended upgrades or a Windows Update reboot can interrupt a run. Start it again once the VM comes back.
 
 **Why the emulators are not inside it.** Hyper-V stays on, so Workstation runs every VM in Host VBS mode, which gives the guest no nested virtualisation, and Google says an accelerated emulator cannot run inside another VM (developer.android.com/studio/run/emulator-acceleration). So they run on Windows under WHPX, which is already enabled.
 
@@ -250,8 +250,8 @@ It starts from the Startup folder when you log on. An elevated ONSTART task with
 **Boot order inside the VM.** Docker brings the Supabase containers back by itself when the VM boots, and `supabase start` refuses them until the database is healthy. `rig stack up` therefore waits for the stack's containers (3 minutes at most, and it names the database when it gives up) before it starts anything. The stack unit retries a failed start up to five times in an hour. The API and web units want the stack unit and run `rig stack wait` first, which waits through the retries and fails with a reason once the stack unit has given up; `Requires=` would have failed them for good on the stack's first failed start. `rig deploy` copies these three units from the tooling checkout when they differ.
 
 **What running on the workstation costs.** Measured read-only on 2026-10-31:
-- **It is not always on.** In the last 60 days the workstation booted 33 times and was dark about 56 hours in all. Five of those gaps were overnight power-offs of 9-14 hours, each covering the whole dial window, so a paid run could not be started then.
-- **Update restarts land in the window.** Windows Update restarted it 6 times, at 08:29-10:44 UTC, against the default 04:00-10:00 UTC dial window. Active hours are 08:00-02:00 local. Sleep and hibernate on AC are already Never.
+- **Workstation power.** The rig VM and Android emulators are available when the workstation is running.
+- **Update restarts.** Windows Update can interrupt a run. Hostd restores the Android lane at logon or at boot with FA16.
 - **It is busy.** CPU is 44-68% busy with about 20 Claude processes running; 90 of 128 GB of RAM is free.
 - **Disks.** C (NVMe) has only 34 GB free, D is a hard drive, and F (NVMe) has 128 GB free, so the VM and the AVDs live on F.
 
@@ -407,15 +407,15 @@ If the rig is offline, call events get a 503 and Telnyx retries.
   - The connection must be `nonprod-voice` or `nonprod-robot`.
   - `from` must be an owned number.
   - `to` must be an owned number (live listing by billing group, cached at most 5 minutes) or a SIP username on `nonprod-webrtc`.
-  - A live run lease and room are required. Test code names the lease in its header; the app's own legs (`rig-api`) run under the live lease. A header that names any other lease is refused.
+  - A live run lease is required. Test code names the lease in its header; the app's own legs (`rig-api`) run under the live lease. A header that names any other lease is refused.
 - **Messages.** `from` and `to` must both be owned, and the profile must be a nonprod profile.
 - **Provisioning (an explicit list):**
   - telephony credentials only on `nonprod-webrtc` and `nonprod-sentinel`;
-  - number search only under a live S32 lease: at most 12 searches per lease, at least 1 second apart (`provisioning.search_cap`, `provisioning.search_rate`), forwarded with no body. S32's onboarding picker searches as a new customer's does and orders nothing. The admin's standing orders keep their own search every 10 seconds;
+  - number search only under a live S32 lease. S32 runs the onboarding picker and orders nothing.
   - number orders only under the S28 lease, which no run takes since S28 was dropped, so every order under any other lease, S32's included, is refused as `provisioning.order_needs_lease`;
-  - at most one order per 25 days and at most 10 numbers held, counting every standing role's number whether or not Telnyx lists it yet. An order is refused when the month, with the number's rental, next month's reserve for it and its one-time fee counted, would be red. Each order body must carry the nonprod group and profile, and the nonprod connection once paid dials are open. The first order is read back to confirm the group stuck, as set out under **Ordering** below. The read-back judges only after the order is complete, and the guard never deletes a number on its own say: when anything is ambiguous, ordering stops, production is alerted and nothing is deleted.
+  - Orders carry the nonprod group, messaging profile and connection. The guard reads back the first order to verify ownership.
   - PATCH or DELETE only on owned numbers that are not standing numbers. One exception, **detach**: it clears a standing number's connection and messaging profile when strangers flood it.
-  - Messaging profiles must carry a daily limit of $0.06 or less, a US/CA whitelist and an edge webhook. A messaging profile has no billing group field (Telnyx's API reference, checked 2026-10-31), so the guard knows the partition's profiles by id: the ones its setup routine created and the ones the app created through it.
+  - Messaging profiles require a US/CA whitelist and an edge webhook. A messaging profile has no billing group field (Telnyx's API reference, checked 2026-10-31), so the guard knows the partition's profiles by id: the ones its setup routine created and the ones the app created through it.
 - **Refused outright:**
   - 10DLC, porting, verification codes and hosted SMS;
   - managed accounts, API keys and auto-recharge;
@@ -433,28 +433,11 @@ If the rig is offline, call events get a 503 and Telnyx retries.
 Phone numbers are cut to their last four digits, and message bodies and recording URLs are removed.
 
 **Other vendors.**
-- **Resend:** recipients must be `*@resend.dev`. `rig-robot+<tag>@loonext.com` is allowed only during S34 and only while the edge's mail heartbeat is fresh. At most 10 emails a day. Sending to the mailbox halts if a sent mail does not arrive within 10 minutes.
-- **FCM:** data plus Android only. Any top-level notification block moves into the Android block, iOS and web blocks are dropped, and `restricted_package_name` is forced to `com.loonext.android.nonprod`. At most 300 sends a day. Production's sender puts a top-level notification and an iOS block on every alert (`apps/api/src/notifications/fcm.ts`), which is why the guard rewrites instead of refusing.
-- **AI:** a model allowlist, at most 2,000 neurons a day.
+- **Resend:** recipients must be `*@resend.dev`. `rig-robot+<tag>@loonext.com` is allowed only during S34 and only while the edge's mail heartbeat is fresh.
+- **FCM:** data plus Android only. Any top-level notification block moves into the Android block, iOS and web blocks are dropped, and `restricted_package_name` is forced to `com.loonext.android.nonprod`. Production's sender puts a top-level notification and an iOS block on every alert (`apps/api/src/notifications/fcm.ts`), which is why the guard rewrites instead of refusing.
+- **AI:** a model allowlist with usage recorded.
 
-**Admission.**
-- **Room.** Room is the concurrent limit in force minus production's reserve. Production's reserve is its largest ring audience plus 1, read daily from production counts. The limit in force comes from the proof ladder below. While only its floor of 2 is in force, the room is 0 whatever the reserve, so no paid dial runs. The nonprod voice profiles' concurrent limits are set to the room, and the guard's own live-leg count enforces it as well. During a paid run the guard polls production's active calls every 2 seconds, per connection (`GET /v2/connections/{id}/active_calls`; Telnyx has no account-wide list), and hangs up every test leg on the first production call. That run is recorded as "preempted", not failed. An answer the guard cannot read refuses the dial.
-- **The concurrency proof ladder.** No API exposes the account's level or its limit, and nothing waits on Telnyx to state it (D142, update of 2026-11-01). The guard's Durable Object keeps the evidence:
-  - **Floor.** `TELNYX_CONCURRENT_FLOOR=2`, the lowest documented default (support.telnyx.com/en/articles/1130717, fetched 2026-10-31). While only the floor is in force, every request that adds a leg is refused as `admission.limit_unproven`. The guard never probes the limit by dialing.
-  - **Validation check.** Telnyx's API spec says an outbound voice profile's `concurrent_call_limit` "Must be no more than your global concurrent call limit". The setup routine tests that on `nonprod-limit-probe-ovp`, a profile with no connection. It writes an absurd 9999 first. Only if Telnyx refuses that with a 422 naming `concurrent_call_limit` does it binary-search, in at most 16 writes (each paced 1.5 s apart and retried after a wait on Telnyx's 429, code 10011), for the V that is accepted while V+1 is refused. It always resets the profile to 1. It costs $0 and places no call. An accepted 9999 means the rule is not enforced, so the limit stays unproven; any other answer is inconclusive. It is the only evidence that lifts the limit above the floor, and only as far as the Paid level's 5, or the history bound when that is higher: Telnyx does not say the boundary is the account's limit rather than a product maximum.
-  - **History lower bound.** The most overlapping answered production calls in 28 days, from `ops_diag.call_sessions`, filed by the daily `measure` run. The account carried that many, so its limit is at least that. It checks the validation (a validation below it is a conflict) and raises the cap on a validated value, but never opens room by itself.
-  - **Ceilings.** A refusal with code 90041 (account), 90042 (voice profile) or 90043 (connection), or 90103 with HTTP 429 (dial rate), caps the limit and also halts and alerts (account signals, below). A 10039 on a dial, an account-level cap reached, halts the same way with no ceiling. Any ceiling newer than the validation makes the check due again, inside its once-a-day pace. A refusal that reaches the rig only in a `call.hangup` webhook, as a SIP 403 or 486, is not read yet: it ends that call, and lowers nothing until the next synchronous refusal or validation. The robot hearing Telnyx's automated-call announcement means the account is at Paid or below, which caps the limit at 5.
-  - **Conflict and lapse.** Evidence that contradicts itself refuses as `admission.limit_conflict`, which R00 and every refused dial show; nothing else reports it. Evidence older than 35 days falls back to the floor. A ceiling read from a refusal can be 0, when the rig had no live leg and production was idle; it then conflicts with the floor and refuses everything until it lapses, which is the safe reading.
-  - **Where it lives.** The store keys are `limit:validation`, `limit:history`, `limit:ceiling` and `limit:probe`. Admin's `POST /limit-probe` runs the validation check (guard.yml's `limit-probe` routine calls it and prints each write by status, code and field; `health` prints the guard's health), and the daily `measurements` run files `/concurrency-history` from the `agent_diag` read. The robot files the announcement as `POST /evidence/level`, a route only the robot may call. A probe that could not reset its profile raises `['ops','telnyx-guard-limit-probe-reset']` in production. Setup refuses to run the check on a probe profile any connection uses (`limit_probe_ovp_in_use`). Its `daily_spend_limit` of `0.00` and empty destination list are unverified against the live account; if Telnyx refuses either, setup reports the step as skipped and the floor stays in force.
-- **Account-wide rate.** The guard assumes the Paid level's 10 outbound calls an hour and 100 a day, account-wide (developers.telnyx.com account levels, checked 2026-10-29), and refuses a dial when the rig's dials plus production's measured peak hour or day would exceed them (`admission.account_hour_full`, `admission.account_day_full`), or when that measurement is stale (`admission.account_rate_unknown`). The measurement is filed daily by `measurements` as `/account-rate` and kept under `admission:account-rate`; production's peaks are the most outbound legs in any 60 minutes and any 24 hours, not in one UTC hour or day. The rig's own dials are counted over the current and the previous UTC hour, and day, which bounds any rolling window from above, so the guard may refuse a little before Telnyx would. Its own caps in section 4.1 stay as ceilings below them.
-- **Window.** Paid dials run only in the six consecutive UTC hours with the fewest production calls over the past 28 days, rechecked monthly. Until there is data, the window is 04:00-10:00 UTC; it is safe because the room already reserves production's ring.
-- **Ratios.** The guard keeps the whole account's abandoned share at or below 15% and short-call share at or below 10%, over production's trailing 28 days (the history window). The daily `measure` run files three counts, read from the `ops_diag` views as `agent_diag`:
-  - **calls:** all outbound calls plus all ring legs (`kind = 'ring'`).
-  - **abandoned:** outbound calls that ended unanswered, plus ring legs that did not answer. Following D142 (update of 2026-11-01, FA0 Q4), a cancelled ring leg counts even when another leg of the same call answered; only the answering member's own leg is excluded. No view says who hung up, so this is the costlier reading: an outbound call the callee refused counts too. Calls still up are not counted abandoned.
-  - **short:** connected outbound calls of 6 seconds or less.
-  - **Minimum sample.** Under 30 calls in the window the ratios are filed with `low_sample` set, and admission does not refuse on them: the surcharge is a few cents at this volume, and a share over a handful of calls means nothing. At 30 calls or more the limits above apply. A filing older than 36 hours, or none, still refuses as `admission.ratios_unknown`, and zero calls is still a filing.
-- **Money.** Telnyx-enforced daily limits; the $35/month all-in cap, with a daily allowance after reserving next month's rental and a $1.50 set-aside for month-end surcharges and charges on detached numbers; tiers: green, amber (core only), red (only hang-ups allowed). Below the balance floor, all test spend is refused. At the cap, every non-robot number is detached, so stranger inbound stops too. A detached number is assumed still billed, which is what the set-aside covers. `call_cost_in_webhooks` is on for both nonprod Call Control apps, so `call.cost` events record each call's actual cost in the rig's own database (`apps/api/src/billing/provider-costs.ts`). Nothing checks the guard's ledger against them yet: the ledger charges `COST_USD`'s estimates, and only the month's usage an agent files from detail records can raise it.
-- **Measurements.** Production's reserve, ratios and window are filed through `guard.yml`'s `measurements` routine, because the guard Worker has no login to production's database. A daily scheduled run (`measure`, 03:23 UTC) computes the reserve from the `ops_diag` views as `agent_diag`, whose login is the `guard` environment secret `AGENT_DIAG_DATABASE_URL` (copied in once FA13 has run, and again after each rotation). It files the ratios (above) and refiles the window once the guard's is 28 days old. Without the login it posts a notice and files nothing. A manual dispatch that gives values overrides the read and files only what it gives; the three ratio counts go together. The reserve and the ratios go stale after 36 hours and the window after 35 days. A stale reserve or ratio refuses every paid dial (`admission.ratios_unknown` for the ratios) rather than guess, and a stale window falls back to 04:00 UTC. The guard's daily $0 jobs, `measure` in `guard.yml` and the limit probe in the guard's own upkeep, stay: they are the guard's, not the rig's, and they keep paid-call admission fresh so an on-demand repro is never refused.
+**Vendor refusals.** The guard forwards a request once it verifies caller, resource and destination ownership. It relays Telnyx's status and error codes. The runner releases the lease and undoes the attempt before it retries. Requests that can create a number are reconciled before repeating an ambiguous order. See [D176](DECISIONS.md#d176---rig-qa-runs-on-demand).
 
 **Run lease.** One paid scenario runs at a time across the system. Scenarios register undo actions with `rigd`, the rig's service daemon. If the lease is not released within 15 minutes, `rigd` runs the undo itself.
 
@@ -466,20 +449,15 @@ A run that prepares before its lease holds its lane for the whole attempt (no ru
 
 **Safety checks.**
 - **At start-up**, the guard refuses to serve if any nonprod resource points at `api.loonext.com`, if any nonprod id overlaps a production id, or if any nonprod number is bound to a production connection.
-- **Ordering** waits only on production's `/health` listing `telnyx-partition-v1` and on the first-order check, not on the concurrent limit. All eight standing roles are ordered at once (ROBOT-1, ROBOT-2, STRANGER-1, DEV-W1, DEV-W2, DEV-A1, DEV-C1 and DEV-E1), whether or not paid dials are open. While paid dials are refused, no standing number is ordered with a voice connection; each is ordered with its messaging profile alone, so the text roles keep theirs and the calls roles take no inbound call and hold no channel. A number bound to a connection takes inbound calls, which hold account channels, so binding waits for paid dials: order-standing then binds each held standing number that has no connection and is not detached, and until then S28's order and any PATCH setting a `connection_id` are refused as `provisioning.voice_closed`, and `reattach` restores only the messaging profile. Eight numbers at about $1.10 a month fit the ten-number cap and the $35 monthly cap, which are unchanged.
+- **Ordering** waits only on production's `/health` listing `telnyx-partition-v1` and on the first-order check. All eight standing roles are ordered at once (ROBOT-1, ROBOT-2, STRANGER-1, DEV-W1, DEV-W2, DEV-A1, DEV-C1 and DEV-E1), whether or not paid dials are open. While paid dials are refused, no standing number is ordered with a voice connection; each is ordered with its messaging profile alone, so the text roles keep theirs and the calls roles take no inbound call and hold no channel. A number bound to a connection takes inbound calls, which hold account channels, so binding waits for paid dials: order-standing then binds each held standing number that has no connection and is not detached, and until then S28's order and any PATCH setting a `connection_id` are refused as `provisioning.voice_closed`, and `reattach` restores only the messaging profile. Eight numbers at about $1.10 a month fit the ten-number cap and the $35 monthly cap, which are unchanged.
   - **The first order's read-back.** The order's phone-number line carries an id of its own, which Telnyx does not say is the number's `/v2/phone_numbers` id, and it is not (2026-11-01, risk 21). So the guard never reads by it. Once the order reports `success`: (1) it reads the order and requires it to list exactly one number, the E.164 that was requested; (2) it lists `/v2/phone_numbers` with `filter[billing_group_id]` set to the partition's group and finds the E.164 itself, because Telnyx's spec says `filter[phone_number]` returns nothing for a non-numerical character and an E.164 starts with `+`; (3) it requires exactly one listed number with that E.164, whose `billing_group_id` is the partition's, and whose messaging profile and voice connection are the ones the order asked for; (4) it records that result's id as the number's id, and any later release goes by that verified id only. A number is identified by phone number and a complete order and the partition's group together, never by phone number alone. A pending order waits, and a 429, a 5xx or a failed call is asked again on the next upkeep. Telnyx can list a new number late, so a complete order whose number the group does not list yet waits too, for 30 minutes from the first miss, and then stops as `number_missing`; a number listed with no billing group, in production's partition, stops ordering at once as `group_not_kept`. Anything else stops ordering for good and alerts production, with a reason code in `/health`'s `ordering.stopped_reason`: `order_ambiguous`, `order_status_unknown`, `order_unreadable`, `order_id_missing`, `number_unreadable`, `number_missing`, `number_ambiguous`, `group_not_kept` or `binding_mismatch`. None of them deletes anything: a number the guard cannot pin down is left for a person, and while it sits outside the group bound to the partition's resources the start-up checks read the partition as unsafe. Only the first order is read back; Telnyx's honouring of `billing_group_id` is the thing it measures. A first order that Telnyx reports as `failure` bought nothing, so its standing role is ordered again.
-  - **An order Telnyx does not confirm.** A standing role is held before its order is sent, so a second caller or a retry never orders it again. A 4xx gives the role back. Any other answer, a 5xx or no answer, may have bought the number: the role stays held and the fee is charged, the run fails red as `Order unconfirmed`, and a person checks the partition before dispatching again. A search passes over a number already held for another role, and a held role whose number the group does not list is named in the run's last lines.
+  - **An order Telnyx does not confirm.** A standing role is held before its order is sent, so a second caller or a retry never orders it again. A 4xx gives the role back. Any other answer, a 5xx or no answer, may have bought the number: the role stays held, the run fails red as `Order unconfirmed`, and a person checks the partition before dispatching again. A search passes over a number already held for another role, and a held role whose number the group does not list is named in the run's last lines.
   - **Resuming.** `number_unreadable` is the one stop a person may lift, with the `resume-ordering` admin routine (`guard.yml`, dispatched from `main`; its input `resume_reason` is required). The guard records who (`github.triggering_actor`, the login that started the attempt, a re-run included), why and which stop was cleared, in the Durable Object, and then runs the current read-back on the pending first order, so the number already held is adopted by it and is not ordered again; if the read-back fails, ordering stops again and the run fails. Any other stop, and a call when ordering is not stopped, is refused as `provisioning.resume_refused`.
 - **Version attestation.** R00 runs it whenever `rig health` runs, and nothing runs it on a timer (`tools/rig/rigd/src/guard-attest.ts`). It reads the guard's deployment list with `guard-attest-read`: Cloudflare's `GET /accounts/<id>/workers/scripts/loonext-telnyx-guard/deployments`, whose first entry is the one serving traffic. It compares the live deployment with every Deploy step `guard.yml` ran on `main`, ordered by when each step started, from the newest down to the newest that succeeded. Those runs are read through the rig's GitHub App with a token that can only read Actions, pushes and dispatches only, because a workflow run that is not a push or a dispatch never deploys. Failed, cancelled and running steps count, because they may have deployed, so re-running an older run is a rollback, not a mismatch. The deployment matches when it serves one version, its message is `guard.yml <sha>` for one of those steps (`guard.yml` deploys with `--message "guard.yml <sha>"`, which wrangler also puts on the deployment), and Cloudflare made it during that step, with two minutes of clock slack. A secret change (FA3, FA6 and FA8 paste keys this way) redeploys the live code with no message, so the attestation reads through it to the deployment it replaced. A mismatch fails R00 with its reason. A side it cannot read fails R00 too, never a pass, and so does a missing store file: `cf-guard-attest-token`, `cloudflare-account-id`, `rig-app-id` or `rig-app-key`. Nothing is kept and nothing is sent: the agent running R00 sees the failure. **Residual, accepted:** Cloudflare takes the secret-change label from whoever creates a deployment, and `guard-attest-read` cannot read a version's code, so a holder of the guard's deploy rights could put other code under one.
 - **API keys.** The guard keeps no inventory of the account's keys. Telnyx's own "API Key Creation" and "API Keys Expiration" notifications cover them, and the portal's Auth page lists them on demand. Both are email notifications; on 2026-11-07 neither was enabled, and the account's only notification channel was the edge's webhook, so until a founder enables them with an email channel the Auth page is the only check.
 - **Negative probes** run in G01, when an agent starts it.
 
-**Account signals.** A Telnyx notification channel posts to `/t/n/<secret>` for Suspicious Outbound Voice Traffic, Account Disabled, Low Available Credit, and the Abandoned and Short-duration call notices. Setup created the channel on 2026-11-01. The account's condition list has no Messaging Suspicious Traffic condition, so nothing subscribes to it; the guard still latches on a notice of that name. A fraud hold is assumed to cover the whole account and to be permanent for the rig, which never contacts Telnyx. Lifting a hold on production is a founder act outside the rig. So:
-- The first corroborated fraud-type notice (Suspicious Outbound Voice Traffic, Account Disabled or Messaging Suspicious Traffic) latches the paid lanes off at once, until a reviewed change to `SIGNAL_LATCH_RESET`, and raises `['ops','telnyx-account-signal']`.
-- Any other corroborated signal halts paid tests for 7 days and raises the same alert. A second within 30 days latches them off the same way.
-- A refusal with code 90041, 90042, 90043, or 90103 with HTTP 429, halts the same way and counts toward the latch.
-- A notice with a valid signature that arrives late still halts, deduplicated by its notice id, rather than being dropped with a 400.
-- Every signed type halts; narrowing that list was rejected, because it would weaken the control.
+**Account signals.** Verified Telnyx account notices generate a production monitoring event and are deduplicated by notice ID. Telnyx applies any account-level restriction and returns its decision on the affected request.
 
 ### 3.6 The Telnyx partition (inside the existing account)
 
@@ -488,17 +466,17 @@ The guard's setup routine creates everything from a committed spec, `tools/guard
 | Resource | Settings |
 |---|---|
 | Billing group `loonext-nonprod` | The ownership marker on every rig number. Messaging profiles have no billing group, so the guard keeps their ids instead. |
-| Outbound voice profile `nonprod-voice-ovp` | Daily spend limit $0.40, reset at 00:00 UTC. Concurrent limit set to the room minus the robot's share. Maximum rate $0.01/min. US/CA whitelist. At most 20 calls per destination per calling window. |
-| Outbound voice profile `nonprod-robot-ovp` | Daily spend limit $0.20; concurrent limit 1 |
-| Outbound voice profile `nonprod-limit-probe-ovp` | No connection, so it can carry no call. Concurrent limit 1, except during the proof ladder's validation check, which always resets it to 1. |
-| Call Control app `nonprod-voice` | Webhook `/t/v`, failover `/t/v2`, webhook timeout 10 s, RTCP capture on if offered, `call_cost_in_webhooks` on, channel limits matching the room |
+| Outbound voice profile `nonprod-voice-ovp` | Dedicated rig billing group and US/CA destinations |
+| Outbound voice profile `nonprod-robot-ovp` | Dedicated rig billing group and US/CA destinations |
+
+| Call Control app `nonprod-voice` | Webhook `/t/v`, failover `/t/v2`, webhook timeout 10 s, RTCP capture on if offered, `call_cost_in_webhooks` on |
 | Call Control app `nonprod-robot` | Webhook `/t/r`; `call_cost_in_webhooks` on; channel limit 1 |
 | Credential connection `nonprod-webrtc` | SIP URI calling set to internal. Webhook `/t/w`. **No outbound voice profile**, so an app credential cannot call a phone number. No push credential. |
 | Credential connection `nonprod-sentinel` | One credential, no numbers, no outbound voice profile. Used only by G02. |
 | Messaging profiles | `nonprod-robot` at $0.06 a day, with webhook `/t/r`, plus five tenant profiles (`nonprod-qa-w`, `-qa-a`, `-qa-c`, `-qa-e`, `-qa-g`) at $0.03 a day each, with webhook `/t/m` (Telnyx refuses sends above the limit with HTTP 429 code 40333). US/CA whitelist. At most seven profiles. |
 | Numbers | Eight Canadian local numbers with Ontario area codes: ROBOT-1, ROBOT-2, STRANGER-1, DEV-W1, DEV-W2, DEV-A1, DEV-C1, DEV-E1. Plus one bought each month by S28 into QA-G and released the next day by S29's grace run. Each is ordered with the group, connection and profile in the order body. A standing number also carries a customer reference naming its role (`rig-standing-<role>`), so the role lives on Telnyx itself and no number is ever written into git to say which is which. |
 
-**Vendor-enforced daily maximum:** $0.40 + $0.20 + $0.06 + 5 × $0.03 = **$0.81** (`nonprod-limit-probe-ovp` carries no call, so it adds nothing). That is about $25 in a 31-day month, about $36.40 with rentals, so Telnyx itself holds the cap even if the guard is wrong. Inbound legs and texts are not limited by these profiles; the edge's stranger rejection and the guard's detach bound them.
+
 
 **Why Canadian numbers.** Production's only number is Canadian, and Canadian inventory was reservable on 2026-10-29. The app needs no registration for Canada-bound texts, and every test text stays on-net anyway.
 
@@ -552,7 +530,7 @@ Already shipped in release 0.18.0: `0fd3583c` (2026-10-30). It stops `scripts/de
    - `ops_diag` views, including hourly call counts and ring-audience sizes.
    - The `agent_diag` role, with an SQL test proving it cannot read messages, contacts, numbers or payloads.
    - SQL on the `ops_diag` views as `agent_diag`, for a call's sessions and legs.
-5. **Hermetic call journeys.** The fake Telnyx gains dialing and telephony credentials, and `CALL_SESSIONS` is bound. Inbound, outbound, voicemail and transfer journeys run on every push. They also emit each scenario's dial count and peak concurrent legs, which feed the budget check in section 4.1. A trace-to-fixture tool renumbers real traces into the fictional 555-01xx range.
+5. **Hermetic call journeys.** The fake Telnyx gains dialing and telephony credentials, and `CALL_SESSIONS` is bound. Inbound, outbound, voicemail and transfer journeys run on every push. They also emit each scenario's dial count and peak concurrent legs, which feed the scenario catalogue check in section 4.1. A trace-to-fixture tool renumbers real traces into the fictional 555-01xx range.
 6. **Android `nonprod` build type**, created with `initWith(release)`:
    - minified, with the `.nonprod` suffix, and signed with a stable key held on the rig, which the first `rig apk` makes with the JDK's `keytool` and never replaces (half a pair is refused);
    - values read from Gradle properties, and disabled when they are absent;
@@ -620,7 +598,7 @@ All of these avoid keypad tones, call-progress tones and 2,600 Hz.
 
 **Browsers** (in the rig VM).
 - Chromium runs the call lanes. Google Chrome stable, installed by bootstrap.sh from Google's apt repository under a pinned signing-key fingerprint, runs Web Push (S21, D08). A page asks for it with `push: true`. It runs in Chrome's own headless mode, which needs no display and, checked 2026-11-02 in the VM, gets a push subscription from `fcm.googleapis.com`; headed under Xvfb gets one too. Chromium cannot.
-- Each member has its own browser profile, kept between runs. The app calls a session it has not seen before a "new device" and mails the account holder, and every one of those mails counts against the guard's Resend budget. A profile keeps its session, so a member's page signs in once. Chrome's profile is a folder of its own (`<member>.chrome`), so a member who needs push signs in once more there. rigd's probe and `rig health` keep their sign-ins too (`state/rigd/member-sessions.json`) and refresh them, which keeps the session id; a reseeded database clears the file. A password sign-in is left only where a run tests signing in (S33) or out (S16), and the sign-ups of S32 and S35, each a new account.
+- Each member has its own browser profile, kept between runs. The app calls a session it has not seen before a "new device" and sends the account holder a security email. A profile keeps its session, so a member's page signs in once. Chrome's profile is a folder of its own (`<member>.chrome`), so a member who needs push signs in once more there. rigd's probe and `rig health` keep their sign-ins too (`state/rigd/member-sessions.json`) and refresh them, which keeps the session id; a reseeded database clears the file. A password sign-in is left only where a run tests signing in (S33) or out (S16), and the sign-ups of S32 and S35, each a new account.
 - The fake microphone plays the member's code: `--use-fake-ui-for-media-stream`, `--use-fake-device-for-media-stream`, `--use-file-for-fake-audio-capture` (chromium `media_switches.cc`, checked 2026-10-29).
 - A test-only script attaches the remote stream to a muted audio element and judges it in the page. Without that, Chrome hands analysis code silence (crbug 933677).
 - `getStats` supplies audio level, energy and concealed samples.
@@ -681,13 +659,13 @@ R00 compares Play services with the minimum the installed nonprod build declares
 ### 3.10 Running scenarios on demand, reporting, triage
 
 **Running scenarios on demand.** Nothing on the rig runs on a timer: no scenario timer, no cron timer, no health timer, and no unit that starts a run. An agent starts a scenario with `rig run <scenario>[-<variant>]` (a thin wrapper over rigd's `node tools/rig/rigd/src/cli.ts run`; a variant is a numbered run from the registry, such as `S25-2`), and rigd's `scenario.run` and triage's `triage.rerun` start one the same way. A run still takes the guard's lease, is judged by machine, and records its verdict, evidence and the SHA, whoever started it.
-- Paid dials run only inside the guard's window and under its caps (the room, the hourly and daily dial caps, the account-wide check). Texts and push-only checks run at any time.
-- The registry (`tools/rig/scenarios.json`) is the catalogue of what can be run, with each scenario's dials and room. It holds no schedule.
+- Run calls, texts and push checks on demand. Shared test resources are serialized by the lease.
+- The registry (`tools/rig/scenarios.json`) is the catalogue of what can be run, with each scenario?s dial count. It holds no schedule.
 - A scenario rigd cannot run yet is listed with its reason (`NOT_RUNNABLE_YET` in `tools/rig/rigd/src/scenarios/index.ts`), and `rig run` refuses it. Today these are G02 and S26. A test keeps every scenario in the registry either runnable or listed.
 - A runner can read its own earlier attempts and their evidence from the verdict store, which is how E01 judges emulator audio across the runs an agent has made.
 
 **Reporting.**
-- A failing scenario is retried once, if the guard's caps and window still admit it.
+- A failing scenario is retried once after cleanup.
 - If it fails again, one `$exception` goes to PostHog's `synthetic` environment with the project key, fingerprinted `synthetic:<scenario>:<failure_class>`.
 - Infrastructure faults use `synthetic-infra:<component>`, so one dead phone is one issue.
 - Events are sent when a run fails twice, or fails critically, never because a run did not happen. PostHog groups a repeated fingerprint into one issue.
@@ -721,7 +699,7 @@ There are none on the rig or in production's crons any more (D146), and none of 
 
 ### 3.12 One call, end to end (S02)
 
-1. The robot asks the guard, through the edge, to dial DEV-W1 from ROBOT-1. The guard checks the lease, caps, room, window and ownership, then dials.
+1. The robot asks the guard, through the edge, to dial DEV-W1 from ROBOT-1. The guard checks the lease and ownership, then dials.
 2. Telnyx sends `call.initiated` for `nonprod-voice` to the edge's `/t/v`. The edge verifies the signature, sees a nonprod connection and an owned caller, registers the call and relays the event to the rig.
 3. The local API's Durable Object claims the line and asks the guard to dial one ring leg, to the QA-W owner's SIP username on `nonprod-webrtc`.
 4. The owner's Chromium page rings and Playwright answers. Media flows through Telnyx.
@@ -735,40 +713,11 @@ There are none on the rig or in production's crons any more (D146), and none of 
 
 ## 4. Test matrix
 
-### 4.1 Dial caps, concurrency and window
+### 4.1 Running the matrix
 
-**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. The measured values for S01, S02, S04, S05 and S07 match the planning estimates. The remaining numbers in 4.2 are planning estimates.
+Run a scenario directly with `rig run <scenario>`. Add its variant number where needed, such as `S07-2`. The registry records estimated or measured dial counts for evidence. The runner serializes attempts through the lease and retries a failed or infrastructure attempt after cleanup. Read the verdict for Telnyx's actual HTTP status or SIP cause when a call is refused.
 
-**Every scenario is run on demand.** The registry holds no schedule and no monthly budget. What limits a run is its own dial cost and the guard's caps, which protect production whoever starts the run.
-
-**The guard's own cap:**
-- 18 dials a day and 3 an hour;
-- a run is admitted only if its dials fit what is left of the hour and the day, and only inside the guard's window (section 3.5);
-- an attempt is charged against those two counts for the dials it placed. A run that was judged is charged its dials. A run that ended as a rig fault or a preemption is charged what the guard's log for its lease shows reached Telnyx (a dial or a transfer the guard forwarded and Telnyx did not refuse), or its full dials once an app has pressed Call, because an app's own dial does not pass the guard. An attempt that ended before its first dial is charged nothing, so rig faults do not use up the hour.
-
-**A device run starts from a known UI.** Before a scenario on the device lane or the emulator lane does anything, rigd stops the app on each booted device, starts it again and puts the launcher in front of it (`resetUi`). A failed run can leave the dialer sheet open, which covers the next run's "Dial a number", or a ring up, and Telecom refuses a second ringing call from the same app. A device another run holds while it prepares is left alone, and one that is not up is left to the scenario to report.
-
-**The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses. The guard's daily `measure` job and its limit probe keep those measurements fresh, so an on-demand run is not refused for a stale one.
-
-**Runs that do not fit the hourly cap.** A scenario whose single run needs more dials than the hourly cap of 3 admits cannot run until the cap or the room changes. That is a property of the run's dial cost, not of a schedule:
-- S07, S10 and D01 need 4 dials in one run. S08 and S09 need 5. The hourly cap of 3 refuses these runs. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
-- K01 waits for Phase 4.
-- S28 and S29 are dropped (founder, 2026-11-01). Buying and releasing a number is Telnyx's work, and the hermetic suite covers the app's side of it.
-
-**Editing this section, 4.2 or 4.3.** A change to 4.1, 4.2 or 4.3 updates `tools/rig/scenarios.json` in the same change. `scripts/check-rig-scenarios.mjs` fails CI when the two disagree on names, far ends, dials, room and the caps.
-
-**Room** = the concurrent limit in force minus production's reserve (section 3.5). The limit in force comes from the guard's proof ladder; while only its floor of 2 is in force, the room is 0. It decides which call scenarios may run at all.
-
-| Room | What runs | What is lost |
-|---|---|---|
-| 4 or more | Everything | Nothing |
-| 3 | Everything except D01, S08 and S10 | Ringing every surface at once, consult transfers and X-to-Y calls in one workspace |
-| 2 | One-leg probes and single-surface calls only (G01, G02, K01, S01, S02, S04-S06, S11-S17, S24, S28, D07, D08), plus D02p, which needs no dial | Every paid Android wake test (D02-D04, D09-D12, E01), transfers and consults |
-| 1 or less | No paid calls. Texts, D02p, hermetic and local tests continue. | All paid call lanes |
-
-R00 publishes the room and the scenarios it blocks. A room under 3 would also mean production cannot ring a three-person crew, which is itself a production finding.
-
-**The cap does not rise.** The old route for raising it was to let test traffic use up to 25% of each stated limit. At the Paid level 25% of 10 an hour is 2.5, below 3, so the cap never rises on that route, and S07-S10 and D01 have no promised date.
+`scripts/check-rig-scenarios.mjs` compares the registry with this matrix and the measured hermetic journeys.
 
 ### 4.2 Scenarios
 
@@ -776,7 +725,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 
 | ID | Scenario | Far end | How the agent verifies it, with no human | Dials per run |
 |---|---|---|---|---|
-| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the device-lane emulator is booted, reachable over the tunnel, unlocked and Doze-enabled, and its Play services version meets the minimum the installed nonprod build declares; the other emulators are up (booting them is D11's job); the guard is healthy and above the balance floor; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained API exceptions in 24 h, read from PostHog when the check runs (a failed read fails the check); the guard's live deployment is one `guard.yml` made from `main` (an attestation that cannot be read fails the check). **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the device lane for its stepped idle, the device-lane emulator's lock state is not judged. Run on demand with `rig health`. | 0 |
+| R00 | Rig health | none | **Pass:** services answer; local sign-in returns 200; the device-lane emulator is booted, reachable over the tunnel, unlocked and Doze-enabled, and its Play services version meets the minimum the installed nonprod build declares; the other emulators are up (booting them is D11's job); the guard is healthy; the edge uplink is up; the nonprod apps point at the edge; the Stripe listener is alive; tz versions match; zero unexplained API exceptions in 24 h, read from PostHog when the check runs (a failed read fails the check); the guard's live deployment is one `guard.yml` made from `main` (an attestation that cannot be read fails the check). **Critical:** the guard's start-up checks report the partition unsafe. **Also publishes:** the current room and the scenarios it blocks. While D03 holds the device lane for its stepped idle, the device-lane emulator's lock state is not judged. Run on demand with `rig health`. | 0 |
 | H01 | Hermetic suite, including the call journeys | Fake Telnyx and Stripe | **Pass:** the CI status. CI runs it on every push; the rig does not run it, because regression testing stays in CI. | 0 |
 | G01 | Isolation self-test | A fictional 555-01xx number; STRANGER-1 | **Pass:** the app refuses a send and a dial to 555-01xx before Telnyx, by rig mode's destination gate. The database gate is reached first and raises `rig_destination_refused`, so each route answers 500 and the API's own error report for that route names the gate. A text that the Worker's gate refuses instead is filed as failed with that code. The guard's lease record holds no app request it refused for an unowned destination. STRANGER-1's call to DEV-W1 is rejected before any ring leg, row or voicemail, and its text is not threaded. The guard returns 403 to a dial on production's connection, a text from a number outside the group, and a dial to a non-owned number, each under its own rule. rigd's report of the API's exceptions counts the two error reports of a G01 attempt as expected. **Any success:** a critical result, sent at once to PostHog's `synthetic` environment. A production alert for it is not built yet. | 1 |
 | G02 | Calls the apps' SDK places itself | The sentinel credential, held by a test page on the rig | **Pass:** the browser SDK and the device-lane emulator's SDK, both signed in on `nonprod-webrtc`, each try a direct call to the sentinel; both are refused and the sentinel never rings. **If it rings:** alert, and residual X25 applies. Not runnable yet: the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one. | 1 |
@@ -878,7 +827,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | `stripe listen` | Uses the test-mode key directly; no 90-day login | R00 checks it |
 | The VM's SSH key pair and its pre-seeded host keys | No expiry | hostd's tunnel refuses a host key that does not match the pinned one; R00 checks the tunnel |
 | hostd on the host | Per logon from the Startup folder, or per boot with FA16 | Nothing notices a rig that is off: it is used on demand, and an agent who needs it starts it |
-| Telnyx balance and rentals | Spends down; monthly | Production's existing chore. The floor stops test spending first, Telnyx's Low Available Credit notice halts paid tests through the edge, and the ledger reserves next month's rental. |
+| Telnyx balance and rentals | Usage and monthly rentals | Telnyx applies account billing rules and sends its own Low Available Credit notice. |
 | Telnyx evidence windows (call status 10 minutes after hang-up; call events 24 hours; SIP flow tool 3 days) | Short | The robot stores ids and RTP statistics at test time |
 | Stripe test clocks | Per run | Created and deleted by each run |
 | Local Supabase | Never pauses | none needed |
@@ -895,7 +844,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | The emulator hypervisor | AEHD, the older driver, is sunset on 2026-12-31 | Nothing to do: the rig runs on WHPX |
 | FCM v1 message priority | No deprecation date announced | A watch records the first dated notice that FCM v1 changes how high priority is delivered; D02 already fails when FCM did not accept the push at high priority |
 | The VM's OS | Weekly updates; built from the Ubuntu 24.04 cloud image release 20261017 | Unattended upgrades, rebooting the VM outside the window. A rebuilt VM verifies the newer image's checksums and signature. |
-| Windows on the host | Monthly updates | Windows Update may restart the host inside the dial window (section 12, risk 15); hostd brings the VM and emulators back at the next logon, or boot with FA16 |
+| Windows on the host | Monthly updates | A restart can interrupt the rig. Hostd brings the VM and emulators back at logon, or at boot with FA16. |
 
 ---
 
@@ -935,21 +884,12 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
    - An ownership-mismatch alert covers the silent case.
    - 10DLC writes are refused.
    - S28 proved this when it was run (it is dropped).
-7. **Test calls never take a customer's call capacity.**
-   - Nonprod concurrency is set to the room left after production's reserve, and the guard's own leg count also enforces it.
-   - When the API allows, test legs are hung up on the first production call.
-   - Paid dials happen only in the quietest hours.
+7. **The account's call capacity is shared.** The runner serializes test attempts. Telnyx can refuse a call when the account reaches its own limits.
 8. **The rig cannot command production calls or ring production devices through the guard.**
    - Commands work only on registered legs, SIP targets are limited to the rig's own credentials, and connections are pinned.
    - The SDK's direct-call path is checked by G02 when it is run, and named as X25 if open.
 9. **Webhook ownership is decided by resource, never by signature.** The edge checks the connection for calls and the profile for texts. Production's handler is untouched.
-10. **Spending is bounded in four layers:**
-    - the app's own caps;
-    - Telnyx daily limits, $0.81 a day, sized so a 31-day month stays near the $35 cap;
-    - the guard's $35/month all-in ledger;
-    - the balance floor.
-
-    Inbound is bounded by stranger rejection and auto-detach. If the guard is down, the rig can do no telephony.
+10. **Vendor usage follows the applicable account and product policies.** The rig uses dedicated nonprod resources and permits only eligible callers and destinations.
 11. **The dangerous keys sit in one place.**
     - The Telnyx, Resend and FCM keys live only in the guard, which has no public URL.
     - It deploys only from `main`, after its policy tests pass.
@@ -999,7 +939,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | Recording | $0.002/min |
 | Answering-machine detection | $0.002 per call |
 | Canadian SMS | $0.0025 per part, each way |
-| Transfer | $0.10 per invocation ("Call transfer" on the call-control page, "SIP Refer" on the rate sheet, both fetched 2026-10-31). The guard budgets $0.13, one leg more. |
+| Transfer | $0.10 per invocation ("Call transfer" on the call-control page, "SIP Refer" on the rate sheet, both fetched 2026-10-31).  |
 | Billing increment | 60 seconds |
 
 A judged call costs about $0.02-0.03.
@@ -1011,25 +951,25 @@ A judged call costs about $0.02-0.03.
 - Surcharges: $0.01 per short call above 15% of the account's calls and $0.005 per abandoned call above 20%, with cancelled ring legs assumed to count as abandoned.
 - A number with no connection: assumed still billed for inbound calls and texts.
 
-`call_cost_in_webhooks` is on, so `call.cost` events record what each call actually cost, in the rig's database. The guard does not read them yet, so a cost higher than assumed sheds tests only once an agent files the month's usage from detail records, which the ledger then counts.
+`call_cost_in_webhooks` is on, so `call.cost` events record what each call actually cost, in the rig's database.
 
-| Cost center | Monthly (expected) | One-time | Hard cap, and who enforces it | Alert before the cap | Source, date |
-|---|---|---|---|---|---|
-| Telnyx numbers: 8 standing at $1.00 + $0.10 SMS; caller-name lookup on one ($0.40); one monthly S28 number (about $2.10) | $11.30 | $8 | At most 10 numbers held and one extra order per 25 days (guard) | none (fixed) | telnyx.com/pricing/numbers and telnyx.com/pricing.md, 2026-10-29 |
-| Telnyx usage: whatever the runs and ad-hoc calls and texts spend (a judged call is about $0.02-0.03), with recordings, beep detection and transfers. Nothing is scheduled, so an idle month spends none. | $0 idle; an estimate of a few dollars in a month of heavy repro work | none | $35/month all-in, rentals included (guard ledger, then drop). Telnyx daily limits of $0.81/day, about $36.40 a month with rentals. Balance floor. Stranger inbound bounded by reject and detach. | Tier-change and projected-overrun alerts in PostHog's `synthetic` environment. For the balance, Telnyx's own Low Available Credit email (`docs/MONITORING.md`, "Vendor notices"). | Rates above, 2026-10-29; surcharges at support.telnyx.com/en/articles/1130707 and /12805746, 2026-10-29 |
-| Cloudflare: 2 Workers and their Durable Objects on the existing Workers Paid plan; Workers AI through the guard | about $0.50 | none | AI capped at 2,000 neurons a day (guard), so at most about $0.66 a month even if the shared free tier is used up. Requests stay within the included 10M. | The 3 existing billing alerts | developers.cloudflare.com/workers/platform/pricing (updated 2026-10-02) and /workers-ai/platform/pricing (updated 2026-10-20), fetched 2026-10-29 |
-| Supabase | $0 | none | Local stack only | none | none |
-| Stripe test mode, FCM, Resend, PostHog, GitHub Actions, Claude | $0 | none | Resend at most 10 a day; PostHog by its free plan's own limit; triage only when failures exist | Resend at 7 a day; PostHog at 70% (the Limits and rates alert) | Stripe test mode has no charge; firebase.google.com/pricing, 2026-10-29; resend.com/pricing, 2026-10-30 |
-| Set-aside for month-end surcharges and charges on detached numbers | $1.50 | none | Inside the $35 cap, not added to it (guard ledger, `SET_ASIDE_USD`) | None of its own: the usage an agent files from detail records counts whenever it is above the ledger's estimate | D142, update of 2026-11-01 |
-| Electricity | Estimate: $2-6, the workstation's extra draw | none | none | none | Estimate |
-| Hardware | none | $0 | none | none | No hardware is bought: the rig is a VM on the workstation, and the phones are emulators |
-| **Total** | **about $13 fixed, plus usage and $2-6 of power; ceiling about $40** | **about $8** | | | |
+| Cost center | Monthly estimate | One-time | Billing | Source |
+|---|---|---|---|---|
+| Eight Telnyx standing numbers and caller-name lookup | About $9.20 | About $8 | Telnyx billing | Rates above, 2026-10-29 |
+| Telnyx calls and messaging | Varies with use | None | Telnyx billing | Rates above, 2026-10-29 |
+| Cloudflare Workers, Durable Objects and Workers AI | Varies with use | None | Cloudflare billing | Cloudflare pricing, 2026-10-29 |
+| Supabase | $0 | None | Local stack | |
+| Stripe test mode, FCM, Resend, PostHog, GitHub Actions and Claude | Varies by provider plan and use | None | Provider plans | Rates above |
+
+| Electricity | Estimated $2?$6 | None | Workstation power | |
+| Hardware | $0 | $0 | VM and emulators | |
+| **Total** | Fixed number rental, provider usage and workstation power | About $8 | | |
 
 **Conditional and optional:**
 
 | Item | Monthly | One-time | When | Source |
 |---|---|---|---|---|
-| Echo-test probe K01 | about $0.05 | none | Phase 4, optional; by default it never runs (inside the cap) | Rates above |
+| Echo-test probe K01 | about $0.05 | none | Phase 4, optional; run on demand | Rates above |
 
 **Telnyx Managed Accounts, for comparison.** They would give real isolation, but need the Starter commit plan at a $1,000 monthly minimum, with Telnyx approval (support.telnyx.com/en/articles/4951492, checked 2026-10-29). The production account returned 403 on that API.
 
@@ -1100,7 +1040,7 @@ There is no Telnyx, Cloudflare or PostHog MCP there.
 - **Telnyx, through the guard:** call events, detail records, webhook deliveries, session analysis, recordings and the cost ledger, for nonprod ids only.
 - **Robot and edge:** robot verdicts with per-frame numbers and RTP statistics; edge relay logs.
 - **Android:** logcat; `dumpsys` telecom, notification, deviceidle, power and usagestats; the debug variant's call-flow log; screenshots; bug reports.
-- **Elsewhere on the rig:** Chrome traces and `getStats`; the Stripe listener log; Mailpit; `rig health` results (`state/health.json`); the current room and the cost ledger.
+- **Elsewhere on the rig:** Chrome traces and `getStats`; the Stripe listener log; Mailpit; `rig health` results (`state/health.json`); the recorded call costs.
 - **Production, from the host:** `ops_diag` views, Workers logs (3-7 days), PostHog and redacted Telnyx reads.
 
 **Not visible:** Telnyx's portal-only tools (X26).
@@ -1183,7 +1123,7 @@ Labels are as of 2026-10-29; vendor screens change.
 
 | Question | How it is answered now |
 |---|---|
-| 1. The account's level and its concurrent, hourly and daily limits | No API exposes them. The guard's proof ladder (section 3.5) sets the concurrent limit in force, with a floor of 2 and room 0 until proven. Hourly and daily limits are assumed at Paid: 10 an hour and 100 a day, account-wide. SIP-URI ring legs are assumed to count. |
+| 1. Telnyx account limits | Run the requested scenario and record any Telnyx refusal in the verdict. |
 | 2. Per-dial charges; transfer pricing | None is published. A transfer is $0.10 ("Call transfer $0.10 per invocation"); the guard keeps $0.13, one leg more. `call_cost_in_webhooks` is on, so the rig records actual cost; the ledger is not yet checked against it. |
 | 3. Routing and billing between our numbers; Canadian carrier fees | Assumed billed at full off-net rates on both legs, and the Canadian carrier fee assumed on both ends, at the highest published $0.008845 a part. |
 | 4. Whether cancelled ring legs count as abandoned | Assumed to count. The short-call surcharge is $0.01 a call. |
@@ -1353,7 +1293,7 @@ node scripts/ops/agent-diag.mjs --self-check
 ## 12. Open risks
 
 1. **A Telnyx fraud hold is account-wide** (accepted, the largest risk). Test traffic will probably be most of the account's calls. A hold would stop production calling too, and Telnyx does not disclose its scope. Mitigations: on-net only, low volume, quiet hours, and the first fraud-type notice latches the paid lanes off until a reviewed change to `SIGNAL_LATCH_RESET` (section 3.5). Recovery needs you, because only Telnyx support can lift a hold; that is a founder act outside the rig, which never contacts Telnyx.
-2. **Concurrency room may be too small.** If the account's limit is 2 or 5, most or all paid call lanes do not run (section 4.1). Telnyx documents a default of 2 (support.telnyx.com/en/articles/1130717, fetched 2026-10-31) and 5 at the Paid level (developers.telnyx.com account levels, checked 2026-10-29), and no API says which applies. Until the proof ladder proves more than its floor of 2, the room is 0 and no paid call lane runs. That would also mean production cannot ring a full crew, which is worth knowing on its own.
+2. **Shared call capacity.** Telnyx may reject a call during a test or a production call when the account reaches its concurrent limit.
 3. **The guard's key has full production authority.** A merged policy bug could touch production. Mitigations: policy unit tests, the two-way registry check, start-up refusals, 403 probes (G01), attestation in R00, Telnyx's key notifications.
 4. **Agents keep production reach** (the amendment). Agents hold production keys and can drive the founder's browser, as they do today. The guard does not widen that. Its protections are in code, and FA1/FA2 remain available as optional hardening.
 5. **Ordering.** No number before production's `/health` shows the ownership rule and the first-order check passes. All eight standing roles are ordered; while paid dials are refused none is ordered with a voice connection.
@@ -1368,22 +1308,21 @@ node scripts/ops/agent-diag.mjs --self-check
    - inbound recording;
    - the edge-to-guard binding (fallback: HMAC with a nonce); passed 2026-11-01, when `/g/health` with the diag token answered 200 from the guard over the binding;
    - the per-connection active-calls read (an unknown answer refuses the dial);
-   - the proof ladder's validation check (an inconclusive answer leaves the floor in force);
    - gRPC call audio on the emulators (EA1, risk 19); step one passed 2026-11-01 on `rig-pixel` with the default audio backend (a guest page played its microphone back; the detector heard the robot's code and the device's, each in 9 or more cycles at about 57-60 dB), and the production path (`playCode` and `hear`) passed the same way. `-no-audio` fails: `injectAudio` answers "There can be only one microphone active". Injecting before the guest opens its microphone crashed the emulator (exit 0xC0000005) both times it was tried, so injection must wait for the microphone. Step two, one robot dial, waits for paid dials;
    - cloud-init's datasource detection on Workstation (VM1); passed on the first boot, 2026-11-01: `cloud-id` said `vmware`;
    - emulators started with nobody logged on (VM2); not measured: it needs FA16's ONSTART task, which stores the founder's password;
    - the tunnel and the rig-only adb server on 5137 (VM3). The tunnel half passed 2026-11-01: all ten reverse binds sit on the VM's loopback, sshd refused a bind on an unlisted port and on 0.0.0.0, hostd listens only on 127.0.0.1:15900, and `/v1/health` through the tunnel answered 401 without the token and 200 with it. The adb half passed the same day: from the VM, the 15037 end answered `host:version` and listed the one rig emulator, the emulator honoured `ANDROID_ADB_SERVER_PORT` (a default-port server listed nothing), and the console and gRPC ports answer through the tunnel.
-10. **Cost uncertainty.** Each unknown is budgeted at its costlier answer (section 7). A higher real cost would shrink coverage, not raise spend.
+10. **Cost uncertainty.** Provider charges vary with test usage.
 11. **Recycled numbers attract strangers.** Rejected calls and dropped texts may still bill. Detach stops a flood; replacement waits for the monthly order slot.
-12. **Shared quotas without a vendor-side split:** PostHog, Resend, Workers usage, Workers AI, Claude limits. PostHog's are bounded by its own rate limits and by the rig sending only failures and Telnyx notices; the others are capped in our code.
+12. **Shared quotas.** PostHog, Resend and Cloudflare usage depend on the provider plan.
 13. **Old-version repro.** Old web refs need the rig-only unsupported-Next flag. Pre-seam server refs cannot run push or email scenarios. Old Android tags need an overlay.
 14. **Production side findings, to be filed as separate production issues:**
     - Production's voice profile and messaging profiles have no Telnyx-side spend limits; auto-recharge is off and the credit limit is 0.
     - The account's two mobile push credentials (iOS and Android) are attached to no connection, so iOS closed-app wake cannot work today.
     - If the account is at the Paid level, Telnyx prepends its automated-call announcement to production's own greetings and dials, and caps customers at 5 concurrent calls and 100 a day.
     - `docs/deploy/04-telnyx.md` said ring legs come from the WebRTC connection, as D43's live fix made them. The code now dials every leg from the voice connection (`apps/api/src/calls/runtime.ts`), and D43 found that a ring dialed from the voice connection fails. 04-telnyx.md now says what the code does and keeps the question open. **Verify** on production's next inbound call that a browser rings.
-15. **Windows Update restarts the host inside the dial window.** It did 6 times in 60 days, at 08:29-10:44 UTC. The VM and the emulators stop with it, and come back at the next logon, or at boot with FA16. Moving active hours over 04:00-10:00 UTC would avoid most of them; that is your choice.
-16. **Overnight power-offs.** Five gaps of 9-14 hours in 60 days each covered the whole dial window. A paid run cannot be started in a window the workstation slept through. That is infrastructure, never a product finding.
+15. **Windows Update.** A host restart interrupts the VM and the emulators. The rig is available again when they restart.
+16. **Workstation power.** Runs require the workstation to be online.
 17. **Host CPU load.** The workstation is 44-68% busy with agent sessions, and the VM and emulators add to it. Timing-sensitive verdicts (ring within 6-12 s, the 300 ms race in D09) may flake under load; a flake is retried once before it is reported.
 18. **The F: disk budget.** F has 128 GB free. The VM's disk can grow to 90 GB, its secrets disk is 4 GB, and the AVDs need their own space. C has only 34 GB free and D is a hard drive, so neither is a fallback.
 19. **Emulator audio is half proven.** gRPC `injectAudio` and `streamAudio` ran on this workstation on 2026-11-01 (EA1 step one), but the robot-dial step has not, so the store has no `emulator-audio-proven`. Until spike EA1 passes, every device-lane audio verdict is `emulator-audio-unproven`, never a pass, so call audio on Android is not judged at all. **EA1 step two was tried on 2026-11-12 and failed twice** (D07 under the lease, with a provisional `emulator-audio-proven` that was removed afterwards): both times the call connected and the emulator stopped answering adb as the lane opened `streamAudio` at answer (first a hang that needed a cold boot, then exit 0xC0000005), in the first the robot heard silence and Telnyx saw no inbound RTP (the second run's evidence was lost with the emulator). Calls with no gRPC audio ran 4 minutes on the same emulator without a fault, so the fault is in the audio calls during a live call, not in the call. **The split is built and has not run.** D07 has two one-sided runs, each under the same provisional proof: `rig run D07-2` (speaks only) opens `injectAudio` alone and `rig run D07-3` (listens only) opens `streamAudio` alone, and every D07 run now records whether the emulator still answers adb after the call. Each is 2 dials, so under the hourly cap of 3 they run in different clock hours. On 2026-11-13 neither could run: the guard gave no room, because its daily measurement of production has failed since 2026-11-12 (the `agent_diag` self-check refuses the login now that production has `pg_net`), and the reserve went stale after 36 hours. Open: run both once the guard has a fresh reserve, and the guard's `budget.tier_amber` refused the later dials on 2026-11-12.
@@ -1423,9 +1362,9 @@ node scripts/ops/agent-diag.mjs --self-check
 |---|---|
 | Blocker: agents run as you and can drive your Chrome and credential store | Accepted under the amendment (12, risk 4). The reach audit lists what an agent can reach. A separate Windows user and a token that cannot approve stay available as FA1 and FA2 (3.1). |
 | Blocker: production keys in commented lines of `apps/api/.dev.vars` | Removed only if you choose FA1, which also gives agents local-only env files with fakes. Either way, `check-local-secrets` stops a push while any file git would stage holds a live key, and CI checks again. Its session-start hook waits for your yes (3.1). |
-| Blocker: test calls can starve a customer's call | Room formula, live-leg count, preemption, measured window; paid lanes open only on the proof ladder's evidence, with room 0 at the floor (3.5, 4.1) |
-| Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, cancelled ring legs assumed abandoned, and a latch on the first fraud-type notice (2.2, 3.5) |
-| Dials undercounted | Counts derived from the journeys; per-run dial costs in `tools/rig/scenarios.json`, checked in CI, with the runs the hourly cap cannot hold named (4.1, 4.2) |
+| Blocker: shared call capacity | Telnyx applies account limits and the rig serializes its test attempts. |
+| Test traffic is the majority, so surcharge and fraud reasoning was inverted | Account-level ratio control, single-surface audiences, cancelled ring legs assumed abandoned, and Telnyx notice reporting (2.2, 3.5) |
+| Dials undercounted | Measured journeys and per-run dial counts in `tools/rig/scenarios.json` (4.1, 4.2) |
 | Few production rings | Repro issues stay open until production's ring events are evidence enough (3.11, 9) |
 | Wired fallback breaks adb | Moot since 2026-11-01: there is no phone. Emulator audio goes through gRPC, gated by EA1 (3.9) |
 | FCM token seam missing | `FCM_OAUTH_TOKEN_URL`, a guard-token bearer in rig mode, a dummy key, and a test (3.3, 3.7) |
@@ -1437,7 +1376,7 @@ node scripts/ops/agent-diag.mjs --self-check
 | Rig cron noise | Cron registry, CI check, zero unexplained fingerprints (3.3) |
 | Robot mailbox could bounce production's domain | The mail handler never rejects; heartbeat gate; mailbox only in S34; halt on a missed delivery (3.4, 3.5) |
 | Untrusted texts could reach production code | The edge never relays stranger content; rig PRs are never auto-merged (3.4, 3.10) |
-| Vendor ceiling was 3 times the cap; inbound uncapped | Daily limits resized to $0.81; automatic detach for floods (3.6) |
+| Vendor ceiling was 3 times the cap; inbound uncapped | Automatic detach for stranger floods (3.6) |
 | S29 could not pass | `canceled_at` is backdated under the lease; the test clock is used only for Stripe-side assertions (4.2) |
 | SDK-placed SIP calls bypass the guard | G02 sentinel probe; residual X25 if open, since `sip_uri_calling_preference` governs only inbound calls (4.2, 4.3) |
 | Minor gaps | Notification webhook secret path and corroboration; guard with no public URL; secrets cutover order covering `backup-posture.yml`; `stripe listen --api-key`; device-side renewals (system-image and SDK pins, Play services, adb key); `DEPLOY_ENV` unset means local; ownership-mismatch alert and fallback marker; D02p dials zero; monthly PostHog ceiling; FCM Android-only rewrite; calendar partial; numeric verdicts for D13, E01 and S03; text events acknowledged at the edge; the network (now the VM's NAT and nftables), Ontario numbers; Phase 0 split (the API deploys before web in `ship.yml`); portal-only tools named (X26); SSH and PW01 simplified; production push-credential and Paid-level findings filed (12). |
@@ -1475,6 +1414,6 @@ A new decision, numbered when committed because parallel sessions also write dec
 **Second update, 2026-11-01: the rig runs nothing on a timer.** Recorded in D142's second update of that date, which wins where this file disagrees. Earlier sections describe what was decided at the time, and this list is the current behaviour:
 - **On demand only.** No scenario timer, cron timer or health timer is installed by `rig deploy` or by bootstrap. The rig is a dev and QA environment: any ref runs there for real, and an agent uses it to reproduce, diagnose and verify a reported issue (a PostHog error, a customer report such as dropped calls) and for ad-hoc work. The scenarios are optional shortcuts. CI does regression testing (sections 1, 8 and 9).
 - **Registry.** `tools/rig/scenarios.json` is the catalogue of what can be run: dials, far-end legs, room and variants. Its cadences, the encoded schedule, the monthly dial budget and the 20% retry and 60-dial repro reserves are gone (section 4.1).
-- **Kept:** each run's dial cost, and the guard's own caps and window (18 a day, 3 an hour, the account-wide check). The guard's daily `measure` job and limit probe also stay, to keep paid-call admission fresh so an on-demand repro is never refused.
+- **Kept:** each run's dial cost, and the guard's own caps and window (18 a day, 3 an hour, the account-wide check). D176 supersedes the admission policy and its scheduled measurements.
 - **Gone:** the edge's dead-man with its rig, suite and triage heartbeats, `['synthetic-infra', component]` stale alerts and `['ops','synthetic-dark']`; rigd's hourly schedule refresh; the hourly triage agent; rigd's hourly guard attestation, its five-minute exceptions report and their state files; the edge's `/ctl/alert`, its alert log and its daily PostHog caps. The edge's mail heartbeat stays because the guard's Resend gate reads it.
 - **Cost:** about $13 a month fixed plus usage and $2-6 of workstation power; the $35 all-in ceiling is unchanged (section 7). This supersedes the $24 a month above.

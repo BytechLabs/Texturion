@@ -12,7 +12,6 @@ import type { Env } from '../env';
 import {
   RIG_DESTINATION_REFUSED,
   RIG_ENDPOINT_REFUSED,
-  RIG_MESSAGING_PROFILE_DAILY_LIMIT,
 } from "../environments/policy";
 import {
   OWNED_A,
@@ -222,7 +221,7 @@ describe("the destination gate in the client", () => {
  * module, but it only protects anything if the client applies it to the body
  * that leaves. This is that half.
  */
-describe("the messaging-profile limits in the client", () => {
+describe("the messaging-profile destinations in the client", () => {
   const asked = {
     name: "c",
     whitelisted_destinations: ["US", "CA", "GB"],
@@ -230,7 +229,7 @@ describe("the messaging-profile limits in the client", () => {
     daily_spend_limit_enabled: false,
   };
 
-  it("cap what the rig sends Telnyx and keep US and Canada only", async () => {
+  it("send only US and Canada destinations for the rig", async () => {
     const sent = recordTelnyx();
     await telnyxRequest(getEnv(rigEnv()), {
       method: "POST",
@@ -243,8 +242,8 @@ describe("the messaging-profile limits in the client", () => {
         body: {
           name: "c",
           whitelisted_destinations: ["US", "CA"],
-          daily_spend_limit: RIG_MESSAGING_PROFILE_DAILY_LIMIT,
-          daily_spend_limit_enabled: true,
+          daily_spend_limit: "250.00",
+          daily_spend_limit_enabled: false,
         },
       },
     ]);

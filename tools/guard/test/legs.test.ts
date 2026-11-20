@@ -1,7 +1,6 @@
 import { LEG_REGISTRY_TTL_MS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { charge } from "../src/state/ledger";
 import { EDGE, ready, registerViaEdge, ruleOf } from "./support";
 
 describe("leg registry", () => {
@@ -69,18 +68,6 @@ describe("leg registry", () => {
     expect((await h.call("/telnyx/v2/calls/ccid-1/actions/answer", { body: { webhook_url: `${EDGE}/t/v` } })).status).toBe(
       200,
     );
-  });
-
-  it("still hangs up at the red tier, and refuses anything else", async () => {
-    const h = await ready();
-    await registerViaEdge(h, "ccid-1");
-    await charge(h.ctx, 40);
-    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } }))).resolves.toBe(
-      "budget.tier_red",
-    );
-    expect((await h.call("/telnyx/v2/calls/ccid-1/actions/hangup", { body: {} })).status).toBe(200);
-    const entry = await h.store.get<{ ended_at?: number }>("leg:ccid-1");
-    expect(entry?.ended_at).toBeDefined();
   });
 
   it("deletes a recording only when its leg is registered", async () => {

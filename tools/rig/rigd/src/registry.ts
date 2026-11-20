@@ -6,14 +6,12 @@
  * expected shape stops rigd with every problem listed.
  *
  * What rigd reads from it:
- *   caps          the guard's hourly and daily dial caps and its quiet window
- *   scenarios[]   id, lane, runs_on, dials, far_end_legs, min_room and
+ *   scenarios[]   id, lane, runs_on, dials, far_end_legs and
  *                 runs: [{ label? }], the named variants of one scenario
  *
  * Other keys are allowed and ignored.
  */
 import { readFileSync } from "node:fs";
-import type { DialCaps, DialWindow } from "./budget.ts";
 
 export const REGISTRY_SCHEMA = "loonext.rig-scenarios.v2";
 export const RUNS_ON = ["rig", "ci", "production", "workstation"] as const;
@@ -33,19 +31,11 @@ export interface RegisteredScenario {
   dials: number;
   /** Legs the far end creates; on the rig, the robot's. */
   far_end_legs: number;
-  room_min: number;
-  /** Any leg at all: every dial is paid and runs only inside the guard's window. */
-  paid: boolean;
   /** The ways to run it: one, or one per named variant. */
   runs: RunSlot[];
 }
 
-export interface RegistryCaps extends DialCaps {
-  window: DialWindow;
-}
-
 export interface Registry {
-  caps: RegistryCaps;
   scenarios: RegisteredScenario[];
   byId: ReadonlyMap<string, RegisteredScenario>;
 }
@@ -67,12 +57,11 @@ const ID = /^[A-Z]{1,3}\d{2,3}[a-z]?$/;
 /** Every problem at once, so one fix-up round is enough. */
 export function validateRegistry(value: unknown, source = "scenarios.json"): Registry {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${source}: the registry must be a ${REGISTRY_SCHEMA} object with caps and scenarios`);
+    throw new Error(`${source}: the registry must be a ${REGISTRY_SCHEMA} object with scenarios`);
   }
   const root = value as Record<string, unknown>;
   const problems: string[] = [];
   if (root.schema !== REGISTRY_SCHEMA) problems.push(`schema must be "${REGISTRY_SCHEMA}", not ${JSON.stringify(root.schema)}`);
-  const caps = readCaps(root.caps, problems);
   if (!Array.isArray(root.scenarios)) problems.push("scenarios must be an array");
 
   const seen = new Set<string>();
@@ -84,37 +73,10 @@ export function validateRegistry(value: unknown, source = "scenarios.json"): Reg
     seen.add(entry.id);
     scenarios.push(entry);
   }
-  if (problems.length > 0 || !caps) {
+  if (problems.length > 0) {
     throw new Error(`${source} does not have the shape rigd runs from:\n  - ${problems.join("\n  - ")}`);
   }
-  return { caps, scenarios, byId: new Map(scenarios.map((entry) => [entry.id, entry])) };
-}
-
-function readCaps(raw: unknown, problems: string[]): RegistryCaps | undefined {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    problems.push("caps must be an object");
-    return undefined;
-  }
-  const b = raw as Record<string, unknown>;
-  const before = problems.length;
-  for (const key of ["daily_cap", "hourly_cap"]) {
-    if (!isCount(b[key]) || b[key] === 0) problems.push(`caps.${key} must be a whole number above 0`);
-  }
-  const window = b.window_utc;
-  const validWindow =
-    Array.isArray(window) &&
-    window.length === 2 &&
-    window.every((hour) => isCount(hour) && hour <= 24) &&
-    window[0] < 24 &&
-    window[0] !== window[1] % 24;
-  if (!validWindow) problems.push("caps.window_utc must be [start, end] in whole UTC hours");
-  if (problems.length > before) return undefined;
-  const [start, end] = window as [number, number];
-  return {
-    daily: b.daily_cap as number,
-    hourly: b.hourly_cap as number,
-    window: { startHour: start, hours: (end - start + 24) % 24 },
-  };
+  return { scenarios, byId: new Map(scenarios.map((entry) => [entry.id, entry])) };
 }
 
 function readScenario(raw: unknown, where: string, problems: string[]): RegisteredScenario | undefined {
@@ -129,7 +91,7 @@ function readScenario(raw: unknown, where: string, problems: string[]): Register
   if (typeof entry.id !== "string" || !ID.test(entry.id)) bad("id", "a scenario id like S02 or D02p");
   if (typeof entry.lane !== "string" || entry.lane.trim() === "") bad("lane", "a non-empty string");
   if (!(RUNS_ON as readonly unknown[]).includes(entry.runs_on)) bad("runs_on", RUNS_ON.join(", "));
-  for (const key of ["dials", "far_end_legs", "min_room"]) {
+  for (const key of ["dials", "far_end_legs"]) {
     if (!isCount(entry[key])) bad(key, "a whole number, 0 or more");
   }
   if (!Array.isArray(entry.runs) || entry.runs.length === 0) bad("runs", "a list of at least one run");
@@ -148,8 +110,6 @@ function readScenario(raw: unknown, where: string, problems: string[]): Register
     runsOn: entry.runs_on as RunsOn,
     dials: entry.dials as number,
     far_end_legs: entry.far_end_legs as number,
-    room_min: entry.min_room as number,
-    paid: (entry.dials as number) + (entry.far_end_legs as number) > 0,
     runs,
   };
 }

@@ -81,8 +81,6 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
     if (route === GUARD_ROUTES.health && request.method === "GET") {
       send(200, {
         ok: true,
-        balance_above_floor: true,
-        room: 4,
         telnyx: { key: "present", safety: { state: "ok", reasons: [], checked_at: Date.now() } },
       });
       return;

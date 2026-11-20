@@ -6,9 +6,6 @@ import { readConfig } from '../src/env';
 import type { Env } from '../src/env';
 import { Guard } from "../src/guard";
 import { runSafetyChecks } from "../src/setup/safety";
-import { ADMISSION_KEYS } from "../src/state/admission";
-import { LIMIT_KEYS } from '../src/state/concurrency';
-import type { ValidationRecord } from '../src/state/concurrency';
 import { MemoryStore } from "../src/store";
 import { telnyxApi } from "../src/telnyx/client";
 import { FakeTelnyx, reply } from "./fake-telnyx";
@@ -30,7 +27,7 @@ export const EDGE = "https://loonext-rig-edge.example.workers.dev";
 export const ROBOT_MAILBOX = "rig-robot@loonext.com";
 export const PROD_WEBHOOK = "https://api.loonext.com/webhooks/telnyx";
 
-/** Monday 2026-11-02, 05:00 UTC: inside the default 04:00-10:00 window. */
+/** Monday 2026-11-02, 05:00 UTC. */
 export const MONDAY_0500 = Date.parse("2026-11-02T05:00:00Z");
 
 export interface SentRequest {
@@ -48,7 +45,6 @@ export interface Harness {
   /** Everything sent anywhere other than Telnyx. */
   outbound: SentRequest[];
   aiCalls: { model: string; inputs: Record<string, unknown> }[];
-  alarms: number[];
   clock: { now: number };
   /** Production's /health capabilities. */
   production: { capabilities: string[] };
@@ -67,8 +63,6 @@ export interface CallOptions {
 
 export interface HarnessOptions {
   env?: Partial<Env>;
-  /** The validated concurrent limit {@link ready} files; null files none, leaving the floor in force. */
-  validated?: number | null;
   ai?: AiRunner | null;
   aiResult?: unknown;
   now?: number;
@@ -82,8 +76,6 @@ export const FULL_ENV: Partial<Env> = {
   EDGE_ORIGIN: EDGE,
   ROBOT_MAILBOX,
   NOTIFICATION_PATH_SECRET: "notice-path",
-  TELNYX_CONCURRENT_FLOOR: "2",
-  SIGNAL_LATCH_RESET: "first",
 };
 
 export function harness(options: HarnessOptions = {}): Harness {
@@ -91,7 +83,6 @@ export function harness(options: HarnessOptions = {}): Harness {
   const telnyx = new FakeTelnyx();
   const outbound: SentRequest[] = [];
   const aiCalls: Harness["aiCalls"] = [];
-  const alarms: number[] = [];
   const clock = { now: options.now ?? MONDAY_0500 };
   const production = { capabilities: ["telnyx-partition-v1"] };
   const mail: Harness["mail"] = { status: null };
@@ -143,9 +134,6 @@ export function harness(options: HarnessOptions = {}): Harness {
       },
     },
     versionId: options.version ?? "version-1",
-    setAlarm: async (at) => {
-      alarms.push(at);
-    },
     memory: {},
   };
   const guard = new Guard(ctx);
@@ -157,7 +145,6 @@ export function harness(options: HarnessOptions = {}): Harness {
     telnyx,
     outbound,
     aiCalls,
-    alarms,
     clock,
     production,
     mail,
@@ -269,30 +256,12 @@ export function seedAccount(telnyx: FakeTelnyx): void {
   );
 }
 
-/** Production's own measurements, filed fresh, so admission has what it needs. */
-export async function fileMeasurements(h: Harness, reserve = 2): Promise<void> {
-  await h.store.put(ADMISSION_KEYS.reserve, { legs: reserve, measured_at: h.clock.now });
-  await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 5, short: 3, measured_at: h.clock.now });
-  await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now });
-}
-
-/** The suites' account limit: the validation check found 5, so limit 5 less a reserve of 2 leaves room 3. */
-export const VALIDATED_LIMIT = 5;
-
-/** Files a fresh exact result of the validation check, as setup/limit-probe.ts would. */
-export async function fileValidation(h: Harness, value = VALIDATED_LIMIT): Promise<void> {
-  const record: ValidationRecord = { result: "exact", value, measured_at: h.clock.now, writes: 15, refusal_code: "10015" };
-  await h.store.put(LIMIT_KEYS.validation, record);
-}
-
-/** A harness with the account seeded, the start-up checks passed and measurements filed. */
+/** A harness with the account seeded, the start-up checks passed. */
 export async function ready(options: HarnessOptions = {}): Promise<Harness> {
   const h = harness(options);
   seedAccount(h.telnyx);
   const safety = await runSafetyChecks(h.ctx);
   if (safety.state !== "ok") throw new Error(`seed is unsafe: ${safety.reasons.join(", ")}`);
-  await fileMeasurements(h);
-  if (options.validated !== null) await fileValidation(h, options.validated ?? VALIDATED_LIMIT);
   h.telnyx.log.length = 0;
   return h;
 }

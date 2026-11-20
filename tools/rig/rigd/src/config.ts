@@ -30,10 +30,6 @@
  *   robot-webhook-secret     the secret segment of the robot's sink at the edge, /w/<secret>
  *   robot-local-token        robotd's loopback token, made here on first use
  *
- * The caps and the dial window are the registry's (registry.ts), the window
- * as the guard measures it (guard-window.ts). RIG_DIAL_CAPS and
- * RIG_DIAL_WINDOW override them, for a rig that must dial less.
- *
  * `pixel` is the device lane's emulator, the AVD rig-pixel (a Pixel 8
  * profile on an API 36 Play image); the name outlived the physical phone.
  * Every emulator is reached through hostd's tunnel: RIG_HOSTD_ORIGIN
@@ -43,8 +39,6 @@
 import { resolve } from "node:path";
 import { HOSTD_ORIGIN, parseAdbServer, parseHostdOrigin, RIG_ADB_SERVER } from '@loonext/rig-lanes';
 import type { AdbServer } from '@loonext/rig-lanes';
-import { parseWindow } from './budget.ts';
-import type { DialCaps, DialWindow } from './budget.ts';
 import { rigRepo } from "./guard-attest.ts";
 import { readState, rigHome, rigSettings, SecretFiles } from '@loonext/rig-robot';
 import type { RigHome, RigSettings } from '@loonext/rig-robot';
@@ -60,8 +54,6 @@ export interface RigdConfig {
   /** The deployed API on loopback, as `rig serve api` runs it. */
   localApiBase: string;
   robotBase: string;
-  windowOverride?: DialWindow;
-  capsOverride?: DialCaps;
   /** hostd on the Windows host, through the tunnel. */
   hostdOrigin: string;
   /** The rig's adb server on the host, through the tunnel. */
@@ -84,8 +76,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RigdConfig {
     registryPath: env.RIG_REGISTRY ?? resolve(HERE, "../../scenarios.json"),
     localApiBase: `http://127.0.0.1:${settings.apiPort}`,
     robotBase: env.RIG_ROBOT_BASE ?? "http://127.0.0.1:7311",
-    ...(env.RIG_DIAL_WINDOW ? { windowOverride: parseWindow(env.RIG_DIAL_WINDOW) } : {}),
-    ...(env.RIG_DIAL_CAPS ? { capsOverride: parseCaps(env.RIG_DIAL_CAPS) } : {}),
     hostdOrigin: parseHostdOrigin(env.RIG_HOSTD_ORIGIN ?? HOSTD_ORIGIN),
     adbServer: env.RIG_ADB_SERVER ? parseAdbServer(env.RIG_ADB_SERVER) : RIG_ADB_SERVER,
     systemd: settings.systemd,
@@ -102,22 +92,6 @@ export function edgeOriginOf(value: string): string {
     throw new Error("rigd: edge-origin must be a bare https origin");
   }
   return url.origin;
-}
-
-/** `daily/hourly`, e.g. 18/3. */
-export function parseCaps(text: string): DialCaps {
-  const match = /^(\d+)\/(\d+)$/.exec(text.trim());
-  if (!match) throw new Error(`RIG_DIAL_CAPS "${text}" must be daily/hourly, e.g. 18/3`);
-  return { daily: Number(match[1]), hourly: Number(match[2]) };
-}
-
-/**
- * The room `rig health` publishes in `state/health.json`, from the guard. No
- * report, or no room in it, is 0: no paid call runs until the guard has said.
- */
-export function readRoom(config: Pick<RigdConfig, "home">): number {
-  const room = (readState(config.home, "health.json") as { room?: unknown } | undefined)?.room;
-  return typeof room === "number" && Number.isInteger(room) && room >= 0 ? room : 0;
 }
 
 /** The SHA `rig deploy` recorded in `state/deployed.json`; a verdict without one is refused. */

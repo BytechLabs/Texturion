@@ -60,6 +60,6 @@ test("the rig has no run-on-a-schedule flag: rig run takes a scenario and a run 
 
 test("the rig CLI lists the rigd commands an agent triages with", async () => {
   const { USAGE, parseArgs } = await import("../src/cli.mjs");
-  for (const word of ["verdicts [--unresolved]", "budget", "secrets", "calibrate"]) assert.ok(USAGE.includes(word), word);
+  for (const word of ["verdicts [--unresolved]", "secrets", "calibrate"]) assert.ok(USAGE.includes(word), word);
   assert.deepEqual(parseArgs(["verdicts", "--unresolved"]), { positional: ["verdicts"], flags: { unresolved: true } });
 });

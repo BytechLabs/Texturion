@@ -1,19 +1,8 @@
-/**
- * One scenario run, start to verdict. A run happens when it is asked for.
- *
- * Before anything is spent: the room must hold the scenario, a paid one must
- * start inside the guard's dial window with time to finish there, and the
- * day's and the clock hour's dials must have room for it. Then the run holds
- * the lease, a failing attempt is tried once more, every attempt's verdict is
- * recorded with the SHA, and only a second failure is reported to PostHog. A
- * failure the doc calls critical is reported at once and not retried.
- */
 import { randomBytes } from "node:crypto";
 import { LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { GuardRefusedError } from '@loonext/rig-robot';
 import type { Clock } from '@loonext/rig-robot';
-import { blockedByRoom, clockHourStart, dialsInLog, inWindow, utcDayStart } from './budget.ts';
-import type { DialCaps, DialWindow } from './budget.ts';
+import { dialsInLog } from "./dials.ts";
 import { textHash } from "./late.ts";
 import { LeaseBusyError, LeaseReapedError } from './lease.ts';
 import type { Lease, LeaseClient, ReleaseResult } from './lease.ts';
@@ -34,19 +23,14 @@ import { infraFingerprint, syntheticFingerprint } from './posthog-errors.ts';
 import type { PostHogErrors, ReportDecision } from './posthog-errors.ts';
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
-/** A paid run must be able to finish before the window shuts. */
-const WINDOW_TAIL_MS = 15 * 60 * 1000;
 /** An attempt stops itself before the watchdog would reap its lease. */
 const ATTEMPT_LIMIT_MS = LEASE_MAX_MS - 60 * 1000;
 /** A runner's setup before the lease is bounded too. */
 const PREPARE_LIMIT_MS = 2 * 60 * 60 * 1000;
 /** How long a prepare past its limit is waited for before its change is put back; the lane hold covers it. */
 const PREPARE_SETTLE_MS = ATTEMPT_LIMIT_MS;
-/** Two paid runs in one hour start minutes apart; the second waits this long for the first's lease. */
 const LEASE_WAIT_MS = 20 * 60 * 1000;
 const LEASE_POLL_MS = 30 * 1000;
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
 
 /** The devices a lane's scenarios drive: the device lane's emulator, or E01's three. */
 const LANE_DEVICES: Readonly<Record<string, readonly ("pixel" | 34 | 35 | 36)[]>> = {
@@ -66,10 +50,6 @@ export interface RunnerDeps {
   posthog?: Pick<PostHogErrors, "canSend" | "send">;
   /** The deployed SHA: `rig deploy` writes it. */
   sha(): string;
-  room(): number;
-  /** The window the guard admits dials in: its measured one, else the registry's. */
-  dialWindow(): Promise<DialWindow>;
-  caps: DialCaps;
   clock: Clock;
   sleep(ms: number): Promise<void>;
   /**
@@ -125,13 +105,12 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
   const slot = entry.runs[options.slot ?? 0];
   if (!slot) throw new Error(`${id} has no run ${options.slot} in the registry`);
   if (options.runId !== undefined && !RUN_ID.test(options.runId)) throw new Error("a run id is letters, digits, - and _");
-  const window = await deps.dialWindow();
   const now = deps.clock.now();
 
   const sha = deps.sha();
   const runId = options.runId ?? newRunId(id, now);
   const verdicts: Verdict[] = [];
-  const record = (attempt: number, startedAt: number, result: AttemptOutcome | Gate, dials: number) => {
+  const record = (attempt: number, startedAt: number, result: AttemptOutcome, dials: number) => {
     const verdict = deps.verdicts.record({
       run_id: runId,
       scenario: id,
@@ -152,25 +131,13 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
   };
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    if (attempt === 2) {
-      const at = retryAt(deps, entry, deps.clock.now(), window);
-      if (at === undefined) {
-        record(attempt, deps.clock.now(), { outcome: "skipped", detail: "no hour left in the dial window has room for the retry; run it again to finish" }, 0);
-        break;
-      }
-      const wait = at - deps.clock.now();
-      if (wait > 0) {
-        deps.log?.(`${id}: waiting ${Math.round(wait / 60_000)} min for an hour with room before the retry`);
-        await deps.sleep(wait);
-      }
-    }
     const startedAt = deps.clock.now();
-    const gate = admission(deps, entry, startedAt, window);
-    if (gate) {
-      record(attempt, startedAt, gate, 0);
+    const held = deps.deployHold?.();
+    if (held) {
+      record(attempt, startedAt, { outcome: "skipped", detail: held, dials: 0 }, 0);
       break;
     }
-    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, window, slot);
+    const outcome = await attemptOnce(deps, entry, runner, runId, attempt, sha, slot);
     record(attempt, startedAt, outcome, outcome.dials);
     if (outcome.critical) break;
     if (!RETRIED.has(outcome.outcome)) break;
@@ -181,62 +148,12 @@ export async function runScenario(deps: RunnerDeps, id: string, options: RunOpti
 
 const RETRIED: ReadonlySet<Outcome> = new Set(["fail", "infra", "late_delivery"]);
 
-interface Gate {
-  outcome: Outcome;
-  detail: string;
-  failure_class?: undefined;
-  component?: undefined;
-  critical?: undefined;
-}
-
-/** Why a run may not start now, or undefined when it may. */
-function admission(deps: RunnerDeps, entry: RegisteredScenario, now: number, window: DialWindow): Gate | undefined {
-  const dials = dialsPerRun(entry);
-  const held = deps.deployHold?.();
-  if (held) return { outcome: "skipped", detail: held };
-  if (blockedByRoom(entry, deps.room())) {
-    return { outcome: "not_runnable", detail: `room ${deps.room()} is under ${Math.max(2, entry.room_min)}` };
-  }
-  if (dials === 0) return undefined;
-  if (!inWindow(window, now) || !inWindow(window, now + WINDOW_TAIL_MS)) {
-    return { outcome: "skipped", detail: `outside the dial window (${String(window.startHour).padStart(2, "0")}:00 UTC for ${window.hours} h)` };
-  }
-  const day = utcDayStart(now);
-  if (deps.verdicts.dialsBetween(day, day + DAY_MS) + dials > deps.caps.daily) {
-    return { outcome: "skipped", detail: `the daily cap of ${deps.caps.daily} dials is spent` };
-  }
-  const hour = clockHourStart(now);
-  if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + dials > deps.caps.hourly) {
-    return { outcome: "skipped", detail: `the hourly cap of ${deps.caps.hourly} dials is spent` };
-  }
-  return undefined;
-}
-
-/**
- * When the retry may start: now, or the first clock hour left in the dial
- * window whose cap holds it. Undefined when no hour today does.
- */
-function retryAt(deps: RunnerDeps, entry: RegisteredScenario, now: number, window: DialWindow): number | undefined {
-  const dials = dialsPerRun(entry);
-  if (dials === 0) return now;
-  const today = utcDayStart(now);
-  if (deps.verdicts.dialsBetween(today, today + DAY_MS) + dials > deps.caps.daily) return undefined;
-  for (let k = 0; k < 24; k++) {
-    const hour = clockHourStart(now) + k * HOUR_MS;
-    const at = k === 0 ? now : hour + 60_000;
-    if (!inWindow(window, at) || !inWindow(window, at + WINDOW_TAIL_MS)) break;
-    if (deps.verdicts.dialsBetween(hour, hour + HOUR_MS) + dials <= deps.caps.hourly) return at;
-  }
-  return undefined;
-}
-
 type AttemptOutcome = {
   outcome: Outcome;
   failure_class?: string;
   component?: string;
   detail?: string;
   critical?: boolean;
-  /** Dials charged to the hourly and daily caps: the ones this attempt placed, not the ones its scenario would have. */
   dials: number;
 };
 
@@ -246,7 +163,6 @@ async function acquireLease(
   entry: RegisteredScenario,
   runner: ScenarioRunner,
   runId: string,
-  window: DialWindow,
 ): Promise<Lease | AttemptOutcome> {
   const paid = dialsPerRun(entry) > 0;
   const atGuard = paid || runner.guardLease === true;
@@ -256,7 +172,7 @@ async function acquireLease(
     const holder = deps.holds?.holder(entry.lane, deps.clock.now());
     if (holder && holder.run_id !== runId) {
       const next = deps.clock.now() + LEASE_POLL_MS;
-      if (next - started <= LEASE_WAIT_MS && (!paid || inWindow(window, next + WINDOW_TAIL_MS))) {
+      if (next - started <= LEASE_WAIT_MS) {
         await deps.sleep(LEASE_POLL_MS);
         continue;
       }
@@ -268,8 +184,7 @@ async function acquireLease(
     } catch (error) {
       if (error instanceof LeaseBusyError) {
         const next = deps.clock.now() + LEASE_POLL_MS;
-        // Only a paid run has the dial window to finish inside.
-        if (next - started <= LEASE_WAIT_MS && (!paid || inWindow(window, next + WINDOW_TAIL_MS))) {
+        if (next - started <= LEASE_WAIT_MS) {
           await deps.sleep(LEASE_POLL_MS);
           continue;
         }
@@ -292,13 +207,12 @@ async function attemptOnce(
   runId: string,
   attempt: number,
   sha: string,
-  window: DialWindow,
   slot: RunSlot,
 ): Promise<AttemptOutcome> {
   const holds = runner.prepare ? deps.holds : undefined;
   holds?.claim(entry.lane, { scenario: entry.id, run_id: runId }, deps.clock.now() + PREPARE_LIMIT_MS + ATTEMPT_LIMIT_MS);
   try {
-    return await attemptHeld(deps, entry, runner, runId, attempt, sha, window, slot);
+    return await attemptHeld(deps, entry, runner, runId, attempt, sha, slot);
   } finally {
     holds?.release(entry.lane, runId);
   }
@@ -311,10 +225,8 @@ async function attemptHeld(
   runId: string,
   attempt: number,
   sha: string,
-  window: DialWindow,
   slot: RunSlot,
 ): Promise<AttemptOutcome> {
-  const paid = dialsPerRun(entry) > 0;
   const evidence: Record<string, unknown> = { sha, lane: entry.lane };
   const texts = new Set<string>();
   const lanes = deps.lanes({ scenario: entry.id, runId, attempt });
@@ -331,9 +243,6 @@ async function attemptHeld(
     laneHeldBy(lane: string) {
       const holder = deps.holds?.holder(lane, deps.clock.now());
       return holder && holder.run_id !== runId ? holder.scenario : undefined;
-    },
-    blockedAt(room: number) {
-      return deps.registry.scenarios.filter((scenario) => scenario.runsOn === "rig" && blockedByRoom(scenario, room)).map((scenario) => scenario.id);
     },
   };
 
@@ -388,14 +297,9 @@ async function attemptHeld(
       deps.verdicts.saveEvidence(runId, attempt, evidence);
       return { ...outcomeOf(prepared), dials: 0 };
     }
-    if (paid && !inWindow(window, deps.clock.now() + WINDOW_TAIL_MS)) {
-      await abandon();
-      deps.verdicts.saveEvidence(runId, attempt, evidence);
-      return { outcome: "skipped", detail: "the dial window closed while the run prepared", dials: 0 };
-    }
   }
 
-  const acquired = await acquireLease(deps, entry, runner, runId, window);
+  const acquired = await acquireLease(deps, entry, runner, runId);
   if (!("id" in acquired)) {
     if (runner.prepare) {
       await abandon();
@@ -439,7 +343,7 @@ async function attemptHeld(
   }
   // Read before the lease is released and before any later step can change the result.
   const judged = result.outcome === "pass" || result.outcome === "fail";
-  const inLog = paid && !judged ? await dialsAtGuard(lanes.guard, lease.id) : undefined;
+  const inLog = dialsPerRun(entry) > 0 && !judged ? await dialsAtGuard(lanes.guard, lease.id) : undefined;
   let released: ReleaseResult | undefined;
   try {
     await ctx.browser.closeAll();

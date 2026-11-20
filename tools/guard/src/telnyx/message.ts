@@ -1,12 +1,5 @@
-import { CORE_SCENARIOS, COST_USD, TEXTS_PER_DAY, TEXTS_PER_MONTH } from "../limits";
 import { Refusal } from "../refusal";
-import { requireAboveFloor } from "../state/balance";
-import { dayOf, giveBack, monthOf, tryTake } from "../state/counters";
-import { liveLease } from "../state/lease";
-import { charge, readTier, refund } from "../state/ledger";
-import { requirePaidLanesOpen } from "../state/signals";
-import { enforceCap } from "./detach";
-import { forward, isDefiniteFailure, relay } from './forward';
+import { forward, relay } from './forward';
 import type { Handler } from './forward';
 import { onEdge } from "./hazards";
 import { isOwnedNumber } from "./targets";
@@ -16,30 +9,6 @@ import { isOwnedNumber } from "./targets";
  * on a nonprod messaging profile, so every test text stays on-net between
  * numbers the rig holds.
  */
-
-/**
- * Plain GSM-7 characters only. Anything else, the extension table included,
- * is counted as UCS-2, which can only overestimate the parts.
- */
-const GSM = /^[\n\r A-Za-z0-9!"#$%&'()*+,\-./:;<=>?@_]*$/;
-
-/** SMS parts for a body: 160/153 characters in GSM-7, 70/67 otherwise. */
-export function smsParts(text: string): number {
-  const gsm = GSM.test(text);
-  const single = gsm ? 160 : 70;
-  const multi = gsm ? 153 : 67;
-  const {length} = Array.from(text);
-  return length <= single ? 1 : Math.ceil(length / multi);
-}
-
-/** An MMS is priced as four text parts on each end, which covers Telnyx's MMS rate. */
-const MMS_PARTS = 4;
-
-export function messageCostUsd(body: Record<string, unknown>): number {
-  const media = Array.isArray(body.media_urls) && body.media_urls.length > 0;
-  const text = typeof body.text === "string" ? body.text : "";
-  return (media ? MMS_PARTS : smsParts(text)) * COST_USD.textPart;
-}
 
 export const handleMessage: Handler = async (request) => {
   const { ctx, view } = request;
@@ -64,33 +33,5 @@ export const handleMessage: Handler = async (request) => {
     }
   }
 
-  await requirePaidLanesOpen(ctx);
-  const tier = await readTier(ctx);
-  if (tier.tier === "red") throw new Refusal("budget.tier_red");
-  if (tier.tier === "amber") {
-    // The live lease's scenario, never one the caller names: the scenario
-    // header is the caller's own claim.
-    const scenario = (await liveLease(ctx))?.scenario ?? null;
-    if (!scenario || !CORE_SCENARIOS.includes(scenario)) throw new Refusal("budget.tier_amber");
-  }
-  await requireAboveFloor(ctx);
-
-  const day = dayOf(ctx.now());
-  const month = monthOf(ctx.now());
-  if (!(await tryTake(ctx, "texts", day, targets.length, TEXTS_PER_DAY))) throw new Refusal("budget.texts_day");
-  if (!(await tryTake(ctx, "texts-month", month, targets.length, TEXTS_PER_MONTH))) {
-    await giveBack(ctx, "texts", day, targets.length);
-    throw new Refusal("budget.texts_month");
-  }
-  const cost = messageCostUsd(body) * targets.length;
-  await charge(ctx, cost);
-
-  const reply = await forward(request);
-  if (isDefiniteFailure(reply)) {
-    await giveBack(ctx, "texts", day, targets.length);
-    await giveBack(ctx, "texts-month", month, targets.length);
-    await refund(ctx, cost);
-  }
-  await enforceCap(ctx, view);
-  return relay(reply);
+  return relay(await forward(request));
 };

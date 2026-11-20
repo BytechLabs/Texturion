@@ -864,10 +864,6 @@ describe("S31, Lou's drafts and the AI cap", () => {
     health.guard.healthBody = { ...health.guard.healthBody, ai_neurons_today: undefined };
     await expect(S31.run(health.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
-    const spent = s31World();
-    spent.guard.healthBody = { ...spent.guard.healthBody, ai_neurons_today: 2000 };
-    await expect(S31.run(spent.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
-
     const capped = s31World();
     capped.app.ai.set(`QA-W/${SUGGEST_REPLY_FEATURE}`, SUGGEST_REPLY_MONTHLY_CAP);
     await expect(S31.run(capped.ctx)).resolves.toMatchObject({ outcome: "infra", component: "ai-usage" });
@@ -1119,7 +1115,7 @@ const INVITE_SUBJECT = "Ana invited you to join QA-W on Loonext";
 function s34World() {
   const world = fakeContext("S34");
   const { app, mail, guard, time } = world;
-  guard.healthBody = { ...guard.healthBody, mail: { heartbeat_fresh: true, halted: false, pending: 0 } };
+  guard.healthBody = { ...guard.healthBody, mail: { heartbeat_fresh: true } };
   const invite = app.invite.bind(app);
   app.invite = async (args: { member: string; email: string }) => {
     const answer = await invite(args);
@@ -1256,12 +1252,8 @@ describe("S34, emails", () => {
     await expect(S34.run(unnamed.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
 
     const stale = s34World();
-    stale.guard.healthBody = { ...stale.guard.healthBody, mail: { heartbeat_fresh: false, halted: false, pending: 0 } };
+    stale.guard.healthBody = { ...stale.guard.healthBody, mail: { heartbeat_fresh: false } };
     await expect(S34.run(stale.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
-
-    const halted = s34World();
-    halted.guard.healthBody = { ...halted.guard.healthBody, mail: { heartbeat_fresh: true, halted: true, pending: 1 } };
-    await expect(S34.run(halted.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
 
     const local = s34World();
     local.guard.activity = async () => {
@@ -1269,7 +1261,7 @@ describe("S34, emails", () => {
     };
     await expect(S34.run(local.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard-lease" });
 
-    for (const world of [unnamed, stale, halted, local]) {
+    for (const world of [unnamed, stale, local]) {
       expect(world.app.invites).toEqual([]);
       expect(world.app.mailAccounts.size).toBe(0);
     }

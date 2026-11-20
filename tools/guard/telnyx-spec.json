@@ -5,29 +5,14 @@
     {
       "key": "voice",
       "name": "nonprod-voice-ovp",
-      "daily_spend_limit": "0.40",
-      "max_destination_rate": 0.01,
-      "whitelisted_destinations": ["US", "CA"],
-      "concurrent_call_limit": "room-minus-robot",
-      "calls_per_cld": 20
+      "whitelisted_destinations": ["US", "CA"]
     },
     {
       "key": "robot",
       "name": "nonprod-robot-ovp",
-      "daily_spend_limit": "0.20",
-      "max_destination_rate": 0.01,
-      "whitelisted_destinations": ["US", "CA"],
-      "concurrent_call_limit": 1,
-      "calls_per_cld": 20
+      "whitelisted_destinations": ["US", "CA"]
     }
   ],
-  "limit_probe": {
-    "$comment": "Attached to no connection: the start-up checks refuse if one names it. The validation check writes only its concurrent_call_limit, always back to 1 (setup/limit-probe.ts).",
-    "name": "nonprod-limit-probe-ovp",
-    "concurrent_call_limit": 1,
-    "daily_spend_limit": "0.00",
-    "whitelisted_destinations": []
-  },
   "call_control_applications": [
     {
       "key": "voice",
@@ -36,7 +21,6 @@
       "failover": "telnyxVoiceFailover",
       "webhook_timeout_secs": 10,
       "outbound_voice_profile": "voice",
-      "channel_limit": "room",
       "call_cost_in_webhooks": true
     },
     {
@@ -45,7 +29,6 @@
       "webhook": "telnyxRobot",
       "webhook_timeout_secs": 10,
       "outbound_voice_profile": "robot",
-      "channel_limit": 1,
       "call_cost_in_webhooks": true
     }
   ],
@@ -54,28 +37,24 @@
       "key": "webrtc",
       "connection_name": "nonprod-webrtc",
       "webhook": "telnyxWebrtc",
-      "sip_uri_calling_preference": "internal",
-      "max_credentials": null
+      "sip_uri_calling_preference": "internal"
     },
     {
       "key": "sentinel",
       "connection_name": "nonprod-sentinel",
       "webhook": "telnyxWebrtc",
-      "sip_uri_calling_preference": "internal",
-      "max_credentials": 1
+      "sip_uri_calling_preference": "internal"
     }
   ],
   "messaging_profiles": {
-    "max_profiles": 7,
-    "max_daily_spend_limit": "0.06",
     "whitelisted_destinations": ["US", "CA"],
     "profiles": [
-      { "key": "robot", "name": "nonprod-robot", "daily_spend_limit": "0.06", "webhook": "telnyxRobot" },
-      { "key": "qa-w", "name": "nonprod-qa-w", "daily_spend_limit": "0.03", "webhook": "telnyxMessaging" },
-      { "key": "qa-a", "name": "nonprod-qa-a", "daily_spend_limit": "0.03", "webhook": "telnyxMessaging" },
-      { "key": "qa-c", "name": "nonprod-qa-c", "daily_spend_limit": "0.03", "webhook": "telnyxMessaging" },
-      { "key": "qa-e", "name": "nonprod-qa-e", "daily_spend_limit": "0.03", "webhook": "telnyxMessaging" },
-      { "key": "qa-g", "name": "nonprod-qa-g", "daily_spend_limit": "0.03", "webhook": "telnyxMessaging" }
+      { "key": "robot", "name": "nonprod-robot", "webhook": "telnyxRobot" },
+      { "key": "qa-w", "name": "nonprod-qa-w", "webhook": "telnyxMessaging" },
+      { "key": "qa-a", "name": "nonprod-qa-a", "webhook": "telnyxMessaging" },
+      { "key": "qa-c", "name": "nonprod-qa-c", "webhook": "telnyxMessaging" },
+      { "key": "qa-e", "name": "nonprod-qa-e", "webhook": "telnyxMessaging" },
+      { "key": "qa-g", "name": "nonprod-qa-g", "webhook": "telnyxMessaging" }
     ]
   },
   "numbers": {

@@ -38,9 +38,6 @@ export interface Env {
   /** The secret segment of the edge's `/t/n/<secret>` notification path. */
   NOTIFICATION_PATH_SECRET?: string;
 
-  /** The lowest documented default concurrent limit (wrangler.jsonc). */
-  TELNYX_CONCURRENT_FLOOR?: string;
-  SIGNAL_LATCH_RESET?: string;
 }
 
 /** What the policy reads, parsed from {@link Env} once per Durable Object instance. */
@@ -52,24 +49,11 @@ export interface GuardConfig {
   edgeOrigin: string | null;
   robotMailbox: string | null;
   notificationSecret: string | null;
-  /**
-   * The floor of the concurrency proof ladder (state/concurrency.ts). Null when
-   * unparseable, which refuses every paid dial (admission.limit_unknown).
-   */
-  concurrentFloor: number | null;
-  signalLatchReset: string;
 }
 
 function present(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
-}
-
-/** A positive integer, or null for anything else ("unknown", empty, "0", "2.5"). */
-export function parseConcurrentLimit(value: string | undefined): number | null {
-  const text = value?.trim() ?? "";
-  if (!/^[1-9]\d{0,3}$/.test(text)) return null;
-  return Number(text);
 }
 
 /** The edge origin as `https://host`, or null when it is not a bare https origin. */
@@ -95,7 +79,5 @@ export function readConfig(env: Env): GuardConfig {
     edgeOrigin: parseEdgeOrigin(env.EDGE_ORIGIN),
     robotMailbox: present(env.ROBOT_MAILBOX)?.toLowerCase() ?? null,
     notificationSecret: present(env.NOTIFICATION_PATH_SECRET),
-    concurrentFloor: parseConcurrentLimit(env.TELNYX_CONCURRENT_FLOOR),
-    signalLatchReset: present(env.SIGNAL_LATCH_RESET) ?? "",
   };
 }

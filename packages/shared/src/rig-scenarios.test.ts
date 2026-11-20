@@ -20,20 +20,18 @@ type Scenario = Record<string, unknown> & {
   dials: number;
   far_end_legs: number;
 };
-type Registry = { caps: Record<string, unknown>; scenarios: Scenario[] } & Record<string, unknown>;
+type Registry = { scenarios: Scenario[] } & Record<string, unknown>;
 const guard = (await import(join(REPO, "scripts", "check-rig-scenarios.mjs"))) as {
   REGISTRY_FILE: string;
   DOC_FILE: string;
   JOURNEYS_FILE: string;
-  expandIds: (text: string) => string[];
   readDoc: (markdown: string) => {
     problems: string[];
     scenarios: Map<string, { dials: string }>;
-    rooms: { room: number; runs: string }[];
   };
   judge: (input: { registry: unknown; markdown: string; journeys: unknown }) => {
     problems: string[];
-    result: { scenarios: number; rig: number; overHourlyCap: string[]; journeys: number; roomsMatched: number } | null;
+    result: { scenarios: number; rig: number; journeys: number } | null;
   };
 };
 
@@ -49,16 +47,11 @@ const problems = (registry: Registry, journeyFile: unknown = journeys) =>
   guard.judge({ registry, markdown, journeys: journeyFile }).problems.join("\n");
 
 describe("parsing", () => {
-  it("expands the id ranges 4.1 writes", () => {
-    expect(guard.expandIds("S04-S06, D09-D12 and D02p")).toEqual(["S04", "S05", "S06", "D09", "D10", "D11", "D12", "D02p"]);
-  });
-
-  it("reads every 4.2 row with its dials per run, and 4.1's four room rows", () => {
+  it("reads every 4.2 row with its dials per run", () => {
     const doc = guard.readDoc(markdown);
     expect(doc.problems).toEqual([]);
     expect(doc.scenarios.get("D12")?.dials).toBe("3");
     expect(doc.scenarios.get("R00")?.dials).toBe("0");
-    expect(doc.rooms.map((row) => row.room)).toEqual([4, 3, 2, 1]);
   });
 });
 
@@ -68,13 +61,6 @@ describe("the real registry", () => {
     expect(found).toEqual([]);
     expect(result?.scenarios).toBeGreaterThan(0);
     expect(result?.journeys).toBe(Object.keys(journeys.journeys).length);
-    expect(result?.roomsMatched).toBe(result?.scenarios);
-  });
-
-  it("lists the runs the guard's hourly cap can never admit, instead of failing them", () => {
-    const { problems: found, result } = guard.judge({ registry: fresh(), markdown, journeys });
-    expect(found).toEqual([]);
-    expect(result?.overHourlyCap).toEqual(expect.arrayContaining(["S07 (4)", "S09 (5)"]));
   });
 
   it("says nothing about when a scenario runs", () => {
@@ -107,45 +93,16 @@ describe("scheduling fields", () => {
     expect(problems(placed)).toMatch(/S05 runs\[0\]: "offset_days" is a scheduling field/);
     expect(problems(placed)).toMatch(/S05 runs\[0\]: "hour_utc" is a scheduling field/);
 
-    const monthly = fresh();
-    monthly.caps.retry_reserve = 0.2;
-    monthly.caps.repro_reserve_dials = 60;
-    monthly.caps.days_per_month = 30;
-    expect(problems(monthly)).toMatch(/caps: "retry_reserve" is a scheduling field/);
-    expect(problems(monthly)).toMatch(/caps: "repro_reserve_dials" is a scheduling field/);
-    expect(problems(monthly)).toMatch(/caps: "days_per_month" is a scheduling field/);
-
     const budget = fresh();
-    (budget as Record<string, unknown>).budget = budget.caps;
+    budget.budget = { dials: 18 };
     expect(problems(budget)).toMatch(/scenarios\.json: "budget" is a scheduling field/);
   });
 });
 
-describe("the guard's caps", () => {
-  it("are taken from the doc, so none can be widened here", () => {
-    const window = fresh();
-    window.caps.window_utc = [0, 24];
-    expect(problems(window)).toMatch(/caps: window_utc is \[0,24\] but docs\/RIG\.md says \[4,10\]/);
-    const cap = fresh();
-    cap.caps.hourly_cap = 4;
-    expect(problems(cap)).toMatch(/hourly_cap is 4 but docs\/RIG\.md says 3/);
-    const day = fresh();
-    day.caps.daily_cap = 30;
-    expect(problems(day)).toMatch(/daily_cap is 30 but docs\/RIG\.md says 18/);
-  });
-
-  it("fails a doc whose cap sentences it cannot read, rather than trusting the registry", () => {
-    const blind = markdown.replace("the window is 04:00-10:00 UTC", "the window is the quiet hours");
-    expect(guard.judge({ registry: fresh(), markdown: blind, journeys }).problems.join("\n")).toMatch(
-      /expected one "the window is HH:00-HH:00 UTC", found 0/,
-    );
-  });
-
-  it("fails a run that is more dials than the guard's daily cap, which no day could admit", () => {
-    const registry = fresh();
-    byId(registry, "S05").dials = 19;
-    expect(problems(registry)).toMatch(/S05: one run is \d+ dials and the daily cap is 18/);
-  });
+it("rejects a dial cap in the scenario registry", () => {
+  const registry = fresh();
+  registry.caps = { hourly_cap: 3 };
+  expect(problems(registry)).toContain('"caps"');
 });
 
 describe("variants", () => {
@@ -222,12 +179,6 @@ describe("the doc", () => {
     expect(problems(recount)).toMatch(/S11: dials \+ far_end_legs is 3 but 4.2 says 2 a run/);
   });
 
-  it("fails a room that differs from 4.1's table", () => {
-    const registry = fresh();
-    byId(registry, "S03").min_room = 4;
-    expect(problems(registry)).toMatch(/S03: min_room is 4 but 4.1's room table runs it from room 3/);
-  });
-
   it("fails a scenario missing from the registry, and one the doc does not have", () => {
     const registry = fresh();
     registry.scenarios = registry.scenarios.filter((s) => s.id !== "S22");
@@ -251,10 +202,10 @@ describe("fields", () => {
     expect(problems(negative)).toMatch(/S22: dials must be a non-negative integer/);
   });
 
-  it("fails a scenario with no dials that claims a room", () => {
+  it("rejects a room requirement on any scenario", () => {
     const registry = fresh();
     byId(registry, "S22").min_room = 2;
-    expect(problems(registry)).toMatch(/S22: a scenario with no dials holds no legs and needs no room/);
+    expect(problems(registry)).toMatch(/S22: "min_room" is not a scenario field/);
   });
 });
 

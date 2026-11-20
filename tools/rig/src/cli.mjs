@@ -36,7 +36,6 @@ The rig runs nothing on a timer. Every command below is something you ask for.
   run <scenario>[-<variant>] [--run-id <id>]
                                   one scenario run: the guard lease, the judging, the verdict
   verdicts [--unresolved]         the verdict store: the last 50 runs, or what still fails
-  budget                          the dials spent today and this hour against the caps
   secrets                         fetch the edge's sealed bundle into the secret store now
   calibrate --surface <s> --wav <file> [--own <s>]
                                   measure one surface's tone margin from a recording
@@ -144,7 +143,6 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
     if (flags.json) log(JSON.stringify(report, null, 2));
     else {
       for (const result of report.results) log(`${result.pass ? "PASS" : "FAIL"}  ${result.name}${result.reason ? `  ${result.reason}` : ""}`);
-      if (report.room !== undefined) log(`room: ${report.room}`);
     }
     return report.results.every((result) => result.pass) ? 0 : 1;
   }
@@ -215,7 +213,6 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
     }
 
     case "verdicts":
-    case "budget":
     case "secrets":
     case "calibrate": {
       const options = Object.entries(flags).flatMap(([name, value]) => (value === true ? [`--${name}`] : [`--${name}`, String(value)]));

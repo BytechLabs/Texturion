@@ -10787,3 +10787,9 @@ include several breaks. Breaks reduce capacity and leave no time for work or
 travel. Existing appointments keep their booked times and Workload flags
 conflicts so dispatchers can resolve them. Saving availability advances the
 revision used when publishing a plan.
+
+## D176 - rig QA runs on demand
+
+Founder decision of 2026-11-20. Agents may run any rig scenario when requested. The Telnyx guard and the runner apply the rig's caller, resource and destination checks. Telnyx applies account limits and its refusal is reported with the verdict. The runner serializes shared-resource use and releases the lease before retrying.
+
+This supersedes D142's dial window, start cutoff, count and concurrency admissions, spend and balance gates, and mail budget. Remove queued scenario timers and the workflow that collected measurements for those admissions. Setup removes the old limits from the rig-owned Telnyx profiles. Product limits remain available for QA through their own scenarios.

@@ -297,37 +297,15 @@ export function customerWebhookRefusal(env: Env, url: string): string | null {
   return origin === robot ? null : "rig mode delivers webhooks only to the robot";
 }
 
-/**
- * What a messaging profile the rig creates is allowed to cost and reach.
- *
- * The guard refuses any profile above $0.06 a day or outside US and Canada,
- * and the partition budgets $0.03 a day for each tenant profile.
- */
-export const RIG_MESSAGING_PROFILE_DAILY_LIMIT = "0.03";
 const RIG_MESSAGING_DESTINATIONS = ["US", "CA"];
 
 const MESSAGING_PROFILE_WRITE = /^\/v2\/messaging_profiles(?:\/[^/]+)?$/;
 
 /**
- * A limit the rig may keep: a positive amount below its own. `Number` reads
- * null, "" and false as 0, and a profile sent `daily_spend_limit: null` with
- * the limit enabled may be read by Telnyx as no limit at all.
- */
-function isLimitBelow(value: unknown, cap: number): boolean {
-  if (typeof value === "string" ? value.trim() === "" : typeof value !== "number") {
-    return false;
-  }
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount > 0 && amount < cap;
-}
-
-/**
  * The rig's narrowing of a Telnyx request body, applied by the Telnyx client
  * to every request. Production and local get the same object back.
  *
- * In rig mode a messaging-profile write is capped at the partition's daily
- * limit, and its destination whitelist can only shrink: a country the caller
- * asked for survives only if the rig allows it too.
+ * In rig mode the destination whitelist can only shrink.
  */
 export function restrictTelnyxBody(
   env: Env,
@@ -344,9 +322,6 @@ export function restrictTelnyxBody(
   next.whitelisted_destinations = Array.isArray(asked)
     ? asked.filter((country) => RIG_MESSAGING_DESTINATIONS.includes(String(country)))
     : [...RIG_MESSAGING_DESTINATIONS];
-  if (!isLimitBelow(next.daily_spend_limit, Number(RIG_MESSAGING_PROFILE_DAILY_LIMIT))) {
-    next.daily_spend_limit = RIG_MESSAGING_PROFILE_DAILY_LIMIT;
-  }
-  next.daily_spend_limit_enabled = true;
+  next.daily_spend_limit_enabled = false;
   return next;
 }

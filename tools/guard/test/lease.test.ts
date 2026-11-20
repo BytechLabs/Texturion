@@ -1,8 +1,8 @@
 import { HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { recordSignal, requirePaidLanesOpen } from "../src/state/signals";
-import { harness, lease, N, ready, registerViaEdge, ruleOf } from "./support";
+import { recordSignal } from "../src/state/signals";
+import { harness, lease, N, ready, ruleOf } from "./support";
 
 describe("the run lease", () => {
   it("is one at a time across the system", async () => {
@@ -37,100 +37,6 @@ describe("the run lease", () => {
     expect((await h.call("/lease", { caller: "robot", body: { scenario: "D02p" } })).status).toBe(201);
   });
 
-  it("starts the preemption poll", async () => {
-    const h = await ready();
-    await lease(h);
-    expect(h.alarms).toEqual([h.clock.now + 2000]);
-  });
-});
-
-describe("preemption", () => {
-  it("hangs up every test leg on the first production call, and records the run as preempted", async () => {
-    const h = await ready();
-    const id = await lease(h);
-    h.telnyx.calls.set("ccid-1", { alive: true });
-    h.telnyx.calls.set("ccid-2", { alive: true });
-    await registerViaEdge(h, "ccid-1");
-    await registerViaEdge(h, "ccid-2", "conn-robot", "robot");
-
-    await h.guard.alarm();
-    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
-    expect(h.alarms).toHaveLength(2);
-
-    h.telnyx.activeCalls.set("conn-prod-webrtc", [{ call_control_id: "ccid-production" }]);
-    await h.guard.alarm();
-    const hangups = h.telnyx.requests("POST", "/v2/calls").map((entry) => entry.path).toSorted();
-    expect(hangups).toEqual(["/v2/calls/ccid-1/actions/hangup", "/v2/calls/ccid-2/actions/hangup"]);
-    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.toMatchObject({ lease_id: id, preempted_at: h.clock.now });
-    await expect((await h.call("/lease", { caller: "robot" })).json()).resolves.toBeNull();
-    expect(h.alarms).toHaveLength(2);
-  });
-
-  it("stops polling only when Telnyx has no active-calls read at all", async () => {
-    const h = await ready();
-    await lease(h);
-    h.telnyx.activeCallsSupported = false;
-    await h.guard.alarm();
-    expect(h.alarms).toHaveLength(1);
-  });
-
-  it("keeps polling through an active-calls read that failed for now", async () => {
-    const h = await ready();
-    await lease(h);
-    for (const status of [503, 429]) {
-      h.telnyx.failNext = { method: "GET", path: "/v2/connections/conn-prod-voice/active_calls", status };
-      await h.guard.alarm();
-    }
-    expect(h.alarms).toHaveLength(3);
-    h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
-    await h.guard.alarm();
-    await expect((await h.call("/lease", { caller: "robot" })).json()).resolves.toBeNull();
-  });
-
-  it("keeps polling when the partition cannot be refreshed", async () => {
-    const h = await ready();
-    await lease(h);
-    h.advance(6 * 60 * 1000);
-    h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 500 };
-    await h.guard.alarm();
-    expect(h.alarms).toHaveLength(2);
-  });
-
-  it("admits no new leg while it cannot see production's calls", async () => {
-    const h = await ready();
-    const id = await lease(h);
-    h.telnyx.failNext = { method: "GET", path: "/v2/connections/conn-prod-webrtc/active_calls", status: 503 };
-    const dial = () =>
-      h.call("/telnyx/v2/calls", {
-        caller: "robot",
-        body: { connection_id: "conn-robot", from: N.robot1, to: N.devW1 },
-        headers: { [HEADER.lease]: id },
-      });
-    await expect(ruleOf(await dial())).resolves.toBe("admission.production_calls_unknown");
-    expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
-    expect((await dial()).status).toBe(200);
-  });
-
-  it("tries a failed hangup again on the next poll before it calls the run preempted", async () => {
-    const h = await ready();
-    const id = await lease(h);
-    h.telnyx.calls.set("ccid-1", { alive: true });
-    await registerViaEdge(h, "ccid-1");
-    h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
-    h.telnyx.failNext = { method: "POST", path: "/v2/calls/ccid-1/actions/hangup", status: 500 };
-    await h.guard.alarm();
-    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.not.toHaveProperty("preempted_at");
-    expect(h.alarms).toHaveLength(2);
-    await h.guard.alarm();
-    expect(h.telnyx.requests("POST", "/v2/calls/ccid-1/actions/hangup")).toHaveLength(2);
-    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.toMatchObject({ lease_id: id, preempted_at: h.clock.now });
-  });
-
-  it("does nothing without a live lease", async () => {
-    const h = await ready();
-    await h.guard.alarm();
-    expect(h.telnyx.log).toEqual([]);
-  });
 });
 
 describe("account signals", () => {
@@ -140,7 +46,7 @@ describe("account signals", () => {
     corroborated_by: "signature" as const,
   });
 
-  it("halt paid tests for seven days and raise a production event", async () => {
+  it("report a corroborated notice to production monitoring", async () => {
     const h = await ready();
     const response = await h.call("/halt", {
       caller: "edge",
@@ -151,38 +57,9 @@ describe("account signals", () => {
         received_at: new Date(h.clock.now).toISOString(),
       },
     });
-    await expect(response.json()).resolves.toMatchObject({ latched: false });
-    await expect(requirePaidLanesOpen(h.ctx)).rejects.toMatchObject({ rule: "signal.halted" });
+    await expect(response.json()).resolves.toMatchObject({ recorded: 1 });
     const event = h.outbound.find((item) => item.url.includes("posthog.com"));
     expect(event?.body).toContain('"$exception_fingerprint":"ops:telnyx-account-signal"');
-    h.advance(7 * 24 * 60 * 60 * 1000);
-    await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
-  });
-
-  it("keep the paid lanes off after a second signal inside 30 days, until the design changes", async () => {
-    const h = await ready();
-    await recordSignal(h.ctx, halt("Abandoned calls"));
-    h.advance(20 * 24 * 60 * 60 * 1000);
-    await recordSignal(h.ctx, halt("Short duration calls"));
-    h.advance(60 * 24 * 60 * 60 * 1000);
-    await expect(requirePaidLanesOpen(h.ctx)).rejects.toMatchObject({ rule: "signal.latched" });
-
-    // A reviewed commit changes SIGNAL_LATCH_RESET; the latch and the signals behind it clear.
-    h.ctx.config.signalLatchReset = "second";
-    await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
-    await recordSignal(h.ctx, halt("Low Balance"));
-    await expect(requirePaidLanesOpen(h.ctx)).rejects.toMatchObject({ rule: "signal.halted" });
-    h.advance(8 * 24 * 60 * 60 * 1000);
-    await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
-  });
-
-  it("do not latch for two signals 30 days apart", async () => {
-    const h = await ready();
-    await recordSignal(h.ctx, halt("Abandoned calls"));
-    h.advance(31 * 24 * 60 * 60 * 1000);
-    await recordSignal(h.ctx, halt("Abandoned calls"));
-    h.advance(8 * 24 * 60 * 60 * 1000);
-    await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
   });
 
   it("count one notice once, however often the edge retries it", async () => {
@@ -190,7 +67,6 @@ describe("account signals", () => {
     await recordSignal(h.ctx, halt("Low Balance", "notice-7"));
     await recordSignal(h.ctx, halt("Low Balance", "notice-7"));
     h.advance(8 * 24 * 60 * 60 * 1000);
-    await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();
     const events = h.outbound.filter((item) => item.body.includes("telnyx-account-signal"));
     expect(events).toHaveLength(1);
   });

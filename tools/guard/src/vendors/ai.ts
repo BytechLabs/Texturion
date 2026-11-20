@@ -1,15 +1,9 @@
 import type { Ctx } from "../context";
-import { AI_AUDIO_BYTES_PER_SECOND, AI_CHARS_PER_TOKEN, AI_DEFAULT_MAX_TOKENS, AI_MODELS, AI_NEURONS_PER_DAY } from '../limits';
+import { AI_AUDIO_BYTES_PER_SECOND, AI_CHARS_PER_TOKEN, AI_DEFAULT_MAX_TOKENS, AI_MODELS } from '../limits';
 import type { AiModelRate } from '../limits';
 import { json, Refusal } from "../refusal";
-import { add, counted, dayOf, giveBack, tryTake } from "../state/counters";
+import { add, counted, dayOf } from "../state/counters";
 
-/**
- * The rig's AI shim (docs/RIG.md): `wrangler dev` on the
- * rig bills Workers AI to the production account, so its calls come here and
- * share a 2,000-neuron day. Each request reserves its worst case before it
- * runs, then settles to the usage the model reports when it reports one.
- */
 type Inputs = Record<string, unknown>;
 
 function audioBytes(audio: unknown): number {
@@ -43,8 +37,7 @@ export async function handleAi(ctx: Ctx, request: Request, path: string): Promis
   const prefix = "/run/";
   if (request.method !== "POST" || !path.startsWith(prefix)) throw new Refusal("ai.model_refused");
   const model = decodeURIComponent(path.slice(prefix.length));
-  const rate = AI_MODELS[model];
-  if (!rate) throw new Refusal("ai.model_refused");
+  if (!Object.hasOwn(AI_MODELS, model)) throw new Refusal("ai.model_refused");
   if (!ctx.ai) throw new Refusal("ai.binding_missing");
 
   let inputs: Inputs;
@@ -56,23 +49,16 @@ export async function handleAi(ctx: Ctx, request: Request, path: string): Promis
   if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) throw new Refusal("request.body_invalid");
   if (inputs.stream === true) throw new Refusal("ai.stream_refused");
 
+  const rate = AI_MODELS[model];
   const day = dayOf(ctx.now());
-  const reserved = estimateNeurons(rate, inputs);
-  if (!(await tryTake(ctx, "ai-neurons", day, reserved, AI_NEURONS_PER_DAY))) {
-    throw new Refusal("budget.ai_neurons_day");
-  }
-
   let result: unknown;
   try {
     result = await ctx.ai.run(model, inputs);
   } catch (error) {
-    await giveBack(ctx, "ai-neurons", day, reserved);
     const message = error instanceof Error ? error.message : String(error);
     return json({ error: "ai_run_failed", message: message.slice(0, 300) }, 502);
   }
-  const actual = reportedNeurons(rate, result);
-  if (actual !== null && actual < reserved) await giveBack(ctx, "ai-neurons", day, reserved - actual);
-  if (actual !== null && actual > reserved) await add(ctx, "ai-neurons", day, actual - reserved);
+  await add(ctx, "ai-neurons", day, reportedNeurons(rate, result) ?? estimateNeurons(rate, inputs));
   return json(result);
 }
 

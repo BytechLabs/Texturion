@@ -199,8 +199,6 @@ async function healthFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   } catch (error) {
     return [infra("rig-health", (error as Error).message)];
   }
-  ctx.evidence.room = report.room ?? null;
-  if (typeof report.room === "number") ctx.evidence.blocked_by_room = ctx.blockedAt(report.room);
   ctx.evidence.health = report.results.map((r) => ({ name: r.name, pass: r.pass }));
   return report.results
     .filter((r) => !r.pass)
@@ -219,7 +217,7 @@ async function guardFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
     return [infra("guard", (error as Error).message)];
   }
   const { safety } = health.telnyx;
-  ctx.evidence.guard = { ok: health.ok, balance_above_floor: health.balance_above_floor, safety: safety.state, room: health.room ?? null };
+  ctx.evidence.guard = { ok: health.ok, safety: safety.state };
   const found: ScenarioResult[] = [];
   // Unsafe is what the start-up checks call a nonprod resource wired to production.
   if (safety.state === "unsafe") {
@@ -227,7 +225,6 @@ async function guardFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
     found.push(fail("isolation_unsafe", `the guard's start-up checks found the partition unsafe: ${why}`, { critical: true }));
   } else if (health.telnyx.key === "absent") found.push(infra("guard", "the guard holds no Telnyx key"));
   else if (!health.ok) found.push(fail("guard_not_ok", `the guard does not report ok (start-up checks ${safety.state})`));
-  if (!health.balance_above_floor) found.push(fail("balance_below_floor", "the guard reports the Telnyx balance below its floor"));
   return found;
 }
 

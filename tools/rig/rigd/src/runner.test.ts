@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { HEADER } from "@loonext/rig-protocol";
 import { ManualClock } from "@loonext/rig-robot/test-support";
 import { afterEach, describe, expect, it } from "vitest";
-import { dialsInLog, parseWindow } from "./budget.ts";
+import { dialsInLog } from "./dials.ts";
 import { textHash } from "./late.ts";
 import { LeaseClient } from './lease.ts';
 import type { UndoHandlers } from './lease.ts';
@@ -20,7 +20,7 @@ import { VerdictStore } from "./verdicts.ts";
 
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const EDGE = "https://rig-edge.example.workers.dev";
-/** 1 November 2026, 05:00 UTC: inside the dial window. */
+/** 1 November 2026, 05:00 UTC. */
 const S02_DAY = Date.UTC(2026, 10, 1, 5, 0, 0);
 const dirs: string[] = [];
 afterEach(() => {
@@ -32,7 +32,6 @@ const REGISTRY = registryOf([
     lane: "browser",
     dials: 1,
     far_end_legs: 1,
-    min_room: 2,
   }),
   scenario("S20"),
   scenario("S29"),
@@ -42,12 +41,10 @@ const REGISTRY = registryOf([
     lane: "browser",
     dials: 1,
     far_end_legs: 1,
-    min_room: 2,
   }),
 ]);
 
 interface SetupOptions {
-  room?: number;
   at?: number;
   handlers?: UndoHandlers;
   acquire?: () => Response;
@@ -83,9 +80,6 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     lanes: () => fakeLanes(time),
     posthog: new PostHogErrors({ projectKey: "phc_rig_test_key", fetch }),
     sha: () => SHA,
-    room: () => options.room ?? 4,
-    dialWindow: async () => parseWindow("04-10"),
-    caps: { daily: 18, hourly: 3 },
     clock,
     sleep: async (ms) => clock.advance(ms),
   };
@@ -141,12 +135,11 @@ describe(runScenario, () => {
     expect(waits).toEqual([123]);
   });
 
-  it("retries a failure once, in the next clock hour with room, and reports only when the retry fails too", async () => {
+  it("retries a failure once immediately and reports only when the retry fails too", async () => {
     const flaky = setup([failing("no_ring_within_6s"), { outcome: "pass" }]);
     expect((await runScenario(flaky.deps, "S02")).status).toBe("pass");
     expect(flaky.attempts).toEqual([1, 2]);
-    // Two dials at 05:00 leave one in that hour; the retry's two go at 06:01.
-    expect(flaky.verdicts.all().map((v) => v.started_at)).toEqual(["2026-11-01T05:00:00.000Z", "2026-11-01T06:01:00.000Z"]);
+    expect(flaky.verdicts.all().map((v) => v.started_at)).toEqual(["2026-11-01T05:00:00.000Z", "2026-11-01T05:00:00.000Z"]);
     expect(flaky.reports()).toEqual([]);
 
     const broken = setup([failing("no_ring_within_6s"), failing("no_ring_within_6s")]);
@@ -164,28 +157,6 @@ describe(runScenario, () => {
     ]);
     await runScenario(deps, "S02");
     expect(event().fingerprint).toEqual(["synthetic-infra", "robot"]);
-  });
-
-  it("reports the attempt that failed, not the retry the window stopped", async () => {
-    // The previous run failed; this one fails at 09:40, and no hour of the
-    // window is left for a retry with two dials in it.
-    const { deps, verdicts, event } = setup([failing("no_ring_within_6s")], { at: Date.UTC(2026, 10, 1, 9, 40) });
-    verdicts.record({
-      run_id: "S02-earlier",
-      scenario: "S02",
-      sha: SHA,
-      attempt: 2,
-      outcome: "fail",
-      failure_class: "no_ring_within_6s",
-      started_at: "2026-10-30T05:10:00.000Z",
-      finished_at: "",
-      dials: 2,
-    });
-    const summary = await runScenario(deps, "S02");
-    expect(summary.verdicts.map((v) => v.outcome)).toEqual(["fail", "skipped"]);
-    expect(event().fingerprint).toEqual(["synthetic", "S02", "no_ring_within_6s"]);
-    expect(event().message.formatted).toBe("S02 failed: no_ring_within_6s");
-    expect(verdicts.unresolved()[0]!.fingerprint).toEqual(event().fingerprint);
   });
 
   describe("late texts", () => {
@@ -232,31 +203,10 @@ describe(runScenario, () => {
     expect(reports()).toEqual([]);
   });
 
-  it("starts no paid run outside the window, past the caps or below the room", async () => {
-    const late = setup([], { at: Date.UTC(2026, 10, 1, 9, 50) });
-    await expect(runScenario(late.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "outside the dial window (04:00 UTC for 6 h)" });
-    expect(late.requests).toEqual([]);
-
-    const tight = setup([], { room: 1 });
-    expect((await runScenario(tight.deps, "S02")).status).toBe("not_runnable");
-
-    // The guard counts clock hours: two dials at 05:10 fill the hour for a two-dial run at 05:50...
-    const spent = setup([], { at: Date.UTC(2026, 10, 1, 5, 50) });
-    spent.verdicts.record({
-      run_id: "S01-x",
-      scenario: "S01",
-      sha: SHA,
-      attempt: 1,
-      outcome: "pass",
-      started_at: new Date(Date.UTC(2026, 10, 1, 5, 10)).toISOString(),
-      finished_at: "",
-      dials: 2,
-    });
-    await expect(runScenario(spent.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the hourly cap of 3 dials is spent" });
-    // ...but not for one at 06:05.
-    const next = setup([], { at: Date.UTC(2026, 10, 1, 6, 5) });
-    next.verdicts.record({ ...spent.verdicts.all()[0]! });
-    expect((await runScenario(next.deps, "S02")).status).toBe("pass");
+  it("runs a call on demand at any hour and continues after the old hourly cap", async () => {
+    const { deps, verdicts } = setup([], { at: Date.UTC(2026, 10, 1, 21, 30) });
+    for (let count = 0; count < 3; count++) expect((await runScenario(deps, "S02")).status).toBe("pass");
+    expect(verdicts.dialsBetween(Date.UTC(2026, 10, 1, 21))).toBe(6);
   });
 
   it("waits for a busy lease, then skips the run", async () => {
@@ -424,7 +374,6 @@ describe(runScenario, () => {
     const dir = mkdtempSync(join(tmpdir(), "rig-holds-"));
     dirs.push(dir);
     deps.holds = new LaneHoldFile(dir);
-    deps.caps = { daily: 100, hourly: 100 };
     const during: { s04: unknown; ownView: string | undefined }[] = [];
     let ran = 0;
     deps.runners = {
@@ -482,19 +431,6 @@ describe(runScenario, () => {
     expect((await runScenario(refused.deps, "S02")).verdicts.map((v) => v.outcome)).toEqual(["infra", "infra"]);
     expect(abandoned).toHaveLength(3);
 
-    const closing = setup([], { at: Date.UTC(2026, 10, 1, 9, 0) });
-    closing.deps.runners = {
-      ...closing.deps.runners,
-      S02: {
-        ...preparing(undefined),
-        prepare: async () => {
-          closing.clock.advance(50 * 60_000);
-        },
-      },
-    };
-    await expect(runScenario(closing.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
-    expect(abandoned).toHaveLength(4);
-
     // A prepare that failed put its own change back; a run that started has its lease's undos.
     const failed = setup([]);
     failed.deps.runners = { ...failed.deps.runners, S02: preparing({ outcome: "infra", component: "pixel", detail: "never reached deep idle" }) };
@@ -502,7 +438,7 @@ describe(runScenario, () => {
     const started = setup([]);
     started.deps.runners = { ...started.deps.runners, S02: preparing(undefined) };
     expect((await runScenario(started.deps, "S02")).status).toBe("pass");
-    expect(abandoned).toHaveLength(4);
+    expect(abandoned).toHaveLength(3);
   });
 
   it("puts back what a prepare changed when it threw, or ran past its limit, once it has stopped", async () => {
@@ -564,23 +500,6 @@ describe(runScenario, () => {
     const summary = await runScenario(deps, "S02");
     expect(summary.verdicts.map((v) => [v.outcome, v.detail])).toEqual([["skipped", "a deploy holds the rig for a schema change"]]);
     expect(attempts).toEqual([]);
-  });
-
-  it("tells a runner which rig scenarios a room would block, as its own admission blocks them", async () => {
-    const { deps } = setup([]);
-    const blocked: Record<number, string[]> = {};
-    deps.runners = {
-      ...deps.runners,
-      S20: {
-        id: "S20",
-        run: async (ctx) => {
-          Object.assign(blocked, { 1: ctx.blockedAt(1), 4: ctx.blockedAt(4) });
-          return { outcome: "pass" };
-        },
-      },
-    };
-    await runScenario(deps, "S20");
-    expect(blocked).toEqual({ 1: ["S02", "S04"], 4: [] });
   });
 
   it("turns a failed undo into an infrastructure verdict", async () => {
@@ -697,7 +616,7 @@ describe("the dials an attempt is charged", () => {
     return made;
   }
 
-  it("charges nothing for an attempt that ended as a rig fault before any dial, so it does not use the hour's cap", async () => {
+  it("charges nothing for an attempt that ended as a rig fault before any dial", async () => {
     const { deps, verdicts } = withLog({}, async () => infra);
     const summary = await runScenario(deps, "S02");
     expect(summary.verdicts.map((v) => [v.outcome, v.dials])).toEqual([

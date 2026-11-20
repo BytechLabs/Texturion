@@ -2,7 +2,7 @@ import { HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import worker from "../src/index";
-import { refuse, RULES, statusFor } from "../src/refusal";
+import { refuse, RULES } from "../src/refusal";
 import { harness, ready, ruleOf } from "./support";
 
 describe("the caller class", () => {
@@ -113,12 +113,7 @@ describe("refusals", () => {
 
   it("are 429 for a spent budget and 403 for everything else", () => {
     for (const rule of RULES) {
-      const spent =
-        rule.startsWith("budget.") ||
-        rule === "provisioning.search_rate" ||
-        rule === "provisioning.search_cap" ||
-        rule === "provisioning.order_interval";
-      expect(statusFor(rule), rule).toBe(spent ? 429 : 403);
+      expect(refuse(rule).status, rule).toBe(403);
     }
   });
 
