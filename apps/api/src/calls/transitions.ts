@@ -283,6 +283,8 @@ export interface SessionMachine {
   /** #725: why the machine began tearing down a live call, read by the hangup
    *  that then ends it (a transfer expired, the placer hung up). */
   endHint?: CallEndReason | null;
+  /** The carrier hangup still needs to settle billing after a synthetic end. */
+  awaitingInboundHangup?: boolean;
   /** #490: this session answered a suspended line to speak the unavailable
    *  notice. Distinct from `unattended`, which is true for every call that
    *  reached one — including the ones past the daily cap that rang out. */
@@ -1461,6 +1463,7 @@ export function reduce(
       // Only `answered` needs this (the teardown only fires there); any
       // other state means T8/T17 already resolved it: a T14-style no-op.
       if (next.state !== "answered") return { machine: next, effects };
+      next.awaitingInboundHangup = true;
       terminalize(
         next,
         effects,
@@ -1471,7 +1474,7 @@ export function reduce(
           mode: "synthetic",
           outcome: "answered",
           payload: null,
-          briAnsweredAtIso: next.answeredAtIso,
+          briAnsweredAtIso: null,
         },
         null,
         next.endHint ?? "answered",
@@ -2249,9 +2252,19 @@ function reduceInboundHangup(
   effects: Effect[],
   nowMs: number,
 ): ReduceResult {
-  // Terminal states: T14 no-op, EXCEPT the §3 upgrade edge — a bri-tagged
-  // inbound hangup arriving in ended_missed (T2 crash-window resolution).
+  // A late carrier hangup can settle a synthetic end or upgrade a missed call.
   if (isTerminal(next.state)) {
+    if (next.state === "ended_answered" && next.awaitingInboundHangup && event.tag === "bri" && event.payload) {
+      delete next.awaitingInboundHangup;
+      effects.push({
+        kind: "terminal-merge",
+        mode: "event",
+        outcome: "answered",
+        payload: event.payload,
+        briAnsweredAtIso: event.briAnsweredAtIso ?? next.answeredAtIso,
+      });
+      return { machine: next, effects };
+    }
     if (event.tag === "bri" && next.state === "ended_missed") {
       if (next.answerIntent) {
         next.answeredByUserId = next.answerIntent.userId;

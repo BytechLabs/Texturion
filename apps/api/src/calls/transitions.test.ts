@@ -1018,8 +1018,29 @@ describe("T7 — owner death / intent stand-down", () => {
     expect(merge).toMatchObject({
       mode: "synthetic",
       outcome: "answered",
-      briAnsweredAtIso: machine.answeredAtIso,
+      briAnsweredAtIso: null,
     });
+  });
+
+  it("merges the carrier duration once when its hangup arrives after a synthetic end", () => {
+    const machine = answeredMachine();
+    const ended = reduce(machine, { type: "inbound-leg-gone" }, 4000, KEY);
+    const hangup: SessionEvent = {
+      type: "inbound-hangup",
+      tag: "bri",
+      briAnsweredAtIso: machine.answeredAtIso,
+      payload: { end_time: new Date(3500).toISOString() },
+    };
+    const late = reduce(ended.machine, hangup, 4100, KEY);
+    expect(late.machine?.state).toBe("ended_answered");
+    expect(late.effects).toEqual([{
+      kind: "terminal-merge",
+      mode: "event",
+      outcome: "answered",
+      payload: hangup.payload,
+      briAnsweredAtIso: machine.answeredAtIso,
+    }]);
+    expect(reduce(late.machine, hangup, 4200, KEY).effects).toEqual([]);
   });
 
   it("#208 F4: inbound-leg-gone outside `answered` is a T14-style no-op (a terminal never regresses)", () => {

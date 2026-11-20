@@ -45,7 +45,7 @@ const LANES: Record<string, { tenant: string; member: string }> = {
  */
 function wakeWorld(scenario: string) {
   const world = fakeContext(scenario);
-  const { app, robot, time } = world;
+  const { app, ctx, robot, time } = world;
   const script = {
     /** Whether a ring reaches the API at all. */
     pushes: true,
@@ -77,6 +77,11 @@ function wakeWorld(scenario: string) {
       wake(lane.tenant, lane.member, `call-${sessions}`, script.callStages);
     }
     return dial(plan);
+  };
+  const wait = robot.wait.bind(robot);
+  ctx.robot.wait = async (planId, timeoutMs) => {
+    const record = await wait(planId);
+    return timeoutMs === 0 && record.answered_at ? { ...record, state: "answered" } : record;
   };
   app.simulateIncoming = async (args?: unknown) => {
     simulated.push(args);
@@ -158,7 +163,10 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(robot.plans).toHaveLength(1);
-    expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: "DEV-A1", expect: "pixel", lease_id: "lease-test" });
+    expect(robot.plans[0]).toMatchObject({
+      direction: "outbound", role: "ROBOT-1", to: "DEV-A1", expect: "pixel", lease_id: "lease-test",
+      window: { start_ms: 2000, end_ms: 20_000 },
+    });
     expect(audio.played).toEqual(["pixel"]);
     expect(stopped).toBe(true);
     expect(ctx.evidence).toMatchObject({
@@ -171,7 +179,7 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(JSON.stringify(ctx.evidence)).not.toMatch(/\+\d{10}/);
   });
 
-  it("blames the rig, and changes nothing, when the emulator or its audio link is missing, or EA1 has not proven the audio", async () => {
+  it("checks wake and answer even when the audio link cannot give a verdict", async () => {
     const gone = wakeWorld("D02");
     gone.pixel.reachableNow = false;
     await expect(D02.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
@@ -181,14 +189,35 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     const unlinked = wakeWorld("D02");
     unlinked.audio.connectedNow = false;
     await expect(D02.run(unlinked.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
-    expect(unlinked.pixel.actions).toEqual([]);
-    expect(unlinked.robot.plans).toEqual([]);
+    expect(unlinked.pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
+    expect(unlinked.robot.plans).toHaveLength(1);
 
     const unproven = wakeWorld("D02");
     unproven.audio.provenNow = false;
     await expect(D02.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
-    expect(unproven.pixel.actions).toEqual([]);
-    expect(unproven.robot.plans).toEqual([]);
+    expect(unproven.pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
+    expect(unproven.robot.plans).toHaveLength(1);
+  });
+
+  it("starts playback capture only once the robot answers", async () => {
+    const { ctx, audio } = wakeWorld("D02");
+    const { wait } = ctx.robot;
+    let checks = 0;
+    ctx.robot.wait = async (planId, timeoutMs) => {
+      const record = await wait(planId, timeoutMs);
+      if (timeoutMs === 0) {
+        checks += 1;
+        if (checks === 1) return { ...record, state: "ringing", answered_at: undefined };
+      }
+      return record;
+    };
+    const hear = audio.hear.bind(audio);
+    audio.hear = async () => {
+      expect(checks).toBe(2);
+      return hear();
+    };
+
+    await expect(D02.run(ctx)).resolves.toEqual(PASSED);
   });
 
   it("turns audio refused mid-call into infra, never a pass", async () => {
@@ -318,9 +347,9 @@ describe("D02p, a ring push with no call", () => {
     await expect(D02p.run(ctx)).resolves.toEqual(PASSED);
     expect(simulated).toEqual([{ member: "qa-a-owner", target: "qa-a-technician", caller: "Rig n0nce" }]);
     expect((simulated[0] as { caller: string }).caller).toContain(ctx.nonce);
-    expect(pixel.actions).toEqual(["tap call_decline", "reset ui"]);
+    expect(pixel.actions).toEqual(["lock", "tap call_decline", "unlock", "reset ui"]);
     expect(robot.plans).toEqual([]);
-    expect(undo).toEqual([]);
+    expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(ctx.evidence).toMatchObject({ session_id: "synthetic-1", dismissed: true, ring_cleared: true, push: [{ session_id: "synthetic-1" }] });
     expect(ctx.evidence.simulated).toEqual({ status: 201, code: undefined, reachable: true });
   });
@@ -332,12 +361,11 @@ describe("D02p, a ring push with no call", () => {
   });
 
   it("ends the ring it started, for the next attempt: Telecom refuses a second ringing call", async () => {
-    // The first real run: the heads-up was gone before the tap, the ring stayed up, and the retry's push got no os_reported.
     const world = wakeWorld("D02p");
     world.pixel.onScreen.delete("call_decline");
     world.pixel.call = "ringing";
     await expect(D02p.run(world.ctx)).resolves.toEqual(PASSED);
-    expect(world.pixel.actions).toEqual(["reset ui"]);
+    expect(world.pixel.actions).toEqual(["lock", "unlock", "reset ui"]);
     expect(world.pixel.call).toBe("none");
     expect(world.ctx.evidence).toMatchObject({ dismissed: false, ring_cleared: true });
   });
@@ -548,7 +576,7 @@ describe("D03, stepped Doze", () => {
     expect(broken.robot.plans).toEqual([]);
   });
 
-  it("checks the emulator and its audio before changing anything", async () => {
+  it("checks the emulator and can verify stepped wake with unproven audio", async () => {
     const gone = wakeWorld("D03");
     gone.pixel.reachableNow = false;
     await expect(D03.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
@@ -556,8 +584,8 @@ describe("D03, stepped Doze", () => {
     const unproven = wakeWorld("D03");
     unproven.audio.provenNow = false;
     await expect(D03.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
-    expect(unproven.pixel.actions).toEqual([]);
-    expect(unproven.undo).toEqual([]);
+    expect(unproven.pixel.actions).toEqual(["kill", "step doze", "lock", "tap call_answer"]);
+    expect(unproven.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
   });
 
   it("has no prepare left: stepping takes seconds, inside the lease", () => {
@@ -749,7 +777,7 @@ const INSTALL_UNDOS = [
   { kind: "device.install", params: { device: "pixel", build: "current", member: "qa-a-technician" } },
   { kind: "device.reset", params: { device: "pixel" } },
 ];
-const WAKES = ["tap call_decline", "reset ui", "kill", "force doze", "lock", "tap call_answer"];
+const WAKES = ["lock", "tap call_decline", "unlock", "reset ui", "kill", "force doze", "lock", "tap call_answer"];
 
 describe("D10, fresh install", () => {
   it("installs, signs in, stores a push token, then passes D02p and D02", async () => {
@@ -974,7 +1002,7 @@ describe("D11, unattended recovery", () => {
       "shutdown 36",
     ]);
     expect(world.mostBooted()).toBeLessThanOrEqual(MAX_BOOTED);
-    expect(pixel.actions).toEqual(["tap call_decline", "reset ui"]);
+    expect(pixel.actions).toEqual(["lock", "tap call_decline", "unlock", "reset ui"]);
     // The release boots back what was running before.
     expect(undo).toEqual([
       { kind: "device.reset", params: { device: "pixel" } },
@@ -1075,7 +1103,7 @@ describe("D11, unattended recovery", () => {
       locked.pixel.deviceState.locked = true;
     };
     await expect(D11.run(locked.ctx)).resolves.toEqual(PASSED);
-    expect(locked.pixel.actions).toEqual(["unlock", "tap call_decline", "reset ui"]);
+    expect(locked.pixel.actions).toEqual(["unlock", "lock", "tap call_decline", "unlock", "reset ui"]);
   });
 
   it("fails when D02p fails after recovery, and blames hostd when it cannot cold-restart the device lane", async () => {

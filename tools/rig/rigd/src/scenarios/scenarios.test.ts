@@ -343,6 +343,7 @@ describe("S02, ROBOT-1 calls DEV-W1", () => {
   it("passes when the owner rings within 6 s, answers, and both codes and the bill line up", async () => {
     const { ctx, robot, browser } = s02World();
     expect((await S02.run(ctx)).outcome).toBe("pass");
+    expect(browser.opened).toEqual([{ member: "qa-w-owner", surface: "qa-w-owner", path: "/calls" }]);
     expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: "DEV-W1", lease_id: "lease-test" });
     expect(browser.actions).toContain("qa-w-owner answer");
     expect(ctx.evidence.billing).toEqual({ row_seconds: 25, metered_seconds: 25 });
@@ -393,7 +394,12 @@ function s04World(transcript = VOICEMAIL_PHRASE.toLowerCase()) {
     voicemail_transcript: transcript,
     voicemail_intake: { summary: "water heater" },
   });
-  world.robot.sinkItems.push({ received_at: world.time.now + 1, headers: { "loonext-signature": "t=1,v1=abc" }, body: "{}", type: "voicemail.received" });
+  world.robot.sinkItems.push({
+    received_at: world.time.now + 1,
+    headers: { "loonext-signature": "t=1,v1=abc" },
+    body: JSON.stringify({ data: { call_session_id: "vm-session" } }),
+    type: "voicemail.received",
+  });
   world.robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Sorry we missed you" });
   return world;
 }
@@ -404,6 +410,17 @@ describe("S04, voicemail", () => {
     expect((await S04.run(ctx)).outcome).toBe("pass");
     expect(robot.plans[0]).toMatchObject({ play: null, record: false, voicemail: { phrase: VOICEMAIL_PHRASE } });
     expect(ctx.evidence.word_error_rate).toBe(0);
+  });
+
+  it("declines a live browser ring and checks time to voicemail", async () => {
+    const { ctx, browser, robot, time } = s04World();
+    ctx.slot.label = "decline";
+    const {outcome} = robot;
+    robot.outcome = (plan) => ({ ...outcome(plan), answered_at: new Date(time.now + 1000).toISOString() });
+
+    expect((await S04.run(ctx)).outcome).toBe("pass");
+    expect(browser.actions).toContain("qa-w-owner decline");
+    expect(ctx.evidence.decline_to_voicemail_ms).toBe(1000);
   });
 
   it("names a kept Telnyx copy, a poor transcript, an unsigned webhook and a missing text-back", async () => {

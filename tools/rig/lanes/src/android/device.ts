@@ -380,18 +380,27 @@ export class AndroidDevice {
     return parseTelecomState(await this.adb.shell("dumpsys", "telecom"), this.#o.pkg);
   }
 
-  async waitForRinging(timeoutMs: number): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined> {
+  async waitForRinging(timeoutMs: number, options?: { verifyActivity?: boolean }): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined> {
     const started = this.#now();
     const seen: { telecom_ms?: number; full_screen_ms?: number } = {};
     while (this.#now() - started <= timeoutMs) {
       if (seen.telecom_ms === undefined && (await this.callState()) === "ringing") seen.telecom_ms = this.#now() - started;
-      if (seen.full_screen_ms === undefined && hasFullScreenNotification(await this.adb.shell("dumpsys", "notification", "--noredact"), this.#o.pkg)) {
+      if (seen.full_screen_ms === undefined && await this.#fullScreenRing(options?.verifyActivity ?? false)) {
         seen.full_screen_ms = this.#now() - started;
       }
       if (seen.telecom_ms !== undefined && seen.full_screen_ms !== undefined) return seen;
       await this.#sleep(500);
     }
     return seen.telecom_ms === undefined && seen.full_screen_ms === undefined ? undefined : seen;
+  }
+
+  async #fullScreenRing(verifyActivity: boolean): Promise<boolean> {
+    if (!verifyActivity) {
+      return hasFullScreenNotification(await this.adb.shell("dumpsys", "notification", "--noredact"), this.#o.pkg);
+    }
+    const dump = await this.adb.shell("dumpsys", "activity", "activities");
+    const component = `${this.#o.pkg}/com.loonext.android.features.calls.CallActivity`;
+    return dump.split("\n").some((line) => line.includes("topResumedActivity=") && line.includes(` ${component} `));
   }
 
   async tap(id: CallTestId): Promise<boolean> {

@@ -146,6 +146,13 @@ describe("the device driver's readings", () => {
     expect(calls).toContain(`${ADB} shell getprop ro.build.version.sdk`);
   });
 
+  it("reads the API 36 keyguard state", async () => {
+    const locked = device({ "dumpsys window": "isKeyguardShowing=true" });
+    const unlocked = device({ "dumpsys window": "isKeyguardShowing=false" });
+    expect((await locked.android.state()).locked).toBe(true);
+    expect((await unlocked.android.state()).locked).toBe(false);
+  });
+
   it("reads the installed build's Play services minimum from its own manifest entry", async () => {
     const meta = [
       "      E: meta-data (line=44)",
@@ -330,6 +337,9 @@ describe("the device driver's commands (no device has run them)", () => {
         notes += 1;
         return notes >= 4 ? `  NotificationRecord(0x2: pkg=${PKG})\n    fullscreenIntent=PendingIntent{x}` : "";
       }
+      if (line.includes("dumpsys activity activities")) {
+        return `topResumedActivity=ActivityRecord{1 u0 ${PKG}/com.loonext.android.features.calls.CallActivity t2}`;
+      }
       return "";
     };
     let now = 0;
@@ -347,6 +357,7 @@ describe("the device driver's commands (no device has run them)", () => {
       },
     });
     await expect(android.waitForRinging(12_000)).resolves.toEqual({ telecom_ms: 1000, full_screen_ms: 1500 });
+    await expect(android.waitForRinging(12_000, { verifyActivity: true })).resolves.toEqual({ telecom_ms: 0, full_screen_ms: 0 });
     polls = -100;
     notes = -100;
     now = 0;
@@ -681,7 +692,7 @@ function audioLink(port: number, options: { proof?: string; dump?: () => string;
 }
 
 describe("the emulator's gRPC audio", () => {
-  it("injects the surface's code at 48 kHz in real-time mode, and hears 2,300 Hz back as the pixel's code", async () => {
+  it("injects the surface's code at 48 kHz and hears 2,300 Hz back as the pixel's code", async () => {
     const controller = await fakeController();
     const { link } = audioLink(controller.port);
     await expect(link.connected()).resolves.toBe(true);
@@ -689,7 +700,7 @@ describe("the emulator's gRPC audio", () => {
     const heard = await link.hear({ stream: "call", ms: 8000 });
     link.stop();
     expect(heard).toMatchObject({ verdict: "heard", answered: "pixel" });
-    expect(controller.injected[0]!.format).toMatchObject({ samplingRate: 48_000, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_REAL_TIME" });
+    expect(controller.injected[0]!.format).toMatchObject({ samplingRate: 48_000, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_UNSPECIFIED" });
     expect(controller.injected[0]!.audio).toHaveLength(1920);
     expect(controller.injected[1]!.format).toBeNull();
     expect(controller.auth.every((answer) => answer === "ok")).toBe(true);
@@ -698,7 +709,7 @@ describe("the emulator's gRPC audio", () => {
     await expect(link.hear({ stream: "call", ms: 8000, own: "pixel" })).resolves.toMatchObject({ answered: null, echo: { surface: "pixel" } });
   });
 
-  it("writes one 20 ms packet every 20 ms of the clock, since real-time mode overwrites what is queued", async () => {
+  it("keeps microphone packets up to 120 ms ahead using the blocking queue", async () => {
     let clock = 1000;
     const sleeps: number[] = [];
     const writes: { at: number; packet: AudioPacket }[] = [];
@@ -735,11 +746,11 @@ describe("the emulator's gRPC audio", () => {
     await done;
     const started = writes[0]!.at;
     for (const [n, { at, packet }] of writes.entries()) {
-      expect(at - started, `packet ${n}`).toBe(n * 20);
+      expect(at - started, `packet ${n}`).toBe(Math.max(n * 3, n * 20 - 120));
       expect(packet.timestamp - writes[0]!.packet.timestamp).toBe(n * 20_000);
       expect(packet.audio).toHaveLength(1920);
     }
-    expect(sleeps.slice(0, 49).every((ms) => ms === 17)).toBe(true);
+    expect(sleeps.slice(1).every((ms) => ms === 17)).toBe(true);
   });
 
   it("injects nothing until the guest's microphone is open", async () => {

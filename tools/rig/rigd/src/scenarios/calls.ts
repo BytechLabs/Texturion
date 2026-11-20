@@ -110,7 +110,9 @@ export const S02: ScenarioRunner = {
   id: "S02",
   async run(ctx) {
     const since = ctx.now();
-    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/");
+    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/calls");
+    await page.waitForPhoneReady();
+    ctx.evidence.phone_ready_ms = ctx.now() - since;
     const dialed = await ctx.robot.dial({
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,
@@ -168,8 +170,8 @@ export const S04: ScenarioRunner = {
       return infra("webhook-endpoint", `the robot's webhook endpoint could not be set up: ${(error as Error).message}`);
     }
     const since = ctx.now();
-    // Open, so the owner's page is a surface that rings and is left unanswered.
-    await ctx.browser.open("qa-w-owner", "qa-w-owner", "/");
+    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/calls");
+    await page.waitForPhoneReady();
     const dialed = await ctx.robot.dial({
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,
@@ -183,9 +185,22 @@ export const S04: ScenarioRunner = {
       ring_timeout_secs: 60,
     });
     if (dialed.state === "failed") return infra("robot", dialed.errors.join("; "));
+    let declinedAt: number | undefined;
+    if (ctx.slot.label === "decline") {
+      const ringMs = await page.waitForRing(6000);
+      ctx.evidence.ring_ms = ringMs;
+      if (ringMs === undefined) return fail("no_ring_within_6s", "the owner's page did not ring within 6 s");
+      declinedAt = ctx.now();
+      await page.decline();
+    }
     const record = await ctx.robot.wait(dialed.plan_id, 180_000);
     ctx.evidence.call = { ...callEvidence(record), amd: record.amd, spoke: Boolean(record.spoke) };
     if (!record.answered_at) return fail("voicemail_not_answered", "voicemail never picked up");
+    if (declinedAt !== undefined) {
+      const delay = Date.parse(record.answered_at) - declinedAt;
+      ctx.evidence.decline_to_voicemail_ms = delay;
+      if (delay > 6000) return fail("slow_decline_to_voicemail", `voicemail took ${delay} ms after decline`);
+    }
     if (!record.spoke) return fail("no_beep", "the robot never reached the point of speaking");
     // The text-back clock starts at hang-up, so it is watched while the slower checks run.
     const textBackCheck = textBack(ctx, ctx.now()).catch((error: unknown) =>
@@ -225,9 +240,17 @@ async function voicemailChecks(ctx: ScenarioContext, since: number): Promise<Sce
   }
 
   const webhook = await poll(ctx, async () => {
+    await ctx.app.fireCron("*/5 * * * *", ctx.now());
     const deliveries = await ctx.robot.sink({ since, type: "voicemail.received" });
-    return deliveries[0];
-  }, 120_000, 3000);
+    return deliveries.find((delivery) => {
+      try {
+        const event = JSON.parse(delivery.body) as { data?: { call_session_id?: string } };
+        return event?.data?.call_session_id === row.call_session_id;
+      } catch {
+        return false;
+      }
+    });
+  }, 120_000, 10_000);
   if (!webhook) return fail("webhook_missing", "no voicemail.received webhook reached the robot's sink");
   if (!Object.keys(webhook.headers).some((name) => name.includes("signature"))) {
     return fail("webhook_unsigned", "the voicemail.received webhook carried no signature header");

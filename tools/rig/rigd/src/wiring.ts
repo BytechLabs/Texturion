@@ -157,6 +157,7 @@ export function buildRig(config: RigdConfig): Rig {
       async open(member, surface, path, options) {
         const page = await lane.open(member, surface, path, options);
         return {
+          waitForPhoneReady: () => page.waitForPhoneReady(),
           waitForRing: (ms) => page.waitForRing(ms),
           waitForCallCleared: (ms) => page.waitForCallCleared(ms),
           answer: () => page.answer(),

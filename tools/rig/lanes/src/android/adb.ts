@@ -267,7 +267,7 @@ export class Adb {
 
   async isLocked(): Promise<boolean> {
     const out = await this.shell("dumpsys", "window");
-    return /mDreamingLockscreen=true|isStatusBarKeyguard=true|mShowingLockscreen=true/.test(out);
+    return /mDreamingLockscreen=true|isStatusBarKeyguard=true|mShowingLockscreen=true|isKeyguardShowing=true/.test(out);
   }
 
   /** Waits until adb sees the device and Android reports boot completed. */

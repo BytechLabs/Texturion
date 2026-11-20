@@ -264,6 +264,7 @@ export function stopForSchemaChange({ state, sha, ref, systemctl = systemctlUser
 export function activate({
   sha,
   state,
+  resetStorage,
   nodeBin = process.execPath,
   log,
   unitDir = join(homedir(), ".config", "systemd", "user"),
@@ -291,6 +292,10 @@ export function activate({
     );
   }
   log("rigd: units installed");
+  if (resetStorage) {
+    // Reset storage no longer has the audio files cached by robotd.
+    systemctl(["restart", "loonext-rig-robotd.service"], { inherit: true });
+  }
   if (readDeployHold(state) !== null) {
     releaseDeployHold(state);
     log(`deploy hold released: ${sha} serves, and runs may start again`);
@@ -308,7 +313,7 @@ export async function migrateAndRestart({ plan, restart, state, sha, ref, log, m
   if (restart && plan.action !== "none") stopForSchemaChange({ state, sha, ref, log, ...systemd });
   migrate();
   const prepared = await prepare();
-  if (restart) activate({ sha, state, log, ...systemd });
+  if (restart) activate({ sha, state, log, resetStorage: plan.action === "reset", ...systemd });
   return prepared;
 }
 

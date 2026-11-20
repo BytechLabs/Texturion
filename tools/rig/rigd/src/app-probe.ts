@@ -232,7 +232,7 @@ export class AppProbe implements AppApi {
     const rows = await this.#rest<{ billable_seconds: number }[]>("call_records", {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
       call_session_id: `eq.${args.callSessionId}`,
-      leg: "eq.forward",
+      leg: "in.(forward,out_customer,in_browser)",
       select: "billable_seconds",
     });
     return rows.reduce((sum, row) => sum + row.billable_seconds, 0);

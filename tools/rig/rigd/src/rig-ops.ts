@@ -160,7 +160,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       uninstall: () => android.uninstall(),
       launch: (path) => android.launch(path),
       resetUi: () => android.resetUi(),
-      waitForRinging: (ms) => android.waitForRinging(ms),
+      waitForRinging: (ms, options) => android.waitForRinging(ms, options),
       callState: () => android.callState(),
       tap: (id) => android.tap(id),
       showing: (target) => android.showing(target),

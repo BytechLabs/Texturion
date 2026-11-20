@@ -146,6 +146,17 @@ class RingBeaconsTest {
     fun `a refused beacon reports false and throws nothing`() = runTest {
         server.enqueue(MockResponse(code = 404, body = "{}"))
         assertFalse(sender().send("company-1", "{}"))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `a temporary server failure retries with the original beacon`() = runTest {
+        server.enqueue(MockResponse(code = 503, body = "{}"))
+        server.enqueue(MockResponse(code = 202, body = """{"recorded":true}"""))
+        val body = """{"stage":"push_received","occurred_at":"2026-11-20T12:00:00Z"}"""
+        assertTrue(sender().send("company-1", body))
+        assertEquals(body, server.takeRequest().body?.utf8())
+        assertEquals(body, server.takeRequest().body?.utf8())
     }
 
     @Test

@@ -28,10 +28,11 @@ export const TENANTS = [
       { key: "mfa-member", role: "member", displayName: "QA-W Two-Factor Member", surfaces: [], totp: true },
     ],
     numbers: [
-      { role: "DEV-W1", rings: ["owner"] },
+      { role: "DEV-W1", rings: ["owner"], missedCallText: true },
       { role: "DEV-W2", rings: ["owner", "technician"] },
     ],
     callerIdLookup: false,
+    voicemailIntake: true,
   },
   {
     key: "qa-a",

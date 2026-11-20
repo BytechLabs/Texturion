@@ -289,7 +289,8 @@ test("a deploy holds the rig from before a schema change stops it until the rest
           nodeBin: NODE,
           unitDir,
           systemctl: (args) => {
-            if (args[0] === "stop" || args[0] === "restart") steps.push(`${args[0]}${held()}`);
+            if (args.includes("loonext-rig-robotd.service")) steps.push(`restart robotd${held()}`);
+            else if (args[0] === "stop" || args[0] === "restart") steps.push(`${args[0]}${held()}`);
             return ok;
           },
           runner: () => {
@@ -305,6 +306,8 @@ test("a deploy holds the rig from before a schema change stops it until the rest
     const migrate = { action: "migrate", reason: "2 new" };
     assert.deepEqual(await deployOf(migrate, true), ["stop (held)", "stop (held)", "migrate (held)", "prepare (held)", "restart (held)", "rigd install (held)"]);
     assert.equal(readDeployHold(state), null, "released once rigd's units are installed");
+    const reset = { action: "reset", reason: "older ref" };
+    assert.deepEqual(await deployOf(reset, true), ["stop (held)", "stop (held)", "migrate (held)", "prepare (held)", "restart (held)", "rigd install (held)", "restart robotd (held)"]);
     assert.deepEqual(await deployOf({ action: "none", reason: "current" }, true), ["migrate", "prepare", "restart", "rigd install"]);
     // --no-restart stops nothing, so it holds nothing.
     assert.deepEqual(await deployOf(migrate, false), ["migrate", "prepare"]);
