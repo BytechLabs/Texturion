@@ -21,6 +21,7 @@ struct TaskItem: Codable, Sendable {
     var due_on: String? = nil
     var due_time_set: Bool? = nil
     var scheduled_at: String? = nil
+    var published_work: [PublishedWork]? = nil
     var confirmed_at: String? = nil
     var confirmed_by: String? = nil
     var calendar_hold: Bool?
@@ -88,6 +89,14 @@ struct TaskItem: Codable, Sendable {
 }
 
 /// D64: `source` on every task row: a message or an answered call.
+struct PublishedWork: Codable, Sendable {
+    let id: String
+    let starts_at: String
+    let ends_at: String
+    let assignee_id: String
+    let visit: Bool
+}
+
 struct TaskSource: Codable, Sendable {
     let kind: String
     let id: String

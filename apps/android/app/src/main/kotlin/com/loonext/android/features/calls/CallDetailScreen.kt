@@ -18,7 +18,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,6 +45,8 @@ import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.features.activity.ActivityRecordType
 import com.loonext.android.features.activity.ActivityTimeline
 import com.loonext.android.features.tasks.CallTaskButton
+import com.loonext.android.features.tasks.LinkedSourceTask
+import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.common.formatPhone
@@ -66,6 +70,7 @@ fun CallDetailScreen(
     modifier: Modifier = Modifier,
     onOpenConversation: (String) -> Unit = {},
     onOpenContact: (String) -> Unit = {},
+    onOpenTask: (String) -> Unit = {},
 ) {
     val repo = remember(graph) { CallsRepository(graph.api) }
     var refreshKey by remember { mutableStateOf(0) }
@@ -86,6 +91,7 @@ fun CallDetailScreen(
             modifier = modifier,
             onOpenConversation = onOpenConversation,
             onOpenContact = onOpenContact,
+            onOpenTask = onOpenTask,
         )
     }
 }
@@ -99,18 +105,38 @@ private fun CallDetailBody(
     modifier: Modifier,
     onOpenConversation: (String) -> Unit,
     onOpenContact: (String) -> Unit,
+    onOpenTask: (String) -> Unit,
 ) {
     val who = callerDisplayName(call)
     val transcript = callTranscriptState(call)
     val locale = LocalAppLocale.current
     val routingReason = callRoutingReason(call.routing, locale)
     val endReason = callEndReason(call.ended_reason, locale)
+    var linked by remember(call.id) { mutableStateOf(emptyList<LinkedSourceTask>()) }
+    LaunchedEffect(call.id, companyId) {
+        call.conversation_id?.let { conversation ->
+            linked = runCatching { TaskMutations(graph.api).sourceTasks(companyId, conversation, callId = call.id) }
+                .getOrDefault(emptyList())
+        }
+    }
 
     LazyColumn(
         modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        if (linked.isNotEmpty()) item(key = "linked-tasks") {
+            SectionHeader(t("thread.tasksFromSource"))
+            PaperCard(Modifier.fillMaxWidth()) {
+                Column {
+                    linked.forEach { task ->
+                        TextButton(onClick = { onOpenTask(task.id) }) {
+                            Text(task.title + " · " + t(if (task.done) "contactsTasks.tabDone" else "contactsTasks.tabOpen"))
+                        }
+                    }
+                }
+            }
+        }
         item {
             RecordHeader(
                 title = { ScreenTitle(who) },

@@ -34,6 +34,7 @@ struct Page<T: Codable & Sendable>: Codable, Sendable {
     /// `apps/ios/Loonext/` did not, because the tests live in the sibling
     /// `apps/ios/LoonextTests/`.
     var hidden_count: Int? = nil
+    var total_count: Int? = nil
 }
 
 enum SubscriptionStatus {

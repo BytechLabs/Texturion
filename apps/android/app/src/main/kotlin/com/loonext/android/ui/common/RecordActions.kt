@@ -304,7 +304,7 @@ fun messageActions(message: Message, viewer: RecordViewer): List<RecordAction> {
         RecordAction(
             MessageActionId.MAKE_TASK, "recordMenu.makeTask", ActionGroup.STATE,
             // A promoted message cannot be promoted twice, and a note is not a customer's ask.
-            allowed = !message.has_task && message.promoted_task == null && !note,
+            allowed = !note,
         ),
         RecordAction(
             MessageActionId.PIN, "recordMenu.pin", ActionGroup.STATE,

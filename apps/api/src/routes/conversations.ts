@@ -997,7 +997,8 @@ conversationsRoutes.get(
                     c.get("role"),
                   ),
             has_task: promoted.has(message.id),
-            promoted_task: promoted.get(message.id) ?? null,
+            promoted_task: promoted.get(message.id)?.[0] ?? null,
+            promoted_tasks: promoted.get(message.id) ?? [],
             task:
               typeof message.task_id === "string"
                 ? taskLinks.get(message.task_id) ?? null

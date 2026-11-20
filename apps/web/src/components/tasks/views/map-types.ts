@@ -93,6 +93,9 @@ export function taskMapDay(task: Task): string | undefined {
 }
 
 export function compareMapStops(a: Task, b: Task): number {
+  const scheduled = (a.published_work?.[0] ? Date.parse(a.published_work[0].starts_at) : Infinity) -
+    (b.published_work?.[0] ? Date.parse(b.published_work[0].starts_at) : Infinity);
+  if (scheduled) return scheduled;
   const byDay = (taskMapDay(a) ?? "9999").localeCompare(taskMapDay(b) ?? "9999");
   const byTime = (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);
   return byDay || byTime || a.id.localeCompare(b.id);

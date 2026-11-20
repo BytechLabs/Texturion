@@ -125,6 +125,12 @@ func matchesCalendarDueChip(
 
 // MARK: - Calendar view
 
+private struct CalendarTaskEntry: Identifiable {
+    let task: TaskItem
+    var block: PublishedWork? = nil
+    var id: String { block?.id ?? task.id }
+}
+
 @MainActor
 struct TaskCalendarView: View {
     let graph: AppGraph
@@ -153,6 +159,7 @@ struct TaskCalendarView: View {
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
+    @State private var published: [TaskItem] = []
     @State private var undatedOpen = 0
     @State private var undatedDone = 0
     @State private var undatedTruncated = false
@@ -180,7 +187,9 @@ struct TaskCalendarView: View {
             sourceLineId: meta.sourceLineId,
             hasAttachments: meta.hasAttachments,
             hasReferences: meta.hasReferences,
-            statusOnly: meta.statusOnly
+            notConfirmed: meta.notConfirmed,
+            statusOnly: meta.statusOnly,
+            scheduled: meta.scheduled
         )
     }
     private var isCurrentMonth: Bool { calendar.isDate(month, equalTo: Date(), toGranularity: .month) }
@@ -190,7 +199,7 @@ struct TaskCalendarView: View {
     private var fetchToken: String {
         [
             companyId, monthKey, baseAssignee ?? "-", unassignedResolved ? "u" : "",
-            query ?? "", fetchMeta.token, String(refreshKey), String(localRefresh),
+            query ?? "", meta.token, dueChip?.rawValue ?? "", String(refreshKey), String(localRefresh),
         ].joined(separator: "|")
     }
 
@@ -215,8 +224,11 @@ struct TaskCalendarView: View {
 
     @ViewBuilder
     private var readyContent: some View {
-        let visibleRows = rows.filter {
-            matchesCalendarTab($0, tab: tab) && matchesCalendarDueChip($0, chip: dueChip)
+        let visibleRows = rows.filter { task in
+            let due = task.due_on.flatMap { taskDay($0, calendar: calendar) } ?? parseWireTimestamp(task.due_at)
+            if let after = parseWireTimestamp(meta.dueAfter), due.map({ $0 < after }) ?? true { return false }
+            if let before = parseWireTimestamp(meta.dueBefore), due.map({ $0 >= before }) ?? true { return false }
+            return matchesCalendarTab(task, tab: tab) && matchesCalendarDueChip(task, chip: dueChip, calendar: calendar)
         }
         let byDay = tasksByDay(visibleRows)
         let undatedCount = undatedCountForTab
@@ -225,11 +237,11 @@ struct TaskCalendarView: View {
         ScrollView {
             VStack(spacing: 0) {
                 gridCard(byDay: byDay)
-                if visibleRows.isEmpty {
+                if byDay.isEmpty {
                     emptyRangeCard
                 }
-                if !visibleRows.isEmpty || undatedCount > 0 {
-                    countsLine(scheduled: visibleRows.count, undated: undatedCount)
+                if !byDay.isEmpty || undatedCount > 0 {
+                    countsLine(scheduled: byDay.values.flatMap { $0 }.count, undated: undatedCount)
                 }
                 if let daySelection {
                     daySection(day: daySelection.day, tasks: daySelection.tasks)
@@ -243,7 +255,7 @@ struct TaskCalendarView: View {
     // MARK: Grid card
 
     @ViewBuilder
-    private func gridCard(byDay: [Date: [TaskItem]]) -> some View {
+    private func gridCard(byDay: [Date: [CalendarTaskEntry]]) -> some View {
         let today = calendar.startOfDay(for: Date())
         VStack(spacing: 0) {
             monthNavRow
@@ -257,7 +269,7 @@ struct TaskCalendarView: View {
                             inMonth: calendar.isDate(day, equalTo: month, toGranularity: .month),
                             isToday: calendar.isDate(day, inSameDayAs: today),
                             isSelected: selectedDay.map { calendar.isDate(day, inSameDayAs: $0) } ?? false,
-                            tasks: byDay[calendar.startOfDay(for: day)] ?? []
+                            tasks: byDay[calendar.startOfDay(for: day)]?.map(\.task) ?? []
                         )
                         .frame(maxWidth: .infinity)
                     }
@@ -461,7 +473,7 @@ struct TaskCalendarView: View {
     }
 
     @ViewBuilder
-    private func daySection(day: Date, tasks: [TaskItem]) -> some View {
+    private func daySection(day: Date, tasks: [CalendarTaskEntry]) -> some View {
         SectionHeader(label: dayHeadingLabel(day), count: tasks.count)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 18)
@@ -489,15 +501,16 @@ struct TaskCalendarView: View {
                 .padding(.top, 2)
         } else {
             PaperCard {
-                ForEach(tasks, id: \.id) { task in
-                    CalendarTaskRow(task: task, faces: assigneeFaces(task)) { done in
+                ForEach(tasks) { entry in
+                    let task = entry.task
+                    CalendarTaskRow(task: task, faces: assigneeFaces(task), bookedHours: bookedHours(entry.block)) { done in
                         onToggleDone(task, done)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { onOpenTask(task.id) }
                     // #712: no selection here, so long-press is the task's own menu.
                     .taskContextMenu(task)
-                    if task.id != tasks.last?.id {
+                    if entry.id != tasks.last?.id {
                         RowDivider()
                     }
                 }
@@ -509,14 +522,32 @@ struct TaskCalendarView: View {
 
     // MARK: Derivations
 
-    private func tasksByDay(_ tasks: [TaskItem]) -> [Date: [TaskItem]] {
-        var map: [Date: [TaskItem]] = [:]
+    private func tasksByDay(_ tasks: [TaskItem]) -> [Date: [CalendarTaskEntry]] {
+        var map: [Date: [CalendarTaskEntry]] = [:]
         for task in tasks {
             let due = task.due_on.flatMap { taskDay($0, calendar: calendar) } ?? parseWireTimestamp(task.due_at)
-            guard let due else { continue }
-            map[calendar.startOfDay(for: due), default: []].append(task)
+            if let due {
+                map[calendar.startOfDay(for: due), default: []].append(CalendarTaskEntry(task: task))
+            }
         }
-        return map
+        for task in published {
+            for block in task.published_work ?? [] {
+                guard let starts = parseWireTimestamp(block.starts_at) else { continue }
+                map[calendar.startOfDay(for: starts), default: []].append(CalendarTaskEntry(task: task, block: block))
+            }
+        }
+        return map.mapValues { entries in entries.sorted { ($0.block?.starts_at ?? "") < ($1.block?.starts_at ?? "") } }
+    }
+
+    private func bookedHours(_ block: PublishedWork?) -> String? {
+        guard let block, let starts = parseWireTimestamp(block.starts_at), let ends = parseWireTimestamp(block.ends_at)
+        else { return nil }
+        let format = DateIntervalFormatter()
+        format.locale = Locale(identifier: appLocale)
+        format.timeZone = calendar.timeZone
+        format.dateStyle = .none
+        format.timeStyle = .short
+        return format.string(from: starts, to: ends)
     }
 
     private var undatedCountForTab: Int {
@@ -529,7 +560,7 @@ struct TaskCalendarView: View {
 
     /// The selected day's row list — only when the selection sits inside the
     /// visible grid (a selection that scrolled off is not shown).
-    private func resolvedSelection(byDay: [Date: [TaskItem]]) -> (day: Date, tasks: [TaskItem])? {
+    private func resolvedSelection(byDay: [Date: [CalendarTaskEntry]]) -> (day: Date, tasks: [CalendarTaskEntry])? {
         guard let selectedDay else { return nil }
         let gridStart = calendarGridStart(month, calendar: calendar)
         let gridEnd = calendarGridEnd(month, calendar: calendar)
@@ -644,6 +675,7 @@ struct TaskCalendarView: View {
         let gridEnd = calendarGridEnd(month, calendar: cal)
         let endExclusive = cal.date(byAdding: .day, value: 1, to: gridEnd) ?? gridEnd
         let monthArm = TaskListFilters(
+            status: meta.statusOnly,
             assignedUserId: baseAssignee,
             unassigned: unassignedResolved,
             dueBefore: isoOffsetString(endExclusive, timeZone: cal.timeZone),
@@ -659,15 +691,17 @@ struct TaskCalendarView: View {
             hasReferences: fetchMeta.hasReferences,
             confirmed: fetchMeta.notConfirmed ? false : nil,
             dueOnBefore: taskDateKey(gridEnd, calendar: cal),
-            dueOnAfter: taskDateKey(gridStart, calendar: cal)
+            dueOnAfter: taskDateKey(gridStart, calendar: cal),
+            scheduled: meta.scheduled
         )
         let undatedArms = taskListArms(
             tab: tab == .all ? .all : .mine,
             assigneeUserId: assigneeChip,
             unassigned: unassignedChip,
-            due: nil,
+            due: dueChip,
             q: query,
-            meta: fetchMeta
+            meta: meta,
+            calendar: cal
         )
         let api = graph.tasksApi
         let company = companyId
@@ -676,6 +710,14 @@ struct TaskCalendarView: View {
         }
         let monthLoader = TaskListLoader(arms: [monthArm], limit: 100, fetch: fetch)
         let undatedLoader = TaskListLoader(arms: undatedArms, limit: 100, fetch: fetch)
+        let scheduledArms = undatedArms.map { arm in
+            var filters = arm
+            filters.scheduleAfter = monthArm.dueAfter
+            filters.scheduleBefore = monthArm.dueBefore
+            return filters
+        }
+        let scheduledLoader = TaskListLoader(arms: scheduledArms, limit: 100, fetch: fetch)
+
         do {
             var accumulated: [TaskItem] = []
             var pages = 0
@@ -688,11 +730,18 @@ struct TaskCalendarView: View {
             pages = 0
             repeat {
                 for task in try await undatedLoader.nextPage()
-                    where task.due_at == nil && task.due_on == nil && task.calendar_hold != true {
+                    where task.due_at == nil && task.due_on == nil && task.scheduled_at == nil && task.calendar_hold != true {
                     if task.done { done += 1 } else { open += 1 }
                 }
                 pages += 1
             } while undatedLoader.hasMore && pages < 10
+            var bookings: [TaskItem] = []
+            pages = 0
+            repeat {
+                bookings += try await scheduledLoader.nextPage()
+                pages += 1
+            } while scheduledLoader.hasMore && pages < 12
+            published = bookings
             rows = accumulated
             undatedOpen = open
             undatedDone = done
@@ -711,6 +760,7 @@ struct TaskCalendarView: View {
 private struct CalendarTaskRow: View {
     let task: TaskItem
     let faces: [AssigneeFace]
+    var bookedHours: String? = nil
     let onToggleDone: @MainActor (Bool) -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -753,7 +803,11 @@ private struct CalendarTaskRow: View {
                             ? AnyShapeStyle(BrandColor.muted400)
                             : AnyShapeStyle(BrandColor.ink)
                     )
-                if task.due_on != nil {
+                if let bookedHours {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.scheduledWhen", ["when": bookedHours]))
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted500)
+                } else if task.due_on != nil {
                     Text(AppStrings.translate(appLocale, "contactsTasks.anyTime"))
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted400)

@@ -2633,6 +2633,9 @@ struct MakeTaskSheet: View {
     @State private var changedCustomer = false
     @State private var pickedCustomerThread: String?
     @State private var resolvingCustomer = false
+    @State private var linkedTasks: [LinkedSourceTask]?
+    @State private var linkedTasksError = false
+    @State private var linkedTasksRetry = 0
 
     private var textingCustomer: String? {
         if changedCustomer {
@@ -2730,6 +2733,7 @@ struct MakeTaskSheet: View {
             VStack(alignment: .leading, spacing: 15) {
                 header
                 if let message, !message.body.isBlank { sourceQuote(message) }
+                if !source.isStandalone { linkedTaskList }
                 titleField
                 if source.isStandalone, controller is NewTaskHost {
                     Button {
@@ -2807,6 +2811,11 @@ struct MakeTaskSheet: View {
             }
         }
         .task { await enrichIfNeeded() }
+        .task(id: linkedTasksRetry) {
+            guard !source.isStandalone else { return }
+            do { linkedTasks = try await controller.linkedTasks(for: source) }
+            catch { if !Task.isCancelled { linkedTasksError = true } }
+        }
         .task {
             if source.isStandalone {
                 workspaceTags = await controller.workspaceTagsForTaskDraft()
@@ -3206,11 +3215,40 @@ struct MakeTaskSheet: View {
         .buttonStyle(.plain)
         .disabled(
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !meta.isValid(hasDue: due != nil) || resolvingCustomer
+                || !meta.isValid(hasDue: due != nil) || resolvingCustomer || (!source.isStandalone && linkedTasks == nil)
         )
         .accessibilityLabel(
             AppStrings.translate(locale, "thread.createTask")
         )
+    }
+
+    @ViewBuilder
+    private var linkedTaskList: some View {
+        if let linkedTasks {
+            if !linkedTasks.isEmpty {
+                SectionLabel(AppStrings.translate(locale, "thread.tasksFromSource"))
+                ForEach(linkedTasks) { task in
+                    Button {
+                        onDismiss()
+                        AppRouter.shared.openTaskId = task.id
+                    } label: {
+                        HStack {
+                            Text(task.title)
+                            Spacer()
+                            Text(AppStrings.translate(locale, task.done ? "contactsTasks.tabDone" : "contactsTasks.tabOpen"))
+                                .foregroundStyle(BrandColor.muted600)
+                        }
+                    }
+                }
+            }
+        } else if linkedTasksError {
+            LoadError(message: AppStrings.translate(locale, "common.loadFailed"), variant: .inline) {
+                linkedTasksError = false
+                linkedTasksRetry += 1
+            }
+        } else {
+            Text(AppStrings.translate(locale, "common.loading")).foregroundStyle(BrandColor.muted600)
+        }
     }
 
     // MARK: Logic

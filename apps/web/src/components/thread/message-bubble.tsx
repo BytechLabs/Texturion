@@ -497,9 +497,9 @@ function MessageBubbleView({
                 chip (opens the task), and a petrol "Done" pill — never the same
                 glyph or color. */}
             {pinned && <PinnedBadge />}
-            {hasTask && message.promoted_task && (
-              <TaskIndicator task={message.promoted_task} />
-            )}
+            {(message.promoted_tasks ?? (message.promoted_task ? [message.promoted_task] : [])).map((task) => (
+              <TaskIndicator key={task.id} task={task} />
+            ))}
             {done && <DoneBadge message={message} />}
             {/* #101 shared-inbox attribution: outbound meta leads with the
                 teammate who sent it ("Dana · 7:18 AM · Delivered"). Notes carry

@@ -185,7 +185,10 @@ private fun TaskListScreen(
     onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var tab by rememberSaveable(companyId) { mutableStateOf(TasksTabKind.Open) }
+    val tab = TasksTabKind.All
+    var statusFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var scheduledFilter by rememberSaveable(companyId) { mutableStateOf<Boolean?>(null) }
+    var displayColumns by rememberSaveable(companyId) { mutableStateOf(TASK_LIST_COLUMNS.joinToString(",")) }
     // The 4-view switch (#184). Persisted by NAME through the same
     // rememberSaveable pattern the old List/Board boolean used (and DueChip
     // still uses), so the choice survives detail round-trips and process
@@ -234,6 +237,9 @@ private fun TaskListScreen(
         dueAfter = dueAfterFilter,
         dueBefore = dueBeforeFilter,
         group = TaskGroup.entries.firstOrNull { it.name == groupName } ?: TaskGroup.Status,
+        statusOnly = statusFilter,
+        scheduled = scheduledFilter,
+        columns = displayColumns.split(",").filter { it.isNotEmpty() }.toSet(),
     )
     var search by rememberSaveable(companyId) { mutableStateOf("") }
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
@@ -275,18 +281,6 @@ private fun TaskListScreen(
     DisposableEffect(setPagerBlocked, view) {
         setPagerBlocked(view == TaskViewKind.Map)
         onDispose { setPagerBlocked(false) }
-    }
-
-    // Board organizes by status, so the Open/Done dimension is a no-op there
-    // (#113): entering the board coerces a status-pinned tab to Mine. Map
-    // deliberately does NOT coerce — its contract consumes only the assignee
-    // chips, so visiting it never clobbers the tab the list will return to.
-    LaunchedEffect(view) {
-        if (view == TaskViewKind.Board &&
-            (tab == TasksTabKind.Open || tab == TasksTabKind.Done)
-        ) {
-            tab = TasksTabKind.Mine
-        }
     }
 
     // Realtime: any task create/assign/due/delete (task.changed) or done flip
@@ -331,6 +325,7 @@ private fun TaskListScreen(
 
     fun memberName(userId: String?): String? = when {
         userId == null -> null
+        userId == ASSIGNEE_ME -> youLabel
         userId == me.user_id -> me.display_name.ifBlank { youLabel }
         else -> members.firstOrNull { it.user_id == userId }
             ?.display_name?.ifBlank { null }
@@ -340,8 +335,15 @@ private fun TaskListScreen(
 
     /** Every control at once, so a view or a sheet change reloads the list ONCE. */
     fun applyState(next: TaskViewState, nextContactName: String?, nextTagName: String?) {
-        tab = next.tab
-        assigneeChip = next.assigneeChip
+        statusFilter = next.extra.statusOnly ?: when (next.tab) {
+            TasksTabKind.Open -> TaskStatus.OPEN
+            TasksTabKind.Done -> TaskStatus.DONE
+            else -> null
+        }
+        scheduledFilter = next.extra.scheduled
+        displayColumns = next.extra.columns.joinToString(",")
+        assigneeChip = next.assigneeChip?.takeUnless { it == ASSIGNEE_ALL }
+            ?: ASSIGNEE_ME.takeIf { !next.unassigned && next.assigneeChip == null && next.tab != TasksTabKind.All }
         unassignedChip = next.unassigned
         dueChipName = next.dueChip?.name
         priorityCsv = TaskPriority.PICKER.filter { it in next.extra.priorities }.joinToString(",")
@@ -406,7 +408,7 @@ private fun TaskListScreen(
             defaultViewId = page.defaults.tasks
             // Land on the chosen view only from an untouched screen: somebody
             // who has already filtered has said what they want to see.
-            val untouched = tab == TasksTabKind.Open && assigneeChip == null && !unassignedChip &&
+            val untouched = assigneeChip == null && !unassignedChip &&
                 dueChip == null && !extra.isCustom
             if (!landed && untouched) {
                 page.data.firstOrNull { it.id == page.defaults.tasks }?.let { applyView(it) }
@@ -469,6 +471,7 @@ private fun TaskListScreen(
             userId = me.user_id,
             timezone = me.company?.timezone,
             editable = MemberRole.has(me.memberships.firstOrNull { it.company_id == companyId }?.role, Capability.CONVERSATIONS_NOTE),
+            canEditShifts = MemberRole.has(me.memberships.firstOrNull { it.company_id == companyId }?.role, Capability.SETTINGS_MANAGE),
             onClose = { plannerOpen = false },
             onTask = {
                 plannerOpen = false
@@ -573,7 +576,7 @@ private fun TaskListScreen(
                         )
                     },
                     activeId = matchingView?.id,
-                    canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open || view != TaskViewKind.List) &&
+                    canSaveCurrent = (filterCount > 0 || extra.isCustom || view != TaskViewKind.List) &&
                         matchingView == null,
                     canShare = canShareViews,
                     onApply = { id -> savedViews.firstOrNull { it.id == id }?.let { applyView(it) } },
@@ -604,23 +607,27 @@ private fun TaskListScreen(
                     },
                 ),
             ) {
-                // Which tabs actually DO something per view (#113, the web's
-                // tabsForView): Board's columns ARE the status dimension, so
-                // it keeps Mine | All; Map's contract consumes only the
-                // assignee chips, so status tabs disappear there; List and
-                // Calendar consume all four.
-                val tabs = when (view) {
-                    TaskViewKind.Board -> listOf(TasksTabKind.Mine, TasksTabKind.All)
-                    TaskViewKind.Map -> emptyList()
-                    else -> TasksTabKind.entries.toList()
-                }
-                if (tabs.isNotEmpty()) {
-                    SegmentedControl(
-                        segments = tabs.map { Segment(it, t(it.labelKey)) },
-                        selected = tab,
-                        onSelect = { tab = it },
-                    )
-                }
+                SegmentedControl(
+                    segments = listOf(
+                        Segment("all", t("contactsTasks.allTasks")),
+                        Segment("mine", t("contactsTasks.myWork")),
+                        Segment("unassigned", t("contactsTasks.unassigned")),
+                    ),
+                    selected = when {
+                        filterCount == 0 -> "all"
+                        filterCount == 1 && assigneeChip == ASSIGNEE_ME -> "mine"
+                        filterCount == 1 && unassignedChip -> "unassigned"
+                        else -> ""
+                    },
+                    onSelect = { preset ->
+                        applyState(currentState.copy(
+                            assigneeChip = ASSIGNEE_ME.takeIf { preset == "mine" },
+                            unassigned = preset == "unassigned",
+                            dueChip = null,
+                            extra = TaskExtraFilters(sort = extra.sort, group = extra.group, columns = extra.columns),
+                        ), null, null)
+                    },
+                )
                 if (view == TaskViewKind.List) {
                     FilterPill(
                         text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
@@ -642,6 +649,16 @@ private fun TaskListScreen(
             val filesLabel = t("taskViews.hasFiles")
             val linksLabel = t("taskViews.hasLinks")
             val activeChips = buildList {
+                statusFilter?.let { status ->
+                    add(ActiveFilterChip(t(if (status == TaskStatus.OPEN) "contactsTasks.tabOpen" else "contactsTasks.tabDone")) {
+                        statusFilter = null
+                    })
+                }
+                scheduledFilter?.let { scheduled ->
+                    add(ActiveFilterChip(t(if (scheduled) "contactsTasks.scheduled" else "contactsTasks.unscheduled")) {
+                        scheduledFilter = null
+                    })
+                }
                 if (assigneeChip != null) {
                     add(ActiveFilterChip(memberName(assigneeChip) ?: teammateLabel) { assigneeChip = null })
                 }
@@ -700,7 +717,7 @@ private fun TaskListScreen(
                                 null,
                                 false,
                                 null,
-                                TaskExtraFilters(sort = extra.sort, group = extra.group),
+                                TaskExtraFilters(sort = extra.sort, group = extra.group, columns = extra.columns),
                             ),
                             null,
                             null,
@@ -739,6 +756,7 @@ private fun TaskListScreen(
                     onOpenTask = onOpenTask,
                     modifier = Modifier.fillMaxSize(),
                     extra = extra,
+                    zone = workspaceZone,
                 )
             } else {
                 // Pull-to-refresh IS the refreshKey bump — the manual refresh
@@ -806,6 +824,7 @@ private fun TaskListScreen(
                                 calendarDueOn = day.toString()
                             },
                             notConfirmed = notConfirmedFilter,
+                            extra = extra,
                         )
 
                         else -> TaskList(
@@ -859,10 +878,11 @@ private fun TaskListScreen(
             repo = viewsReferences,
             loadTags = { mutations.tags(companyId).data },
             showAdvanced = view == TaskViewKind.List || view == TaskViewKind.Board,
-            showDue = view != TaskViewKind.Map,
+            showDue = true,
+            showColumns = view == TaskViewKind.List,
             showGroup = view == TaskViewKind.List || view == TaskViewKind.Board,
             onChange = { next, names -> applyState(next, names.contact, names.tag) },
-            onClearAll = { applyState(TaskViewState(tab, null, false, null, TaskExtraFilters(sort = extra.sort, group = extra.group)), null, null) },
+            onClearAll = { applyState(TaskViewState(tab, null, false, null, TaskExtraFilters(sort = extra.sort, group = extra.group, columns = extra.columns)), null, null) },
             onDismiss = { filtersSheetOpen = false },
         )
     }
@@ -1229,6 +1249,7 @@ private fun TaskList(
                             sectionKey = bucket.id,
                             label = bucketLabels[index],
                             tasks = bucket.tasks,
+                            columns = extra.columns,
                             memberName = memberName,
                             onOpenTask = onOpenTask,
                             onToggleDone = onToggleDone,
@@ -1312,6 +1333,7 @@ private fun LazyListScope.taskSection(
     /** #478: null when this list does not offer multi-select (board, map). */
     selection: BulkSelection? = null,
     onToggleSelected: ((String) -> Unit)? = null,
+    columns: Set<String> = TASK_LIST_COLUMNS,
 ) {
     if (tasks.isEmpty()) return
     item(key = "hdr-$sectionKey") {
@@ -1375,6 +1397,7 @@ private fun LazyListScope.taskSection(
             ) {
                 TaskListRow(
                     task = task,
+                    columns = columns,
                     assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
                     onClick = {
                         // #478: while a selection is live, a tap TOGGLES rather
@@ -1420,6 +1443,8 @@ internal fun TaskListRow(
      * selection there would have no bar to act on it.
      */
     onLongPress: (() -> Unit)? = null,
+    columns: Set<String> = TASK_LIST_COLUMNS,
+    scheduledLabel: String? = null,
 ) {
     // The done settle: rows ease to the 62% fade instead of snapping — the
     // spring is calm (medium-low stiffness), and because the row keeps its
@@ -1458,8 +1483,10 @@ internal fun TaskListRow(
             .alpha(doneAlpha),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DoneCircle(done = task.done, onToggle = onToggleDone, enabled = task.doneToggleAllowed())
-        Spacer(Modifier.width(6.dp))
+        if ("status" in columns) {
+            DoneCircle(done = task.done, onToggle = onToggleDone, enabled = task.doneToggleAllowed())
+            Spacer(Modifier.width(6.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 task.title,
@@ -1473,7 +1500,7 @@ internal fun TaskListRow(
             )
             val overdue = isOverdue(task)
             val locale = LocalAppLocale.current
-            val dueText = task.due_on?.let { day ->
+            val dueText = if ("due" !in columns) null else task.due_on?.let { day ->
                 timedDue(locale) { day + " · " + t("contactsTasks.anyTime") }
             } ?: task.due_at?.let { dueAt ->
                 timedDue(locale) { due ->
@@ -1483,6 +1510,14 @@ internal fun TaskListRow(
                         t("contactsTasks.dueWhen", "when" to due(dueAt))
                     }
                 }
+            }
+            if (scheduledLabel != null) {
+                Text(t("contactsTasks.scheduledWhen", "when" to scheduledLabel),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else if ("scheduled" in columns) task.scheduled_at?.let { starts ->
+                val label = timedDue(locale) { t("contactsTasks.scheduledWhen", "when" to it(starts)) }
+                Text(label.visible, modifier = Modifier.spokenAs(label),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // D64: a call task names the call where a message task names the contact.
             val contextName = task.call?.let {
@@ -1530,7 +1565,7 @@ internal fun TaskListRow(
             // #693: high/urgent flag, repeat glyph and label chips; nothing for a plain task.
             TaskBadges(task, Modifier.padding(top = 3.dp))
         }
-        if (assigneeNames.isNotEmpty()) {
+        if ("assignee" in columns && assigneeNames.isNotEmpty()) {
             Spacer(Modifier.width(12.dp))
             AssigneeStack(assigneeNames, size = 28.dp)
         }

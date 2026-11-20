@@ -43,10 +43,16 @@ export interface DispatchDay {
   closes_at: string | null;
 }
 
+interface WorkerHours {
+  start: string | null;
+  end: string | null;
+  breaks: DispatchWindow[];
+}
+
 export interface DispatchPlan {
   revision: number;
   timezone: string;
-  members: { id: string; name: string | null }[];
+  members: { id: string; name: string | null; availability?: Record<string, WorkerHours> }[];
   days: DispatchDay[];
   tasks: DispatchTask[];
   blocks: DispatchBlock[];
@@ -133,6 +139,24 @@ function dayBlocks(plan: DispatchPlan, day: DispatchDay, member: string): Dispat
     block.assignee_id === member && start(block) < ms(day.end) && end(block) > ms(day.start));
 }
 
+function workerHours(plan: DispatchPlan, day: DispatchDay, assignee: string) {
+  const override = plan.members.find((member) => member.id === assignee)?.availability?.[day.date];
+  const opens = override ? override.start : day.opens_at;
+  const closes = override ? override.end : day.closes_at;
+  return {
+    from: Math.max(ms(day.start), opens ? ms(opens) : -Infinity),
+    until: Math.min(ms(day.end), closes ? ms(closes) : Infinity),
+    closed: override ? !override.start : day.closed,
+    defined: Boolean(opens && closes),
+    breaks: override?.breaks ?? [],
+  };
+}
+
+function fitsHours(block: DispatchBlock, hours: ReturnType<typeof workerHours>) {
+  return !hours.closed && start(block) >= hours.from && end(block) <= hours.until &&
+    hours.breaks.every((pause) => start(block) >= ms(pause.end) || end(block) <= ms(pause.start));
+}
+
 function location(task: DispatchTask | undefined): [number, number] | null {
   return task?.lat != null && task.lng != null ? [task.lat, task.lng] : null;
 }
@@ -150,20 +174,25 @@ function travelMinutes(a: DispatchTask | undefined, b: DispatchTask | undefined)
   return Math.ceil(straightKm * 1.3 / 40 * 60);
 }
 
-function routeLegs(blocks: DispatchBlock[], tasks: Map<string, DispatchTask>) {
+function routeLegs(blocks: DispatchBlock[], tasks: Map<string, DispatchTask>, hours: ReturnType<typeof workerHours>) {
   const stops = blocks.filter((block) => block.visit && block.address_confirmed);
   return stops.slice(1).map((to, index) => {
     const from = stops[index];
     const minutes = travelMinutes(tasks.get(from.task_id), tasks.get(to.task_id));
-    const inBetween = blocks.filter((block) => start(block) >= end(from) && end(block) <= start(to));
+    const limit = Math.min(start(to), hours.until);
+    const first = Math.max(end(from), hours.from);
+    const inBetween = [...blocks.map((block) => ({ from: start(block), until: end(block) })),
+      ...hours.breaks.map((pause) => ({ from: ms(pause.start), until: ms(pause.end) }))]
+      .filter((period) => period.until > first && period.from < limit)
+      .toSorted((a, b) => a.from - b.from);
     // Driving needs a continuous gap between fixed commitments.
-    let cursor = end(from);
+    let cursor = first;
     let free = 0;
-    for (const block of inBetween) {
-      free = Math.max(free, start(block) - cursor);
-      cursor = Math.max(cursor, end(block));
+    for (const period of inBetween) {
+      free = Math.max(free, period.from - cursor);
+      cursor = Math.max(cursor, period.until);
     }
-    free = Math.max(free, start(to) - cursor);
+    free = hours.closed ? 0 : Math.max(free, limit - cursor);
     return { from, to, minutes, free: Math.floor(free / MINUTE) };
   });
 }
@@ -173,9 +202,8 @@ function issueFor(
   scheduled: DispatchBlock[], tasks: Map<string, DispatchTask>,
 ): { reason: DispatchIssue; minutes?: number } | null {
   if (block.visit && (!task.address || !block.address_confirmed)) return { reason: "address" };
-  if (start(block) < ms(day.start) || end(block) > ms(day.end) ||
-    (day.opens_at !== null && start(block) < ms(day.opens_at)) ||
-    (day.closes_at !== null && end(block) > ms(day.closes_at)) || day.closed) {
+  const hours = workerHours(plan, day, block.assignee_id);
+  if (!fitsHours(block, hours)) {
     return { reason: "hours" };
   }
   if (task.windows.length > 0 && !task.windows.some((window) =>
@@ -186,7 +214,7 @@ function issueFor(
     return { reason: "overlap" };
   }
   const line = [...scheduled, block].toSorted((a, b) => start(a) - start(b));
-  const impossible = routeLegs(line, tasks).find((leg) =>
+  const impossible = routeLegs(line, tasks, hours).find((leg) =>
     leg.minutes !== null && leg.free < leg.minutes &&
     (leg.from.id === block.id || leg.to.id === block.id ||
       (start(block) >= end(leg.from) && end(block) <= start(leg.to))));
@@ -216,13 +244,16 @@ export function dispatchWorkload(plan: DispatchPlan) {
     const scheduled = dayBlocks(plan, day, member.id);
     const work = scheduled.reduce((total, block) =>
       total + (Math.min(end(block), ms(day.end)) - Math.max(start(block), ms(day.start))) / MINUTE, 0);
-    const legs = routeLegs(scheduled, tasks);
+    const hours = workerHours(plan, day, member.id);
+    const legs = routeLegs(scheduled, tasks, hours);
     const drive = legs.reduce((total, leg) => total + (leg.minutes ?? 0), 0);
-    const available = day.opens_at && day.closes_at
-      ? (Math.min(ms(day.closes_at), ms(day.end)) - ms(day.opens_at)) / MINUTE
-      : (day.closed ? 0 : null);
+    const breakMinutes = hours.breaks.reduce((total, pause) => total + (ms(pause.end) - ms(pause.start)) / MINUTE, 0);
+    const available = hours.closed ? 0 : (hours.defined ? (hours.until - hours.from) / MINUTE - breakMinutes : null);
+    const overloaded = scheduled.some((block) => !fitsHours(block, hours)) ||
+      legs.some((leg) => leg.minutes !== null && leg.minutes > leg.free) ||
+      (available !== null && work + drive > available);
     return { date: day.date, assignee_id: member.id, booked: work + drive, travel: drive, available,
-      travel_incomplete: legs.some((leg) => leg.minutes === null) };
+      overloaded, travel_incomplete: legs.some((leg) => leg.minutes === null) };
   }));
 }
 
@@ -239,10 +270,11 @@ function feasibleTime(
   plan: DispatchPlan, day: DispatchDay, block: DispatchBlock, task: DispatchTask,
   others: DispatchBlock[], tasks: Map<string, DispatchTask>, earliest: number,
 ): DispatchBlock | null {
-  if (!day.opens_at || !day.closes_at) return null;
+  const hours = workerHours(plan, day, block.assignee_id);
+  if (hours.closed || !hours.defined) return null;
   const duration = end(block) - start(block);
-  const first = Math.ceil(Math.max(ms(day.opens_at), earliest) / SLOT_STEP) * SLOT_STEP;
-  const until = Math.min(ms(day.closes_at), ms(day.end)) - duration;
+  const first = Math.ceil(Math.max(hours.from, earliest) / SLOT_STEP) * SLOT_STEP;
+  const until = hours.until - duration;
   for (let time = first; time <= until; time += SLOT_STEP) {
     const option = { ...block, starts_at: iso(time), ends_at: iso(time + duration) };
     if (!issueFor(plan, day, option, task, others, tasks)) return option;
@@ -274,7 +306,8 @@ export function dispatchRoute(plan: DispatchPlan, day: DispatchDay, assignee: st
   const stops = blocks.filter((block) => block.visit && block.address_confirmed);
   const movable = stops.filter((block) => !block.locked && location(tasks.get(block.task_id)) !== null);
   const fixed = blocks.filter((block) => !movable.includes(block));
-  const travel = (line: DispatchBlock[]) => routeLegs(line, tasks).reduce((n, leg) => n + (leg.minutes ?? 0), 0);
+  const hours = workerHours(plan, day, assignee);
+  const travel = (line: DispatchBlock[]) => routeLegs(line, tasks, hours).reduce((n, leg) => n + (leg.minutes ?? 0), 0);
   const before = travel(blocks);
   const proposed: DispatchBlock[] = [];
   const skipped: { id: string; reason: "address" | "capacity" }[] = blocks

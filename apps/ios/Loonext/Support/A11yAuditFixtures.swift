@@ -91,7 +91,9 @@ enum A11yFixtureData {
         case "/v1/contact-fields": return json(["data": [Any](), "cap": 10] as [String: Any])
         case "/v1/conversations": return json(page([]))
         case "/v1/tasks":
+            if query.contains("schedule_after=") { return json(page(publishedTasks())) }
             return json(page(query.contains("has_location=true") ? mapTasks() : calendarTasks()))
+        case "/v1/dispatch": return json(dispatch())
         case "/v1/calls": return json(page(calls()))
         case "/v1/contacts/\(contactId)": return json(contact())
         case "/v1/contacts/\(contactId)/activity": return json(page([]))
@@ -283,6 +285,40 @@ enum A11yFixtureData {
         ]
     }
 
+    private static func publishedTasks() -> [[String: Any]] {
+        let calendar = workspaceCalendar(timeZoneId: zoneId)
+        let today = calendar.startOfDay(for: Date())
+        let starts = calendar.date(byAdding: .hour, value: 10, to: today) ?? today
+        let finish = starts.addingTimeInterval(40 * 60)
+        var row = task("job-kitchen", "Install sink", due: nil, site: (43.64, -79.38))
+        row["published_work"] = [
+            ["id": "work-am", "starts_at": iso(starts), "ends_at": iso(finish), "assignee_id": "u1", "visit": true] as [String: Any],
+            ["id": "work-pm", "starts_at": iso(starts.addingTimeInterval(4 * 3600)),
+             "ends_at": iso(finish.addingTimeInterval(4 * 3600)), "assignee_id": "u1", "visit": true] as [String: Any],
+        ]
+        return [row]
+    }
+
+    private static func dispatch() -> [String: Any] {
+        let calendar = workspaceCalendar(timeZoneId: zoneId)
+        let start = calendar.startOfDay(for: Date())
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let weekday = (calendar.component(.weekday, from: start) + 5) % 7 + 1
+        let day = taskDateKey(start, calendar: calendar)
+        let shift: [String: Any] = ["start": "08:30", "end": "16:30", "breaks": [["start": "12:00", "end": "12:45"]]]
+        let crew: [[String: Any]] = [["id": "u1", "name": "Sam Rivera", "shifts": [String(weekday): shift]],
+                                     ["id": "u2", "name": "Dana Whitcomb"]]
+        let plan: [String: Any] = [
+            "revision": 1, "timezone": zoneId, "members": crew,
+            "days": [["date": day, "start": iso(start), "end": iso(end)]],
+            "tasks": [
+                ["id": "job-kitchen", "title": "Install sink", "scheduled_count": 0,
+                 "updated_at": iso(start), "done": false, "windows": [], "dispatch_estimate": 40] as [String: Any],
+            ], "blocks": [],
+        ]
+        return ["plan": plan, "workload": []]
+    }
+
     // MARK: Contact
 
     private static func contact() -> [String: Any] {
@@ -379,6 +415,15 @@ struct A11yTasksSurface: View {
             me: me,
             initialView: initialView
         )
+    }
+}
+
+@MainActor
+struct A11yDispatchSurface: View {
+    @State private var graph = A11yFixtureGraph.make()
+
+    var body: some View {
+        DispatchPlanner(graph: graph, companyId: A11yFixtureData.companyId, me: A11yFixtureData.me(), onTask: { _ in })
     }
 }
 

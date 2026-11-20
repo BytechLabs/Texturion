@@ -25,6 +25,8 @@ func taskFilterCount(_ state: TaskViewState) -> Int {
     if state.meta.hasAttachments { count += 1 }
     if state.meta.hasReferences { count += 1 }
     if state.meta.notConfirmed { count += 1 }
+    if state.meta.statusOnly != nil { count += 1 }
+    if state.meta.scheduled != nil { count += 1 }
     return count
 }
 
@@ -263,6 +265,18 @@ struct TaskFiltersSheet: View {
         NavigationStack {
             Form {
                 peopleSection
+                Section {
+                    Picker(t("contactsTasks.filterStatus"), selection: $draft.meta.statusOnly) {
+                        Text(t("taskRefs.filterAnyone")).tag(String?.none)
+                        Text(t("contactsTasks.tabOpen")).tag(Optional("open"))
+                        Text(t("contactsTasks.tabDone")).tag(Optional("done"))
+                    }
+                    Picker(t("contactsTasks.filterSchedule"), selection: $draft.meta.scheduled) {
+                        Text(t("taskRefs.filterAnyone")).tag(Bool?.none)
+                        Text(t("contactsTasks.scheduled")).tag(Optional(true))
+                        Text(t("contactsTasks.unscheduled")).tag(Optional(false))
+                    }
+                }
                 dueSection
                 detailsSection
                 layoutSection
@@ -296,7 +310,7 @@ struct TaskFiltersSheet: View {
         draft.assigneeUserId = nil
         draft.unassigned = false
         draft.due = nil
-        draft.meta = TaskMetaFilters(sort: draft.meta.sort, statusOnly: draft.meta.statusOnly)
+        draft.meta = TaskMetaFilters(sort: draft.meta.sort, columns: draft.meta.columns)
         draftContactName = nil
     }
 
@@ -308,7 +322,7 @@ struct TaskFiltersSheet: View {
                 Text(t("taskRefs.filterAnyone")).tag(AssigneeChoice.anyone)
                 Text(t("contactsTasks.unassigned")).tag(AssigneeChoice.unassigned)
                 ForEach(activeMembers, id: \.user_id) { member in
-                    Text(memberLabel(member)).tag(AssigneeChoice.member(member.user_id))
+                    Text(memberLabel(member)).tag(AssigneeChoice.member(member.user_id == meUserId ? assigneeMe : member.user_id))
                 }
             }
             Picker(t("taskRefs.filterCreatedBy"), selection: createdByBinding) {
@@ -417,6 +431,18 @@ struct TaskFiltersSheet: View {
                     Text(t(TaskGroup.labelKey(group))).tag(group)
                 }
             }
+            if draft.layout == .list {
+                ForEach(taskListColumns, id: \.self) { column in
+                    Toggle(t("contactsTasks.field.\(column)"), isOn: Binding(
+                        get: { draft.meta.columns.contains(column) },
+                        set: { visible in
+                            let selected = Set(draft.meta.columns)
+                            let next = visible ? selected.union([column]) : selected.subtracting([column])
+                            draft.meta.columns = taskListColumns.filter(next.contains)
+                        }
+                    ))
+                }
+            }
         }
     }
 
@@ -432,7 +458,7 @@ struct TaskFiltersSheet: View {
         Binding(
             get: {
                 if draft.unassigned { return .unassigned }
-                if let id = draft.assigneeUserId { return .member(id) }
+                if let id = draft.assigneeUserId { return .member(id == meUserId ? assigneeMe : id) }
                 return .anyone
             },
             set: { choice in

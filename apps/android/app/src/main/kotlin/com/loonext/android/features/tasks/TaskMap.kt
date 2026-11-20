@@ -138,10 +138,11 @@ fun TaskMapView(
     onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
     extra: TaskExtraFilters = TaskExtraFilters(),
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val mutations = remember(companyId) { TaskMutations(graph.api) }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
-    var selectedDay by remember(companyId) { mutableStateOf<LocalDate?>(LocalDate.now()) }
+    var selectedDay by remember(companyId, zone) { mutableStateOf<LocalDate?>(LocalDate.now(zone)) }
 
     // Realtime: the same triggers as the list/board — any task change or done
     // flip revalidates the pin set quietly.
@@ -166,11 +167,11 @@ fun TaskMapView(
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
-        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra, selectedDay)
+        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra, selectedDay, zone)
     }
 
     Column(modifier.fillMaxSize()) {
-        TaskMapDays(selectedDay, onSelect = { selectedDay = it })
+        TaskMapDays(selectedDay, LocalDate.now(zone), onSelect = { selectedDay = it })
         when (val current = state) {
             is LoadState.Loading -> TaskMapSkeleton(Modifier.weight(1f))
             is LoadState.Failed -> LoadError(
@@ -179,7 +180,8 @@ fun TaskMapView(
                 modifier = Modifier.weight(1f),
             )
             is LoadState.Ready -> TaskMapContent(
-                rows = orderedMapRows(current.value, selectedDay),
+                rows = orderedMapRows(current.value.located, zone),
+                total = current.value.total,
                 onOpenTask = onOpenTask,
                 modifier = Modifier.weight(1f),
             )
@@ -187,15 +189,14 @@ fun TaskMapView(
     }
 }
 
-private fun orderedMapRows(rows: List<Task>, day: LocalDate?): List<Task> {
-    val zone = ZoneId.systemDefault()
+private fun orderedMapRows(rows: List<Task>, zone: ZoneId): List<Task> {
     return rows.asSequence()
-        .filterNot { it.done }
         .map { task ->
-            val instant = parseInstant(task.due_at)
-            Triple(task, task.due_on ?: instant?.atZone(zone)?.toLocalDate()?.toString(), instant)
+            val booked = task.published_work.firstOrNull()?.starts_at ?: task.scheduled_at
+            val instant = parseInstant(booked ?: task.due_at)
+            val day = if (booked == null) task.due_on else null
+            Triple(task, day ?: instant?.atZone(zone)?.toLocalDate()?.toString(), instant)
         }
-        .filter { day == null || it.second == day.toString() }
         .sortedWith(compareBy({ it.second ?: "9999" }, { it.third ?: Instant.MAX }, { it.first.id }))
         .map { it.first }
         .toList()
@@ -203,8 +204,7 @@ private fun orderedMapRows(rows: List<Task>, day: LocalDate?): List<Task> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TaskMapDays(day: LocalDate?, onSelect: (LocalDate?) -> Unit) {
-    val today = LocalDate.now()
+private fun TaskMapDays(day: LocalDate?, today: LocalDate, onSelect: (LocalDate?) -> Unit) {
     val tomorrow = today.plusDays(1)
     var showPicker by remember { mutableStateOf(false) }
     Row(
@@ -264,6 +264,8 @@ internal fun taskMapFilterKey(
         extra.dueBefore.orEmpty(),
         extra.dueAfter.orEmpty(),
         extra.notConfirmed.toString(),
+        extra.statusOnly.orEmpty(),
+        extra.scheduled?.toString().orEmpty(),
     ).joinToString("|")
 
 // Web-parity camera constants (map-island.tsx): continental-US fallback view,
@@ -367,10 +369,14 @@ private fun TaskMapContent(
     rows: List<Task>,
     onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
+    total: Int? = null,
 ) {
     val haptics = rememberHaptics()
     val context = LocalContext.current
-    val model = remember(rows) { buildTaskMapModel(rows) }
+    val model = remember(rows, total) {
+        val plotted = buildTaskMapModel(rows)
+        if (total == null) plotted else plotted.copy(missing = (total - plotted.located).coerceAtLeast(0))
+    }
     val stops = remember(rows) { rows.filter { taskPinCoords(it) != null } }
     val stopNumbers = remember(stops) { stops.mapIndexed { index, task -> task.id to index + 1 }.toMap() }
 

@@ -10756,3 +10756,34 @@ coordinates, route previews estimate travel from the distance between pins and
 leave room for the work already scheduled between them. The preview uses a
 consistent speed and road-distance factor. It keeps confirmed appointments at
 their booked times.
+
+## D173 - a customer source can have several tasks (#876)
+
+The text and call actions show the work already linked to that record and let
+the teammate write a title for another task. Newly linked tasks each own their
+completion and keep an exact link to the source. Existing tasks that share a
+text's completion continue to do so. Older clients can still complete work
+through the same API paths.
+
+## D174 - task filters and dated work are consistent across devices (#876)
+
+All tasks, My work, and Unassigned are starting points. Status, assignee, due
+date, scheduled state, and priority can then be combined. Saved views keep the
+layout, display fields, group, sort, and relative due filters. The meaning of
+“Me” follows the teammate opening the view.
+
+Calendar shows every published booking at its start in the workspace's time
+zone. It also shows deadlines and counts matching tasks without either date.
+Map's date controls use published bookings and keep the active task filters.
+It shows a single stop per located task and counts matching tasks without a
+pin. Planner Routes uses the separately confirmed visits in D172.
+
+## D175 - per-worker shifts and breaks guide scheduling (#876)
+
+Owners and admins can set a recurring shift or day off for a worker on a
+weekday in the workspace's time zone. Without an override, that worker uses
+workspace hours and exceptions. A custom shift has same-day hours and can
+include several breaks. Breaks reduce capacity and leave no time for work or
+travel. Existing appointments keep their booked times and Workload flags
+conflicts so dispatchers can resolve them. Saving availability advances the
+revision used when publishing a plan.

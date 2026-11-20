@@ -87,6 +87,7 @@ final class AiEnrichmentTests: XCTestCase {
             ),
             .object([
                 "message_id": .string("m1"),
+                "independent_source": .bool(true),
                 "title": .string("Fix the sink"),
                 "address": .object([
                     "street": .null,
@@ -106,7 +107,7 @@ final class AiEnrichmentTests: XCTestCase {
             try decoded(
                 taskCreateBody(messageId: "m1", title: "Fix", assignedUserId: nil, dueAt: nil)
             ),
-            .object(["message_id": .string("m1"), "title": .string("Fix")])
+            .object(["message_id": .string("m1"), "title": .string("Fix"), "independent_source": .bool(true)])
         )
     }
 

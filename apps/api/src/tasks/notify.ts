@@ -324,6 +324,7 @@ export async function notifyPromotedMessageDone(
       .select("id")
       .eq("company_id", input.companyId)
       .eq("message_id", input.messageId)
+      .eq("independent_source", false)
       .is("deleted_at", null)
       .limit(1),
     "promoted task lookup",

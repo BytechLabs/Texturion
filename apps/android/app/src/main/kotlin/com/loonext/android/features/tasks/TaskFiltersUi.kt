@@ -74,6 +74,7 @@ internal fun TaskFiltersSheet(
     /** The map takes no due filter. */
     showDue: Boolean,
     showGroup: Boolean,
+    showColumns: Boolean = false,
     phoneLines: List<PhoneNumberSummary> = emptyList(),
     onChange: (TaskViewState, FilterNames) -> Unit,
     onClearAll: () -> Unit,
@@ -129,6 +130,39 @@ internal fun TaskFiltersSheet(
             SwitchRow(t("contactsTasks.unassigned"), state.unassigned) { on ->
                 change(state.copy(unassigned = on, assigneeChip = if (on) null else state.assigneeChip))
             }
+            ChipsRow(t("contactsTasks.filterStatus")) {
+                listOf(null to "taskViews.any", TaskStatus.OPEN to "contactsTasks.tabOpen", TaskStatus.DONE to "contactsTasks.tabDone")
+                    .forEach { (status, key) ->
+                        FilterPill(t(key), selected = extra.statusOnly == status,
+                            onClick = { change(state.copy(extra = extra.copy(statusOnly = status))) })
+                    }
+            }
+            ChipsRow(t("contactsTasks.filterSchedule")) {
+                listOf(null to "taskViews.any", true to "contactsTasks.scheduled", false to "contactsTasks.unscheduled")
+                    .forEach { (scheduled, key) ->
+                        FilterPill(t(key), selected = extra.scheduled == scheduled,
+                            onClick = { change(state.copy(extra = extra.copy(scheduled = scheduled))) })
+                    }
+            }
+            FilterRow(
+                t("contactsTasks.priority"),
+                when (extra.priorities.size) {
+                    0 -> t("taskViews.any")
+                    1 -> t(TaskPriority.labelKey(extra.priorities.first()))
+                    else -> t("contactsTasks.priorityMany", "count" to "${extra.priorities.size}")
+                },
+            ) { priorityOpen = true }
+
+            if (showColumns) {
+                ChipsRow(t("contactsTasks.visibleFields")) {
+                    TASK_LIST_COLUMNS.forEach { column ->
+                        FilterPill(t("contactsTasks.field.$column"), selected = column in extra.columns, onClick = {
+                            val columns = if (column in extra.columns) extra.columns - column else extra.columns + column
+                            change(state.copy(extra = extra.copy(columns = columns)))
+                        })
+                    }
+                }
+            }
 
             if (showDue) {
                 ChipsRow(t("taskViews.due")) {
@@ -164,14 +198,6 @@ internal fun TaskFiltersSheet(
             }
 
             if (showAdvanced) {
-                FilterRow(
-                    t("contactsTasks.priority"),
-                    when (extra.priorities.size) {
-                        0 -> t("taskViews.any")
-                        1 -> t(TaskPriority.labelKey(extra.priorities.first()))
-                        else -> t("contactsTasks.priorityMany", "count" to "${extra.priorities.size}")
-                    },
-                ) { priorityOpen = true }
                 FilterRow(t("contactsTasks.label"), names.tag ?: t("taskViews.any")) { labelOpen = true }
                 FilterRow(t("taskViews.customer"), names.contact ?: t("taskViews.any")) { contactOpen = true }
                 FilterRow(

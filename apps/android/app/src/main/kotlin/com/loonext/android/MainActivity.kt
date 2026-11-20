@@ -1125,6 +1125,7 @@ private fun ReadyShell(
                         // #690: a chip or a link in the task opens its target.
                         onOpenTask = { push(Overlay.Task(it)) },
                         onOpenContact = { push(Overlay.Contact(it)) },
+                        onOpenCall = { push(Overlay.Call(it)) },
                     )
 
                     is Overlay.Contact -> ContactDetailScreen(
@@ -1174,6 +1175,7 @@ private fun ReadyShell(
                             modifier = it,
                             onOpenConversation = { id -> push(Overlay.Thread(id)) },
                             onOpenContact = { id -> push(Overlay.Contact(id)) },
+                            onOpenTask = { id -> push(Overlay.Task(id)) },
                         )
                     }
 

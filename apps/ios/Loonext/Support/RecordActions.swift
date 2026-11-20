@@ -326,7 +326,7 @@ func messageActions(_ message: Message, viewer: RecordViewer) -> [RecordAction] 
             id: MessageActionId.makeTask, labelKey: "recordMenu.makeTask",
             group: .state,
             // A promoted message cannot be promoted twice, and a note is not a customer's ask.
-            allowed: !message.has_task && message.promoted_task == nil && !note
+            allowed: !note
         ),
         RecordAction(
             id: MessageActionId.pin, labelKey: "recordMenu.pin",

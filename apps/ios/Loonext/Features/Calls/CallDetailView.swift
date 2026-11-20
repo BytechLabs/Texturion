@@ -16,6 +16,7 @@ struct CallDetailView: View {
 
     @State private var state: LoadState<Call> = .loading
     @State private var refreshKey = 0
+    @State private var linked: [LinkedSourceTask] = []
 
     @Environment(\.appLocale) private var appLocale
 
@@ -39,6 +40,13 @@ struct CallDetailView: View {
             LoadError(message: message) { refreshKey += 1 }
         case .ready(let call):
             detail(call)
+                .task(id: call.id) {
+                    if let conversation = call.conversation_id {
+                        linked = (try? await TaskMutations(api: graph.api).sourceTasks(
+                            companyId: companyId, conversationId: conversation, query: ["call_id": call.id]
+                        )) ?? []
+                    }
+                }
         }
     }
 
@@ -68,6 +76,20 @@ struct CallDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 header(call)
                 wordsCard(call)
+                if !linked.isEmpty {
+                    SectionHeader(label: t("thread.tasksFromSource"))
+                    PaperCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(linked, id: \.id) { task in
+                                Button(task.title + " · " + t(task.done ? "contactsTasks.tabDone" : "contactsTasks.tabOpen")) {
+                                    AppRouter.shared.openTaskId = task.id
+                                }
+                                .frame(minHeight: 44)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
                 factsCard(call)
                 activitySection(call)
             }

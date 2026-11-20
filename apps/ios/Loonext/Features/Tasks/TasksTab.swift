@@ -21,7 +21,9 @@ struct TasksTab: View {
         _view = State(initialValue: initialView)
     }
 
-    @State private var tab: TasksTabKind = .open
+    private let tab: TasksTabKind = .all
+    @State private var scheduledFilter: Bool?
+    @State private var displayColumns = taskListColumns
     @State private var view: TaskViewKind = .list
     @State private var assigneeChip: String?
     @State private var unassignedChip = false
@@ -102,7 +104,9 @@ struct TasksTab: View {
             notConfirmed: notConfirmedFilter,
             dueAfter: dueAfterFilter,
             dueBefore: dueBeforeFilter,
-            statusOnly: statusOnlyFilter
+            statusOnly: statusOnlyFilter,
+            scheduled: scheduledFilter,
+            columns: displayColumns
         )
     }
 
@@ -121,8 +125,7 @@ struct TasksTab: View {
 
     /// Put a state (from the Filters sheet or a saved view) on the controls.
     private func applyState(_ state: TaskViewState, contactName: String? = nil) {
-        tab = state.tab
-        assigneeChip = state.assigneeUserId
+        assigneeChip = state.assigneeUserId ?? (state.tab != .all && !state.unassigned ? assigneeMe : nil)
         unassignedChip = state.unassigned
         dueChip = state.due
         priorityFilter = state.meta.priority
@@ -138,7 +141,9 @@ struct TasksTab: View {
         notConfirmedFilter = state.meta.notConfirmed
         dueAfterFilter = state.meta.dueAfter
         dueBeforeFilter = state.meta.dueBefore
-        statusOnlyFilter = state.meta.statusOnly
+        statusOnlyFilter = state.meta.statusOnly ?? (state.tab == .open ? "open" : state.tab == .done ? "done" : nil)
+        scheduledFilter = state.meta.scheduled
+        displayColumns = state.meta.columns
         groupChoice = state.group
     }
 
@@ -159,19 +164,6 @@ struct TasksTab: View {
             dueChip?.rawValue ?? "", debouncedQ, String(refreshKey), view.rawValue,
             metaFilters.token,
         ].joined(separator: "|")
-    }
-
-    /// Which status tabs actually DO something per view (the web's tabsForView):
-    /// Board's columns ARE the status dimension, so it keeps Mine | All; the
-    /// Map consumes only the assignee chips, so status tabs disappear there;
-    /// List and Calendar consume all four (Calendar applies Open/Done
-    /// client-side over the month grid).
-    private var visibleTabs: [TasksTabKind] {
-        switch view {
-        case .board: return [.mine, .all]
-        case .map: return []
-        case .list, .calendar: return TasksTabKind.allCases
-        }
     }
 
     var body: some View {
@@ -229,7 +221,8 @@ struct TasksTab: View {
                     q: debouncedQ,
                     meta: metaFilters,
                     refreshKey: refreshKey,
-                    onOpenTask: { AppRouter.shared.openTaskId = $0 }
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                    timeZoneId: me.company?.timezone
                 )
             }
         }
@@ -270,7 +263,7 @@ struct TasksTab: View {
             let controller = TaskViewsController(api: graph.savedViewsApi, companyId: companyId)
             viewsController = controller
             await controller.load()
-            if !appliedDefaultView, !filtersActive, tab == .open,
+            if !appliedDefaultView, !filtersActive,
                let id = controller.defaultViewId,
                let view = controller.views.first(where: { $0.id == id }) {
                 appliedDefaultView = true
@@ -293,15 +286,6 @@ struct TasksTab: View {
         // #215 Part A: refresh the current view on foreground so a task
         // create/assign/done missed while backgrounded lands on return.
         .resyncOnForeground { refreshKey += 1 }
-        .onChange(of: view) { _, newView in
-            // Board organizes by status, so the Open/Done dimension is a
-            // no-op there (#113): entering the board coerces to Mine. Calendar
-            // and Map deliberately do NOT coerce — the tab the list returns to
-            // is preserved.
-            if newView == .board && (tab == .open || tab == .done) {
-                tab = .mine
-            }
-        }
         // #732: New task is the tab's one main action, the shared button.
         .mainAction(
             systemImage: "plus",
@@ -390,12 +374,26 @@ struct TasksTab: View {
         }
     }
 
-    /// The status tabs: ink-filled selected pill, paper idle pills (spec 24/31). Board
-    /// mode keeps the existing Mine/All reduction. They sit in the shared filter row.
-    private var tabPills: some View {
-        TasksStatusTabs(tabs: visibleTabs, selected: tab) { next in
-            tab = next
-            statusOnlyFilter = nil
+    private var presets: some View {
+        let count = taskFilterCount(currentState)
+        let selected = count == 0 ? "all"
+            : count == 1 && assigneeChip == assigneeMe ? "mine"
+            : count == 1 && unassignedChip ? "unassigned" : ""
+        return SegmentedControl(
+            options: [
+                SegmentedOption("all", title: AppStrings.translate(appLocale, "contactsTasks.allTasks")),
+                SegmentedOption("mine", title: AppStrings.translate(appLocale, "contactsTasks.myWork")),
+                SegmentedOption("unassigned", title: AppStrings.translate(appLocale, "contactsTasks.unassigned")),
+            ],
+            selected: selected, size: .compact, fill: false
+        ) { preset in
+            var next = TaskViewState()
+            next.assigneeUserId = preset == "mine" ? assigneeMe : nil
+            next.unassigned = preset == "unassigned"
+            next.meta.sort = sortChoice
+            next.meta.columns = displayColumns
+            next.group = groupChoice
+            applyState(next)
         }
     }
 
@@ -438,7 +436,7 @@ struct TasksTab: View {
                 isDefault: view.id == controller.defaultViewId
             )
         }
-        let filtered = taskFilterCount(currentState) > 0 || tab != .open || view != .list
+        let filtered = taskFilterCount(currentState) > 0 || displayColumns != taskListColumns || view != .list
         return ListViewsModel(
             entries: entries,
             activeId: active?.id,
@@ -464,7 +462,7 @@ struct TasksTab: View {
                 onFilter: { filtersOpen = true },
                 views: viewsModel
             ) {
-                tabPills
+                presets
                 sortMenuChip
             }
             ActiveFilterChips(chips: activeFilterChips, onClearAll: clearActiveFilters)
@@ -490,7 +488,7 @@ struct TasksTab: View {
     }
 
     private func memberLabel(_ userId: String) -> String {
-        if userId == me.user_id { return AppStrings.translate(appLocale, "contactsTasks.you") }
+        if userId == me.user_id || userId == assigneeMe { return AppStrings.translate(appLocale, "contactsTasks.you") }
         let name = members.first(where: { $0.user_id == userId })?.display_name ?? ""
         return name.isBlank ? AppStrings.translate(appLocale, "contactsTasks.teammate") : name
     }
@@ -498,6 +496,18 @@ struct TasksTab: View {
     /// The applied filters, one removable chip each. The tab and the sort are not filters.
     private var activeFilterChips: [ActiveFilterChip] {
         var chips: [ActiveFilterChip] = []
+        if let statusOnlyFilter {
+            let key = statusOnlyFilter == "open" ? "contactsTasks.tabOpen" : "contactsTasks.tabDone"
+            chips.append(ActiveFilterChip(id: "status", label: AppStrings.translate(appLocale, key)) {
+                self.statusOnlyFilter = nil
+            })
+        }
+        if let scheduledFilter {
+            let key = scheduledFilter ? "contactsTasks.scheduled" : "contactsTasks.unscheduled"
+            chips.append(ActiveFilterChip(id: "schedule", label: AppStrings.translate(appLocale, key)) {
+                self.scheduledFilter = nil
+            })
+        }
         if let id = assigneeChip {
             chips.append(ActiveFilterChip(id: "assignee", label: memberLabel(id)) {
                 assigneeChip = nil
@@ -587,8 +597,8 @@ struct TasksTab: View {
 
     private func clearActiveFilters() {
         var cleared = TaskViewState()
-        cleared.tab = tab
         cleared.meta.sort = sortChoice
+        cleared.meta.columns = displayColumns
         cleared.group = groupChoice
         applyState(cleared)
     }
@@ -661,9 +671,7 @@ struct TasksTab: View {
                     locale: appLocale,
                     tagName: workspaceTags.first(where: { $0.id == state.meta.tagId })?.name
                 ),
-                note: taskViewDropsDueChip(state)
-                    ? AppStrings.translate(appLocale, "taskRefs.viewDropsDueChip")
-                    : nil,
+                note: nil,
                 canShare: canShareViews,
                 onSubmit: { name, shared in
                     await controller.save(
@@ -689,7 +697,7 @@ struct TasksTab: View {
                 EmptyState(
                     title: AppStrings.translate(
                         appLocale,
-                        filtersActive || tab != .open
+                        filtersActive
                             ? "contactsTasks.listEmptyFiltered"
                             : "contactsTasks.listEmpty"
                     ),
@@ -783,7 +791,7 @@ struct TasksTab: View {
     private func taskRows(_ list: [TaskItem]) -> some View {
         ForEach(list, id: \.id) { task in
             let picked = bulkSelection.isRowSelected(task.id)
-            TaskListRow(task: task, faces: assigneeFaces(task)) { done in
+            TaskListRow(task: task, faces: assigneeFaces(task), columns: displayColumns) { done in
                 toggleDone(task, done: done)
             }
             .contentShape(Rectangle())
@@ -951,38 +959,39 @@ enum TaskViewKind: String, CaseIterable, Identifiable, Sendable {
 private struct TaskListRow: View {
     let task: TaskItem
     let faces: [AssigneeFace]
+    var columns = taskListColumns
     let onToggleDone: @MainActor (Bool) -> Void
 
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // The round derived-done toggle: 22pt ring → lime fill + ink check
-            // (spec 24/31).
-            Button {
-                onToggleDone(!task.done)
-            } label: {
-                ZStack {
-                    if task.done {
-                        Circle().fill(BrandColor.lime)
-                        Image(systemName: "checkmark")
-                            .font(.scaled(IconSize.small, weight: .bold))
-                            .foregroundStyle(BrandColor.onLime)
-                    } else {
-                        Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)
+            if columns.contains("status") {
+                Button {
+                    onToggleDone(!task.done)
+                } label: {
+                    ZStack {
+                        if task.done {
+                            Circle().fill(BrandColor.lime)
+                            Image(systemName: "checkmark")
+                                .font(.scaled(IconSize.small, weight: .bold))
+                                .foregroundStyle(BrandColor.onLime)
+                        } else {
+                            Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)
+                        }
                     }
+                    .frame(width: 22, height: 22)
                 }
-                .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.borderless)
-            // #722: the ring is inert where the server will not take the flip.
-            .disabled(!task.doneToggleAllowed)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    task.done ? "contactsTasks.markNotDone" : "contactsTasks.markDone"
+                .buttonStyle(.borderless)
+                // #722: the ring is inert where the server will not take the flip.
+                .disabled(!task.doneToggleAllowed)
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        task.done ? "contactsTasks.markNotDone" : "contactsTasks.markDone"
+                    )
                 )
-            )
+            }
 
             VStack(alignment: .leading, spacing: 3) {
                 TaskNumberTag(number: task.number)
@@ -1008,11 +1017,11 @@ private struct TaskListRow: View {
                     .foregroundStyle(BrandColor.muted500)
                     .lineLimit(1)
                 }
-                if let day = task.due_on {
+                if columns.contains("due"), let day = task.due_on {
                     Text(day + " · " + AppStrings.translate(appLocale, "contactsTasks.anyTime"))
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted400)
-                } else if task.due_at != nil {
+                } else if columns.contains("due"), task.due_at != nil {
                     let overdue = isOverdue(task)
                     let dueText = timedDue(locale: appLocale) { due in
                         AppStrings.translate(
@@ -1033,11 +1042,20 @@ private struct TaskListRow: View {
                             : AnyShapeStyle(BrandColor.muted400)
                     )
                 }
+                if columns.contains("scheduled"), let starts = task.scheduled_at {
+                    let label = timedDue(locale: appLocale) { format in
+                        AppStrings.translate(appLocale, "contactsTasks.scheduledWhen", ["when": format(starts)])
+                    }
+                    Text(label.visible)
+                        .spokenAs(label)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted500)
+                }
                 // #693: priority, repeat and labels, only when there is any.
                 TaskRowBadges(task: task)
             }
             Spacer(minLength: 0)
-            AssigneeStack(faces: faces, size: 28)
+            if columns.contains("assignee") { AssigneeStack(faces: faces, size: 28) }
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)

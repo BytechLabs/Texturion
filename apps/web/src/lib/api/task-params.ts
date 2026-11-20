@@ -4,7 +4,13 @@ import type { TaskListFilters } from "./task-filters";
  * A GET /v1/tasks request: the filters plus an optional page size. The route
  * takes 1 to 100 and answers 25 without one (routes/tasks.ts).
  */
-export type TaskListRequest = TaskListFilters & { limit?: number };
+export type TaskListRequest = TaskListFilters & {
+  limit?: number;
+  schedule_after?: string;
+  schedule_before?: string;
+  include_count?: boolean;
+  calendar_undated?: boolean;
+};
 
 /**
  * Drop filter values the request omits so equal queries share one cache entry.
@@ -32,6 +38,10 @@ export function taskSearchParams(
     due_after: filters.due_after,
     due_on_before: filters.due_on_before,
     due_on_after: filters.due_on_after,
+    schedule_after: filters.schedule_after,
+    schedule_before: filters.schedule_before,
+    include_count: filters.include_count || undefined,
+    calendar_undated: filters.calendar_undated || undefined,
     overdue: filters.overdue ? true : undefined,
     confirmed: filters.confirmed,
     scheduled: filters.scheduled,

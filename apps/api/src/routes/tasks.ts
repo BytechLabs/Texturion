@@ -116,6 +116,7 @@ import {
   keysetFilter,
   parseJsonBody,
   parseLimit,
+  parseWith,
   pathUuid,
   unwrap,
 } from "./core/http";
@@ -475,7 +476,7 @@ function priorityKeysetFilter(cursor: PriorityCursor): string {
  * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
  */
 export const TASK_COLUMNS =
-  "id,company_id,number,message_id,source_call_id,conversation_id,contact_id,title,description," +
+  "id,company_id,number,message_id,source_call_id,independent_source,conversation_id,contact_id,title,description," +
   "assigned_user_id,due_at,due_on,due_time_set,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
@@ -566,12 +567,17 @@ function publicSourceCall(
 export function taskSource(row: {
   message_id?: unknown;
   source_call_id?: unknown;
+  source?: unknown;
 }): { kind: "message" | "call"; id: string } | null {
   if (typeof row.message_id === "string") {
     return { kind: "message", id: row.message_id };
   }
   if (typeof row.source_call_id === "string") {
     return { kind: "call", id: row.source_call_id };
+  }
+  const source = row.source as { kind?: unknown; id?: unknown } | null | undefined;
+  if ((source?.kind === "message" || source?.kind === "call") && typeof source.id === "string") {
+    return { kind: source.kind, id: source.id };
   }
   return null;
 }
@@ -601,7 +607,9 @@ async function withSourceDirections<
 export function withSource<T extends Record<string, unknown>>(
   row: T,
 ): T & { source: ReturnType<typeof taskSource> } {
-  return { ...row, source: taskSource(row) };
+  const source = taskSource(row);
+  // Older clients use message_id as the address for a completion write.
+  return { ...row, ...(row.independent_source === true && { message_id: null }), source };
 }
 
 /**
@@ -652,6 +660,7 @@ const createSchema = z
   // task is standalone (#689) and needs a title.
   message_id: z.uuid().optional(),
   source_call_id: z.uuid().optional(),
+  independent_source: z.literal(true).optional(),
   title: z.string().trim().min(1).max(TITLE_MAX).optional(),
   // A standalone task may link to a contact and/or a conversation.
   contact_id: z.uuid().optional(),
@@ -670,6 +679,10 @@ const createSchema = z
   label_ids: z.array(z.uuid()).max(20).optional(),
   repeat: repeatSchema.optional(),
 })
+  .refine((body) => !body.independent_source ||
+    (body.title !== undefined && (body.message_id !== undefined || body.source_call_id !== undefined)), {
+    message: "Provide a title and a source for a linked task.",
+  })
   .refine((body) => body.message_id === undefined || body.source_call_id === undefined, {
     message: "Provide at most one of message_id or source_call_id.",
   })
@@ -922,9 +935,11 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     p_conversation_id: body.conversation_id ?? null,
     p_priority: body.priority ?? "normal",
   };
-  const { data, error } = body.due_on === undefined
-    ? await db.rpc("create_task", parameters)
-    : await db.rpc("create_task_with_date", { ...parameters, p_due_on: body.due_on });
+  const { data, error } = body.independent_source
+    ? await db.rpc("api_create_linked_task", { p_request: { ...parameters, p_due_on: body.due_on ?? null } })
+    : (body.due_on === undefined
+      ? await db.rpc("create_task", parameters)
+      : await db.rpc("create_task_with_date", { ...parameters, p_due_on: body.due_on }));
   if (error) throw new Error(`create_task failed: ${error.message}`);
   const result = parseTaskOutcome(data);
 
@@ -1358,6 +1373,9 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
 
 const taskMemberFilter = z.union([z.literal("me"), z.uuid()]);
 const taskDueFilter = z.iso.datetime({ offset: true });
+const taskScheduleWindow = z.object({ start: taskDueFilter, end: taskDueFilter })
+  .refine(({ start, end }) => Date.parse(start) < Date.parse(end) &&
+    Date.parse(end) - Date.parse(start) <= 62 * 86_400_000);
 
 const taskSelectionSchema = z.strictObject({
   status: z.enum(STATUS_VALUES).optional(),
@@ -1456,6 +1474,12 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   const limit = parseLimit(c, 25, 100);
   const rawCursor = c.req.query("cursor");
   const db = getDb(getEnv(c.env));
+  const count = c.req.query("include_count") === "true" ? { count: "exact" as const } : undefined;
+  const scheduleStart = c.req.query("schedule_after");
+  const scheduleEnd = c.req.query("schedule_before");
+  const schedule = scheduleStart !== undefined || scheduleEnd !== undefined
+    ? parseWith(taskScheduleWindow, { start: scheduleStart, end: scheduleEnd })
+    : null;
 
   const {
     overdue,
@@ -1497,6 +1521,11 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     assignee === undefined ? "" : ",task_assignees!inner(user_id)";
   const extra = await resolveExtraTaskFilters(c, db, extraInput);
   const referenceEmbed = extra.referencedHidden === undefined ? "" : REFERENCE_EMBED;
+  const hiddenNumbers = hasLocation || schedule ? (await resolveNumberAccess(db, {
+    companyId, userId, role: c.get("role"),
+  })).hiddenNumberIds ?? [] : [];
+  const scheduleAccessEmbed = schedule && !hasLocation && hiddenNumbers.length > 0
+    ? ",hidden_schedule_line:conversations!conversation_id()" : "";
 
   // The common (non-map) path reads `tasks` and selects the computed column
   // `task_done_at` (the source message's done_at, or the task's own when it has
@@ -1519,6 +1548,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
         .from("task_map_rows")
         .select(
           `${TASK_COLUMNS},scheduled_at:task_scheduled_start,done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
+          count,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null)
@@ -1527,7 +1557,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},scheduled_at:task_scheduled_start,${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${THREAD_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}${referenceEmbed}`,
+          `${TASK_COLUMNS},scheduled_at:task_scheduled_start,${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${THREAD_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}${referenceEmbed}${scheduleAccessEmbed}`,
+          count,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1552,25 +1583,15 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     tagId,
     ...extra,
   });
-  if (hasLocation) {
-    // #106/#107: the map exposes the source contact's NAME + geocode — that's
-    // conversation content, not the globally-visible task title. Exclude tasks
-    // whose number is hidden from the caller so the map can never plot a hidden
-    // customer. phone_number_id is a flat view column, so this filter drops the
-    // row directly (no embed post-filter → the keyset window stays correct).
-    // Owners/admins and no-rules companies resolve unrestricted and skip it.
-    const access = await resolveNumberAccess(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-    });
-    if (access.hiddenNumberIds && access.hiddenNumberIds.length > 0) {
-      // A standalone task with no conversation has no number (#689), and
-      // `not in` alone would drop it as NULL; it is not hidden by a number.
-      query = query.or(
-        `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
-      );
-    }
+  if (schedule) query = query.filter("task_scheduled_times", "ov", `{["${schedule.start}","${schedule.end}")}`);
+  if (c.req.query("calendar_undated") === "true") {
+    query = query.is("due_on", null).is("due_at", null).is("task_scheduled_start", null);
+  }
+  if (hasLocation && hiddenNumbers.length > 0) {
+    query = query.or(`phone_number_id.is.null,phone_number_id.not.in.(${hiddenNumbers.join(",")})`);
+  }
+  if (scheduleAccessEmbed) {
+    query = query.in("hidden_schedule_line.phone_number_id", hiddenNumbers).is("hidden_schedule_line", null);
   }
   if (dueSorted) {
     query = query
@@ -1619,17 +1640,28 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     contact_lng?: number | null;
     [key: string]: unknown;
   }
-  const rows = unwrap<unknown>(
-    await query.limit(limit + 1),
-    "tasks list",
-  ) as TaskListRow[];
+  const result = await query.limit(limit + 1);
+  const rows = unwrap<unknown>(result, "tasks list") as TaskListRow[];
 
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
+  const workByTask = new Map<string, object[]>();
+  if (schedule && pageRows.length > 0) {
+    const blocks = unwrap<(Record<string, unknown> & { task_id: string })[]>(await db.rpc("api_task_published_work", {
+      p_company: companyId, p_actor: userId, p_tasks: pageRows.map((row) => row.id),
+      p_start: schedule.start, p_end: schedule.end,
+    }), "read published work");
+    for (const { task_id, ...block } of blocks) {
+      const list = workByTask.get(task_id);
+      if (list) list.push(block);
+      else workByTask.set(task_id, [block]);
+    }
+  }
   const shaped = pageRows.map((row) => {
     const rest = {
       ...row,
       calendar_hold: (row.calendar_hold?.length ?? 0) > 0,
+      ...(schedule && { published_work: workByTask.get(row.id) ?? [] }),
     } as Record<string, unknown>;
     // Empty embeds are filtering artifacts, never part of the task contract.
     delete rest.task_tags;
@@ -1704,7 +1736,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   // Both keep the page's order, so row i of one is row i of the other.
   const data = decorated.map((row, index) => ({ ...row, source: directed[index].source }));
 
-  return c.json({ data, next_cursor: nextCursor });
+  return c.json({ data, next_cursor: nextCursor, ...(count && { total_count: result.count }) });
 });
 
 /**
@@ -2016,6 +2048,32 @@ tasksRoutes.get("/tasks/geocode-progress", requireCapability("conversations.read
   return c.json(progress);
 });
 
+tasksRoutes.get("/conversations/:id/tasks/source", requireCapability("conversations.read"), async (c) => {
+  const conversationId = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const source = z.strictObject({ message_id: z.uuid().optional(), call_id: z.uuid().optional() })
+    .refine((input) => Boolean(input.message_id) !== Boolean(input.call_id))
+    .safeParse(c.req.query());
+  if (!source.success) {
+    throw new ApiError("validation_failed", "Choose a text or call source for the task.", {
+      key: "apiRefusals.taskSourceRequired",
+    });
+  }
+  const db = getDb(getEnv(c.env));
+  await requireConversationAccess(db, {
+    companyId, conversationId, userId: c.get("userId"), role: c.get("role"), need: "read",
+  });
+  const { message_id, call_id } = source.data;
+  const rows = unwrap<{ id: string; title: string; done_state: string | null }[]>(
+    await db.from("tasks").select(`id,title,${TASK_DONE_SELECT}`)
+      .eq("company_id", companyId).eq("conversation_id", conversationId)
+      .eq(message_id ? "message_id" : "source_call_id", message_id ?? call_id)
+      .is("deleted_at", null).order("created_at", { ascending: true }).order("id", { ascending: true }),
+    "linked source tasks",
+  );
+  return c.json({ data: rows.map(({ done_state, ...task }) => ({ ...task, done: done_state !== null })) });
+});
+
 tasksRoutes.get(
   "/conversations/:id/tasks",
   requireCapability("conversations.read"),
@@ -2160,11 +2218,13 @@ async function loadTaskAttachments(
 
   // Arm (a) — MMS media of the source messages, one batched lookup.
   // A call-anchored task has no source message, so no MMS arm (D64).
-  const taskByMessage = new Map(
-    tasks.flatMap((task): [string, string][] =>
-      task.message_id === null ? [] : [[task.message_id, task.id]],
-    ),
-  );
+  const tasksByMessage = new Map<string, string[]>();
+  for (const task of tasks) {
+    if (task.message_id === null) continue;
+    const ids = tasksByMessage.get(task.message_id) ?? [];
+    ids.push(task.id);
+    tasksByMessage.set(task.message_id, ids);
+  }
   // Arms (b) + (c) share the generic table; each is a separate live-rows read
   // because their owner scoping differs (note ids vs task ids).
   const genericSelect = "id,owner_id,file_name,content_type,size_bytes,created_at";
@@ -2192,13 +2252,13 @@ async function loadTaskAttachments(
 
   // Arm (b) is two steps: the linked notes, then their files.
   const [mmsRows, { noteRows, noteFiles }, legacyRows] = await Promise.all([
-    taskByMessage.size === 0
+    tasksByMessage.size === 0
       ? ([] as MmsRow[])
       : db
           .from("message_attachments")
           .select("id,message_id,content_type,size_bytes,created_at")
           .eq("company_id", companyId)
-          .in("message_id", [...taskByMessage.keys()])
+          .in("message_id", [...tasksByMessage.keys()])
           .then((res) => unwrap<MmsRow[]>(res, "task mms attachments")),
     (async () => {
       const notes = unwrap<NoteRow[]>(
@@ -2234,9 +2294,7 @@ async function loadTaskAttachments(
   ]);
 
   for (const row of mmsRows) {
-    const taskId = taskByMessage.get(row.message_id);
-    if (taskId === undefined) continue;
-    byTask.get(taskId)?.push({
+    const attachment: TaskAttachmentItem = {
       id: row.id,
       source: "mms",
       kind: attachmentKind(row.content_type),
@@ -2248,7 +2306,8 @@ async function loadTaskAttachments(
       note_id: null,
       work_phase: null,
       added_by_user_id: null,
-    });
+    };
+    for (const taskId of tasksByMessage.get(row.message_id) ?? []) byTask.get(taskId)?.push(attachment);
   }
 
   // Arm (b) — notes linked to the tasks, then their live generic attachments.

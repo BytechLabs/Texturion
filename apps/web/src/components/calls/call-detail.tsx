@@ -17,6 +17,7 @@ import { RecordHeader } from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
+import { useSourceTasks } from "@/lib/api/tasks";
 import { outcomeLine, transcriptState } from "./call-detail-copy";
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { Timestamp } from "@/components/ui/timestamp";
@@ -67,6 +68,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
   const call = useCall(sessionId);
   const router = useRouter();
   const row = call.data;
+  const linked = useSourceTasks(row?.conversation_id ?? "", undefined, row?.conversation_id ? row.id : undefined);
   const who = row
     ? (row.contact_name?.trim() ||
       row.caller_name?.trim() ||
@@ -173,6 +175,18 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           <MakeCallTask voicemailDraft={row.voicemail_task} conversationId={row.conversation_id} callerName={who} />
         )}
       </section>
+
+      {linked.data && linked.data.data.length > 0 && (
+        <section className="rounded-lg border bg-card p-4">
+          <h2 className="mb-2 text-[13px] font-bold">{t("thread.tasksFromSource")}</h2>
+          <ul className="space-y-1">
+            {linked.data.data.map((task) => <li key={task.id} className="flex items-baseline gap-2 text-sm">
+              <Link href={`/tasks?task=${task.id}`} className="text-primary hover:underline">{task.title}</Link>
+              <span className="text-xs text-muted-foreground">{t(task.done ? "tasks.statusDone" : "tasks.statusOpen")}</span>
+            </li>)}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-lg border bg-card px-4 py-2">
         <Row label={t("shell.directionLabel")}>

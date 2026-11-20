@@ -210,6 +210,7 @@ internal fun TaskDetailScreen(
     onOpenTask: ((taskId: String) -> Unit)? = null,
     /** #690: a customer chip opens the customer. */
     onOpenContact: ((contactId: String) -> Unit)? = null,
+    onOpenCall: ((sessionId: String) -> Unit)? = null,
 ) {
     BackHandler(onBack = onBack)
 
@@ -344,6 +345,7 @@ internal fun TaskDetailScreen(
             onOpenConversation = onOpenConversation,
             onOpenTask = onOpenTask,
             onOpenContact = onOpenContact,
+            onOpenCall = onOpenCall,
             modifier = modifier,
         )
     }
@@ -446,6 +448,7 @@ private fun TaskDetailBody(
     onOpenConversation: ((String, String?) -> Unit)?,
     onOpenTask: ((String) -> Unit)?,
     onOpenContact: ((String) -> Unit)?,
+    onOpenCall: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -497,6 +500,7 @@ private fun TaskDetailBody(
         DispatchPlanner(
             api = graph.api, companyId = companyId, userId = me.user_id, timezone = me.company?.timezone,
             editable = MemberRole.has(role, Capability.CONVERSATIONS_NOTE),
+            canEditShifts = MemberRole.has(role, Capability.SETTINGS_MANAGE),
             initialTask = detail.id, onClose = ::closePlanner,
             onTask = {
                 closePlanner()
@@ -1034,7 +1038,7 @@ private fun TaskDetailBody(
                         }
                     }
                     val canRemind = detail.conversation_id != null && reminder?.state != "no_customer_thread"
-                    if (!noAccess && detail.message_id == null && detail.source_call == null && detail.source?.kind != "call") {
+                    if (!noAccess && detail.message_id == null && detail.source_call == null && detail.source == null) {
                         RowDivider()
                         TextButton(onClick = { pickBookingCustomer = true }, modifier = Modifier.padding(horizontal = 12.dp)) {
                             Text(t("contactsTasks.bookingCustomer",
@@ -1232,7 +1236,9 @@ private fun TaskDetailBody(
                         locale = LocalAppLocale.current,
                     )
                     val openSource = sourceLink?.let { link ->
-                        onOpenConversation?.let { open ->
+                        val session = link.callSessionId
+                        if (session != null && onOpenCall != null) ({ onOpenCall(session) })
+                        else onOpenConversation?.let { open ->
                             { open(link.conversationId, link.messageId) }
                         }
                     }
@@ -1247,7 +1253,7 @@ private fun TaskDetailBody(
                                 .padding(start = 18.dp, end = 18.dp, top = 14.dp),
                         )
                     }
-                    if (detail.message_id == null && detail.source_call == null) {
+                    if (detail.message_id == null && source == null && detail.source_call == null) {
                         NoSourceCard(
                             contactName = detail.contact?.name,
                             modifier = Modifier

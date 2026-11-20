@@ -16,11 +16,7 @@ import kotlinx.serialization.json.contentOrNull
  * hold; [sanitizeTaskFilters] is its hand port, key for key. A view stores the
  * QUERY, never the result, so number access applies per viewer when it opens.
  *
- * What a view cannot hold, and so what is deliberately not saved:
- *  - the Today and This week chips. Their windows are absolute times, and a view
- *    saved on Monday would quietly show Monday's week on Friday. Overdue is a
- *    flag the server computes, so it is kept.
- *  - search text and cursors (the shared header says why).
+ * Relative due dates are resolved when the view opens. Search text and cursors belong to the current list.
  */
 private val UUID_RE =
     Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -45,11 +41,15 @@ fun sanitizeTaskFilters(raw: JsonObject): JsonObject {
         val bool = primitive?.let { if (it.isString) null else it.booleanOrNull }
         val keep: Boolean = when (key) {
             "status" -> text == "open" || text == "done"
-            "assigned_user_id", "tag_id", "contact_id", "conversation_id", "source_line_id" ->
+            "assigned_user_id" -> text == "me" || (text != null && UUID_RE.matches(text))
+            "tag_id", "contact_id", "conversation_id", "source_line_id" ->
                 text != null && UUID_RE.matches(text)
 
             "unassigned", "overdue", "has_location", "has_attachments", "has_references" -> bool != null
             "confirmed" -> bool == false
+            "scheduled" -> bool != null
+            "due_relative" -> text == "today" || text == "week"
+            "columns" -> text != null && (text.isEmpty() || text.split(",").all { it in TASK_LIST_COLUMNS })
             "due_before", "due_after" -> text != null && ISO_RE.matches(text)
             "priority" -> text != null && text.isNotEmpty() &&
                 text.split(",").all { it in TaskPriority.PICKER }
@@ -102,7 +102,12 @@ fun taskViewToState(filters: JsonObject, meUserId: String): TaskViewState {
         mine -> null
         else -> assignee
     }
-    val dueChip = if (clean.flag("overdue")) DueChip.Overdue else null
+    val dueChip = when {
+        clean.flag("overdue") -> DueChip.Overdue
+        clean.str("due_relative") == "today" -> DueChip.Today
+        clean.str("due_relative") == "week" -> DueChip.Week
+        else -> null
+    }
     val extra = TaskExtraFilters(
         priorities = clean.str("priority")?.split(",")?.toSet().orEmpty(),
         tagId = clean.str("tag_id"),
@@ -117,6 +122,8 @@ fun taskViewToState(filters: JsonObject, meUserId: String): TaskViewState {
         dueAfter = if (dueChip == null) clean.str("due_after") else null,
         dueBefore = if (dueChip == null) clean.str("due_before") else null,
         group = TaskGroup.entries.firstOrNull { it.wire == clean.str("group") } ?: TaskGroup.Status,
+        scheduled = (clean["scheduled"] as? JsonPrimitive)?.booleanOrNull,
+        columns = clean.str("columns")?.split(",")?.filter { it.isNotEmpty() }?.toSet() ?: TASK_LIST_COLUMNS,
     )
     return TaskViewState(tab, chip, unassigned && chip == null, dueChip, extra, LAYOUTS[clean.str("layout")])
 }
@@ -138,9 +145,17 @@ fun taskStateToView(state: TaskViewState, meUserId: String): JsonObject {
             TasksTabKind.Done -> put("status", JsonPrimitive("done"))
             else -> Unit
         }
+        extra.statusOnly?.takeIf { state.tab == TasksTabKind.All }?.let { put("status", JsonPrimitive(it)) }
+        extra.scheduled?.let { put("scheduled", JsonPrimitive(it)) }
+        if (extra.columns != TASK_LIST_COLUMNS) {
+            put("columns", JsonPrimitive(TASK_LIST_COLUMNS.filter { it in extra.columns }.joinToString(",")))
+        }
         assignee?.let { put("assigned_user_id", JsonPrimitive(it)) }
         if (state.unassigned) put("unassigned", JsonPrimitive(true))
         if (state.dueChip == DueChip.Overdue) put("overdue", JsonPrimitive(true))
+        if (state.dueChip == DueChip.Today || state.dueChip == DueChip.Week) {
+            put("due_relative", JsonPrimitive(state.dueChip.name.lowercase()))
+        }
         if (state.dueChip == null) {
             extra.dueAfter?.let { put("due_after", JsonPrimitive(it)) }
             extra.dueBefore?.let { put("due_before", JsonPrimitive(it)) }

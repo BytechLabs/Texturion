@@ -104,6 +104,10 @@ struct TaskListFilters: Equatable, Sendable {
     var confirmed: Bool? = nil
     var dueOnBefore: String? = nil
     var dueOnAfter: String? = nil
+    var scheduled: Bool? = nil
+    var scheduleAfter: String? = nil
+    var scheduleBefore: String? = nil
+    var includeCount = false
 }
 
 /// #693: the filters this feature added, kept as one value so the board, the
@@ -128,12 +132,14 @@ struct TaskMetaFilters: Equatable, Sendable {
     /// A saved view that names a status but no assignee (open for everyone):
     /// the All tab then runs that one status instead of open and then done.
     var statusOnly: String? = nil
+    var scheduled: Bool? = nil
+    var columns = taskListColumns
 
     /// A filter, not the sort: the sort re-orders and hides nothing.
     var hasFilter: Bool {
         !priority.isEmpty || tagId != nil || contactId != nil || createdBy != nil
             || source != nil || sourceLineId != nil || hasAttachments || hasReferences || notConfirmed || dueAfter != nil
-            || dueBefore != nil
+            || dueBefore != nil || statusOnly != nil || scheduled != nil
     }
 
     /// Joined into the views' reload tokens so a change reloads them.
@@ -142,7 +148,7 @@ struct TaskMetaFilters: Equatable, Sendable {
             priority.sorted().joined(separator: ","), tagId ?? "", sort ?? "",
             contactId ?? "", createdBy ?? "", source ?? "", sourceLineId ?? "",
             hasAttachments ? "a" : "", hasReferences ? "r" : "", notConfirmed ? "unconfirmed" : "",
-            dueAfter ?? "", dueBefore ?? "", statusOnly ?? "",
+            dueAfter ?? "", dueBefore ?? "", statusOnly ?? "", scheduled.map { $0 ? "true" : "false" } ?? "",
         ].joined(separator: ":")
     }
 }
@@ -228,6 +234,10 @@ func taskQueryParams(
         "confirmed": filters.confirmed.map { $0 ? "true" : "false" },
         "due_on_before": filters.dueOnBefore,
         "due_on_after": filters.dueOnAfter,
+        "scheduled": filters.scheduled.map { $0 ? "true" : "false" },
+        "schedule_after": filters.scheduleAfter,
+        "schedule_before": filters.scheduleBefore,
+        "include_count": filters.includeCount ? "true" : nil,
         // "created" is the default ordering, so it is never sent.
         "sort": (filters.sort == nil || filters.sort == TaskSortChoice.created) ? nil : filters.sort,
         "cursor": cursor,
@@ -276,9 +286,12 @@ func dueChipFilters(
     let days = chip == .today ? 1 : 7
     let end = calendar.date(byAdding: .day, value: days, to: start)
         ?? start.addingTimeInterval(Double(days) * 86_400)
+    let finalDay = calendar.date(byAdding: .day, value: -1, to: end) ?? start
     return TaskListFilters(
         dueBefore: isoOffsetString(end, timeZone: calendar.timeZone),
-        dueAfter: isoOffsetString(start, timeZone: calendar.timeZone)
+        dueAfter: isoOffsetString(start, timeZone: calendar.timeZone),
+        dueOnBefore: taskDateKey(finalDay, calendar: calendar),
+        dueOnAfter: taskDateKey(start, calendar: calendar)
     )
 }
 
@@ -346,7 +359,10 @@ func taskListArms(
             sourceLineId: meta.sourceLineId,
             hasAttachments: meta.hasAttachments,
             hasReferences: meta.hasReferences,
-            confirmed: meta.notConfirmed ? false : nil
+            confirmed: meta.notConfirmed ? false : nil,
+            dueOnBefore: dueFilters.dueOnBefore,
+            dueOnAfter: dueFilters.dueOnAfter,
+            scheduled: meta.scheduled
         )
     }
 

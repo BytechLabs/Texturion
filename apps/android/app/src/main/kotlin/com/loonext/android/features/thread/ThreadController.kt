@@ -1294,6 +1294,7 @@ class ThreadController(
                     message.copy(
                         has_task = true,
                         promoted_task = MessageTaskLink(task.id, task.title),
+                        promoted_tasks = (message.promoted_tasks ?: listOfNotNull(message.promoted_task)) + MessageTaskLink(task.id, task.title),
                     ),
                 )
                 val open = onOpenTask

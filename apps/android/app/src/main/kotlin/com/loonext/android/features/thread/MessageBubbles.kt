@@ -358,6 +358,12 @@ fun MessageBubble(
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
+            val links = message.promoted_tasks.orEmpty()
+            if (links.size > 1 && onOpenTask != null) {
+                Column {
+                    links.forEach { link -> TextButton(onClick = { onOpenTask(link.id) }) { Text(link.title) } }
+                }
+            }
             MessageMetaLine(
                 message = message,
                 authorName = authorName,
@@ -428,7 +434,7 @@ private fun MessageMetaLine(
         // a tap target (olive-tinted to read as actionable). A has_task with no
         // resolvable id (shouldn't happen) stays a static muted marker.
         val taskId = message.promoted_task?.id ?: message.task?.id ?: message.task_id
-        if (message.has_task || message.promoted_task != null || taskId != null) {
+        if (message.promoted_tasks.orEmpty().size <= 1 && (message.has_task || taskId != null)) {
             val openTask: (() -> Unit)? =
                 if (taskId != null && onOpenTask != null) {
                     { onOpenTask(taskId) }

@@ -161,6 +161,11 @@ internal fun CallTaskSheetHost(
         runCatching { graph.meRepo.me(companyId) }.onSuccess { meUserId = it.user_id }
     }
     fun say(key: String) = AppStrings.translate(locale, key)
+    suspend fun resolveSourceId() = voicemailDraft?.call_id ?: callId
+        ?: graph.api.get<CallIdRef>(
+            "/v1/calls/${java.net.URLEncoder.encode(sessionId.orEmpty(), "UTF-8")}",
+            companyId = companyId,
+        ).id
 
     MakeTaskSheet(
         message = null,
@@ -172,15 +177,14 @@ internal fun CallTaskSheetHost(
         conversationId = conversationId,
         callTitle = AppStrings.translate(locale, "thread.callTaskTitle", mapOf("name" to callerName)),
         voicemailDraft = voicemailDraft,
+        loadLinkedTasks = {
+            TaskMutations(graph.api).sourceTasks(companyId, conversationId, callId = resolveSourceId())
+        },
         onCreate = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, description ->
             scope.launch {
                 var createdId: String? = null
                 val notice = try {
-                    val id = voicemailDraft?.call_id ?: callId
-                        ?: graph.api.get<CallIdRef>(
-                            "/v1/calls/${java.net.URLEncoder.encode(sessionId.orEmpty(), "UTF-8")}",
-                            companyId = companyId,
-                        ).id
+                    val id = resolveSourceId()
                     val created = TaskMutations(graph.api).create(
                         companyId = companyId,
                         title = title,
@@ -199,7 +203,7 @@ internal fun CallTaskSheetHost(
                     if ((cause as? ApiException)?.code == ApiErrorCode.CONFLICT) {
                         say("thread.alreadyHasCallTask")
                     } else {
-                        cause.userMessage(locale ?: "en")
+                        cause.userMessage(locale)
                     }
                 }
                 val taskId = createdId

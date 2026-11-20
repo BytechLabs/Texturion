@@ -27,15 +27,16 @@ import {
 import { useT } from '@/i18n/provider';
 import type { MessageKey } from '@/i18n/provider';
 import { useCompany } from "@/lib/api/companies";
-import { useAllTasks } from "@/lib/api/tasks";
+import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import {
   browserTimezone,
+  formatScheduledRange,
   formatWallDay,
   formatWallHour,
 } from "@/lib/format/time";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/lib/api/types";
+import type { PublishedWork, Task } from "@/lib/api/types";
 
 import { openNewTask } from "../new-task";
 import { taskThreadId } from "../task-format";
@@ -126,6 +127,13 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   const query = useAllTasks(filters, {
     enabled: company.isSuccess || company.isError,
   });
+  const scheduled = useAllTasks({ ...selection, schedule_after: range.after, schedule_before: range.before }, {
+    enabled: company.isSuccess || company.isError,
+  });
+  const undated = useTasks({ ...selection, calendar_undated: true, include_count: true, limit: 1 }, {
+    enabled: company.isSuccess || company.isError,
+  });
+  const undatedCount = undated.data?.pages[0]?.total_count ?? 0;
   const visibleKeys = useMemo(() => new Set(days.map(dayKey)), [days]);
   // The status dimension is applied here rather than on the wire: the fetch
   // covers the visible window in one due-sorted query, so narrowing it
@@ -138,8 +146,13 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       return false;
     }
     if (selection.overdue && (!task.due_at || task.done || Date.parse(task.due_at) >= Date.now())) return false;
-    if (selection.due_after && (!task.due_at || Date.parse(task.due_at) < Date.parse(selection.due_after))) return false;
-    if (selection.due_before && (!task.due_at || Date.parse(task.due_at) >= Date.parse(selection.due_before))) return false;
+    if (task.due_on) {
+      if (selection.due_on_after && task.due_on < selection.due_on_after) return false;
+      if (selection.due_on_before && task.due_on > selection.due_on_before) return false;
+    } else {
+      if (selection.due_after && (!task.due_at || Date.parse(task.due_at) < Date.parse(selection.due_after))) return false;
+      if (selection.due_before && (!task.due_at || Date.parse(task.due_at) >= Date.parse(selection.due_before))) return false;
+    }
     if (selection.status === "open") return !task.done;
     if (selection.status === "done") return task.done;
     return true;
@@ -160,6 +173,18 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `tasks` is rebuilt each render; its inputs are the deps
   }, [query.data, state, mode, timeZone, visibleKeys]);
+
+  const workByCell = new Map<string, { task: Task; block: PublishedWork }[]>();
+  for (const task of flattenPages(scheduled.data)) {
+    for (const block of task.published_work ?? []) {
+      const cell = dueCell(block.starts_at, timeZone);
+      if (!visibleKeys.has(cell.key)) continue;
+      const key = mode === "week" ? `${cell.key}T${cell.hour}` : cell.key;
+      const list = workByCell.get(key) ?? [];
+      list.push({ task, block });
+      workByCell.set(key, list);
+    }
+  }
 
   const step = (dir: 1 | -1) =>
     setPicked(mode === "week" ? addWeeks(cursor, dir) : addMonths(cursor, dir));
@@ -215,7 +240,9 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     <div className="space-y-3">
       <ResultsStatus
         query={state.q}
-        count={query.isSuccess && !query.isPlaceholderData ? tasks.length : null}
+        count={query.isSuccess && scheduled.isSuccess && !query.isPlaceholderData && !scheduled.isPlaceholderData
+          ? new Set([...tasks, ...[...workByCell.values()].flat().map(({ task }) => task)].map((task) => task.id)).size
+          : null}
       />
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
@@ -265,6 +292,9 @@ export function CalendarView({ state }: { state: TaskPageState }) {
           }))}
         />
       </header>
+      {undatedCount > 0 && <p className="text-sm text-muted-foreground">
+        {t(undatedCount === 1 ? "tasks.noCalendarDateOne" : "tasks.noCalendarDateCount", { count: undatedCount })}
+      </p>}
 
       <div className="overflow-x-auto">
         {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- The handler coordinates focus between the day buttons. */}
@@ -334,6 +364,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                         onActive={setActiveKey}
                         onCreate={createAt}
                         tasks={byCell.get(key) ?? []}
+                        work={workByCell.get(key) ?? []}
                         style={{ gridColumn: col + 2, gridRow: h + 1 }}
                         className="min-h-8"
                       />
@@ -356,6 +387,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                   onActive={setActiveKey}
                   onCreate={createAt}
                   tasks={byCell.get(dayKey(day)) ?? []}
+                  work={workByCell.get(dayKey(day)) ?? []}
                   className="min-h-[104px]"
                   header={
                     <DayNumber
@@ -371,15 +403,16 @@ export function CalendarView({ state }: { state: TaskPageState }) {
           )}
         </div>
       </div>
-      {query.isError && (
+      {(query.isError || scheduled.isError) && (
         <LoadError
           message={t("tasks.calendarLoadFailed")}
-          onRetry={() => void query.refetch()}
+          onRetry={() => { void query.refetch(); void scheduled.refetch(); }}
         />
       )}
       {/* Teach the calendar rather than leave it reading as broken: when no
           task in the visible window has a due date, explain how they appear. */}
-      {!query.isPending && !query.isPlaceholderData && !query.isError && tasks.length === 0 && (
+      {!query.isPending && !query.isPlaceholderData && !query.isError && !scheduled.isPending && !scheduled.isError &&
+        tasks.length === 0 && workByCell.size === 0 && (
         <div className="rounded-app-card border border-app-line bg-app-inset px-4 py-3 text-center">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             {t("tasks.calendarEmptyBefore")}
@@ -440,6 +473,7 @@ function Cell({
   onActive,
   onCreate,
   tasks,
+  work,
   header,
   dim,
   style,
@@ -453,6 +487,7 @@ function Cell({
   onActive: (key: string) => void;
   onCreate: (day: Date, hour: number | null) => void;
   tasks: Task[];
+  work: { task: Task; block: PublishedWork }[];
   header?: React.ReactNode;
   dim?: boolean;
   style?: React.CSSProperties;
@@ -533,6 +568,8 @@ function Cell({
       <div className="pointer-events-none relative flex flex-col gap-1">
         {header}
         <div className="pointer-events-auto flex flex-col gap-1">
+          {work.toSorted((a, b) => Date.parse(a.block.starts_at) - Date.parse(b.block.starts_at))
+            .map(({ task, block }) => <ScheduledChip key={block.id} task={task} block={block} timeZone={timeZone} />)}
           {tasks.map((task) => (
             <DayChip key={task.id} task={task} />
           ))}
@@ -543,6 +580,20 @@ function Cell({
 }
 
 export { movedDueAt, RESCHEDULE_MOVES } from "../task-reschedule";
+
+function ScheduledChip({ task, block, timeZone }: { task: Task; block: PublishedWork; timeZone: string }) {
+  const t = useT();
+  const { hrefForTask } = useTaskDrawer();
+  const hours = formatScheduledRange(block.starts_at, block.ends_at, t.locale, timeZone);
+  return (
+    <Link href={hrefForTask(task.id)} scroll={false} onClick={taskLinkClickHandler(task.id)}
+      title={t("tasks.publishedWorkTime", { title: task.title, hours })}
+      className="block min-w-0 rounded-md border border-app-line bg-app-inset px-1.5 py-1 text-xs text-primary hover:underline">
+      <span className="block truncate font-medium">{task.title}</span>
+      <span className="block truncate text-muted-foreground">{hours}</span>
+    </Link>
+  );
+}
 
 /**
  * A calm draggable day chip → its source message + conversation.

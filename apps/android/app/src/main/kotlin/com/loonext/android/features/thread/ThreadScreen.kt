@@ -154,6 +154,7 @@ import com.loonext.android.features.settings.supportSituation
 import com.loonext.android.features.settings.supportSubjectFor
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.features.tasks.NewTaskSheetHost
+import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.tasks.answeredCallSessionOf
 import com.loonext.android.features.tasks.callLineCallerOf
 import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
@@ -1629,6 +1630,10 @@ private fun ThreadLoaded(
                 makeTaskFor = null
             },
             onDismiss = { makeTaskFor = null },
+            loadLinkedTasks = {
+                TaskMutations(graph.api).sourceTasks(companyId, controller.conversationId, messageId = message.id)
+            },
+            onOpenLinkedTask = onOpenTask,
         )
     }
 

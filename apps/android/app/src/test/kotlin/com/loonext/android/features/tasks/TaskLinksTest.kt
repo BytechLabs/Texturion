@@ -107,10 +107,11 @@ class TaskLinksTest {
     }
 
     @Test
-    fun `Today and This week are not stored, because their windows would go stale`() {
+    fun `relative due filters reopen without an old date window`() {
         val stored = taskStateToView(state(TasksTabKind.Open, due = DueChip.Today), me)
         assertFalse(stored.containsKey("due_after"))
         assertFalse(stored.containsKey("due_before"))
+        assertEquals(DueChip.Today, taskViewToState(stored, me).dueChip)
         assertTrue(taskStateToView(state(TasksTabKind.Open, due = DueChip.Overdue), me).containsKey("overdue"))
     }
 

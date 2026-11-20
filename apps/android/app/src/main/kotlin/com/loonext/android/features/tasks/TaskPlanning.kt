@@ -59,6 +59,8 @@ enum class TaskGroup(val wire: String, val labelKey: String) {
 }
 
 /** The #693 filter dimensions, carried beside the tab and chips as one value. */
+internal val TASK_LIST_COLUMNS = setOf("status", "assignee", "due", "scheduled")
+
 data class TaskExtraFilters(
     val priorities: Set<String> = emptySet(),
     val tagId: String? = null,
@@ -75,21 +77,25 @@ data class TaskExtraFilters(
     val dueAfter: String? = null,
     val dueBefore: String? = null,
     val group: TaskGroup = TaskGroup.Status,
+    val statusOnly: String? = null,
+    val scheduled: Boolean? = null,
+    val columns: Set<String> = TASK_LIST_COLUMNS,
 ) {
     val isFiltering: Boolean
         get() = priorities.isNotEmpty() || tagId != null || contactId != null ||
             createdBy != null || source != null || sourceLineId != null || hasAttachments || hasReferences || notConfirmed ||
-            dueAfter != null || dueBefore != null
+            dueAfter != null || dueBefore != null || statusOnly != null || scheduled != null
 
     /** How many of the Filters sheet's own filters are on (the number on the pill). */
     val activeCount: Int
         get() = listOf(
             priorities.isNotEmpty(), tagId != null, contactId != null, createdBy != null,
             source != null, sourceLineId != null, hasAttachments, hasReferences, notConfirmed, dueAfter != null || dueBefore != null,
+            statusOnly != null, scheduled != null,
         ).count { it }
 
     /** True when anything differs from the plain list. */
-    val isCustom: Boolean get() = isFiltering || sort != TaskSort.Created || group != TaskGroup.Status
+    val isCustom: Boolean get() = isFiltering || sort != TaskSort.Created || group != TaskGroup.Status || columns != TASK_LIST_COLUMNS
 
     /** Stable text for cache keys: the same filters always spell the same. */
     fun key(): String {
@@ -110,6 +116,8 @@ data class TaskExtraFilters(
             dueAfter ?: "-",
             dueBefore ?: "-",
             sourceLineId ?: "-",
+            statusOnly ?: "-",
+            scheduled?.toString() ?: "-",
             group.wire,
         )
         val plain = more.dropLast(1).all { it == "-" } && group == TaskGroup.Status

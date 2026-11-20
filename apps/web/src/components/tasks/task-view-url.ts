@@ -243,7 +243,7 @@ export function serializeTaskState(state: TaskPageState): string {
 /** Start of the current day / seven-day window, as ISO instants for the API. */
 function dueRange(due: DueFilter, now: Date): Pick<
   TaskListFilters,
-  "due_before" | "due_after" | "overdue"
+  "due_before" | "due_after" | "due_on_before" | "due_on_after" | "overdue"
 > {
   if (due === "overdue") return { overdue: true };
   const start = new Date(now);
@@ -254,22 +254,33 @@ function dueRange(due: DueFilter, now: Date): Pick<
   } else {
     end.setDate(end.getDate() + 7);
   }
-  return { due_after: start.toISOString(), due_before: end.toISOString() };
+  const finalDay = new Date(end);
+  finalDay.setDate(finalDay.getDate() - 1);
+  return { due_after: start.toISOString(), due_before: end.toISOString(),
+    due_on_after: localDayKey(start), due_on_before: localDayKey(finalDay) };
 }
 
 /** A due range from two local calendar dates: from the start of the first to the end of the last. */
 function dueBetween(
   from: string | undefined,
   to: string | undefined,
-): Pick<TaskListFilters, "due_before" | "due_after"> {
-  const out: Pick<TaskListFilters, "due_before" | "due_after"> = {};
-  if (from) out.due_after = localDayStart(from).toISOString();
+): Pick<TaskListFilters, "due_before" | "due_after" | "due_on_before" | "due_on_after"> {
+  const out: ReturnType<typeof dueBetween> = {};
+  if (from) {
+    out.due_after = localDayStart(from).toISOString();
+    out.due_on_after = from;
+  }
   if (to) {
     const end = localDayStart(to);
     end.setDate(end.getDate() + 1);
     out.due_before = end.toISOString();
+    out.due_on_before = to;
   }
   return out;
+}
+
+function localDayKey(date: Date): string {
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((part) => String(part).padStart(2, "0")).join("-");
 }
 
 function localDayStart(date: string): Date {

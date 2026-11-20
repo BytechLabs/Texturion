@@ -225,6 +225,7 @@ struct Message: Codable, Sendable {
     @Default<DefaultEmptyList<AttachmentSummary>> var attachments: [AttachmentSummary]
     @Default<DefaultFalse> var has_task: Bool
     let promoted_task: MessageTaskLink?
+    var promoted_tasks: [MessageTaskLink]? = nil
     let task_id: String?
     let task: MessageTaskLink?
     /// #725: a machine wrote this text, not the teammate in `sent_by_user_id`.

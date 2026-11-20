@@ -1004,7 +1004,7 @@ struct TaskDetailView: View {
                 .buttonStyle(.plain)
             }
 
-            if !noAccess && detail.message_id == nil && detail.source_call == nil && detail.source?.kind != "call" {
+            if !noAccess && detail.message_id == nil && detail.source_call == nil && detail.source == nil {
                 RowDivider()
                 Button {
                     pickingBookingCustomer = true
@@ -1376,7 +1376,9 @@ struct TaskDetailView: View {
         } else if let call = detail.source_call {
             // D64: the call this task was promoted from, where a message would be.
             TaskSourceCallCard(call: call, linkLabel: link?.label) {
-                if let link {
+                if let session = link?.callSessionId {
+                    AppRouter.shared.openCallSessionId = session
+                } else if let link {
                     onOpenConversation?(link.conversationId, link.messageId)
                 }
             }

@@ -248,6 +248,7 @@ data class Message(
     val attachments: List<AttachmentSummary> = emptyList(),
     val has_task: Boolean = false,
     val promoted_task: MessageTaskLink? = null,
+    val promoted_tasks: List<MessageTaskLink>? = null,
     val task_id: String? = null,
     val task: MessageTaskLink? = null,
     /** #725: a machine wrote this text, not the teammate in [sent_by_user_id]. */

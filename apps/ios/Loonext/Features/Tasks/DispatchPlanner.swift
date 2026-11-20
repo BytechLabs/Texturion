@@ -4,11 +4,26 @@ import SwiftUI
 private struct DispatchMember: Codable, Identifiable, Sendable {
     let id: String
     let name: String?
+    let shifts: [String: DispatchShift]?
 }
 
 private struct DispatchWindow: Codable, Equatable, Sendable {
     let start: String
     let end: String
+}
+
+private struct DispatchShift: Codable, Sendable {
+    var start: String? = nil
+    var end: String? = nil
+    var breaks: [DispatchWindow] = []
+
+    var json: JSONValue {
+        .object([
+            "start": start.map(JSONValue.string) ?? .null,
+            "end": end.map(JSONValue.string) ?? .null,
+            "breaks": .array(breaks.map { .object(["start": .string($0.start), "end": .string($0.end)]) }),
+        ])
+    }
 }
 
 private struct DispatchTask: Codable, Identifiable, Sendable {
@@ -50,6 +65,7 @@ private struct DispatchCell: Decodable, Sendable {
     let assignee_id: String
     let booked: Double
     let available: Double?
+    let overloaded: Bool?
 }
 
 private struct DispatchIssue: Decodable, Identifiable, Sendable {
@@ -209,6 +225,8 @@ struct DispatchPlanner: View {
     @State private var person: String?
     @State private var busy = false
     @State private var review = false
+    @State private var editingShift = false
+    @State private var shiftFailure: String?
     @State private var failure: String?
     @State private var refresh = 0
 
@@ -222,6 +240,9 @@ struct DispatchPlanner: View {
     private var dirty: Bool { !edits.isEmpty || !details.isEmpty }
     private var editable: Bool {
         MemberRole.has(me.memberships.first { $0.company_id == companyId }?.role, Capability.conversationsNote)
+    }
+    private var canEditShifts: Bool {
+        MemberRole.has(me.memberships.first { $0.company_id == companyId }?.role, Capability.settingsManage)
     }
 
     var body: some View {
@@ -253,6 +274,13 @@ struct DispatchPlanner: View {
                     }
                 }
                 if let base, let current = draft ?? self.base {
+                    if canEditShifts, !base.plan.members.isEmpty, pane != .myDay {
+                        Button(text("contactsTasks.dispatchShifts")) {
+                            shiftFailure = nil
+                            editingShift = true
+                        }
+                        .disabled(busy || dirty)
+                    }
                     if dirty {
                         HStack {
                             Button(text("contactsTasks.dispatchDiscard"), action: clearDraft)
@@ -275,6 +303,15 @@ struct DispatchPlanner: View {
         .environment(\.timeZone, zone)
         .task(id: "\(key(week)):\(refresh)") { await load() }
         .sheet(isPresented: $review) { publishReview }
+        .sheet(isPresented: $editingShift) {
+            if let base, let worker = person ?? base.plan.members.first?.id {
+                DispatchShiftEditor(members: base.plan.members, worker: worker, date: date, calendar: calendar,
+                    busy: busy, failure: shiftFailure) { id, weekday, shift in
+                    await saveShift(base, worker: id, weekday: weekday, shift: shift)
+                }
+                .interactiveDismissDisabled(busy)
+            }
+        }
     }
 
     private func text(_ key: String, _ vars: [String: String] = [:]) -> String {
@@ -315,6 +352,26 @@ struct DispatchPlanner: View {
             return
         } catch {
             failure = error.userMessage
+        }
+    }
+
+    private func saveShift(_ original: DispatchPayload, worker: String, weekday: Int, shift: DispatchShift?) async {
+        guard !busy, !dirty else { return }
+        busy = true
+        shiftFailure = nil
+        defer { busy = false }
+        var body: [String: JSONValue] = [
+            "day": .string(key(week)), "worker_id": .string(worker), "weekday": .number(Double(weekday)),
+            "revision": .number(Double(original.plan.revision)), "shift": shift?.json ?? .null,
+        ]
+        if let initialTask { body["task"] = .string(initialTask) }
+        do {
+            base = try await graph.api.put("/v1/dispatch/shifts", body: body, companyId: companyId)
+            route = nil
+            slots = nil
+            editingShift = false
+        } catch {
+            shiftFailure = error.userMessage
         }
     }
 
@@ -488,7 +545,7 @@ struct DispatchPlanner: View {
                                         Text(cell.available.map {
                                             text("contactsTasks.dispatchDurationValue", ["minutes": String(Int($0))])
                                         } ?? text("contactsTasks.dispatchAvailabilityUnknown"))
-                                        if let available = cell.available, cell.booked > available {
+                                        if cell.overloaded ?? (cell.available.map { cell.booked > $0 } ?? false) {
                                             Text(text("contactsTasks.dispatchOverload")).foregroundStyle(BrandColor.destructive)
                                         }
                                     }
@@ -648,6 +705,125 @@ struct DispatchPlanner: View {
         case "travel": "apiRefusals.dispatchTravel"
         default: "apiRefusals.dispatchWindow"
         }
+    }
+}
+
+private struct DispatchShiftEditor: View {
+    let members: [DispatchMember]
+    let date: Date
+    let calendar: Calendar
+    let busy: Bool
+    let failure: String?
+    let onSave: @MainActor (String, Int, DispatchShift?) async -> Void
+
+    @Environment(\.appLocale) private var locale
+    @Environment(\.dismiss) private var dismiss
+    @State private var worker: String
+    @State private var mode: String
+    @State private var shift: DispatchShift
+
+    init(members: [DispatchMember], worker: String, date: Date, calendar: Calendar, busy: Bool,
+         failure: String?, onSave: @escaping @MainActor (String, Int, DispatchShift?) async -> Void) {
+        self.members = members
+        self.date = date
+        self.calendar = calendar
+        self.busy = busy
+        self.failure = failure
+        self.onSave = onSave
+        let weekday = (calendar.component(.weekday, from: date) + 5) % 7 + 1
+        let existing = members.first { $0.id == worker }?.shifts?[String(weekday)]
+        _worker = State(initialValue: worker)
+        _mode = State(initialValue: existing == nil ? "workspace" : existing?.start == nil ? "off" : "shift")
+        _shift = State(initialValue: existing?.start == nil ? Self.defaultShift : existing ?? Self.defaultShift)
+    }
+
+    private static let defaultShift = DispatchShift(start: "09:00", end: "17:00")
+    private var weekday: Int { (calendar.component(.weekday, from: date) + 5) % 7 + 1 }
+    private func text(_ key: String) -> String { AppStrings.translate(locale, key) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    let assignee = text("contactsTasks.dispatchAssignee")
+                    LabeledContent(assignee) {
+                        SelectField(options: members.map { SelectOption($0.id, title: $0.name ?? assignee) },
+                            selected: worker, label: assignee, enabled: !busy) { worker = $0 }
+                    }
+                    let availability = text("contactsTasks.dispatchAvailability")
+                    LabeledContent(availability) {
+                        SelectField(options: [
+                            SelectOption("workspace", title: text("contactsTasks.dispatchWorkspaceHours")),
+                            SelectOption("shift", title: text("contactsTasks.dispatchCustomShift")),
+                            SelectOption("off", title: text("contactsTasks.dispatchDayOff")),
+                        ], selected: mode, label: availability, enabled: !busy) { mode = $0 }
+                    }
+                    if mode == "shift" {
+                        timeField("contactsTasks.dispatchShiftStart", value: Binding(get: { shift.start ?? "" }, set: { shift.start = $0 }))
+                        timeField("contactsTasks.dispatchShiftEnd", value: Binding(get: { shift.end ?? "" }, set: { shift.end = $0 }))
+                        ForEach(shift.breaks.indices, id: \.self) { index in
+                            if shift.breaks.indices.contains(index) {
+                                timeField("contactsTasks.dispatchBreakStart", value: breakTime(index, start: true))
+                                timeField("contactsTasks.dispatchBreakEnd", value: breakTime(index, start: false))
+                                Button(text("contactsTasks.dispatchRemoveBreak")) { shift.breaks.remove(at: index) }
+                            }
+                        }
+                        Button(text("contactsTasks.dispatchAddBreak")) { shift.breaks.append(DispatchWindow(start: "12:00", end: "12:30")) }
+                            .disabled(shift.breaks.count >= 6)
+                    }
+                    if let failure { Text(failure).foregroundStyle(BrandColor.destructive) }
+                } header: {
+                    Text(AppStrings.translate(locale, "contactsTasks.dispatchShiftWeekday", ["day":
+                        TimestampFormat.weekday(date, locale: locale, timeZone: calendar.timeZone)]))
+                }
+                .listRowBackground(BrandColor.paper)
+            }
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas)
+            .navigationTitle(text("contactsTasks.dispatchShifts"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(AppStrings.translate(locale, "common.cancel")) { dismiss() }.disabled(busy)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(AppStrings.translate(locale, "common.save")) {
+                        let result = mode == "shift" ? shift : mode == "off" ? DispatchShift() : nil
+                        Task { await onSave(worker, weekday, result) }
+                    }.disabled(busy)
+                }
+            }
+            .onChange(of: worker) { _, id in
+                let existing = members.first { $0.id == id }?.shifts?[String(weekday)]
+                mode = existing == nil ? "workspace" : existing?.start == nil ? "off" : "shift"
+                shift = existing?.start == nil ? Self.defaultShift : existing ?? Self.defaultShift
+            }
+        }
+    }
+
+    private func timeField(_ key: String, value: Binding<String>) -> some View {
+        let label = text(key)
+        return LabeledContent(label) {
+            TextField("HH:mm", text: value)
+                .keyboardType(.numbersAndPunctuation)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .accessibilityLabel(label)
+                .disabled(busy)
+        }
+    }
+
+    private func breakTime(_ index: Int, start: Bool) -> Binding<String> {
+        Binding(get: {
+            guard shift.breaks.indices.contains(index) else { return "" }
+            let pause = shift.breaks[index]
+            return start ? pause.start : pause.end
+        }, set: { value in
+            guard shift.breaks.indices.contains(index) else { return }
+            let pause = shift.breaks[index]
+            shift.breaks[index] = start ? DispatchWindow(start: value, end: pause.end)
+                : DispatchWindow(start: pause.start, end: value)
+        })
     }
 }
 
