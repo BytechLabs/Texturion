@@ -146,6 +146,13 @@ describe("the device driver's readings", () => {
     expect(calls).toContain(`${ADB} shell getprop ro.build.version.sdk`);
   });
 
+  it("reads the API 36 keyguard state", async () => {
+    const locked = device({ "dumpsys window": "isKeyguardShowing=true" });
+    const unlocked = device({ "dumpsys window": "isKeyguardShowing=false" });
+    expect((await locked.android.state()).locked).toBe(true);
+    expect((await unlocked.android.state()).locked).toBe(false);
+  });
+
   it("reads the installed build's Play services minimum from its own manifest entry", async () => {
     const meta = [
       "      E: meta-data (line=44)",
