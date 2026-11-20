@@ -100,6 +100,37 @@ final class DashboardScreenshotTests: XCTestCase {
         }
     }
 
+    func testRegistrationSetupScreenshot() {
+        DesignFonts.register()
+        let root = RegistrationSetupView(onRefresh: {}, onSignOut: {})
+            .environment(\.appLocale, "en")
+            .environment(\.colorScheme, .light)
+            .environment(\.dynamicTypeSize, .large)
+        let host = UIHostingController(rootView: root)
+        let container = UIViewController()
+        let window = makeWindow()
+        window.overrideUserInterfaceStyle = .light
+        window.rootViewController = container
+        container.addChild(host)
+        host.view.frame = container.view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.view.addSubview(host.view)
+        host.didMove(toParent: container)
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+
+        settle(window)
+        let image = capture(host.view, scale: window.screen.scale)
+        XCTAssertTrue(hasMoreThanOneColour(image))
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "ios-registration-setup"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func render(_ variant: Variant, callControls: Bool = false) throws -> RenderResult {
         let content = callControls ? AnyView(inCallControlsFixture()) : AnyView(try dashboardFixture())
         let root = AnyView(
