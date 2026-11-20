@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.24.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.23.0...shared-v0.24.0) (2026-11-20)
+
+
+### Features
+
+* **billing:** show and undo scheduled Starter downgrades ([#940](https://github.com/BytechLabs/Texturion/issues/940)) ([2049eaf](https://github.com/BytechLabs/Texturion/commit/2049eaf32f3a2b5122447e4c3807c4091e17aff7))
+* **calls:** link message numbers and disclose emergency limitations ([#891](https://github.com/BytechLabs/Texturion/issues/891)) ([7d8be04](https://github.com/BytechLabs/Texturion/commit/7d8be04a5bd8e38d5a1c1fe6e7db6e6993190fb9))
+* **calls:** turn saved voicemails into tasks ([#1004](https://github.com/BytechLabs/Texturion/issues/1004)) ([48ababe](https://github.com/BytechLabs/Texturion/commit/48ababedc02eb0c311a3ed35ee4627b5bd4a312b))
+* **clients:** open conversation attachments in a media viewer ([#1022](https://github.com/BytechLabs/Texturion/issues/1022)) ([2793b83](https://github.com/BytechLabs/Texturion/commit/2793b83599c6b671b156d22d31d6cbd117661b58))
+* **contacts:** erase customer data on request ([#952](https://github.com/BytechLabs/Texturion/issues/952)) ([16e830d](https://github.com/BytechLabs/Texturion/commit/16e830d77ac427eb4aef5d52d4a75901a0587672))
+* **data:** complete exports imports and public integrations ([#963](https://github.com/BytechLabs/Texturion/issues/963)) ([e03428c](https://github.com/BytechLabs/Texturion/commit/e03428cad328329d50bdf6b521e2929fdf4953fa))
+* **inbox:** filter by unassigned conversations and line ([#855](https://github.com/BytechLabs/Texturion/issues/855)) ([0e5e877](https://github.com/BytechLabs/Texturion/commit/0e5e8775b0b20033c862658a33fa498d88206c1a))
+* **nav:** separate phone lines from workspace navigation ([#1023](https://github.com/BytechLabs/Texturion/issues/1023)) ([b154ec4](https://github.com/BytechLabs/Texturion/commit/b154ec43e25317d2129925ce4db57f5da621e97b))
+* **quotes:** complete customer quote decisions ([#1015](https://github.com/BytechLabs/Texturion/issues/1015)) ([a8296be](https://github.com/BytechLabs/Texturion/commit/a8296bee3f24c0b82c2536408cd6f529d58c3723))
+* **reports:** track missed callers and open the jobs that need attention ([#1017](https://github.com/BytechLabs/Texturion/issues/1017)) ([2050ce7](https://github.com/BytechLabs/Texturion/commit/2050ce71e0196a5721b81c35da9ed8b95db894c1))
+* **tasks:** add the dispatch planner ([#1024](https://github.com/BytechLabs/Texturion/issues/1024)) ([e6bfd94](https://github.com/BytechLabs/Texturion/commit/e6bfd94257a313583999503538a99dbfd435e4e4))
+* **tasks:** plan customer visits from the calendar and map ([#1016](https://github.com/BytechLabs/Texturion/issues/1016)) ([c428e2f](https://github.com/BytechLabs/Texturion/commit/c428e2ff4d6b4f4b4334851bc4d412163fc1213e))
+
+
+### Bug Fixes
+
+* **calendar:** put schedule decisions in For You ([#1012](https://github.com/BytechLabs/Texturion/issues/1012)) ([e551281](https://github.com/BytechLabs/Texturion/commit/e5512811f3c891844235acf0dd5b74be56c172c1))
+* **calls:** keep browser controls available and validate dialed numbers ([#833](https://github.com/BytechLabs/Texturion/issues/833)) ([737e5ca](https://github.com/BytechLabs/Texturion/commit/737e5ca6a667e7e8b1cfe1defc8adab0200b7a68))
+* **calls:** ring members in turn and preserve caller identity ([0ac3951](https://github.com/BytechLabs/Texturion/commit/0ac3951d73b68470ac543984ee878f884152e03e))
+* **calls:** wake the recipient of a blind transfer ([19881ac](https://github.com/BytechLabs/Texturion/commit/19881ac526b74e617071c0275a0bdb3507561458))
+* **clients:** align porting and support timing ([#916](https://github.com/BytechLabs/Texturion/issues/916)) ([cf64da9](https://github.com/BytechLabs/Texturion/commit/cf64da910da84c052571cc942da44fbc17d51fa5))
+* **clients:** keep pending contact and calling settings edits ([#841](https://github.com/BytechLabs/Texturion/issues/841)) ([ca54c1f](https://github.com/BytechLabs/Texturion/commit/ca54c1ff9dca2c7b9dff8424c0bcd5ba8e2d4343))
+* **clients:** privacy pages match what notifications, ai and deletion do ([991bc25](https://github.com/BytechLabs/Texturion/commit/991bc25b34ae4a896951b5e50853540f688902c1))
+* **clients:** resize photos before staging MMS ([#984](https://github.com/BytechLabs/Texturion/issues/984)) ([18229ff](https://github.com/BytechLabs/Texturion/commit/18229ff27f762be1d387b48ab51ab1f98ebf4288))
+* **clients:** restore the last workspace when offline ([76bf2cc](https://github.com/BytechLabs/Texturion/commit/76bf2cca888a7b7cb0ac079ca137a6eca09959b8))
+* **i18n:** complete Canadian French localization coverage ([#1013](https://github.com/BytechLabs/Texturion/issues/1013)) ([7b08189](https://github.com/BytechLabs/Texturion/commit/7b081899e5a9d875c4a78b2a81a1f60e9740ef70))
+* **i18n:** localize French calls and Lou behavior ([#981](https://github.com/BytechLabs/Texturion/issues/981)) ([3062882](https://github.com/BytechLabs/Texturion/commit/30628824c23060f0467d2e150a57ece22feda276))
+* **i18n:** localize the Canadian French signup and account experience ([#986](https://github.com/BytechLabs/Texturion/issues/986)) ([7c050dd](https://github.com/BytechLabs/Texturion/commit/7c050dd2a1771ba94b7245af522a219d17b925b7))
+* **marketing:** publish extra-number prices and describe shipped features ([#1008](https://github.com/BytechLabs/Texturion/issues/1008)) ([9257f8c](https://github.com/BytechLabs/Texturion/commit/9257f8cb24d69cf5bc3b0df5083f5ae69c66d7e6))
+* **messaging:** fold carrier reactions into their threads ([ab8d240](https://github.com/BytechLabs/Texturion/commit/ab8d240ed1769ac874459453e96ed848ad4a61c3))
+* **messaging:** honor French messaging keywords ([#1009](https://github.com/BytechLabs/Texturion/issues/1009)) ([0dae2c9](https://github.com/BytechLabs/Texturion/commit/0dae2c9cda86928805c282bf6bec8e27871b3564))
+* **messaging:** keep note drafts private and recover text alerts ([#834](https://github.com/BytechLabs/Texturion/issues/834)) ([c08671d](https://github.com/BytechLabs/Texturion/commit/c08671dffeb0975fba89511e0f4811ac45e1be36))
+* **messaging:** recover missing carrier receipts hourly ([#989](https://github.com/BytechLabs/Texturion/issues/989)) ([7313182](https://github.com/BytechLabs/Texturion/commit/7313182f59eaf55c93692dc2928efcacca8181a4))
+* **messaging:** recover text receipts and scheduled send controls ([#866](https://github.com/BytechLabs/Texturion/issues/866)) ([9698e34](https://github.com/BytechLabs/Texturion/commit/9698e3409be3c0f9d3cf6a4a55f239ac9cd2d6cc))
+* **messaging:** surface text alerts and failed send actions ([#987](https://github.com/BytechLabs/Texturion/issues/987)) ([140fa0b](https://github.com/BytechLabs/Texturion/commit/140fa0ba0f065a00796f9204d686418f14ee2b42))
+* **notifications:** honor daily summaries and quiet hours ([75b8d92](https://github.com/BytechLabs/Texturion/commit/75b8d920c39032895698a486f8da421de8370830))
+* **onboarding:** verify signup and invite flows ([#938](https://github.com/BytechLabs/Texturion/issues/938)) ([b520894](https://github.com/BytechLabs/Texturion/commit/b5208947b0eea0f9990c8bbfc15298a97946dccd))
+* **privacy:** pause external address lookups ([#1010](https://github.com/BytechLabs/Texturion/issues/1010)) ([11407fa](https://github.com/BytechLabs/Texturion/commit/11407fa5567261c9acc72ab4dbd0eb7338aa9e26))
+* **product:** correct account setup and billing audit findings ([#830](https://github.com/BytechLabs/Texturion/issues/830)) ([bb07df6](https://github.com/BytechLabs/Texturion/commit/bb07df6c6a2df1cfebd695f534a634361b64fc68))
+* **push:** open inbox from aggregate alerts ([#1003](https://github.com/BytechLabs/Texturion/issues/1003)) ([9afdac7](https://github.com/BytechLabs/Texturion/commit/9afdac7ae0f9b8b83f8b978b60d512aaefd4974f))
+* **team:** enforce invite capacity and show two-factor deadlines ([#939](https://github.com/BytechLabs/Texturion/issues/939)) ([e23a32e](https://github.com/BytechLabs/Texturion/commit/e23a32e6c1a9122e89331ebdf545f95a953a3536))
+
+
+### Performance
+
+* **web:** dates reuse cached formatters and menus build on open ([8c90dcb](https://github.com/BytechLabs/Texturion/commit/8c90dcbc5e89fc4e47e991ac8a838dae3aee739c))
+
 ## [0.23.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.22.0...shared-v0.23.0) (2026-11-11)
 
 
