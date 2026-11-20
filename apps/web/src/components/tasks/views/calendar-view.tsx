@@ -159,7 +159,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `tasks` is rebuilt each render; its inputs are the deps
-  }, [query.data, state.tab, mode, timeZone, visibleKeys]);
+  }, [query.data, state, mode, timeZone, visibleKeys]);
 
   const step = (dir: 1 | -1) =>
     setPicked(mode === "week" ? addWeeks(cursor, dir) : addMonths(cursor, dir));

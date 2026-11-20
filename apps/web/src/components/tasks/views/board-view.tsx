@@ -118,7 +118,7 @@ export function BoardView({ state }: { state: TaskPageState }) {
     return (
       <div aria-busy={busy} className={cn("space-y-4", busy && BUSY_CLASS)}>
         {status}
-        <GroupedBoard tasks={all} group={state.group} busy={busy} />
+        <GroupedBoard tasks={[...todo, ...done]} group={state.group} busy={busy} />
         {moreDone && <LoadMoreButton more={moreDone} />}
       </div>
     );

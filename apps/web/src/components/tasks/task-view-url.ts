@@ -277,12 +277,7 @@ function localDayStart(date: string): Date {
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
-/**
- * The `useTasks` filter for the current page state. The tab owns `status` +
- * the `me` assignee; chips add assignee / unassigned / due. `all` is the
- * escape-hatch assignee sugar (`useTasks` normalizes it away while forcing an
- * explicit non-defaulting param).
- */
+/** The old tab parameter still supplies defaults for shared task URLs. */
 export function toTaskFilters(
   state: TaskPageState,
   now: Date = new Date(),
@@ -301,9 +296,6 @@ export function toTaskFilters(
     filters.status = "done";
     filters.assigned_user_id = "me";
   } else {
-    // All — every assignee. The `all` sugar drops the assignee pin and (via
-    // taskSearchParams) injects a `status=open` sentinel so the frozen route's
-    // Open·Mine default isn't re-applied.
     filters.assigned_user_id = "all";
   }
 

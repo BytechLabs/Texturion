@@ -1361,7 +1361,7 @@ const taskDueFilter = z.iso.datetime({ offset: true });
 
 const taskSelectionSchema = z.strictObject({
   status: z.enum(STATUS_VALUES).optional(),
-  assigned_user_id: taskMemberFilter.optional(),
+  assigned_user_id: taskMemberFilter.or(z.literal("all")).optional(),
   unassigned: z.boolean().optional(),
   conversation_id: z.uuid().optional(),
   due_before: taskDueFilter.optional(),
@@ -1423,9 +1423,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
   }
 
   const anyFilter = Object.values(filters).some((value) => value !== undefined);
-  const assignee = filters.assigned_user_id === "me"
-    ? userId
-    : filters.assigned_user_id ?? (anyFilter ? undefined : userId);
+  const assignee = taskFilterAssignee(filters.assigned_user_id, userId) ?? (anyFilter ? undefined : userId);
   return {
     overdue: filters.overdue === true,
     hasLocation: filters.has_location === true,
@@ -1441,6 +1439,11 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     effectiveStatus: filters.status ?? (anyFilter ? undefined : "open"),
     assignee,
   };
+}
+
+function taskFilterAssignee(assignee: string | undefined, userId: string): string | undefined {
+  if (assignee === "all") return undefined;
+  return assignee === "me" ? userId : assignee;
 }
 
 /**
@@ -1905,7 +1908,7 @@ tasksRoutes.post(
       // what was on screen.
       const filter = body.filter ?? {};
       const extra = await resolveExtraTaskFilters(c, db, filter);
-      const assignee = filter.assigned_user_id === "me" ? userId : filter.assigned_user_id;
+      const assignee = taskFilterAssignee(filter.assigned_user_id, userId);
       let taskQuery = db
         .from(filter.has_location ? "task_map_rows" : "tasks")
         .select(
