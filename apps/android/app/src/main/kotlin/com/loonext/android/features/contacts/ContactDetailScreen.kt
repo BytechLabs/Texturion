@@ -441,11 +441,6 @@ private fun ContactDetailBody(
     var confirmDelete by remember(contact.id) { mutableStateOf(false) }
     var working by remember(contact.id) { mutableStateOf(false) }
 
-    // Call (#165): authorize + place via the softphone (contact_id — no
-    // thread required). Mic preflight BEFORE authorizing; enabled for
-    // opted-out contacts (voice consent ≠ SMS consent); coded gate refusals
-    // (usage_cap_reached, subscription_inactive, conflict) surface their
-    // honest server copy in the existing error line.
     val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }
     var placingCall by remember(contact.id) { mutableStateOf(false) }
     var pendingCallNumber by remember(contact.id) { mutableStateOf<String?>(null) }
@@ -677,7 +672,7 @@ private fun ContactDetailBody(
                     icon = Icons.Outlined.Call,
                     container = MaterialTheme.colorScheme.surface,
                     content = MaterialTheme.colorScheme.onSurface,
-                    enabled = !placingCall,
+                    enabled = !placingCall && !contact.opted_out,
                     onClick = {
                         haptics.tap()
                         if (softphone.hasMicPermission()) {

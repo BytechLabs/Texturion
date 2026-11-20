@@ -120,7 +120,7 @@ struct ContactPanelSheet: View {
                 } trailing: {
                     EmptyView()
                 } actions: {
-                    if let onCall {
+                    if let onCall, controller.threadOptedOut != true {
                         Button {
                             onCall()
                         } label: {

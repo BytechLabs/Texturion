@@ -220,6 +220,30 @@ begin
   raise notice 'SF-7 PASSED: claim_auto_reply honors the opt-out mirror';
 end $$;
 
+do $$
+declare
+  workspace_id constant uuid := '99999999-9999-4999-8999-999999999999';
+  thread_id constant uuid := '99999999-9999-4999-8999-999000000003';
+  result jsonb;
+begin
+  delete from public.opt_outs where company_id = workspace_id
+    and phone_e164 = '+14165550111';
+  update public.conversations set last_auto_reply_at = now() where id = thread_id;
+
+  result := public.claim_auto_reply(workspace_id, thread_id, 'For help', 1, 3600, 'help_reply');
+  if not (result ? 'message') then
+    raise exception 'HELP must get through after an away reply: %', result;
+  end if;
+  result := public.claim_auto_reply(workspace_id, thread_id, 'Pour obtenir de l''aide', 1, 3600, 'help_reply');
+  if not (result ? 'message') then
+    raise exception 'AIDE must get through after HELP: %', result;
+  end if;
+  result := public.claim_auto_reply(workspace_id, thread_id, 'For help', 1, 3600, 'help_reply');
+  if result->>'skipped' is distinct from 'throttled' then
+    raise exception 'Repeated HELP must be throttled: %', result;
+  end if;
+end $$;
+
 -- (SF-8..SF-10 covered claim_review_request, removed with the one-tap review
 -- ask — 20260704060000_drop_claim_review_request.sql. The 'review_requested'
 -- enum value checked in SF-3 remains: enum values are irremovable and historic

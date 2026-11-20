@@ -204,6 +204,7 @@ const tables = {
   companies: [] as Row[],
   company_members: [] as Row[],
   phone_numbers: [] as Row[],
+  opt_outs: [] as Row[],
   member_telephony_credentials: [] as Row[],
   profiles: [] as Row[],
   notification_prefs: [] as Row[],

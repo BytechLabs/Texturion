@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
-import { stubRoute } from '../test/messaging-support';
+import { restMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
@@ -386,6 +386,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       membershipResponder(MEMBER_ID, opts.role ?? "member"),
     );
     sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [
       {
         id: CONVERSATION,
@@ -449,6 +450,31 @@ describe("POST /v1/calls/browser (D43)", () => {
       () => ({ data: { call_control_id: "oc-leg-ccid" } }),
     );
   }
+
+  it.each([
+    { conversation_id: CONVERSATION },
+    { contact_id: CONTACT_ID },
+    { to: "+16135551000" },
+  ])("refuses an opted-out destination before reserving the line for %j", async (body) => {
+    const sb = browserWorld();
+    const optOut = stubRoute(restMatch(env, "GET", "opt_outs"), () => [{ id: "opt-out" }]);
+    const dial = telnyxDialStub();
+    stubFetch(jwksRoute(auth), optOut.route, sb.route, dial.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body,
+    });
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: { code: "recipient_opted_out" } });
+    expect(optOut.calls[0]?.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(optOut.calls[0]?.url.searchParams.get("phone_e164")).toBe("eq.+16135551000");
+    expect(optOut.calls[0]?.url.searchParams.get("revoked_at")).toBe("is.null");
+    expect(sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line")).toHaveLength(0);
+    expect(dial.calls).toHaveLength(0);
+  });
 
   it("#213: authorizes, mints a single-use auth, AND server-dials the customer as the oc leg (X-Loonext-Session=S)", async () => {
     const sb = browserWorld();

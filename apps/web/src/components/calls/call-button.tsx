@@ -72,6 +72,7 @@ export function CallButton({
   label,
   variant,
   className,
+  disabled = false,
 }: {
   /** Call from an existing thread… */
   conversationId?: string;
@@ -89,6 +90,7 @@ export function CallButton({
   /** A labelled call that sits among other actions rather than leading them. */
   variant?: "outline";
   className?: string;
+  disabled?: boolean;
 }) {
   const t = useT();
   const { place, busy } = usePlaceCall();
@@ -114,7 +116,7 @@ export function CallButton({
           : t("shell.callContact", { name: contactName })
       }
       onClick={onClick}
-      disabled={busy}
+      disabled={busy || disabled}
     >
       {icon}
       {label ? <span>{label}</span> : null}

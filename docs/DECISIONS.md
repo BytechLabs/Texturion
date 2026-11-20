@@ -170,8 +170,8 @@ no carrier record.
 
 ## D3. Opt-out compliance (STOP/HELP)
 
-- Keep Telnyx's default keyword auto-handling **enabled** (auto-reply + profile-level block;
-  do NOT send a duplicate app auto-reply).
+- Keep Telnyx's keyword auto-handling **enabled**. When the inbound webhook carries no
+  carrier auto-response marker, the app answers HELP and INFO in English or AIDE in French.
 - **Mirror app-side**: `opt_outs` table (`company_id`, `phone_e164`, `source`:
   `stop_keyword | manual | import`, `created_at`, `revoked_at`, UNIQUE(company, phone)).
   Inbound webhook records STOP/START keywords (Telnyx marks them; also match the standard
@@ -1588,9 +1588,8 @@ and forward calls from your business number").
   is outreach); live subscription; the voice module; the member's cell configured
   (`company_members.call_cell_e164`, NANP CHECK, self-service via GET/PUT /v1/calls/cell —
   collected inline in the app's first-call dialog); and the D36 voice spending cap
-  (`usage_cap_reached` 402, checked before any Telnyx dial). Calls to texting-opted-out
-  contacts are ALLOWED — STOP is SMS consent, and a requested callback may be the only
-  channel; noted deliberately.
+  (`usage_cap_reached` 402, checked before any Telnyx dial). D51 supersedes this decision's
+  original opt-out policy. An active opt-out now also refuses outbound calls.
 - **One calling-minutes pool, both directions (D36 amended):** the billed measure is the
   far-party leg — `forward` (inbound) and `out_customer` (outbound) — summed by the
   re-created `api_period_forward_seconds` and reported to the same `voice_seconds` meter;
@@ -2526,13 +2525,9 @@ The FCC's requirement that **one opt-out applies to every channel** takes effect
 - The thread header's call button stays enabled, reasoned as *"voice consent is
   not SMS consent"* — defensible today, non-compliant from January 2027.
 
-**Decision: the composer posture is the correct one and the header should
-follow it, before 2027-01-31.** Not changed in this commit, because disabling a
-call button is a product change of its own and belongs in a change that can be
-reviewed as one — but it is recorded here as decided rather than open, so the
-next person does not have to re-litigate it from two contradictory comments.
-The new banner already declines to offer the call as a way around a request to
-be left alone.
+**Decision:** follow the composer policy across outbound calling. #810 enforces the
+destination's active workspace opt-out in the shared calling API before line reservation.
+The conversation header uses the thread number's known opt-out state.
 
 ---
 

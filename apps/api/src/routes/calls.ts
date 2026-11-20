@@ -40,6 +40,7 @@ import {
   VOICEMAIL_CONTENT_TYPE,
   VOICEMAILS_BUCKET
 } from "../messaging/inbound-ring";
+import { isRecipientOptedOut } from "../messaging/opt-out";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
@@ -852,6 +853,10 @@ async function authorizeOutboundCall(
     phoneNumberId,
     need: "text",
   });
+
+  if (await isRecipientOptedOut(db, companyId, customer)) {
+    return errorResponse(c, "recipient_opted_out", "This person asked us to stop contacting them.");
+  }
 
   const companies = unwrap<
     (CompanyVoiceState & {

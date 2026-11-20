@@ -94,7 +94,7 @@ export const apiErrorsEn: ApiErrorVocabulary = {
   workspace_paused: "Your plan is paused. Resume it in billing to carry on.",
   usage_cap_reached: "You've reached a spending cap for this period.",
   registration_pending: "Your texting registration is still being reviewed.",
-  recipient_opted_out: "This person asked us to stop texting them.",
+  recipient_opted_out: "This person asked us to stop contacting them.",
   validation_failed: "Something in that wasn't right. Check the details and try again.",
   unsupported_service_code: "Use your phone to dial this service code.",
   not_found: "We couldn't find that.",
@@ -137,7 +137,7 @@ export const apiErrorsFr: Translated<typeof apiErrorsEn> = {
     "Votre forfait est en pause. Reprenez-le dans la facturation pour continuer.",
   usage_cap_reached: "Vous avez atteint une limite de dépenses pour cette période.",
   registration_pending: "Votre inscription pour les textos est encore à l'étude.",
-  recipient_opted_out: "Cette personne nous a demandé de ne plus lui écrire.",
+  recipient_opted_out: "Cette personne nous a demandé de ne plus la contacter.",
   unsupported_service_code: "Composez ce numéro sur votre téléphone.",
   validation_failed:
     "Quelque chose ne va pas dans cette demande. Vérifiez les détails et réessayez.",

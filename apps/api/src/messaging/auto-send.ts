@@ -25,7 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { reportHandledFailure } from "../observability/capture";
 import { ApiError } from "../http/errors";
-import { isCarrierKeyword, suppressesAutoReply } from "./keywords";
+import { helpKeywordLocale, isCarrierKeyword, suppressesAutoReply } from "./keywords";
 import { dispatchOutbound } from "./send";
 import type { SendClearance } from "./send";
 import type { MessageRow } from "./types";
@@ -110,29 +110,17 @@ export async function guardedAutoSend(
      * still absolute: a contact who sent STOP hears nothing, ever.
      */
     answersEmergency?: boolean;
-    /**
-     * #228: this send IS the answer to a French request for help, so the
-     * suppression below must not silence it. `suppressesAutoReply` refuses AIDE
-     * precisely so the away message does not answer it; this is the message it
-     * was cleared out of the way FOR. Exactly one caller may set it
-     * (help-reply.ts). A STOP still silences everything.
-     */
-    answersHelp?: boolean;
     /** #414: per-company rolling-24h ceiling, emergency acknowledgment only. */
     dailyCap?: number;
     onEmergencyClaimed?: () => void;
   },
 ): Promise<AutoSendOutcome> {
-  // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3),
-  // and never on an EMERGENCY reply (#414). Without the second, someone who
-  // did exactly what the away message asked receives that same instruction
-  // back — "reply URGENT and we'll call you" — in answer to having replied
-  // URGENT. A robot telling a person with a gas smell to wait until morning is
-  // worse than saying nothing.
-  const suppressed =
-    args.answersEmergency || args.answersHelp
+  const replyingToHelp = args.automation === "help_reply";
+  const suppressed = replyingToHelp
+    ? !helpKeywordLocale(args.triggerBody)
+    : (args.answersEmergency
       ? isCarrierKeyword(args.triggerBody)
-      : suppressesAutoReply(args.triggerBody);
+      : suppressesAutoReply(args.triggerBody));
   if (suppressed) {
     return { sent: false, reason: "carrier_keyword" };
   }
@@ -184,7 +172,7 @@ export async function guardedAutoSend(
     // window (any replay hits 'throttled'). Release the stamp so the NEXT
     // inbound in the burst re-attempts naturally; the failed row (persisted
     // by dispatchOutbound) stays in the thread as the audit trail.
-    if (error_ instanceof ApiError && error_.code === "rate_limited") {
+    if (!replyingToHelp && error_ instanceof ApiError && error_.code === "rate_limited") {
       const { error: releaseError } = await db
         .from("conversations")
         .update(

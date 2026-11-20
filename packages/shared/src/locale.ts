@@ -168,7 +168,7 @@ export const FR_CA_COPY: AutomatedCopy = {
   // rather than ARRET, for the reason in the header: STOP is what the
   // network matches, and ARRET only works because we match it ourselves.
   helpReply:
-    "Ici {business_name}. Repondez a ce message pour nous joindre. " +
+    "{business_name}. Pour obtenir de l'aide, textez au {our_number}. " +
     "Des frais de messagerie peuvent s'appliquer. " +
     "Repondez STOP pour ne plus rien recevoir.",
   // STOP stays English: it is the word the carrier listens for. See the header.
@@ -207,7 +207,7 @@ export const EN_COPY: AutomatedCopy = {
   emergencySafetyLine: EMERGENCY_SAFETY_LINE,
   ratingAsk: RATING_ASK_BODY,
   helpReply:
-    "This is {business_name}. Reply to this message to reach us. " +
+    "{business_name}. For help, text {our_number}. " +
     "Message and data rates may apply. Reply STOP to opt out.",
   identificationSuffix: IDENTIFICATION_SUFFIX_TEMPLATE,
   appointmentReminders: DEFAULT_REMINDER_RULES.map((rule) => ({

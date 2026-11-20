@@ -226,6 +226,7 @@ export function ContactPanel({
               contactName={contactDisplayName(contact)}
               label={t("shell.call")}
               variant="outline"
+              disabled={conversation.opted_out ?? contact.opted_out}
             />
             <Button variant="outline" size="sm" onClick={() => { void copyNumber(); }}>
               {copied ? (

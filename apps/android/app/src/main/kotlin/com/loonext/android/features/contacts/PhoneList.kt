@@ -126,7 +126,8 @@ fun PhoneList(
                         actions = listOf(
                             RecordAction("text", "contactsTasks.phoneText", ActionGroup.PRIMARY,
                                 allowed = onText != null, enabled = !entry.opted_out),
-                            RecordAction("call", "contactsTasks.phoneCall", ActionGroup.PRIMARY),
+                            RecordAction("call", "contactsTasks.phoneCall", ActionGroup.PRIMARY,
+                                enabled = !entry.opted_out),
                             RecordAction("make-primary", "contactsTasks.phoneMakeMain", ActionGroup.STATE),
                         ),
                         onSelect = { action, _ ->

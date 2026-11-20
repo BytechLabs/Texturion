@@ -1663,18 +1663,31 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     expect(reminderLookup.calls).toHaveLength(1);
   });
 
-  it.each([[undefined, 1], ["HELP", 0]])("handles AIDE when Telnyx reports %s", async (autoresponseType, replies) => {
+  it.each([
+    { text: "HELP", copy: "For help, text" },
+    { text: "Info!", copy: "For help, text" },
+    { text: "Aide !", copy: "Pour obtenir de l'aide" },
+  ])("answers $text when Telnyx leaves it to the app", async ({ text, copy }) => {
     const away = awayLiveStubs();
     serve(numberStub(), threadStub({}), ...away.stubs);
 
-    await handleInboundMessage(env, inboundEvent({ text: "Aide !", autoresponseType }));
+    await handleInboundMessage(env, inboundEvent({ text }));
 
-    expect(away.claim.calls).toHaveLength(replies);
-    for (const call of away.claim.calls) {
-      expect(call.body).toMatchObject({
-        p_automation: "help_reply",
-        p_body: expect.stringContaining("Repondez STOP"),
-      });
-    }
+    expect(away.claim.calls).toHaveLength(1);
+    const claim = away.claim.calls[0]?.body;
+    expect(claim).toMatchObject({
+      p_automation: "help_reply",
+      p_body: expect.stringContaining(copy),
+    });
+    expect(claim).toMatchObject({ p_body: expect.stringContaining("STOP") });
+  });
+
+  it.each(["HELP", "AIDE"])("skips the app reply to %s when Telnyx already handled it", async (text) => {
+    const away = awayLiveStubs();
+    serve(numberStub(), threadStub({}), ...away.stubs);
+
+    await handleInboundMessage(env, inboundEvent({ text, autoresponseType: "HELP" }));
+
+    expect(away.claim.calls).toHaveLength(0);
   });
 });

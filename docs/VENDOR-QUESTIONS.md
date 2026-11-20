@@ -29,13 +29,15 @@ never on a schedule. Several could go in one support message.
 
 ### Telnyx STOP punctuation and HELP copy
 
-Run S24 after #773 restores the rig guard. Send `STOP.`, `HELP`, and `ARRET`
-to record the carrier replies and whether the profile blocks after punctuation.
-Have the robot send `START` to clear the block. The app records punctuated STOP
-independently.
+On November 20, the rig received `STOP.` and `HELP` without Telnyx's
+auto-response marker. Telnyx marked bare `STOP` and `START`. The app recorded
+the punctuated and French opt-outs, refused a send after STOP and replied to
+`ARRET` in French. The robot received no HELP reply. The live evidence is on
+[#810](https://github.com/BytechLabs/Texturion/issues/810#issuecomment-7048332317).
 
-Rig run `S24-20261117215818-fef4cd` stopped before any dials. The guard reported
-`room 0 is under 2`, so carrier behavior remains unverified.
+The app supplies a business-named reply to `HELP`, `INFO` and `AIDE` when
+Telnyx leaves the request to it. Telnyx's profile-level opt-out handling stays
+enabled. [Keyword management](https://support.telnyx.com/en/articles/1270091-sms-opt-out-keywords-and-stop-words)
 
 ### V2 — what Telnyx emits on a campaign SUSPENSION · Telnyx · blocks nothing today
 

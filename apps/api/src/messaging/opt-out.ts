@@ -30,6 +30,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordAudit } from "../audit/log";
 import { captureException, workerEnv } from "../observability/capture";
 
+export async function isRecipientOptedOut(
+  db: SupabaseClient,
+  companyId: string,
+  phoneE164: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("opt_outs")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("phone_e164", phoneE164)
+    .is("revoked_at", null)
+    .limit(1);
+  if (error) throw new Error(`opt-out lookup failed: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
 /** How a carrier opt-out reached us. Recorded verbatim on the timeline. */
 export type CarrierOptOutSignal =
   /** A send was refused with Telnyx code 40300. */

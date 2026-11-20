@@ -116,11 +116,7 @@ describe("#228 — a French opt-out is honoured, and nothing behind us catches i
     expect(suppressesAutoReply("on se voit a l'arret de bus")).toBe(false);
   });
 
-  it("leaves AIDE out of the CARRIER help set, and answers it ourselves", () => {
-    // The two sets carry opposite instructions and AIDE is why they are
-    // separate. HELP_KEYWORDS means "the carrier is answering, so we must not";
-    // Telnyx answers AIDE no more than it answers ARRET, so membership there
-    // would suppress our reply to a message nothing else replies to.
+  it("classifies AIDE separately from the English help keywords", () => {
     expect(HELP_KEYWORDS.has("AIDE")).toBe(false);
     expect(isFrenchHelpKeyword("AIDE")).toBe(true);
     expect(isFrenchHelpKeyword("  aide ")).toBe(true);

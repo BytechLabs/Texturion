@@ -28,7 +28,7 @@ import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
 import { captureEvent, errorLogText, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
 import { concealOutboundLinks, recordRetriedQuoteSend, remintOutboundLinks } from "../public-links/outbound";
 import { phoneCountry } from "./delivery-by-country";
-import { recordCarrierOptOut } from "./opt-out";
+import { isRecipientOptedOut, recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
 
 /**
@@ -137,16 +137,7 @@ export async function runPreSendGates(
 ): Promise<SendClearance> {
   await checkSendAvailability(env, companyId, destinationE164, offRamp, mode);
 
-  const db = getDb(env);
-  const { data, error } = await db
-    .from("opt_outs")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("phone_e164", destinationE164)
-    .is("revoked_at", null)
-    .limit(1);
-  if (error) throw new Error(`opt-out lookup failed: ${error.message}`);
-  if ((data?.length ?? 0) > 0) {
+  if (await isRecipientOptedOut(getDb(env), companyId, destinationE164)) {
     throw new ApiError(
       "recipient_opted_out",
       "This recipient has opted out of receiving texts.",
