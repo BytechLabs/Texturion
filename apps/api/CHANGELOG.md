@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.31.2](https://github.com/BytechLabs/Texturion/compare/api-v0.31.1...api-v0.31.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **api:** classify rig sign-in email budget refusals ([#1035](https://github.com/BytechLabs/Texturion/issues/1035)) ([5581952](https://github.com/BytechLabs/Texturion/commit/5581952b9f8e8e0ab203a149eb2f72bb7162a598))
+* **compliance:** answer help keywords and honor call opt-outs ([#1041](https://github.com/BytechLabs/Texturion/issues/1041)) ([2f8982a](https://github.com/BytechLabs/Texturion/commit/2f8982afacd4cbfe2b9760bb1802399742cfe03c))
+* **notifications:** keep reply actions on saved inbound alerts ([#1043](https://github.com/BytechLabs/Texturion/issues/1043)) ([2d1186b](https://github.com/BytechLabs/Texturion/commit/2d1186bbea52f189105567db2a725948dd22d3d7))
+* **rig:** exercise browser ringing and Android wake end to end ([#1040](https://github.com/BytechLabs/Texturion/issues/1040)) ([2d3db97](https://github.com/BytechLabs/Texturion/commit/2d3db97fb94be68ce0c39cebfa41089b3cfc0005))
+* **rig:** report Web Push transport limits in S21 ([#1037](https://github.com/BytechLabs/Texturion/issues/1037)) ([0c1d31a](https://github.com/BytechLabs/Texturion/commit/0c1d31afa47caf649f61b5873e050b2a572c1192))
+
 ## [0.31.1](https://github.com/BytechLabs/Texturion/compare/api-v0.31.0...api-v0.31.1) (2026-11-20)
 
 

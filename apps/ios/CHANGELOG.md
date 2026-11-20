@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.27.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.1...ios-v0.27.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **compliance:** answer help keywords and honor call opt-outs ([#1041](https://github.com/BytechLabs/Texturion/issues/1041)) ([2f8982a](https://github.com/BytechLabs/Texturion/commit/2f8982afacd4cbfe2b9760bb1802399742cfe03c))
+* **ios:** finish outbox sends inside notification replies ([#1039](https://github.com/BytechLabs/Texturion/issues/1039)) ([2b58cff](https://github.com/BytechLabs/Texturion/commit/2b58cff2928a99b880933ca0778cf80ad6ae3487))
+* **notifications:** keep reply actions on saved inbound alerts ([#1043](https://github.com/BytechLabs/Texturion/issues/1043)) ([2d1186b](https://github.com/BytechLabs/Texturion/commit/2d1186bbea52f189105567db2a725948dd22d3d7))
+
 ## [0.27.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.0...ios-v0.27.1) (2026-11-20)
 
 

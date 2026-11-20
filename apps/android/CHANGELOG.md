@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.2](https://github.com/BytechLabs/Texturion/compare/android-v0.27.1...android-v0.27.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **compliance:** answer help keywords and honor call opt-outs ([#1041](https://github.com/BytechLabs/Texturion/issues/1041)) ([2f8982a](https://github.com/BytechLabs/Texturion/commit/2f8982afacd4cbfe2b9760bb1802399742cfe03c))
+* **rig:** exercise browser ringing and Android wake end to end ([#1040](https://github.com/BytechLabs/Texturion/issues/1040)) ([2d3db97](https://github.com/BytechLabs/Texturion/commit/2d3db97fb94be68ce0c39cebfa41089b3cfc0005))
+
 ## [0.27.1](https://github.com/BytechLabs/Texturion/compare/android-v0.27.0...android-v0.27.1) (2026-11-20)
 
 

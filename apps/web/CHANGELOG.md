@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.2](https://github.com/BytechLabs/Texturion/compare/web-v0.31.1...web-v0.31.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **compliance:** answer help keywords and honor call opt-outs ([#1041](https://github.com/BytechLabs/Texturion/issues/1041)) ([2f8982a](https://github.com/BytechLabs/Texturion/commit/2f8982afacd4cbfe2b9760bb1802399742cfe03c))
+
 ## [0.31.1](https://github.com/BytechLabs/Texturion/compare/web-v0.31.0...web-v0.31.1) (2026-11-20)
 
 
