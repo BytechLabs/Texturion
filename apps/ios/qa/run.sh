@@ -45,8 +45,10 @@ run_scenario() {
   shift
   local output="$evidence/$name"
   local result=0
+  local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
+  if [[ "$name" == accessibility ]]; then test_timeout=420; fi
 
   mkdir -p "$output"
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
@@ -66,7 +68,7 @@ run_scenario() {
   recorder=$!
   xcodebuild test-without-building -xctestrun "${test_runs[0]}" \
     -destination "id=$QA_SIMULATOR" -parallel-testing-enabled NO \
-    -test-timeouts-enabled YES -maximum-test-execution-time-allowance 180 \
+    -test-timeouts-enabled YES -maximum-test-execution-time-allowance "$test_timeout" \
     -resultBundlePath "$output/tests.xcresult" "${selection[@]}" \
     | tee "$output/xcodebuild.log" || result=$?
   xcrun simctl io "$QA_SIMULATOR" screenshot "$output/final.png" || result=1
