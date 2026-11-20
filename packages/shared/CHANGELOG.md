@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.0...shared-v0.24.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **release:** add bilingual what's new entries ([#1028](https://github.com/BytechLabs/Texturion/issues/1028)) ([71e378c](https://github.com/BytechLabs/Texturion/commit/71e378cd4cd0e39394bf03696b4970d3c9efb8aa))
+
 ## [0.24.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.23.0...shared-v0.24.0) (2026-11-20)
 
 
