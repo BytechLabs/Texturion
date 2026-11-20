@@ -127,6 +127,7 @@ const TENANT_TABLES = new Set([
   // `webhook_deliveries` holds the payloads themselves — which are the
   // workspace's own messages, calls and contacts, copied.
   "webhook_endpoints", "webhook_deliveries", "webhook_disable_emails",
+  "state_transition_outbox",
   // #243: the workspace API credentials. An unscoped read would hand one
   // tenant the hash of another tenant own live key.
   "api_keys",

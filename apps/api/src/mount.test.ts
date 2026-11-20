@@ -60,6 +60,7 @@ import {
   sweepWebhookEvents,
 } from "./messaging/crons";
 import { runWebhookDisableEmails } from "./webhooks/disable-notice";
+import { deliverStateTransitions } from "./analytics/state-transition-outbox";
 import {
   deliverOutboundWebhooks,
   pruneWebhookDeliveries,
@@ -521,9 +522,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the
     // assertion — a row this declines must be failed out in the SAME tick
     // rather than waiting five minutes for the next one.
-    // #243 rides the same trigger and goes LAST, which is also an assertion:
-    // every job above it moves a customer's message or unsticks one, and this
-    // is the only one whose latency belongs to an address a customer chose.
+    // #243 runs last so a slow customer webhook cannot delay recovery jobs.
     expect(runs("*/5 * * * *")).toEqual([
       sweepWebhookEvents,
       retryInterruptedSends,
@@ -532,6 +531,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runCalendarSyncJob,
       processCustomerErasures,
       runWebhookDisableEmails,
+      deliverStateTransitions,
       deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([

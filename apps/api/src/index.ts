@@ -11,6 +11,7 @@ import { sendWorkspaceMfaNotices } from "./auth/workspace-mfa-notices";
 import { runGraceJob } from "./billing/grace";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { deliverStateTransitions } from "./analytics/state-transition-outbox";
 import { captureException, errorLogText } from './observability/capture';
 import type { ExceptionContext, WaitUntil } from './observability/capture';
 import { isCronSchedule } from './crons/schedules';
@@ -649,11 +650,8 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     job("job:calendar-sync", runCalendarSyncJob),
     job("job:customer-erasure", processCustomerErasures),
     job("job:webhook-disable-emails", runWebhookDisableEmails),
-    // #243: the outbound half. Last in the tick deliberately — every job above
-    // it either moves a customer's message or unsticks one, and a slow
-    // integration endpoint must never be what delays them. This one talks to
-    // an address a customer chose, so it is the only job here whose latency is
-    // outside our control.
+    job("job:deliver-state-transitions", deliverStateTransitions),
+    // #243: a slow receiver chosen by a customer must not delay recovery jobs.
     job("job:deliver-outbound-webhooks", deliverOutboundWebhooks),
   ],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
