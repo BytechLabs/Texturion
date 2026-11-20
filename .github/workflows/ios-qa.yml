@@ -78,6 +78,13 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/ios-qa-node" --no-audit --no-fund --ignore-scripts ws@8.21.0
           echo "NODE_PATH=$RUNNER_TEMP/ios-qa-node/node_modules" >> "$GITHUB_ENV"
 
+      - name: Install Simulator touch driver
+        if: env.QA_SCENARIO == 'all' || env.QA_SCENARIO == 'notification-actions'
+        run: |
+          brew tap meta/fb
+          brew trust meta/fb
+          brew install meta/fb/idb
+
       - name: Verify Release endpoints
         run: |
           set -o pipefail
