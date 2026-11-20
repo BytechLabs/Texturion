@@ -9,11 +9,13 @@ const APP_ROOT = fileURLToPath(new URL("../apps/web/src/app/(app)", import.meta.
 const THREAD_ID = "b0000000-0000-4000-8000-000000000001";
 const THREAD = `/inbox/${THREAD_ID}`;
 const TASK_ID = "e0000000-0000-4000-8000-000000000001";
+const TASK_VIEW_ID = "e1000000-0000-4000-8000-000000000001";
 const SEEDED = {
   "[conversationId]": THREAD_ID,
   "[id]@contacts": "a0000000-0000-4000-8000-000000000001",
   "[id]@tasks": TASK_ID,
   "[sessionId]": "seed-call-1",
+  "[viewId]@views": TASK_VIEW_ID,
 };
 const MIN_APP_ROUTES = 39;
 const MIN_AUDIT_SURFACES = 66;
@@ -82,7 +84,21 @@ const fixedSurfaces = [
     open: ["__cmdk__"],
   },
   { path: "/settings", label: "settings", auth: true },
+  { path: "/lou", label: "Lou overview", auth: true },
+  {
+    path: "/lou",
+    label: "Lou activity",
+    auth: true,
+    open: ['role=radio[name="Activity"]'],
+    ready: 'role=combobox[name="Phone line"]',
+  },
   { path: "/tasks", label: "tasks", auth: true },
+  {
+    path: `/tasks/views/${TASK_VIEW_ID}`,
+    label: "saved task view",
+    auth: true,
+    ready: 'role=heading[name="Open service tasks"]',
+  },
   // #238: the rest of the daily path. Each of these failed WCAG A or AA the
   // first time it was looked at, which is the argument for looking.
   { path: "/calls", label: "calls", auth: true },

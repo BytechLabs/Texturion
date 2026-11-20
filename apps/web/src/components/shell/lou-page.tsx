@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
 import { AiSettings } from "@/components/settings/ai-settings";
@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
 import { useCalls } from "@/lib/api/calls";
 import { useUsage } from "@/lib/api/usage";
 
 import { usePhoneLine } from "./phone-line";
 
+const ALL_LINES = "all";
 const tabs = [
   { value: "overview", label: "shell.louOverview" },
   { value: "activity", label: "shell.louActivity" },
@@ -24,7 +26,7 @@ const tabs = [
 export function LouPage() {
   const t = useT();
   const [tab, setTab] = useState<(typeof tabs)[number]["value"]>("overview");
-  const [activityLine, setActivityLine] = useState("");
+  const [activityLine, setActivityLine] = useState(ALL_LINES);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 md:px-6">
@@ -53,6 +55,7 @@ function LouOverview() {
 
 function LouActivity({ lineId, onLineChange }: { lineId: string; onLineChange: (id: string) => void }) {
   const t = useT();
+  const lineFieldId = useId();
   const { lines } = usePhoneLine();
   const selected = lines.find((line) => line.id === lineId)?.id;
   const activity = useCalls("voicemail", undefined, undefined, selected, true);
@@ -60,13 +63,19 @@ function LouActivity({ lineId, onLineChange }: { lineId: string; onLineChange: (
 
   return (
     <section className="space-y-3">
-      <label className="flex flex-wrap items-center gap-2 text-sm text-app-ink-soft">
-        {t("shell.phoneLine")}
-        <select className="min-h-9 rounded-md border border-app-line bg-app-paper px-2" value={selected ?? ""} onChange={(event) => onLineChange(event.target.value)}>
-          <option value="">{t("shell.allPhoneLines")}</option>
-          {lines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
-        </select>
-      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor={lineFieldId} className="text-sm text-app-ink-soft">{t("shell.phoneLine")}</label>
+        <SimpleSelect
+          id={lineFieldId}
+          value={selected ?? ALL_LINES}
+          onValueChange={onLineChange}
+          options={[
+            { value: ALL_LINES, label: t("shell.allPhoneLines") },
+            ...lines.map((line) => ({ value: line.id, label: line.name })),
+          ]}
+          className="w-auto max-w-full"
+        />
+      </div>
       {activity.isError && <LoadError onRetry={() => void activity.refetch()} />}
       {activity.isPending && <p role="status" className="text-sm text-app-muted">{t("shell.loading")}</p>}
       {activity.isSuccess && calls.length === 0 && <p className="text-sm text-app-muted">{t("shell.louActivityEmpty")}</p>}

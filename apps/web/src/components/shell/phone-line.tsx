@@ -16,6 +16,7 @@ import { useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
+import { updateSearch } from "@/lib/url/search-state";
 import { cn } from "@/lib/utils";
 
 interface PhoneLine {
@@ -120,11 +121,9 @@ export function PhoneLinePicker({ rail = false, className }: { rail?: boolean; c
     } else if (pathname.startsWith("/calls/")) {
       router.replace("/calls");
     } else if (pathname === "/inbox") {
-      const url = new URL(window.location.href);
-      if (url.searchParams.has("line")) {
-        url.searchParams.set("line", id);
-        router.replace(`${pathname}${url.search}`, { scroll: false });
-      }
+      updateSearch((params) => {
+        if (params.has("line")) params.set("line", id);
+      });
     }
   }
 
