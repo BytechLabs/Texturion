@@ -5,7 +5,9 @@ import android.content.ContentProvider
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.SyncResult
+import android.content.pm.PackageManager
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
@@ -15,6 +17,8 @@ import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.Data
 import android.provider.ContactsContract.RawContacts
 import androidx.test.core.app.ApplicationProvider
+import com.loonext.android.MainActivity
+import com.loonext.android.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -22,10 +26,33 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.xmlpull.v1.XmlPullParser
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ContactsSyncProviderTest {
+    @Test
+    fun contactsActionsAreDeclaredAndRoutableInThisBuild() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val mimeTypes = setOf(callMimeType(context.packageName), textMimeType(context.packageName))
+        val declaredTypes = mutableSetOf<String>()
+        context.resources.getXml(R.xml.contacts).use { xml ->
+            while (xml.next() != XmlPullParser.END_DOCUMENT) {
+                if (xml.eventType == XmlPullParser.START_TAG && xml.name == "ContactsDataKind") {
+                    val mimeType = xml.getAttributeValue("http://schemas.android.com/apk/res/android", "mimeType")
+                    declaredTypes += checkNotNull(mimeType)
+                }
+            }
+        }
+        assertEquals(mimeTypes, declaredTypes)
+
+        for (mimeType in mimeTypes) {
+            val intent = Intent(Intent.ACTION_VIEW).setType(mimeType).setPackage(context.packageName)
+            val activity = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            assertEquals(MainActivity::class.java.name, activity?.activityInfo?.name)
+        }
+    }
+
     @Test
     fun syncLeavesTheNativePhoneOnItsOriginalContact() {
         val context = ApplicationProvider.getApplicationContext<Context>()
