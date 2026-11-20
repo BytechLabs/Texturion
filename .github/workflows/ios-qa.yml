@@ -17,6 +17,9 @@ on:
           - autosave
           - copy-and-media
           - accessibility
+      runtime:
+        description: iOS Simulator version (defaults to newest installed)
+        type: string
   pull_request:
     paths:
       - .github/workflows/ios-qa.yml
@@ -42,19 +45,23 @@ jobs:
         working-directory: apps/ios
     env:
       QA_SCENARIO: ${{ inputs.scenario || 'calls' }}
+      QA_IOS_RUNTIME: ${{ inputs.runtime }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Match Xcode 26 to an installed iPhone runtime
         run: |
           choice=$(xcrun simctl list devices available -j | python3 -c '
-          import json, re, sys
+          import json, os, re, sys
           from pathlib import Path
 
           devices = []
+          requested = os.environ.get("QA_IOS_RUNTIME", "")
           for runtime, rows in json.load(sys.stdin)["devices"].items():
               match = re.search(r"\.iOS-(26-\d+(?:-\d+)*)$", runtime)
               if not match:
+                  continue
+              if requested and match.group(1).replace("-", ".") != requested:
                   continue
               version = tuple(map(int, match.group(1).split("-")))
               xcode = Path(f"/Applications/Xcode_{version[0]}.{version[1]}.app")
@@ -62,7 +69,7 @@ jobs:
                   devices += [(version, d["name"] == "iPhone 17 Pro", d["name"], d["udid"], xcode)
                               for d in rows if d["name"].startswith("iPhone")]
           if not devices:
-              sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
+              sys.exit(f"No iPhone Simulator with matching Xcode for iOS {requested or 26}")
           _, _, _, udid, xcode = max(devices)
           print(xcode, udid)
           ')
