@@ -20,6 +20,11 @@ class OfflineReadCacheTest {
     fun `only the default lists and first pages of record reads are retained`() {
         assertTrue(isOfflineRead("/v1/for-you", emptyMap(), viewer))
         assertTrue(isOfflineRead("/v1/conversations", mapOf("pinned" to "only", "status" to "open"), viewer))
+        assertTrue(isOfflineRead(
+            "/v1/conversations",
+            mapOf("phone_number_id" to "aaaa0000-0000-4000-8000-000000000002", "pinned" to "exclude"),
+            viewer,
+        ))
         assertTrue(isOfflineRead("/v1/tasks", mapOf("assigned_user_id" to viewer, "status" to "open"), viewer))
         assertTrue(isOfflineRead(thread, emptyMap(), viewer))
         assertTrue(isOfflineRead("$thread/messages", mapOf("limit" to "50", "cursor" to null), viewer))

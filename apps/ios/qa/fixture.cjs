@@ -149,6 +149,7 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: "en",
       company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
+    if (path === "/v1/for-you") return json({});
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
     if (path === "/v1/numbers") return json(page([line]));
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });

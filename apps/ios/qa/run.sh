@@ -3,6 +3,12 @@ set -euo pipefail
 
 scenario=${1:?Pass a scenario or all}
 evidence="$RUNNER_TEMP/ios-qa"
+products="$RUNNER_TEMP/ios-qa-build/Build/Products"
+test_runs=("$products"/*.xctestrun)
+if [[ ${#test_runs[@]} != 1 || ! -f "${test_runs[0]}" ]]; then
+  echo "Expected one built XCTest run in $products" >&2
+  exit 1
+fi
 ui=LoonextQAUITests/DeviceChecklists
 unit=LoonextTests
 audit=LoonextUITests/AccessibilityAuditUITests
@@ -13,7 +19,7 @@ stop_processes() {
   local result=0
   if [[ -n "$recorder" ]]; then
     kill -INT "$recorder" 2>/dev/null || true
-    for _ in {1..15}; do
+    for _ in {1..90}; do
       if ! kill -0 "$recorder" 2>/dev/null; then break; fi
       sleep 1
     done
@@ -58,9 +64,8 @@ run_scenario() {
 
   xcrun simctl io "$QA_SIMULATOR" recordVideo --codec=h264 "$output/screen.mp4" > "$output/recording.log" 2>&1 &
   recorder=$!
-  xcodebuild test-without-building -project Loonext.xcodeproj -scheme LoonextQA \
-    -configuration QA -destination "id=$QA_SIMULATOR" \
-    -derivedDataPath "$RUNNER_TEMP/ios-qa-build" -parallel-testing-enabled NO \
+  xcodebuild test-without-building -xctestrun "${test_runs[0]}" \
+    -destination "id=$QA_SIMULATOR" -parallel-testing-enabled NO \
     -test-timeouts-enabled YES -maximum-test-execution-time-allowance 180 \
     -resultBundlePath "$output/tests.xcresult" "${selection[@]}" \
     | tee "$output/xcodebuild.log" || result=$?

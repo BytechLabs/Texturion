@@ -193,7 +193,12 @@ final class DeviceChecklists: XCTestCase {
     }
 
     private func openThread(_ name: String) throws {
-        try waitFor(app.buttons["Conversations"].firstMatch, timeout: 30).tap()
+        let tab = try waitFor(app.buttons["tray"].firstMatch, timeout: 30)
+        let messages = app.buttons["Messages"].firstMatch
+        if !messages.exists {
+            tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).tap()
+        }
+        try waitFor(messages)
         try waitFor(label(name)).tap()
     }
 

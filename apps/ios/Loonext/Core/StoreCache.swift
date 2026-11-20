@@ -138,7 +138,7 @@ func isOfflineRead(path: String, query: [String: String?], userId: String) -> Bo
     case "/v1/for-you":
         return supplied.isEmpty
     case "/v1/conversations":
-        return Set(supplied.keys).isSubset(of: ["limit", "status", "pinned"]) &&
+        return Set(supplied.keys).isSubset(of: ["limit", "status", "pinned", "phone_number_id"]) &&
             [nil, "open"].contains(supplied["status"]) &&
             [nil, "only", "exclude"].contains(supplied["pinned"])
     case "/v1/tasks":

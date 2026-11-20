@@ -94,7 +94,7 @@ internal fun isOfflineRead(path: String, query: Map<String, String?>, userId: St
     val supplied = query.filterValues { it != null }
     return when (path) {
         "/v1/for-you" -> supplied.isEmpty()
-        "/v1/conversations" -> supplied.keys.all { it in setOf("limit", "status", "pinned") } &&
+        "/v1/conversations" -> supplied.keys.all { it in setOf("limit", "status", "pinned", "phone_number_id") } &&
             supplied["status"] in setOf(null, "open") &&
             supplied["pinned"] in setOf(null, "only", "exclude")
         "/v1/tasks" -> supplied.keys.all { it in setOf("limit", "status", "assigned_user_id") } &&

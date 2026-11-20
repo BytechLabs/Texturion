@@ -57,6 +57,11 @@ final class OfflineReadCacheTests: XCTestCase {
     func testOnlyDefaultListsAndFirstPagesOfRecordsAreEligible() {
         let thread = "/v1/conversations/aaaa0000-0000-4000-8000-000000000001"
         XCTAssertTrue(isOfflineRead(path: "/v1/for-you", query: [:], userId: "member"))
+        XCTAssertTrue(isOfflineRead(
+            path: "/v1/conversations",
+            query: ["phone_number_id": "aaaa0000-0000-4000-8000-000000000002", "pinned": "exclude"],
+            userId: "member"
+        ))
         XCTAssertTrue(isOfflineRead(path: thread + "/messages", query: ["limit": "50"], userId: "member"))
         XCTAssertTrue(isOfflineRead(path: "/v1/tasks", query: ["assigned_user_id": "member"], userId: "member"))
         XCTAssertFalse(isOfflineRead(path: thread + "/messages", query: ["cursor": "older"], userId: "member"))
