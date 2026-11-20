@@ -1,4 +1,5 @@
 import { isEmergencyKeyword } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 /** The app records STOP-family requests even when Telnyx leaves them to us. */
 export const STOP_KEYWORDS = new Set([
@@ -14,32 +15,8 @@ export const STOP_KEYWORDS = new Set([
 
 export const START_KEYWORDS = new Set(["START", "UNSTOP", "YES", "OUI"]);
 
-/**
- * AIDE IS DELIBERATELY ABSENT, and that is the interesting half.
- *
- * Membership of this set means "the carrier is answering, so we must not".
- * Telnyx does not answer AIDE any more than it answers ARRET, so adding it here
- * would suppress our reply to a message the carrier also ignores, and a French
- * speaker asking for help would get silence.
- *
- * It lives in {@link FRENCH_HELP_KEYWORDS} instead, which carries the opposite
- * instruction: nobody else is answering, so we do.
- */
 export const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
 
-/**
- * #228 - the French request for help, which WE answer because nobody else does.
- *
- * Kept out of {@link HELP_KEYWORDS} deliberately, and the distinction is the
- * whole reason this set exists. Membership of that one means "the carrier is
- * answering, so we must not"; Telnyx answers AIDE no more than it answers
- * ARRET, so putting it there would suppress our reply to a message nothing else
- * replies to and leave a French speaker asking for help in silence.
- *
- * It DOES suppress the ordinary auto-replies (see {@link suppressesAutoReply}),
- * because somebody asking how this works should not receive the after-hours
- * message instead, and should certainly not receive both.
- */
 export const FRENCH_HELP_KEYWORDS = new Set(["AIDE"]);
 
 /**
@@ -65,6 +42,13 @@ export function isFrenchStopRequest(body: string): boolean {
 /** True when the inbound body is exactly a French request for help. */
 export function isFrenchHelpKeyword(body: string): boolean {
   return FRENCH_HELP_KEYWORDS.has(normaliseKeyword(body));
+}
+
+export function helpKeywordLocale(body: string): Locale | undefined {
+  const keyword = normaliseKeyword(body);
+  if (HELP_KEYWORDS.has(keyword)) return "en";
+  if (FRENCH_HELP_KEYWORDS.has(keyword)) return "fr-CA";
+  return undefined;
 }
 
 /**
@@ -100,8 +84,5 @@ export function isCarrierKeyword(body: string): boolean {
  * to wait until morning is worse than saying nothing.
  */
 export function suppressesAutoReply(body: string): boolean {
-  // #228: AIDE is answered by `help-reply.ts` rather than by the carrier, so it
-  // belongs here even though it is not a carrier keyword. Without it a French
-  // speaker asking for help would get the help reply AND the away message.
   return isCarrierKeyword(body) || isEmergencyKeyword(body) || isFrenchHelpKeyword(body);
 }

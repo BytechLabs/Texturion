@@ -164,26 +164,38 @@ function stopWorld() {
   const undoBeforeStop: number[] = [];
   robot.onSms = ({ text }) => {
     const word = text.trim().toUpperCase();
-    if (word === "STOP" || word === "ARRET") {
+    if (word === "STOP." || word === "ARRET") {
       undoBeforeStop.push(undo.length);
       app.optOuts.set(key, { active: true, source: "keyword" });
+      if (word === "ARRET") {
+        robot.deliver({ from_role: "DEV-E1", to_role: "ROBOT-2", text: "Vous ne recevrez plus de textos." });
+      }
     } else if (word === "START") app.optOuts.set(key, { active: false, source: "keyword" });
-    else if (word === "HELP" || word === "AIDE") robot.deliver({ from_role: "DEV-E1", to_role: "ROBOT-2", text: "Reply STOP to opt out." });
-    else if (/stop texting/i.test(text)) app.hints.set(key, "2026-10-31T15:05:00.000Z");
+    else if (word === "HELP" || word === "AIDE") {
+      const reply = word === "HELP"
+        ? "QA-E. For help, text +16135550100. Reply STOP to opt out."
+        : "QA-E. Pour obtenir de l'aide, textez au +16135550100. Repondez STOP.";
+      robot.deliver({ from_role: "DEV-E1", to_role: "ROBOT-2", text: reply });
+    } else if (/stop texting/i.test(text)) {
+      app.thread("QA-E", text, "inbound");
+      app.hints.set(key, new Date(world.ctx.now()).toISOString());
+    }
   };
-  app.onSend = (send, id) => (app.optOuts.get(key)?.active ? { ok: false, status: 422, code: "contact_opted_out" } : { ok: true, messageId: id });
+  const refusal = { ok: false, status: 403, code: "recipient_opted_out" } as const;
+  app.onSend = (_send, id) => (app.optOuts.get(key)?.active ? refusal : { ok: true, messageId: id });
+  app.onPlaceCall = () => (app.optOuts.get(key)?.active ? refusal : { ok: true, sessionId: "session-1" });
   return { ...world, undoBeforeStop, key };
 }
 
 describe("S24, STOP and friends", () => {
   it("passes, with the START undo registered before any STOP was sent", async () => {
-    const { ctx, robot, undo, undoBeforeStop, browser } = stopWorld();
+    const { ctx, robot, undo, undoBeforeStop } = stopWorld();
     expect((await S24.run(ctx)).outcome).toBe("pass");
     expect(undo).toEqual([{ kind: "robot.sms", params: { from_role: "ROBOT-2", to_role: "DEV-E1", text: "START" } }]);
     expect(undoBeforeStop.every((count) => count === 1)).toBe(true);
     expect(robot.sent.every((m) => m.from_role === "ROBOT-2" && m.to_role === "DEV-E1")).toBe(true);
-    expect(robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-2", lease_id: "lease-test" });
-    expect(browser.actions).toContain("qa-e-owner dial ROBOT-2");
+    expect(ctx.evidence.callAfterStop).toEqual({ status: 403, code: "recipient_opted_out" });
+    expect(ctx.evidence.verifiedKeywords).toEqual(["START", "HELP", "ARRET", "START", "AIDE"]);
   });
 
   it("calls a send to an opted-out number critical", async () => {
@@ -192,10 +204,10 @@ describe("S24, STOP and friends", () => {
     await expect(S24.run(world.ctx)).resolves.toMatchObject({ failure_class: "sent_after_stop" });
   });
 
-  it("fails when the opt-out also blocks the call (D38)", async () => {
+  it("fails when an opted-out call is placed", async () => {
     const world = stopWorld();
-    world.robot.outcome = () => ({ state: "failed", errors: ["no call arrived"] });
-    await expect(S24.run(world.ctx)).resolves.toMatchObject({ failure_class: "call_blocked_by_opt_out" });
+    world.app.onPlaceCall = () => ({ ok: true, sessionId: "session-1" });
+    await expect(S24.run(world.ctx)).resolves.toMatchObject({ failure_class: "called_after_stop" });
   });
 
   it("fails a plain-English request that opted the number out", async () => {

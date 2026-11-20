@@ -68,6 +68,7 @@ struct PhoneList: View {
                                 .disabled(entry.opted_out == true)
                         }
                         Button(AppStrings.translate(appLocale, "contactsTasks.phoneCall")) { onCall(entry.phone_e164) }
+                            .disabled(entry.opted_out == true)
                         Button(AppStrings.translate(appLocale, "contactsTasks.phoneMakeMain")) { onMakePrimary(entry.id) }
                     } label: {
                         Image(systemName: "ellipsis")

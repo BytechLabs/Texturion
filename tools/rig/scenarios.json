@@ -425,7 +425,7 @@
       "dials": 2,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 2,
-      "note": "The dials are the call to ROBOT-2 that must still connect after the STOP (D38)."
+      "note": "The call to ROBOT-2 must be refused after STOP. The dial count covers a regression that places the call."
     },
     {
       "id": "S25",

@@ -109,7 +109,12 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
                   </Link>
                 </Button>
               )}
-              <CallButton contactId={contact.id} contactPhoneE164={entry.phone_e164} contactName={formatPhone(entry.phone_e164)} />
+              <CallButton
+                contactId={contact.id}
+                contactPhoneE164={entry.phone_e164}
+                contactName={formatPhone(entry.phone_e164)}
+                disabled={entry.opted_out}
+              />
               <Button variant="ghost" size="sm" disabled={makePrimary.isPending} onClick={() =>
                 makePrimary.mutate(entry.id, { onError: (error) => toast.error(error.message) })}>
                 {t("contacts.phoneMakeMain")}

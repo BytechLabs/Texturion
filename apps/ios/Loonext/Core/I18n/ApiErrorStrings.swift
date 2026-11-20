@@ -360,7 +360,7 @@ enum ApiErrorStrings {
             "apiErrors.usage_cap_reached": "You've reached a spending cap for this period.",
             "apiErrors.registration_pending":
                 "Your texting registration is still being reviewed.",
-            "apiErrors.recipient_opted_out": "This person asked us to stop texting them.",
+            "apiErrors.recipient_opted_out": "This person asked us to stop contacting them.",
             "apiErrors.unsupported_service_code": "Use your phone to dial this service code.",
             "apiErrors.validation_failed":
                 "Something in that wasn't right. Check the details and try again.",
@@ -734,7 +734,7 @@ enum ApiErrorStrings {
             "apiErrors.registration_pending":
                 "Votre inscription pour les textos est encore à l'étude.",
             "apiErrors.recipient_opted_out":
-                "Cette personne nous a demandé de ne plus lui écrire.",
+                "Cette personne nous a demandé de ne plus la contacter.",
             "apiErrors.unsupported_service_code": "Composez ce numéro sur votre téléphone.",
             "apiErrors.validation_failed":
                 "Quelque chose ne va pas dans cette demande. Vérifiez les détails et réessayez.",

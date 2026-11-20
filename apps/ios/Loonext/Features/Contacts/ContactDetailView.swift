@@ -8,8 +8,7 @@ import UIKit
 /// GET /v1/members), the opted-out banner with 'Mark opted in again' and its
 /// START caveat, opt-out and soft-delete behind confirm dialogs, a Call
 /// pill under the identity header (mic preflight → CallsManager.placeCall
-/// with the contact context; voice consent is separate from SMS consent, so
-/// it stays enabled for opted-out contacts), and a contextual Text pill —
+/// with the contact context), and a contextual Text pill —
 /// opens the thread when one already exists (found via
 /// GET /v1/conversations?q=<phone>), otherwise 'Message' into compose
 /// prefill. Both messaging destinations are shell callbacks; those buttons
@@ -363,9 +362,7 @@ struct ContactDetailView: View {
 
     // MARK: - Call (#160/#165)
 
-    /// Mic first, then authorize — a denial never reserves the line or bills
-    /// a minute. Mirrors the Android ContactDetailScreen exactly: enabled for
-    /// opted-out contacts (voice consent is separate from SMS consent).
+    /// Request microphone permission before reserving a line.
     private func callWithMicPreflight(_ contact: Contact, number: String? = nil) {
         let manager = CallsManager.get(graph: graph)
         if manager.hasMicPermission {
@@ -623,8 +620,6 @@ struct ContactDetailView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(t("contactsTasks.messageAria"))
             }
-            // Call (#165) — deliberately NOT gated on opted_out: voice
-            // consent is separate from SMS consent.
             Button {
                 callWithMicPreflight(contact)
             } label: {
@@ -649,7 +644,7 @@ struct ContactDetailView: View {
                 .background(BrandColor.paper, in: Capsule())
             }
             .buttonStyle(.plain)
-            .disabled(placingCall)
+            .disabled(placingCall || contact.opted_out)
             .accessibilityLabel(
                 placingCall
                     ? t("contactsTasks.callingAria")

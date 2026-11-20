@@ -384,7 +384,11 @@ export function ThreadHeader({
             like texting, so note-level viewers get no dead control (the API
             would 403). */}
         {conversation.viewer_level === "text" && (
-          <CallButton conversationId={conversation.id} contactName={name} />
+          <CallButton
+            conversationId={conversation.id}
+            contactName={name}
+            disabled={conversation.opted_out ?? contact?.opted_out}
+          />
         )}
 
         {/* Status: inline pill dropdown — the one status control (the redundant

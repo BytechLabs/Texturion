@@ -332,6 +332,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const conversations = useConversations({ q: contact.phone_e164 });
   const existingConversation = flattenPages(conversations.data)
     .find((row) => row.contact_id === contact.id && !row.is_spam) ?? null;
+  const callPhone = existingConversation?.contact_phone_e164 ?? contact.phone_e164;
 
   const name = useAutosave(contact.id, "name", contact.name ?? "");
   const businessName = useAutosave(
@@ -459,14 +460,6 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 exists, open it; otherwise start one via the compose flow (which
                 prefills the recipient from ?contact=). Opted-out contacts are gated
                 honestly by the composer's own opt-out banner. */}
-              {/* #135: call ANY contact — including a fresh import you've never
-                texted. From an existing thread (its number presents as caller ID)
-                or straight from the contact (the server resolves the business
-                number; threading creates the conversation on answer). Opted-out
-                contacts stay callable (STOP is SMS consent — a requested callback
-                may be the only channel). #106 note-level members get the API's
-                honest error — the list row carries no viewer level to gate
-                client-side. */}
               <CallButton
                 conversationId={existingConversation?.id}
                 contactId={existingConversation ? undefined : contact.id}
@@ -475,6 +468,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 }
                 label={t("shell.call")}
                 variant="outline"
+                disabled={callPhone === contact.phone_e164 && contact.opted_out}
               />
               <NewTaskButton
                 context={{

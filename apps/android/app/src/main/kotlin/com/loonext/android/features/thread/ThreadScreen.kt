@@ -563,16 +563,10 @@ private fun ThreadLoaded(
     // *Applying: Ethical Friction — a deliberate pause before the irreversible.*
     var confirmDiscardQueued by remember(controller) { mutableStateOf<PendingSend?>(null) }
 
-    // Call button (#165): authorize + place through the softphone. The mic is
-    // preflighted BEFORE authorizing (a denial never reserves the line or
-    // bills); gate refusals arrive coded (usage_cap_reached,
-    // subscription_inactive, conflict "number on another call") with honest
-    // server copy — surfaced verbatim on the snackbar. Stays enabled for
-    // opted-out contacts: voice consent ≠ SMS consent.
     val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }
     var placingCall by remember(controller) { mutableStateOf(false) }
     fun placeCall() {
-        if (placingCall) return
+        if (placingCall || controller.threadOptedOut == true) return
         placingCall = true
         // Idempotent registration — the thread may be the first calls surface
         // this process touches.
@@ -1663,9 +1657,11 @@ private fun ThreadLoaded(
                 }
             },
             onDismiss = { contactPanelOpen = false },
-            onCall = {
-                contactPanelOpen = false
-                callOrAskForMic()
+            onCall = if (controller.threadOptedOut == true) null else {
+                {
+                    contactPanelOpen = false
+                    callOrAskForMic()
+                }
             },
             calling = placingCall,
             onAddLeadSource = onAddLeadSource?.let { open ->
@@ -1977,9 +1973,6 @@ private fun ThreadHeader(
                 Icon(Icons.Outlined.Search, contentDescription = t("thread.findInThread"))
             }
 
-            // Call (#165) — the 44dp ink circle. Enabled even for opted-out
-            // contacts (voice ≠ SMS consent); mic preflight and gate errors
-            // live in the caller.
             val callInteraction = remember { MutableInteractionSource() }
             Box(
                 Modifier
@@ -1990,7 +1983,7 @@ private fun ThreadHeader(
                     .clickable(
                         interactionSource = callInteraction,
                         indication = LocalIndication.current,
-                        enabled = !calling,
+                        enabled = !calling && controller.threadOptedOut != true,
                         role = Role.Button,
                         onClick = onCall,
                     ),

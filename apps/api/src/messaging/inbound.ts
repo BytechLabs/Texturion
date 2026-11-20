@@ -49,6 +49,7 @@ import { budgetAlertCopy, budgetCrossings } from './notification-budget-alert';
 import type { BudgetCrossing } from './notification-budget-alert';
 import {
   effectiveEmergencyKeywords,
+  helpKeywordLocale,
   isCarrierKeyword,
   isEmergencyKeyword,
   isFrenchHelpKeyword,
@@ -684,14 +685,15 @@ export async function finishThreadedInbound(
     }
   }
 
-  // Telnyx's default keyword list omits AIDE.
-  if (carrier && canReply && input.carrierResponse !== "HELP" && isFrenchHelpKeyword(body)) {
+  const helpLocale = helpKeywordLocale(body);
+  if (carrier && canReply && helpLocale && !input.carrierResponse) {
     try {
       await sendHelpReply(env, db, {
         companyId,
         conversationId: threaded.conversation_id,
         fromE164,
         triggerBody: body,
+        locale: helpLocale,
         businessName: company?.name ?? null,
       });
     } catch (error_) {
