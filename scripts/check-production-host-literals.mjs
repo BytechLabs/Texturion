@@ -33,10 +33,8 @@
  * left out: they are not in the APK or the IPA, and they pin production values
  * on purpose.
  *
- * LEGACY. iOS has no nonprod build, so its literals stay until it gets one, and
- * Android keeps one display-only stand-in. They are counted per file. A count
- * may only fall, and a count that has fallen must be lowered here, so the list
- * cannot go stale while looking current.
+ * LEGACY. The display-only payment link stand-ins are counted per file. A
+ * count that has fallen must be lowered here.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -56,12 +54,7 @@ export const LEGACY = {
   // A same-length stand-in for a payment link in a message preview. The real
   // link is minted by the server; nothing opens this one.
   "apps/android/app/src/main/kotlin/com/loonext/android/features/thread/AskForPayment.kt": 1,
-  "apps/ios/Loonext/Features/Auth/CaptchaSheet.swift": 1,
   "apps/ios/Loonext/Features/Payments/PaymentsLogic.swift": 1,
-  "apps/ios/Loonext/Features/Push/PushPayload.swift": 2,
-  "apps/ios/Loonext/Features/Settings/PasskeyEnrolment.swift": 1,
-  "apps/ios/Loonext/Features/Settings/SettingsLogic.swift": 1,
-  "apps/ios/Loonext/Features/Shell/RootView.swift": 2,
 };
 
 const BINARY =
@@ -398,7 +391,7 @@ function scopedFiles() {
     .filter(Boolean);
   return [...new Set(listed)]
     .filter((file) => inScope(file) && existsSync(join(REPO_ROOT, file)))
-    .toSorted()
+    .toSorted((a, b) => a.localeCompare(b))
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 

@@ -20,6 +20,7 @@ on:
     paths:
       - .github/workflows/ios-qa.yml
       - apps/ios/qa/**
+      - apps/ios/LoonextQATests/**
       - apps/ios/LoonextQAUITests/**
 
 permissions:
@@ -64,7 +65,7 @@ jobs:
             if (buildSettings.PRODUCT_BUNDLE_IDENTIFIER !== "com.loonext.ios" ||
                 /\bLOONEXT_QA\b/.test(buildSettings.SWIFT_ACTIVE_COMPILATION_CONDITIONS ?? "")) process.exit(1);
           ' "$RUNNER_TEMP/release-settings.json"
-          swiftc -O Loonext/Core/AppConfig.swift qa/ReleaseEndpoints.swift -o "$RUNNER_TEMP/release-endpoints"
+          swiftc -O Loonext/Core/AppConfig.swift LoonextQATests/ReleaseEndpoints.swift -o "$RUNNER_TEMP/release-endpoints"
           "$RUNNER_TEMP/release-endpoints" | tee "$RUNNER_TEMP/ios-qa/release-config/endpoints.txt"
 
       - name: Boot iPhone Simulator

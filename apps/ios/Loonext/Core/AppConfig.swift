@@ -16,14 +16,14 @@ enum AppConfig {
               scheme == "https" || (scheme == "http" && host == "127.0.0.1"),
               host != "loonext.com", !host.hasSuffix(".loonext.com"),
               host != "qoruyuxcgkdqpcgclgzs.supabase.co"
-        else { preconditionFailure("Invalid QA endpoint for \(key)") }
+        else { preconditionFailure(key) }
         return url
     }
 
     private static func qaSetting(_ key: String) -> String {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
               !value.isEmpty, !value.hasPrefix("$(")
-        else { preconditionFailure("Missing QA build setting for \(key)") }
+        else { preconditionFailure(key) }
         return value
     }
     #else
