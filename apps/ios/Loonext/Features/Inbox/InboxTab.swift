@@ -2038,6 +2038,7 @@ private struct ConversationRow: View {
                 }
             }
             .padding(.vertical, 5)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // Announce read/unread to VoiceOver — the AttentionDot that conveys it

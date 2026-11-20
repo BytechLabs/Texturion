@@ -204,7 +204,8 @@ final class DeviceChecklists: XCTestCase {
             tab.tap()
         }
         XCTAssertTrue(tab.isSelected)
-        try waitFor(label(name)).tap()
+        try waitFor(app.staticTexts[name].firstMatch).tap()
+        try waitFor(app.buttons["Back"].firstMatch)
     }
 
     private func openNotificationCenter() {
