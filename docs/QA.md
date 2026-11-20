@@ -1,5 +1,7 @@
 # QA on the Loonext Rig
 
+**Status: Active runbook.**
+
 Use a branch, tag or commit SHA and record the web deployment and Android APK SHAs separately. Use the rig's seeded workspaces and numbers. Tell anyone sharing the rig before deploying, reseeding or changing an AVD's state. A deploy changes the stack for every lane.
 
 ## Connect and check
