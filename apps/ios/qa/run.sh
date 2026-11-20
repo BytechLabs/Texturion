@@ -73,6 +73,11 @@ run_scenario() {
     | tee "$output/xcodebuild.log" || result=$?
   xcrun simctl io "$QA_SIMULATOR" screenshot "$output/final.png" || result=1
   curl --silent --fail http://127.0.0.1:8765/__qa/writes > "$output/writes.json" || result=1
+  if [[ "$name" == notification-actions ]]; then
+    xcrun simctl spawn "$QA_SIMULATOR" log show --last 20m --style compact \
+      --predicate 'subsystem == "com.loonext.ios" AND category == "push" AND eventMessage CONTAINS "notification reply"' \
+      > "$output/push.log" 2>&1 || true
+  fi
   stop_processes || result=1
 
   if [[ -d "$output/tests.xcresult" ]]; then

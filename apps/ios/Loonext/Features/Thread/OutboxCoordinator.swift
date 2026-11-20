@@ -65,6 +65,13 @@ final class OutboxCoordinator {
         }
     }
 
+    func flushForNotificationResponse() async {
+        requestFlush()
+        while let flushTask {
+            await flushTask.value
+        }
+    }
+
     func clear() {
         flushAgain = false
         flushTask?.cancel()

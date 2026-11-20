@@ -124,11 +124,6 @@ final class NotificationsPushPayloadTests: XCTestCase {
         ]
         let accepted = try await performThreadPushAction(.reply, data: payload, replyText: " Shade reply ", graph: graph)
         XCTAssertTrue(accepted)
-
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !graph.outbox.store.all().isEmpty && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(25))
-        }
         XCTAssertTrue(graph.outbox.store.all().isEmpty)
         let requests = await transport.requests
         XCTAssertEqual(requests.count, 1)

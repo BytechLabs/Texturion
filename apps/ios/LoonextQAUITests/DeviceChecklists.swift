@@ -34,6 +34,7 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testNotificationReply() async throws {
+        let body = "Simulator shade reply"
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
@@ -49,10 +50,16 @@ final class DeviceChecklists: XCTestCase {
         let reply = try waitFor(springboard.textViews.matching(
             NSPredicate(format: "identifier == %@ AND label == %@", "", "")
         ).firstMatch)
-        reply.typeText("Simulator shade reply")
-        try waitFor(springboard.buttons["Send text"].firstMatch).tap()
-        try await assertOneWrite(path: "/v1/messages/send", field: "body", value: "Simulator shade reply", requiresKey: true)
-        shot("777 notification reply")
+        reply.typeText(body)
+        let send = try waitFor(springboard.buttons["Send text"].firstMatch)
+        XCTAssertTrue(send.isEnabled)
+        shot("777 reply ready to send in Notification Center")
+        send.tap()
+        try await assertOneWrite(path: "/v1/messages/send", field: "body", value: body, requiresKey: true)
+        app.activate()
+        try openThread("Ben Fixture")
+        try waitFor(label(body))
+        shot("777 reply received in the fixture conversation")
     }
 
     func testNotificationTrayClearance() async throws {
