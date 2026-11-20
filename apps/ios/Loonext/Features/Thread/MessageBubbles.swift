@@ -144,7 +144,7 @@ struct MessageBubble: View {
 
             // Inline MMS images — signed URL minted per view, never cached.
             ForEach(imageAttachments, id: \.id) { attachment in
-                SignedAttachmentImage(attachmentId: attachment.id, mintUrl: mintAttachmentUrl)
+                SignedAttachmentImage(attachment: attachment, mintUrl: mintAttachmentUrl)
             }
 
             // Audio plays inline. Everything else that is not an image gets a
@@ -155,6 +155,7 @@ struct MessageBubble: View {
                 SignedAudioAttachment(
                     attachmentId: attachment.id,
                     sizeBytes: attachment.size_bytes,
+                    contentType: attachment.content_type,
                     mintUrl: mintAttachmentUrl
                 )
             }
@@ -655,8 +656,8 @@ struct DayDividerLine: View {
 /// never cached). One automatic re-mint on load failure covers expiry races;
 /// after that, an honest tap-to-retry chip.
 struct SignedAttachmentImage: View {
-    let attachmentId: String
-    /// #240: (attachmentId, variant) — audio is streamed whole, so
+    let attachment.id: String
+    /// #240: (attachment.id, variant) — audio is streamed whole, so
     /// this one always asks for the original.
     let mintUrl: @MainActor (String, String) async throws -> String
 
@@ -664,6 +665,7 @@ struct SignedAttachmentImage: View {
     @State private var mintKey = 0
     @State private var autoRetried = false
     @State private var failed = false
+    @State private var open = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -682,12 +684,24 @@ struct SignedAttachmentImage: View {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: 240)
-                            .frame(height: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        Button { open = true } label: {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: 240)
+                                .frame(height: 180)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(AppStrings.translate(appLocale, "thread.openPhoto"))
+                        .fullScreenCover(isPresented: $open) {
+                            AttachmentViewer(
+                                label: AppStrings.translate(appLocale, "thread.photo"),
+                                contentType: attachment.content_type,
+                                previewImage: image,
+                                mintOriginal: { try await mintUrl(attachment.id, "original") }
+                            )
+                        }
                     case .failure:
                         loadingPlaceholder
                             .onAppear {
@@ -707,10 +721,10 @@ struct SignedAttachmentImage: View {
                 loadingPlaceholder
             }
         }
-        .task(id: "\(attachmentId)|\(mintKey)") {
+        .task(id: "\(attachment.id)|\(mintKey)") {
             guard url == nil, !failed else { return }
             do {
-                let minted = try await mintUrl(attachmentId, "original")
+                let minted = try await mintUrl(attachment.id, "preview")
                 url = URL(string: minted)
                 if url == nil { failed = true }
             } catch {

@@ -87,6 +87,7 @@ function renderWith(ui: ReactNode, queryClient = client()) {
 const PHOTO: AttachmentSummary = { id: "img", content_type: "image/jpeg", size_bytes: 2048 };
 const PDF: AttachmentSummary = { id: "pdf", content_type: "application/pdf", size_bytes: 2048 };
 const CLIP: AttachmentSummary = { id: "clip", content_type: "audio/mpeg", size_bytes: 2048 };
+const VIDEO: AttachmentSummary = { id: "video", content_type: "video/mp4", size_bytes: 2048 };
 
 const tick = () => new Promise((resolve) => { setTimeout(resolve, 40); });
 
@@ -189,12 +190,48 @@ describe(AttachmentImage, () => {
     await waitFor(() => expect(batches()).toHaveLength(2));
     expect(batches()[1]).toEqual({ items: [{ id: "img", variant: "original" }] });
   });
+
+  it("zooms and downloads the original photo from the viewer", async () => {
+    const { container } = renderWith(<AttachmentImage attachment={PHOTO} alt="Site photo" />);
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    const thumbnail = container.querySelector("img")!;
+    fireEvent.load(thumbnail);
+    fireEvent.click(screen.getByRole("button", { name: "Open photo: Site photo" }));
+
+    const zoomIn = await screen.findByRole("button", { name: "Zoom in" });
+    fireEvent.click(zoomIn);
+    expect(screen.getByRole("button", { name: "Reset zoom" }).textContent).toBe("150%");
+    expect(screen.getByRole("region", { name: "Site photo" }).tabIndex).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(screen.getByRole("button", { name: "Reset zoom" }).textContent).toBe("100%");
+
+    const download = screen.getByRole<HTMLButtonElement>("button", { name: "Download" });
+    await waitFor(() => expect(download.disabled).toBe(false));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    fireEvent.click(download);
+    const link = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(link.href).toMatch(/\/img-original-\d+\?download=attachment.jpg$/);
+    expect(link.download).toBe("attachment.jpg");
+  });
 });
 
 describe(AttachmentFileChip, () => {
   function fakeTab() {
     return { opener: window as unknown, location: { href: "" }, close: vi.fn() };
   }
+
+  it("requests a video only when the reader opens its player", async () => {
+    const { container } = renderWith(<AttachmentFileChip attachment={VIDEO} />);
+    expect(batches()).toHaveLength(0);
+    expect(container.querySelector("video")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Video/ }));
+
+    const video = await screen.findByLabelText("Video", { selector: "video" });
+    expect(video.getAttribute("src")).toMatch(/\/video-original-/);
+    expect(video.hasAttribute("controls")).toBe(true);
+    expect(batches()).toEqual([{ items: [{ id: "video", variant: "original" }] }]);
+  });
 
   it("opens a link with time left as it is", async () => {
     renderWith(<AttachmentFileChip attachment={PDF} />);

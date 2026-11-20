@@ -54,6 +54,7 @@ import kotlinx.coroutines.delay
 fun AttachmentAudio(
     attachment: AttachmentSummary,
     mintUrl: suspend (String) -> String,
+    mintOriginal: suspend () -> String,
     modifier: Modifier = Modifier,
 ) {
     var url by remember(attachment.id) { mutableStateOf<String?>(null) }
@@ -162,7 +163,7 @@ fun AttachmentAudio(
             )
         }
         Spacer(Modifier.width(6.dp))
-        Column(Modifier.width(170.dp)) {
+        Column(Modifier.weight(1f, fill = false).width(170.dp)) {
             Text(
                 audioRowCaption(failed, LocalAppLocale.current),
                 style = MaterialTheme.typography.labelMedium.copy(
@@ -188,6 +189,7 @@ fun AttachmentAudio(
                 )
             }
         }
+        AttachmentSaveButton(attachment.content_type, mintOriginal = mintOriginal)
     }
 }
 

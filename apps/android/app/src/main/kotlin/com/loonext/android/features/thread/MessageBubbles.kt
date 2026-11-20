@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -59,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
@@ -166,6 +168,7 @@ fun MessageBubble(
     reaction: String? = null,
     onSendAgain: (() -> Unit)? = null,
     onCall: (() -> Unit)? = null,
+    mintOriginalAttachmentUrl: suspend (String) -> String = mintAttachmentUrl,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val note = message.direction == MessageDirection.NOTE
@@ -249,6 +252,7 @@ fun MessageBubble(
                         SignedAttachmentImage(
                             attachment = attachment,
                             mintUrl = mintAttachmentUrl,
+                            mintOriginal = { mintOriginalAttachmentUrl(attachment.id) },
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
@@ -261,6 +265,7 @@ fun MessageBubble(
                         AttachmentAudio(
                             attachment = attachment,
                             mintUrl = mintAttachmentUrl,
+                            mintOriginal = { mintOriginalAttachmentUrl(attachment.id) },
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
@@ -276,6 +281,7 @@ fun MessageBubble(
                             attachment = attachment,
                             onInk = outbound,
                             onOpen = { onOpenAttachment(attachment) },
+                            mintOriginal = { mintOriginalAttachmentUrl(attachment.id) },
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
@@ -752,17 +758,22 @@ fun DayDividerLine(label: String, modifier: Modifier = Modifier) {
 fun SignedAttachmentImage(
     attachment: AttachmentSummary,
     mintUrl: suspend (String) -> String,
+    mintOriginal: suspend () -> String,
     modifier: Modifier = Modifier,
 ) {
     var url by remember(attachment.id) { mutableStateOf<String?>(null) }
     var mintKey by remember(attachment.id) { mutableStateOf(0) }
     var autoRetried by remember(attachment.id) { mutableStateOf(false) }
     var failed by remember(attachment.id) { mutableStateOf(false) }
+    var open by remember(attachment.id) { mutableStateOf(false) }
+    val photo = t("thread.photo")
 
     LaunchedEffect(attachment.id, mintKey) {
         failed = false
         url = try {
             mintUrl(attachment.id)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             failed = true
             null
@@ -792,7 +803,7 @@ fun SignedAttachmentImage(
 
         else -> AsyncImage(
             model = url,
-            contentDescription = t("thread.photo"),
+            contentDescription = photo,
             contentScale = ContentScale.Crop,
             onError = {
                 if (!autoRetried) {
@@ -805,7 +816,17 @@ fun SignedAttachmentImage(
             modifier = modifier
                 .widthIn(max = 240.dp)
                 .height(180.dp)
-                .clip(RoundedCornerShape(14.dp)),
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(role = Role.Button, onClickLabel = t("thread.openPhoto")) { open = true },
+        )
+    }
+    if (open) {
+        AttachmentViewer(
+            label = photo,
+            contentType = attachment.content_type,
+            preview = url,
+            mintOriginal = mintOriginal,
+            onClose = { open = false },
         )
     }
 }
@@ -821,9 +842,13 @@ fun AttachmentFileChip(
     attachment: AttachmentSummary,
     onInk: Boolean,
     onOpen: () -> Unit,
+    mintOriginal: suspend () -> String,
     modifier: Modifier = Modifier,
 ) {
     val kind = mmsKindOf(attachment.content_type)
+    val video = kind == MmsKind.Video
+    var open by remember(attachment.id) { mutableStateOf(false) }
+    val label = t(kind.labelKey)
     val chipBg = if (onInk) MaterialTheme.colorScheme.surface
     else MaterialTheme.colorScheme.surfaceContainer
     val interaction = remember { MutableInteractionSource() }
@@ -832,45 +857,61 @@ fun AttachmentFileChip(
             .pressScale(interaction)
             .clip(RoundedCornerShape(12.dp))
             .background(chipBg)
-            .clickable(
-                interactionSource = interaction,
-                indication = LocalIndication.current,
-                onClick = onOpen,
-            )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
-                .size(30.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
-            contentAlignment = Alignment.Center,
+        Row(
+            Modifier.weight(1f, fill = false)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = LocalIndication.current,
+                    role = Role.Button,
+                    onClick = { if (video) open = true else onOpen() },
+                )
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                kind.icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(IconSize.Small),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(
-                t(kind.labelKey),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            gallerySizeLabel(attachment.size_bytes)?.let { size ->
-                Text(
-                    size,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (video) Icons.Outlined.PlayArrow else kind.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(IconSize.Small),
                 )
             }
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                gallerySizeLabel(attachment.size_bytes)?.let { size ->
+                    Text(
+                        size,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
+        if (!video) AttachmentSaveButton(attachment.content_type, mintOriginal = mintOriginal)
+    }
+    if (open) {
+        AttachmentViewer(
+            label = label,
+            contentType = attachment.content_type,
+            mintOriginal = mintOriginal,
+            onClose = { open = false },
+        )
     }
 }
 

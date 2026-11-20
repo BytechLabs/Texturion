@@ -3,6 +3,7 @@ package com.loonext.android.features.thread
 import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.PlayArrow
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.Segment
@@ -106,6 +107,7 @@ internal fun AttachmentsGalleryScreen(
     // and read on this screen.
     val locale = LocalAppLocale.current
 
+    var viewing by remember(conversationId) { mutableStateOf<GalleryItem?>(null) }
     var view by remember { mutableStateOf(GalleryView.Images) }
     var loadingMore by remember(conversationId) { mutableStateOf(false) }
     var refreshKey by remember(conversationId) { mutableIntStateOf(0) }
@@ -158,12 +160,28 @@ internal fun AttachmentsGalleryScreen(
         }
     }
 
-    fun openExternally(item: GalleryItem) {
+    fun openAttachment(item: GalleryItem) {
+        if (isGalleryImage(item) || item.content_type.orEmpty().startsWith("video/")) {
+            viewing = item
+            return
+        }
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, item.url.toUri()))
         } catch (_: Exception) {
             onNotice(noAppForFile)
         }
+    }
+
+    viewing?.let { item ->
+        val type = item.content_type ?: "image/jpeg"
+        AttachmentViewer(
+            label = item.file_name ?: t(if (isGalleryImage(item)) "thread.photo" else "thread.mmsKindVideo"),
+            contentType = type,
+            fileName = item.file_name ?: attachmentFileName(type),
+            preview = item.url.takeIf { isGalleryImage(item) },
+            mintOriginal = { repo.attachmentUrl(companyId, item.id, "original").url },
+            onClose = { viewing = null },
+        )
     }
 
     Column(modifier.fillMaxSize()) {
@@ -238,7 +256,7 @@ internal fun AttachmentsGalleryScreen(
                         nextCursor = nextCursor,
                         loadingMore = loadingMore,
                         onLoadMore = ::loadMore,
-                        onOpen = ::openExternally,
+                        onOpen = ::openAttachment,
                         onReport = { reporting = it },
                     )
                 } else {
@@ -247,8 +265,9 @@ internal fun AttachmentsGalleryScreen(
                         nextCursor = nextCursor,
                         loadingMore = loadingMore,
                         onLoadMore = ::loadMore,
-                        onOpen = ::openExternally,
+                        onOpen = ::openAttachment,
                         onReport = { reporting = it },
+                        mintOriginal = { repo.attachmentUrl(companyId, it.id, "original").url },
                     )
                 }
             }
@@ -357,6 +376,7 @@ private fun FilesList(
     onLoadMore: () -> Unit,
     onOpen: (GalleryItem) -> Unit,
     onReport: (GalleryItem) -> Unit,
+    mintOriginal: suspend (GalleryItem) -> String,
 ) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(items, key = { it.id }) { item ->
@@ -367,8 +387,9 @@ private fun FilesList(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val video = item.content_type.orEmpty().startsWith("video/")
                 Icon(
-                    Icons.AutoMirrored.Filled.InsertDriveFile,
+                    if (video) Icons.Outlined.PlayArrow else Icons.AutoMirrored.Filled.InsertDriveFile,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(IconSize.Large),
@@ -376,7 +397,7 @@ private fun FilesList(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        galleryFileName(item),
+                        item.file_name ?: if (video) t("thread.mmsKindVideo") else galleryFileName(item),
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -394,8 +415,14 @@ private fun FilesList(
                         modifier = Modifier.spokenAs(meta),
                     )
                 }
-                // #317: the one secondary action this row has, behind the
-                // triple dot so the row keeps a single visual job.
+                if (!video) {
+                    val type = item.content_type.orEmpty()
+                    AttachmentSaveButton(
+                        type,
+                        item.file_name ?: attachmentFileName(type),
+                        mintOriginal = { mintOriginal(item) },
+                    )
+                }
                 var menuOpen by rememberSaveable(item.id) { mutableStateOf(false) }
                 Box {
                     IconButton(onClick = { menuOpen = true }) {

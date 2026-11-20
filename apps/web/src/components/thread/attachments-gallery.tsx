@@ -1,7 +1,8 @@
 "use client";
 
-import { Download, FileText, ImageOff, Images } from "lucide-react";
+import { Download, FileText, ImageOff, Images, Play } from "lucide-react";
 import { useMemo, useState } from "react";
+import { mmsMediaKind } from "@loonext/shared";
 
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { attachmentDownloadUrl, attachmentFileName } from "@/lib/attachments/download";
 import { useT } from "@/i18n/provider";
 import { useAttachmentGallery } from "@/lib/api/gallery";
 import { flattenPages } from "@/lib/api/pagination";
@@ -23,6 +25,7 @@ import { LoadError } from "@/components/ui/load-error";
 
 import { fileLabel, formatBytes, groupByDate, itemsForTab, sourceLabel } from './gallery-grouping';
 import type { GalleryTab } from './gallery-grouping';
+import { AttachmentViewer } from "./attachment-viewer";
 
 /**
  * The attachments gallery (§5.2 — Telegram "Shared Media" trimmed to a
@@ -97,7 +100,7 @@ export function AttachmentsGallery({
             ) : (
               <ul className="space-y-1">
                 {group.items.map((item) => (
-                  <GalleryFileRow key={item.id} item={item} />
+                  <GalleryFileRow key={item.id} item={item} onOpen={() => setLightbox(item)} />
                 ))}
               </ul>
             )}
@@ -172,11 +175,16 @@ export function AttachmentsGallery({
         </DialogContent>
       </Dialog>
 
-      {/* Signed-URL lightbox — an independent dialog (sibling, not nested) so
-          closing it never dismisses the gallery. The gallery URL is already
-          short-lived + signed, so it drives the full view directly (no per-item
-          /url fetch, §5.2). */}
-      <Lightbox item={lightbox} onClose={() => setLightbox(null)} />
+      {lightbox && (
+        <AttachmentViewer
+          id={lightbox.id}
+          kind={lightbox.kind === "image" ? "image" : "video"}
+          label={fileLabel(lightbox)}
+          fileName={lightbox.file_name ?? attachmentFileName(lightbox.content_type)}
+          preview={lightbox.kind === "image" ? lightbox.url : undefined}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </>
   );
 }
@@ -239,65 +247,42 @@ function GalleryThumb({
 }
 
 /** A file row (name, origin, size, date) with a signed-URL download. */
-function GalleryFileRow({ item }: { item: GalleryItem }) {
-  const label = fileLabel(item);
+function GalleryFileRow({ item, onOpen }: { item: GalleryItem; onOpen: () => void }) {
+  const t = useT();
   const size = formatBytes(item.size_bytes);
+  const video = mmsMediaKind(item.content_type) === "video";
+  const label = item.file_name ?? (video ? t("thread.mediaVideo") : fileLabel(item));
+  const className = "flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover";
+  const inner = (
+    <>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <FileText className="size-4" strokeWidth={1.75} aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-foreground">{label}</span>
+        <span className="block text-[11px] tabular-nums text-muted-foreground">
+          {sourceLabel(item.source)}
+          {size ? ` · ${size}` : ""} ·{" "}
+          <Timestamp at={item.created_at} style="short" />
+        </span>
+      </span>
+      {video ? (
+        <Play className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      ) : (
+        <Download className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      )}
+    </>
+  );
   return (
     <li>
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        download={item.file_name ?? undefined}
-        className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-150 ease-out hover:bg-app-hover"
-      >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <FileText className="size-4" strokeWidth={1.75} aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm text-foreground">{label}</span>
-          <span className="block text-[11px] tabular-nums text-muted-foreground">
-            {sourceLabel(item.source)}
-            {size ? ` · ${size}` : ""} ·{" "}
-            <Timestamp at={item.created_at} style="short" />
-          </span>
-        </span>
-        <Download
-          className="size-4 shrink-0 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-      </a>
+      {video ? (
+        <button type="button" className={className} onClick={onOpen}>{inner}</button>
+      ) : (
+        <a className={className} href={attachmentDownloadUrl(item.url, item.file_name ?? attachmentFileName(item.content_type))}>
+          {inner}
+        </a>
+      )}
     </li>
-  );
-}
-
-/** The image lightbox — a focus-trapped dialog with ESC (Radix default). */
-function Lightbox({
-  item,
-  onClose,
-}: {
-  item: GalleryItem | null;
-  onClose: () => void;
-}) {
-  const t = useT();
-  return (
-    <Dialog open={item !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        className="max-w-[92vw] border-none bg-transparent p-0 shadow-none sm:max-w-3xl"
-        showCloseButton
-      >
-        <DialogTitle className="sr-only">{t("thread.photo")}</DialogTitle>
-        {item && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.url}
-            alt={fileLabel(item)}
-            className="max-h-[85vh] w-full rounded-lg object-contain"
-          />
-        )}
-      </DialogContent>
-    </Dialog>
   );
 }
 

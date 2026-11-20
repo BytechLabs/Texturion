@@ -4,9 +4,10 @@ import { Download, FileMusic } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n/provider";
-import { openWithFreshUrl, useAttachmentUrl } from "@/lib/api/attachments";
+import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { attachmentDownloadUrl, attachmentFileName } from "@/lib/attachments/download";
 
 import { formatBytes } from "./gallery-grouping";
 
@@ -91,10 +92,7 @@ export function AttachmentAudio({
         )}
         {href && (
           <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => openWithFreshUrl(event, url)}
+            href={attachmentDownloadUrl(href, attachmentFileName(attachment.content_type))}
             aria-label={t("thread.downloadAudioAria", { from: fromLabel })}
             className="shrink-0 rounded-md p-0.5 transition-colors duration-150 ease-out hover:text-foreground"
           >

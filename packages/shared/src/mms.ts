@@ -142,6 +142,14 @@ export function mmsMediaTypeForFile(file: {
     : null;
 }
 
+/** Preferred download extension for MMS, which carries no filename. */
+export function mmsFileExtension(contentType: string | null | undefined): string | undefined {
+  const type = canonicalMmsType(contentType ?? "");
+  if (type === "text/x-vcard") return "vcf";
+  if (type === "audio/3gpp") return "3gp";
+  return Object.entries(MMS_EXTENSION_TYPES).find(([, mime]) => mime === type)?.[0];
+}
+
 /** Coarse kind for icons/labels — drives the file-chip rendering. */
 export type MmsMediaKind =
   | "image"
