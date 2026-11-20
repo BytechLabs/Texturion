@@ -359,10 +359,9 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
     },
   );
 
-  it("checks out a new US workspace with texting details only", async () => {
+  it.each(["US", "CA"] as const)("checks out a new %s workspace with US texting before either registration draft", async (country) => {
     const harness = makeHarness([
-      companyEndpoint(companyRow()),
-      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => completeRegistrationRows().slice(1)),
+      companyEndpoint(companyRow({ country, billing_currency: "usd", us_texting_enabled: true })),
       checkoutSessionEndpoint(),
     ]);
     const response = await post(
@@ -371,16 +370,14 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
       harness,
     );
     expect(response.status).toBe(200);
-    const [registrationRead] = harness.callsTo("GET", /messaging_registrations/);
-    expect(registrationRead.url.searchParams.get("kind")).toBe("eq.campaign");
+    expect(harness.callsTo("GET", /messaging_registrations/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /checkout\/sessions/)[0].form().get("line_items[2][price]")).toBe(env.STRIPE_US_FEE_PRICE_ID);
   });
 
-  it("US company with an incomplete campaign draft → 409", async () => {
-    const rows = completeRegistrationRows();
-    rows[1].data = { ...completeCampaignData, sample2: "  " };
+  it.each(["brand", "campaign"] as const)("requires an incomplete rejected %s to be fixed before resubscribing", async (kind) => {
     const harness = makeHarness([
-      companyEndpoint(companyRow()),
-      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => rows),
+      companyEndpoint(companyRow({ subscription_status: "canceled" })),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => [{ kind, status: "rejected", data: {} }]),
     ]);
     const response = await post(
       "/v1/billing/checkout",
@@ -388,19 +385,10 @@ describe("POST /v1/billing/checkout — 409 gates (SPEC §4.1 step 4)", () => {
       harness,
     );
     expect(response.status).toBe(409);
-  });
-
-  it("requires texting details for a new Canadian workspace that enables US texting", async () => {
-    const harness = makeHarness([
-      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: true })),
-      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
-    ]);
-    const response = await post(
-      "/v1/billing/checkout",
-      { plan: "starter" },
-      harness,
-    );
-    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message_key: "apiRefusals.billingCheckoutTextingRequired" },
+    });
+    expect(harness.callsTo("GET", /messaging_registrations/)[0].url.searchParams.get("status")).toBe("eq.rejected");
     expect(harness.callsTo("POST", /checkout\/sessions/)).toHaveLength(0);
   });
 });

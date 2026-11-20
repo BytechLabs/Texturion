@@ -204,9 +204,11 @@ object ShellStrings : AppStrings.Section {
             "Your workspace hasn't completed checkout yet. Finish on the web " +
             "and your number, texting, and calling light up here.",
         "shell.finishSetupAction" to "Finish checkout",
-        "shell.regBusinessDetailsNeeded" to "One step left: your business details",
+        "shell.regBusinessDetailsNeeded" to "Enter your business details for US texting",
         "shell.regTextingDetailsNeeded" to "Finish your US texting setup",
         "shell.regFinishRegistration" to "Continue setup",
+        "shell.regInboxWaitingForApproval" to "Your inbox opens after carriers approve your US texting registration.",
+        "shell.regViewSetup" to "View setup",
         "shell.externalStepDone" to "I've done this — refresh",
 
         /*
@@ -494,9 +496,11 @@ object ShellStrings : AppStrings.Section {
             "Votre espace de travail n'a pas terminé le paiement. Terminez sur " +
             "le web et votre numéro, les textos et les appels s'activeront ici.",
         "shell.finishSetupAction" to "Terminer le paiement",
-        "shell.regBusinessDetailsNeeded" to "Une dernière étape : les renseignements sur votre entreprise",
+        "shell.regBusinessDetailsNeeded" to "Fournissez les renseignements sur votre entreprise pour les textos vers les États-Unis",
         "shell.regTextingDetailsNeeded" to "Terminez la configuration des textos vers les États-Unis",
         "shell.regFinishRegistration" to "Continuer la configuration",
+        "shell.regInboxWaitingForApproval" to "Votre boîte de réception s’ouvrira après l’approbation de votre inscription par les opérateurs.",
+        "shell.regViewSetup" to "Voir la configuration",
         "shell.externalStepDone" to "C'est fait — actualiser",
 
         // ── The update notice, and the floor (#339) ───────────────────────────

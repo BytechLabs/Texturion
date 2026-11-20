@@ -363,11 +363,18 @@ struct RegistrationPair: Codable, Sendable {
     let brand: RegistrationSummary?
     let campaign: RegistrationSummary?
     let completion_step: String?
+    let awaiting_first_approval: Bool?
 
-    init(brand: RegistrationSummary? = nil, campaign: RegistrationSummary? = nil, completion_step: String? = nil) {
+    init(
+        brand: RegistrationSummary? = nil,
+        campaign: RegistrationSummary? = nil,
+        completion_step: String? = nil,
+        awaiting_first_approval: Bool? = nil
+    ) {
         self.brand = brand
         self.campaign = campaign
         self.completion_step = completion_step
+        self.awaiting_first_approval = awaiting_first_approval
     }
 }
 

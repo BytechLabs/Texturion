@@ -371,6 +371,7 @@ data class RegistrationPair(
     val brand: RegistrationSummary? = null,
     val campaign: RegistrationSummary? = null,
     val completion_step: String? = null,
+    val awaiting_first_approval: Boolean = false,
 )
 
 @Serializable

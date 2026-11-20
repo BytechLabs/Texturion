@@ -736,16 +736,13 @@ After `POST /v1/companies`, the wizard presents **"How do you want your business
   6. **Tide-me-over? (opt-in, default OFF)** — checkbox: "Give me a temporary Loonext number to text from
      while my number transfers. You can release it once your number arrives." → sets
      `wants_bridge_number`.
-  7. The registration wizard (§4.1 step 3) runs as normal for US / CA-with-US-texting companies — brand +
-     campaign draft — because a ported US number needs 10DLC just like a new one.
-
-Then checkout (§4.1 step 4) — **paid-first, unchanged**. The `checkout.session.completed` webhook starts
+Then checkout (SPEC §4.1). The `checkout.session.completed` webhook starts
 the **port saga** (§4) instead of the provisioning saga — which **creates the Telnyx porting order as a
 `draft`** but does NOT confirm it. After payment the customer uploads the LOA + invoice (step 4 above,
 now unblocked via `PUT /:id/documents`) and confirms via `POST /:id/submit` (documents-gated). The webhook
-additionally provisions the bridge number via the normal saga if `wants_bridge_number`. Registration
-(§4.4) is submitted at the same webhook, as
-today — guaranteeing the campaign is approved before the FOC cutover.
+additionally provisions the bridge number via the normal saga if `wants_bridge_number`.
+After checkout, companies enabling US texting complete both registration drafts.
+Loonext submits them for carrier approval before US texting can activate.
 
 **Checkout page copy for a port (shown before payment, replaces the §4.1 new-number checkout copy):**
 

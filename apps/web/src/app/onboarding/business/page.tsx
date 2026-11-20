@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isLocale, resolveLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -166,7 +165,6 @@ function asString(value: unknown): string {
 export default function BusinessIdentityPage() {
   const t = useT();
   const { state, ready } = useWizardStepGuard("business");
-  const router = useRouter();
   const saveRegistration = useSaveOnboardingRegistration();
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -277,7 +275,6 @@ export default function BusinessIdentityPage() {
       }
       await saveRegistration.mutateAsync({ companyId, brand });
       trackOnboardingStepCompleted("business");
-      router.replace("/onboarding/setting-up");
     } catch (error) {
       setFormError(
         error instanceof ApiError

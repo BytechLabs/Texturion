@@ -20,7 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { publicEnv } from "@/env";
 import { LocaleProvider, useT } from "@/i18n/provider";
 import { meCompanyQueryOptions, useMe } from "@/lib/api/me";
-import type { MemberRole, Membership } from "@/lib/api/types";
+import { keys } from "@/lib/api/keys";
+import type { CompanyView, MemberRole, Membership } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/use-session-ready";
 
 import {
@@ -129,6 +130,11 @@ export function CompanyProvider({
   const [chosen, setChosen] = useState<string | null>(() =>
     readCompanyCookie(),
   );
+  const memberships = useMemo(
+    () => me.data?.memberships ?? [],
+    [me.data?.memberships],
+  );
+  const activeId = resolveActiveCompanyId(memberships, chosen);
 
   // The hydrated /v1/me for the remembered workspace starts beside the plain
   // one, so RealtimeProvider and useCompany join it instead of waiting for
@@ -136,9 +142,10 @@ export function CompanyProvider({
   // rewrites the cookie and this follows it. No retry override: the query is
   // shared, and the last observer to render sets the retries of its refetches.
   const rememberedId = chosen !== null && UUID_RE.test(chosen) ? chosen : null;
-  useQuery({
-    ...meCompanyQueryOptions(queryClient, rememberedId ?? ""),
-    enabled: sessionState === "ready" && rememberedId !== null,
+  const workspaceId = activeId ?? rememberedId;
+  const hydrated = useQuery({
+    ...meCompanyQueryOptions(queryClient, workspaceId ?? ""),
+    enabled: sessionState === "ready" && workspaceId !== null,
   });
 
   // D23 for a member's launch: the hop to For you overlaps /v1/me, and the
@@ -151,12 +158,6 @@ export function CompanyProvider({
     sentToForYou.current = true;
     router.replace("/for-you");
   }, [me.data, session.userId, rememberedId, pathname, router]);
-
-  const memberships = useMemo(
-    () => me.data?.memberships ?? [],
-    [me.data?.memberships],
-  );
-  const activeId = resolveActiveCompanyId(memberships, chosen);
 
   // Keep the cookie in sync when the fallback (first membership) was used or
   // the persisted company disappeared.
@@ -211,9 +212,13 @@ export function CompanyProvider({
     value.role !== "member" &&
     (value.membership.subscription_status === "incomplete" ||
       value.membership.subscription_status === "incomplete_expired");
+  const company = workspaceId === null ? undefined : queryClient.getQueryData<CompanyView>(keys.company(workspaceId));
+  const canFixRegistration = pathname === "/settings" || pathname.startsWith("/settings/");
+  const awaitingRegistration = !canFixRegistration && company?.registration?.awaiting_first_approval === true;
+  const needsSetup = needsCheckout || awaitingRegistration;
   useEffect(() => {
-    if (needsCheckout) router.replace("/onboarding");
-  }, [needsCheckout, router]);
+    if (needsSetup) router.replace("/onboarding");
+  }, [needsSetup, router]);
 
   // The first /v1/me waits on getSession(), so the connection is opened now.
   // Anonymous, like the uncredentialed fetch that will reuse it.
@@ -254,7 +259,7 @@ export function CompanyProvider({
     );
   }
 
-  if (!value || needsCheckout) {
+  if (!value || needsSetup || hydrated.isPending) {
     // Loading (or redirecting to onboarding): named state, never a bare
     // spinner (G1 "no spinners without words").
     return (
@@ -263,7 +268,7 @@ export function CompanyProvider({
       >
         <Skeleton className="h-8 w-40" />
         <p className="text-sm text-muted-foreground">
-          {needsOnboarding || needsCheckout
+          {needsOnboarding || needsSetup
             ? t("misc.workspaceTakingYouToSetup")
             : t("misc.workspaceLoading")}
         </p>

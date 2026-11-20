@@ -13,6 +13,7 @@ enum RootState {
 
     /// Owner/admin with subscription_status incomplete — finish checkout on web.
     case needsCheckout(Me, companyId: String)
+    case needsRegistration
 
     /// #496/#314: this session has not satisfied two-factor.
     /// `enrolmentRequired` tells the gate which question to ask — a code from
@@ -407,6 +408,11 @@ final class RootViewModel {
             usingCachedWorkspace = false
             guard graph.sessionStore.current()?.userId == view.user_id else {
                 state = .signedOut
+                return
+            }
+            if view.company?.registration.awaiting_first_approval == true {
+                graph.sessionStore.forgetReadyWorkspace()
+                state = .needsRegistration
                 return
             }
             if let hydrated, mfa != nil {

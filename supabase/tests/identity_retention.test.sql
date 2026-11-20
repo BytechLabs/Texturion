@@ -75,13 +75,13 @@ begin
    where id = 'fa000000-0000-4000-8000-0000000000d1'::uuid) then
     raise exception 'abandoned brand details were kept';
   end if;
-  if not exists (select 1 from public.messaging_registrations
+  if exists (select 1 from public.messaging_registrations
    where id = 'fa000000-0000-4000-8000-0000000000d5'::uuid) then
-    raise exception 'texting details needed before checkout were deleted';
+    raise exception 'abandoned texting details were kept';
   end if;
 
-  if v_cleared is distinct from 1 then
-    raise exception 'expected exactly 1 row cleared, got %', v_cleared;
+  if v_cleared is distinct from 2 then
+    raise exception 'expected exactly 2 rows cleared, got %', v_cleared;
   end if;
 
   -- ---------------------------------------------------------------------

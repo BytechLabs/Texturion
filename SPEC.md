@@ -147,32 +147,23 @@ loonext/
    → creates company (subscription_status='incomplete'), creator becomes owner
      member, creates notification_prefs row.
 
-3. Texting details (before checkout)
-   Collects the campaign draft for companies enabling US texting:
-   • Opt-in flow description (pre-filled truthful default, editable)
-     "Customers text or call our business, ask us to text them in person or by
-      phone, or request a text on our website. We never send marketing blasts."
-   • Sample messages (pre-filled from ICP templates)
-   Canadian companies with us_texting_enabled=false skip the registration steps.
-
-4. POST /v1/billing/checkout { plan: 'starter'|'pro' } → Stripe Checkout
+3. POST /v1/billing/checkout { plan: 'starter'|'pro' } → Stripe Checkout
    (subscription mode).
    Gates (both return 409 `conflict`):
    • subscription_status already in ('active','past_due','unpaid') — one
      subscription per company, ever concurrent.
-   • The company owes US registration and its campaign draft is incomplete.
-     A canceled workspace can restart service with a missing campaign draft.
+   • A canceled workspace owes US registration and has an incomplete rejected
+     brand or campaign. A new workspace can check out with no drafts.
    Line items: licensed flat price (plan) + metered graduated price (NO quantity)
    + one-time $29 US-registration price when applicable (US company, or CA company
    with us_texting_enabled — AND registration_fee_paid_at IS NULL; see §2).
    client_reference_id = company_id. automatic_tax on.
-   CHECKOUT PAGE COPY (shown before payment, verbatim):
-     "Receiving texts works the moment your number is ready (minutes).
-      Texting Canadian numbers works immediately.
-      Texting US numbers activates after carrier approval — typically
-      3–7 business days. We'll email you the moment you're approved."
+   Before payment, explain when the number can receive texts, which registration
+   details are needed after checkout, and that first US carrier approval
+   typically takes 3 to 7 business days. The inbox stays available during US
+   registration for Canadian workspaces.
 
-5. checkout.session.completed webhook (payment_status == 'paid') — THE ONLY
+4. checkout.session.completed webhook (payment_status == 'paid') — THE ONLY
    provisioning trigger. Never provision from the redirect/success page.
    In waitUntil, atomically:
    a. Store stripe_customer_id, stripe_subscription_id, plan, period dates;
@@ -181,16 +172,26 @@ loonext/
    c. Submit an existing complete 10DLC registration once payment is recorded.
    Idempotent via webhook_events PK + phone_numbers.provisioning_key.
 
-6. Business details (after checkout, for companies that owe US registration)
+5. Business details (after checkout, for companies that owe US registration)
    Collects the brand draft if details are missing:
    • Legal business name, address and optional website
    • EIN (US) / BN (CA), or the sole proprietor's name and mobile number for OTP (D203)
    • Brand contact email and phone, and business vertical
+
+6. Texting details (after checkout, for companies that owe US registration)
+   Collects the campaign draft if details are missing:
+   • Opt-in flow description (pre-filled truthful default, editable)
+     "Customers text or call our business, ask us to text them in person or by
+      phone, or request a text on our website. We never send marketing blasts."
+   • Sample messages (pre-filled from ICP templates)
+   Canadian companies with us_texting_enabled=false skip both registration steps.
    Saving the last draft triggers submission once the registration fee is paid.
    The registration poller retries a complete paid brand draft after a carrier outage.
 
 7. Customer lands on the setup checklist, which live-renders the states:
    number provisioning → number active; US registration pending → approved.
+   A US workspace opens its inbox after its first campaign approval. Canadian
+   workspaces can open the inbox while US registration is pending.
 ```
 
 ### 4.2 Country/registration branches
@@ -240,7 +241,7 @@ Pro's second number: `POST /v1/numbers/provision` (owner/admin, active subscript
 `messaging_registrations`: one **brand** row and one **campaign** row per company. Statuses: `draft → submitted → pending → approved | rejected`. Rejected → (customer edits in wizard) → `submitted` again (`submission_count` increments; resubmission vetting cost is absorbed — the $29 fee priced it in).
 
 ```
-After payment (webhook, waitUntil):
+After payment and once both drafts are complete:
   R1. Submit brand: POST /v2/10dlc/brand (standard or sole-prop payload, field
       mapping below) → store telnyx_id (brandId) → brand: submitted.
       Sole-prop only: immediately trigger the OTP (POST /v2/10dlc/brand/
@@ -286,7 +287,7 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 
 **Wizard → Telnyx payload field mapping:**
 
-| Wizard field (§4.1 step 3) | Brand payload (`POST /v2/10dlc/brand`) |
+| Wizard field (§4.1 step 5) | Brand payload (`POST /v2/10dlc/brand`) |
 |---|---|
 | Legal business name | `companyName` (standard) / `firstName`+`lastName` (sole-prop); `displayName` = company display name |
 | EIN (US) / BN (CA) | `ein` (standard path; full identifier, stored — see §6) |
@@ -834,7 +835,7 @@ shell.
 | `POST /v1/companies` | any | Create company: `{ name, country, requested_area_code, us_texting_enabled?, aup_accepted: true }` → company; creator = owner |
 | `GET /v1/company` | M | Company + plan, subscription_status, period, cap, numbers summary, registration summary |
 | `PATCH /v1/company` | O/A | `{ name? }`; `{ overage_cap_multiplier? }` **owner only** (number or null) |
-| `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` when `subscription_status` ∈ ('active','past_due','unpaid') or required texting details are incomplete (§4.1 step 4) |
+| `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` for a live subscription or an incomplete rejected US registration on resubscribe (§4.1 step 3) |
 | `POST /v1/billing/portal` | O/A | → `{ url }` hosted portal (payment methods, invoices, cancellation only) |
 | `POST /v1/billing/change-plan` | billing.manage | `{ plan: 'starter'\|'pro' }` — upgrades prorate immediately. Downgrades start at period end and require at most one number and three active or reserved seats. The pending Starter limit applies to new invites and numbers until the downgrade takes effect or is withdrawn. |
 | `POST /v1/billing/cancel-plan-change` | billing.manage | Keep Pro by releasing the pending Stripe schedule before Starter takes effect. |
@@ -843,7 +844,7 @@ shell.
 | `POST /v1/numbers/provision` | O/A | Pro 2nd number: `{ requested_area_code }` (zod-validated against the shared NANP table; country fixed to the company's). Requires `Idempotency-Key`, active subscription, atomic count-vs-plan check; 409 `conflict` when the brand row has `sole_proprietor=true` and a non-released number exists (§4.2 cap) |
 | `DELETE /v1/numbers/:id` | O | Release a number (type-to-confirm in UI); needed pre-downgrade; **never automatic** |
 | `GET /v1/registration` | M | Brand + campaign rows (status, rejection_reason, timestamps) |
-| `PUT /v1/registration` | O/A | Save/update wizard data (draft or rejected → resubmit) |
+| `PUT /v1/registration` | O/A | Save/update wizard data after initial checkout (draft or rejected → resubmit) |
 | `POST /v1/registration/submit` | O/A | Submit a completed `draft` (first-submission recovery path) or resubmit after a rejection fix |
 | `POST /v1/registration/otp` | O/A | Sole-prop OTP: `{ code }` → Telnyx `PUT /v2/10dlc/brand/{brandId}/smsOtp { otpPin }` (§4.2); 422 `validation_failed` on a wrong/expired PIN |
 | `POST /v1/registration/otp/resend` | O/A | Re-trigger the sole-prop OTP SMS (`POST /v2/10dlc/brand/{brandId}/smsOtp` — fresh PIN, new 24h window) |
@@ -1015,7 +1016,7 @@ end $$;
 create trigger conversations_broadcast after update on public.conversations
   for each row execute function public.broadcast_conversation_change();
 
--- Onboarding live states (§4.1 step 6): number provisioning → active,
+-- Onboarding live states (§4.1 step 7): number provisioning → active,
 -- registration pending → approved render without refresh.
 create or replace function public.broadcast_provisioning_change() returns trigger
 language plpgsql security definer as $$
@@ -1131,7 +1132,7 @@ Billing managers receive a warning at 90% of the texting or calling spending cap
 
 ### Checkout composition (D6)
 
-Request body: `{ plan: 'starter'|'pro' }` (zod-validated) selects the price pair. Checkout returns 409 for an existing live subscription or missing required texting details (§4.1 step 4). Subscription-mode Checkout Session: `client_reference_id = company_id`; line items = licensed price (qty 1) + metered price (**no quantity** — required for metered items) + the one-time $29 price when applicable (US company or CA with `us_texting_enabled`, **and `registration_fee_paid_at IS NULL`** — never charged twice; initial invoice only); `automatic_tax[enabled]=true`; success/cancel URLs back to onboarding. The company is created on the number step or during number transfer intake. **`checkout.session.completed` with `payment_status=='paid'` is the only provisioning trigger** — never the redirect page.
+Request body: `{ plan: 'starter'|'pro' }` (zod-validated) selects the price pair. Checkout returns 409 for an existing live subscription or an incomplete rejected US registration on resubscribe (§4.1 step 3). Subscription-mode Checkout Session: `client_reference_id = company_id`; line items = licensed price (qty 1) + metered price (**no quantity** — required for metered items) + the one-time $29 price when applicable (US company or CA with `us_texting_enabled`, **and `registration_fee_paid_at IS NULL`** — never charged twice; initial invoice only); `automatic_tax[enabled]=true`; success/cancel URLs back to onboarding. The company is created on the number step or during number transfer intake. **`checkout.session.completed` with `payment_status=='paid'` is the only provisioning trigger** — never the redirect page.
 
 ### Webhook handling & subscription_status state machine
 

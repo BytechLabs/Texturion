@@ -367,25 +367,20 @@ billingRoutes.post("/checkout", async (c) => {
   }
 
   const owesRegistration = owesUsRegistration(company);
-  if (owesRegistration) {
+  if (owesRegistration && company.subscription_status === "canceled") {
     const { data, error } = await db
       .from("messaging_registrations")
       .select("kind,status,sole_proprietor,data")
       .eq("company_id", company.id)
-      .eq("kind", "campaign");
+      .eq("status", "rejected");
     if (error) {
       throw new Error(`messaging_registrations lookup failed: ${error.message}`);
     }
-    const campaign = ((data ?? []) as RegistrationRow[]).find((row) => row.kind === "campaign");
-    // Older customers can restart service before completing a missing draft.
-    const campaignComplete = campaign
-      ? registrationRowSubmittable(campaign)
-      : company.subscription_status === "canceled";
-    if (!campaignComplete) {
+    if (((data ?? []) as RegistrationRow[]).some((row) => !registrationRowSubmittable(row))) {
       return errorResponse(
         c,
         "conflict",
-        "Complete the US texting details before checkout.",
+        "Update your rejected US texting registration before restarting your subscription.",
         { key: "apiRefusals.billingCheckoutTextingRequired" },
       );
     }

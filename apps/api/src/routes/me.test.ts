@@ -169,7 +169,7 @@ describe("GET /v1/me", () => {
         subscription_status: string;
         numbers: unknown[];
         billing_writes_enabled: boolean;
-        registration: { brand: unknown; campaign: unknown };
+        registration: { brand: unknown; campaign: unknown; awaiting_first_approval: boolean };
       };
     }>();
     expect(body.company.plan).toBe("starter");
@@ -186,6 +186,7 @@ describe("GET /v1/me", () => {
       kind: "campaign",
       status: "pending",
     });
+    expect(body.company.registration.awaiting_first_approval).toBe(true);
   });
 
   it("flips billing_writes_enabled to false under the BILLING_WRITES_DISABLED kill-switch (#163)", async () => {

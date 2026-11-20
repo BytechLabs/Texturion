@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.loonext.android.AppGraph
+import com.loonext.android.RegistrationSetup
 import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionPreferencesRule
 import com.loonext.android.core.data.CacheKeys
@@ -225,6 +226,11 @@ class IssueEvidenceScreenshotTest {
     fun tearDown() {
         if (::graph.isInitialized) runBlocking { graph.appScope.coroutineContext.job.cancelAndJoin() }
         if (::server.isInitialized) server.close()
+    }
+
+    @Test
+    fun registrationSetup() = shoot("registration-setup", dark = false) {
+        RegistrationSetup(onRefresh = {}, onSignOut = {})
     }
 
     // --- 1. inbox -------------------------------------------------------------------

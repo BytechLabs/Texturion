@@ -180,6 +180,20 @@ describe("CompanyProvider boot reads", () => {
     );
   });
 
+  it("redirects a workspace awaiting first carrier approval before mounting the shell", async () => {
+    const hydrated = deferred<Me>();
+    api.mockImplementation((_path, options) => options?.companyId ? hydrated.promise : Promise.resolve(me));
+    mount();
+    expect(screen.queryByText(`shell for ${COMPANY}`)).toBeNull();
+
+    await act(async () => hydrated.resolve({
+      ...me,
+      company: { ...company, registration: { brand: null, campaign: null, awaiting_first_approval: true } },
+    }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/onboarding"));
+    expect(screen.queryByText(`shell for ${COMPANY}`)).toBeNull();
+  });
+
   it("ignores a refusal of the hydrated read for a stale workspace", async () => {
     api.mockImplementation(async (_path, options) => {
       if (options?.companyId) {

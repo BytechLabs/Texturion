@@ -44,17 +44,10 @@ import type { PlanIntent } from "@/lib/marketing/plan-intent";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { owesUsRegistration, previousStepHref, stepProgress } from "../steps";
+import { owesUsRegistration, pendingRegistrationStep, previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 import { planCards } from "./plans";
 import { WorkspaceSummary } from "./workspace-summary";
-
-/**
- * G7 step 4 — plan cards (SPEC §2 pricing) with the honest-timeline card
- * pre-payment (SPEC §4.1 step 4 checkout copy, verbatim) and the US one-time
- * fee line. Checkout is hosted Stripe; returning without paying lands back
- * here via /dashboard?checkout=canceled with a calm note.
- */
 
 /** The add-on cards this step may offer: the catalog minus regions_ca, which
  *  is inert in the single-region model and refused by the checkout API. */
@@ -137,6 +130,7 @@ function PlanStep() {
   );
 
   const owesFee = owes && company.registration_fee_paid_at === null;
+  const needsRegistrationDetails = pendingRegistrationStep(state.snapshot) !== null;
   const soleProp = state.registration?.brand?.sole_proprietor === true;
   const canceledReturn = searchParams.get("checkout") === "canceled";
   // A pending (non-cancelled) port swaps the checkout copy to the porting
@@ -144,11 +138,15 @@ function PlanStep() {
   const porting = (ports.data?.data ?? []).some(
     (p) => p.status !== "cancelled",
   );
-  const timeline = porting
-    ? PORT_CHECKOUT_TIMELINE_KEYS.map((key) => t(key))
-    : (owes
-      ? HONEST_TIMELINE
-      : HONEST_TIMELINE_CA_ONLY);
+  let numberTimeline: readonly string[] = owes ? HONEST_TIMELINE : HONEST_TIMELINE_CA_ONLY;
+  if (porting) {
+    numberTimeline = PORT_CHECKOUT_TIMELINE_KEYS.map((key) => t(key));
+  } else if (company.country === "US" && company.subscription_status !== "canceled") {
+    numberTimeline = [t("onboarding.afterYouPayNumberReceives"), t("onboarding.afterYouPayInbox")];
+  }
+  const timeline = needsRegistrationDetails
+    ? [t("onboarding.afterYouPayRegistration"), ...numberTimeline]
+    : numberTimeline;
 
   async function choose(plan: PlanId) {
     setFormError(null);

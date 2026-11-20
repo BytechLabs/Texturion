@@ -1260,6 +1260,9 @@ async function runSubmitRegistration(
     if (!parseBrandDraft(brand)) {
       return { action: "noop", reason: "Brand draft data is incomplete." };
     }
+    if (!parseCampaignDraft(campaign)) {
+      return { action: "noop", reason: "Campaign draft data is incomplete." };
+    }
     const claimed = await claimBrandSubmission(db, brand);
     if (!claimed?.brand_submission_lease_until) {
       return { action: "noop", reason: "Brand submission is already in progress." };

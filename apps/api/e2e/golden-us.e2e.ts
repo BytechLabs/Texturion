@@ -2,13 +2,11 @@
  * D31 launch-pass — golden path 1: US sole-prop full spine.
  *
  * The load-bearing cross-vendor sequence step 19 names for a US company:
- *   seed a US company + a submittable sole-prop brand + campaign draft
- *     (messaging_registrations, the exact §4.4 wizard keys so the checkout
- *      Gate-2 registration-draft-complete check passes)
+ *   seed a US company with no registration drafts
  *   → POST /v1/billing/checkout → 200 with a Stripe checkout url
  *   → register the subscription + customer fixtures, inject a signed paid
- *     checkout.session.completed → company flips 'active', number provisions,
- *     the sole-prop 10DLC brand submits (+ the OTP is triggered)
+ *     checkout.session.completed → company flips 'active', number provisions
+ *   → save both drafts → the sole-prop 10DLC brand submits and sends an OTP
  *   → DUPLICATE-DELIVERY of the SAME event: still active, number ordered
  *     EXACTLY ONCE (the provisioning_key backstop)
  *   → GATE: a US-destined send is BLOCKED (registration_pending) while a
@@ -30,8 +28,6 @@ let h: Harness;
 // Fixed per-spec id space (cleaned in afterAll; the DB starts empty).
 const OWNER_ID = "d31c0001-0001-4001-8001-000000000001";
 const COMPANY_ID = "d31c0001-0002-4002-8002-000000000002";
-const BRAND_ID = "d31c0001-0003-4003-8003-000000000003";
-const CAMPAIGN_ID = "d31c0001-0004-4004-8004-000000000004";
 const US_CONTACT_ID = "d31c0001-0005-4005-8005-000000000005";
 const CA_CONTACT_ID = "d31c0001-0006-4006-8006-000000000006";
 const US_CONVERSATION_ID = "d31c0001-0007-4007-8007-000000000007";
@@ -47,13 +43,10 @@ const CHECKOUT_EVENT_ID = "evt_e2e_us_checkout_1";
 const US_DEST = "+12125551234";
 const CA_DEST = "+15145559876";
 
-// The §4.4 sole-prop brand draft, stored under the canonical Telnyx keys the
-// checkout Gate-2 (billing/registration-draft) and submitBrand both read.
 const BRAND_DRAFT = {
   displayName: "Pats Plumbing",
   firstName: "Pat",
   lastName: "Rivera",
-  ein: "1234", // last-4 identifier (sole prop, §4.4)
   mobilePhone: "+12125550111",
   email: "pat@patsplumbing.test",
   phone: "+12125550100",
@@ -163,15 +156,6 @@ beforeAll(async () => {
     insert into public.company_members (company_id, user_id, role)
     values ('${COMPANY_ID}', '${OWNER_ID}', 'owner');
 
-    -- Submittable sole-prop brand + campaign drafts (checkout Gate-2).
-    insert into public.messaging_registrations
-      (id, company_id, kind, status, sole_proprietor, data)
-    values
-      ('${BRAND_ID}', '${COMPANY_ID}', 'brand', 'draft', true,
-       '${JSON.stringify(BRAND_DRAFT)}'::jsonb),
-      ('${CAMPAIGN_ID}', '${COMPANY_ID}', 'campaign', 'draft', false,
-       '${JSON.stringify(CAMPAIGN_DRAFT)}'::jsonb);
-
     -- Two contacts + open conversations: one US destination, one CA. The
     -- conversation's phone_number_id is filled in after provisioning below.
     insert into public.contacts (id, company_id, phone_e164, name)
@@ -263,7 +247,7 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     expect(h.stripe.callsTo("POST", /\/v1\/checkout\/sessions$/)).toHaveLength(1);
   });
 
-  it("paid checkout.session.completed: active, number provisions, sole-prop brand submits + OTP", async () => {
+  it("paid checkout provisions and the last registration save submits the sole-prop brand", async () => {
     const res = await h.injectStripe(checkoutCompletedEvent());
     expect(res.status).toBe(200);
     expect(res.json).toMatchObject({ received: true });
@@ -280,6 +264,30 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     const number = await activeNumber();
     expect(number).not.toBeNull();
     expect(number?.number_e164).toMatch(/^\+1\d{10}$/);
+
+    const token = await h.token(OWNER_ID);
+    expect(h.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(0);
+    const start = await h.call("GET", "/v1/company", { token, companyId: COMPANY_ID });
+    expect(start.json).toMatchObject({
+      registration: { completion_step: "business", awaiting_first_approval: true },
+    });
+    const brandSave = await h.call("PUT", "/v1/registration", {
+      token,
+      companyId: COMPANY_ID,
+      body: { brand: BRAND_DRAFT },
+    });
+    expect(brandSave.status).toBe(200);
+    expect(h.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(0);
+    const next = await h.call("GET", "/v1/company", { token, companyId: COMPANY_ID });
+    expect(next.json).toMatchObject({
+      registration: { completion_step: "texting", awaiting_first_approval: true },
+    });
+    const campaignSave = await h.call("PUT", "/v1/registration", {
+      token,
+      companyId: COMPANY_ID,
+      body: { campaign: CAMPAIGN_DRAFT },
+    });
+    expect(campaignSave.status).toBe(200);
 
     // Sole-prop 10DLC brand submitted (+ the OTP text was triggered §4.2).
     expect(h.telnyx.callsTo("POST", /\/v2\/10dlc\/brand$/)).toHaveLength(1);
@@ -400,6 +408,10 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     });
     const approvedCampaign = await registrationRow("campaign");
     expect(approvedCampaign.status).toBe("approved");
+    const ready = await h.call("GET", "/v1/company", { token, companyId: COMPANY_ID });
+    expect(ready.json).toMatchObject({
+      registration: { completion_step: null, awaiting_first_approval: false },
+    });
 
     // The SAME US-destined send now succeeds (one more POST /v2/messages).
     const before = h.telnyx.callsTo("POST", /\/v2\/messages$/).length;

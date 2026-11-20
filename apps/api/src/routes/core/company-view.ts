@@ -18,6 +18,8 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { hasLiveSubscription } from "../../billing/plans";
+import type { LocalSubscriptionStatus } from "../../billing/plans";
 import { registrationRowSubmittable } from "../../billing/registration-draft";
 import type { RegistrationRow as RegistrationDraftRow } from "../../billing/registration-draft";
 import type { Env } from "../../env";
@@ -139,7 +141,7 @@ const NUMBER_COLUMNS =
   "created_at,failure_reason:provision_failure_reason,provision_attempts";
 
 const REGISTRATION_COLUMNS =
-  "kind,status,sole_proprietor,rejection_reason,submission_count," +
+  "kind,status,sole_proprietor,rejection_reason,submission_count,reactivation_count," +
   "submitted_at,approved_at,rejected_at,deactivated_at,data";
 
 type RegistrationRow = RegistrationDraftRow & Record<string, unknown>;
@@ -182,6 +184,7 @@ export interface CompanyView {
     brand: Omit<RegistrationRow, "data"> | null;
     campaign: Omit<RegistrationRow, "data"> | null;
     completion_step: RegistrationCompletionStep | null;
+    awaiting_first_approval: boolean;
   };
 }
 
@@ -510,7 +513,10 @@ export async function loadCompanyView(
   );
   const brand = registrations.find((row) => row.kind === "brand");
   const campaign = registrations.find((row) => row.kind === "campaign");
-
+  const firstUsRegistration = company.country === "US" &&
+    hasLiveSubscription(company.subscription_status as LocalSubscriptionStatus) &&
+    campaign?.status !== "approved" && campaign?.status !== "suspended" &&
+    (campaign?.approved_at ?? null) === null && Number(campaign?.reactivation_count ?? 0) === 0;
 
   // #515: the money columns leave here only for a caller who holds
   // billing.manage. Applied LAST, to the finished payload, so a column carried
@@ -537,6 +543,7 @@ export async function loadCompanyView(
         brand: registrationSummary(brand),
         campaign: registrationSummary(campaign),
         completion_step: registrationCompletionStep(company, brand, campaign),
+        awaiting_first_approval: firstUsRegistration,
       },
     },
     caller.role,
@@ -552,13 +559,13 @@ function registrationCompletionStep(
     (company.country === "CA" && company.us_texting_enabled === true);
   if (company.subscription_status !== "active" || !owesRegistration) return null;
   if (campaign?.status === "approved") return null;
-  if (!campaign || !registrationRowSubmittable(campaign)) return "texting";
-  return brand && registrationRowSubmittable(brand) ? null : "business";
+  if (!brand || !registrationRowSubmittable(brand)) return "business";
+  return campaign && registrationRowSubmittable(campaign) ? null : "texting";
 }
 
 function registrationSummary(row: RegistrationRow | undefined) {
   if (!row) return null;
-  const { data: _draft, ...summary } = row;
+  const { data: _draft, reactivation_count: _reactivations, ...summary } = row;
   return summary;
 }
 

@@ -68,6 +68,9 @@ struct RootView: View {
                     onSignOut: model.signOut
                 )
 
+            case .needsRegistration:
+                RegistrationSetupView(onRefresh: model.retry, onSignOut: model.signOut)
+
             case .failed(let message):
                 LoadError(message: message, onRetry: model.retry)
 
@@ -125,6 +128,24 @@ struct RootView: View {
             default: break
             }
         }
+    }
+}
+
+@MainActor
+struct RegistrationSetupView: View {
+    @Environment(\.appLocale) private var appLocale
+    let onRefresh: @MainActor () -> Void
+    let onSignOut: @MainActor () -> Void
+
+    var body: some View {
+        ExternalStepView(
+            headline: AppStrings.translate(appLocale, "shell.regTextingDetailsNeeded"),
+            body: AppStrings.translate(appLocale, "shell.regInboxWaitingForApproval"),
+            cta: AppStrings.translate(appLocale, "shell.regViewSetup"),
+            url: ExternalStepView.onboardingURL,
+            onRefresh: onRefresh,
+            onSignOut: onSignOut
+        )
     }
 }
 

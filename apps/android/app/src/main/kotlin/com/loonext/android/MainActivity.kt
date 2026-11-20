@@ -537,6 +537,10 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
             )
         }
 
+        RootState.NeedsRegistration -> PreShellHost {
+            RegistrationSetup(onRefresh = root::retry, onSignOut = root::signOut)
+        }
+
         // #496/#314: the two-factor wall. Rendered as the whole screen rather
         // than over the shell — there is no shell yet, because every
         // company-scoped read behind it is being refused.
@@ -1430,6 +1434,18 @@ private fun OverlayScaffold(
             content(Modifier.fillMaxSize().contentMaxWidth())
         }
     }
+}
+
+@Composable
+internal fun RegistrationSetup(onRefresh: () -> Unit, onSignOut: () -> Unit) {
+    ExternalStep(
+        headline = t("shell.regTextingDetailsNeeded"),
+        body = t("shell.regInboxWaitingForApproval"),
+        cta = t("shell.regViewSetup"),
+        url = "$APP_ORIGIN/onboarding",
+        onRefresh = onRefresh,
+        onSignOut = onSignOut,
+    )
 }
 
 /** A signed-in interstitial that hands off to the web app in the browser. */
