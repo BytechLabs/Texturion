@@ -152,6 +152,14 @@ on conflict (id) do update set
   caller_id_lookup = excluded.caller_id_lookup,
   deleted_at = null;`);
 
+    if (tenant.voicemailIntake) {
+      statements.push(`
+insert into public.company_ai_settings (company_id, transcribe_voicemail, voicemail_intake)
+values (${lit(companyId)}, true, true)
+on conflict (company_id) do update set transcribe_voicemail = true, voicemail_intake = true;
+update public.companies set auto_reply_cooldown_minutes = 1 where id = ${lit(companyId)};`);
+    }
+
     for (const member of tenant.members) {
       statements.push(`
 insert into public.company_members (company_id, user_id, role)
@@ -195,6 +203,9 @@ on conflict (id) do update set
 insert into public.number_access (company_id, phone_number_id, principal_kind, principal, level)
 values (${lit(companyId)}, ${lit(numberId)}, 'all', null, 'note');`,
       );
+      if (number.missedCallText) {
+        statements.push(`update public.phone_numbers set mctb_enabled = true where id = ${lit(numberId)};`);
+      }
       for (const memberKey of number.rings) {
         const member = tenant.members.find((candidate) => candidate.key === memberKey);
         if (!member) throw new Error(`rig seed: ${number.role} rings ${memberKey}, who is not in ${tenant.name}`);

@@ -47,6 +47,7 @@ export function isFictional(e164: string): boolean {
 }
 
 export interface MemberPageApi {
+  waitForPhoneReady(): Promise<void>;
   waitForRing(timeoutMs: number): Promise<number | undefined>;
   /** Waits until neither the ring dialog nor the call bar shows, which is how a surface that did not win the call shows it. */
   waitForCallCleared(timeoutMs: number): Promise<number | undefined>;
@@ -535,7 +536,7 @@ export interface DeviceApi {
    */
   resetUi(): Promise<{ crashPrompt: boolean }>;
   /** Waits for Telecom to report a ringing call and the full-screen ring to show; undefined if neither did. */
-  waitForRinging(timeoutMs: number): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined>;
+  waitForRinging(timeoutMs: number, options?: { verifyActivity?: boolean }): Promise<{ telecom_ms?: number; full_screen_ms?: number } | undefined>;
   /** Telecom's state for the app's calls. */
   callState(): Promise<"ringing" | "active" | "holding" | "disconnected" | "none">;
   /** Taps a call control by its test id (tools/rig/test-ids.json); false when it is not on screen. */

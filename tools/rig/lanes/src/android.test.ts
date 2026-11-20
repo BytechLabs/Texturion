@@ -330,6 +330,9 @@ describe("the device driver's commands (no device has run them)", () => {
         notes += 1;
         return notes >= 4 ? `  NotificationRecord(0x2: pkg=${PKG})\n    fullscreenIntent=PendingIntent{x}` : "";
       }
+      if (line.includes("dumpsys activity activities")) {
+        return `topResumedActivity=ActivityRecord{1 u0 ${PKG}/com.loonext.android.features.calls.CallActivity t2}`;
+      }
       return "";
     };
     let now = 0;
@@ -347,6 +350,7 @@ describe("the device driver's commands (no device has run them)", () => {
       },
     });
     await expect(android.waitForRinging(12_000)).resolves.toEqual({ telecom_ms: 1000, full_screen_ms: 1500 });
+    await expect(android.waitForRinging(12_000, { verifyActivity: true })).resolves.toEqual({ telecom_ms: 0, full_screen_ms: 0 });
     polls = -100;
     notes = -100;
     now = 0;

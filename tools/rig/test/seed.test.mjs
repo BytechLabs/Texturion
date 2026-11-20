@@ -113,6 +113,13 @@ test("each number's audience at rest is everyone at note level plus the listed m
   assert.match(sql, new RegExp(`${userIds["qa-a"].technician  }', 'text'`));
 });
 
+test("QA-W opts into voicemail intake for S04", () => {
+  const { standing, ids, userIds } = fixture();
+  const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });
+  const rows = [...sql.matchAll(/insert into public\.company_ai_settings[^\n]+\nvalues \('([0-9a-f-]+)', true, true\)/g)];
+  assert.deepEqual(rows.map((row) => row[1]), [ids["qa-w"].company_id]);
+});
+
 test("numbers carry the guard's ids and profiles, and the robot's numbers name the robot connection, not the voice app", () => {
   const { standing, ids, userIds } = fixture();
   const sql = seedSql({ ids, userIds, standing, profiles: STUB_PROFILES, voiceConnectionId: "stub-voice", robotConnectionId: "stub-robot" });

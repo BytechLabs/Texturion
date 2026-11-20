@@ -433,6 +433,11 @@ export async function ringOnly(
  * refusal is read from the beacons.
  */
 export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Record<string, unknown> = ctx.evidence): Promise<ScenarioResult | undefined> {
+  resetOnRelease(ctx, pixel.name);
+  const locked = await onDevice(pixel, "locking it for the full-screen ring", () => pixel.lock());
+  if (locked) return locked;
+  const didLock = await poll(ctx, async () => (await pixel.state()).locked || undefined, 3000, 250);
+  if (!didLock) return infra(pixel.name, "the screen did not lock before the test push");
   const since = ctx.now();
   const caller = `Rig ${ctx.nonce}`;
   let answer: Awaited<ReturnType<AppApi["simulateIncoming"]>>;
@@ -450,7 +455,7 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
   if (!sessionId) return fail("no_synthetic_session", "simulate-incoming answered without a session id");
   ev.session_id = sessionId;
 
-  const ring = await pixel.waitForRinging(RING_WITHIN_MS);
+  const ring = await pixel.waitForRinging(RING_WITHIN_MS, { verifyActivity: true });
   ev.ring = ring ?? null;
   if (ring) ev.ring_shows_nonce = await pixel.showing({ text: caller });
   const beacons = await readBeacons(ctx, PIXEL_LANE, { since, sessionId, until: PUSH_STAGES, settleUntil: since + RING_ME_SETTLE_MS + EVENT_INGEST_MS }, ev);
@@ -481,6 +486,8 @@ export async function pushWake(ctx: ScenarioContext, pixel: DeviceApi, ev: Recor
  */
 async function dismissRing(ctx: ScenarioContext, pixel: DeviceApi, rang: boolean, ev: Record<string, unknown>): Promise<ScenarioResult | undefined> {
   if (rang) ev.dismissed = await pixel.tap("call_decline");
+  const unlocked = await onDevice(pixel, "unlocking it after the test push", () => pixel.unlock());
+  if (unlocked) return unlocked;
   const stopped = await onDevice(pixel, "stopping the app to end the ring", () => pixel.resetUi());
   const left = await poll(ctx, async () => ((await pixel.callState()) === "ringing" ? undefined : true), RING_CLEARED_MS, 500);
   ev.ring_cleared = left === true;
@@ -492,9 +499,7 @@ async function dismissRing(ctx: ScenarioContext, pixel: DeviceApi, rang: boolean
  * D02 from the reachability check on: the app killed, the device lane's
  * emulator in deep idle and locked with its PIN, rung by ROBOT-1 and answered
  * from the lock screen, with the codes heard both ways through its gRPC
- * audio. Until EA1 has proven that audio the run is infra, never a pass; once
- * proven, a code not heard fails it. D03 steps deep idle instead of forcing
- * it; D10 and D12 repeat it after an install.
+ * audio. An unavailable audio link still lets the rig check wake and answer.
  */
 export async function androidWake(
   ctx: ScenarioContext,
@@ -504,20 +509,24 @@ export async function androidWake(
 ): Promise<ScenarioResult> {
   const unreachable = await reachable(pixel);
   if (unreachable) return unreachable;
-  const silent = await audioReady(pixel);
-  if (silent) return silent;
+  let audioFailure = await audioReady(pixel);
   resetOnRelease(ctx, pixel.name);
   const setup = await killedAsleepLocked(pixel, doze, ev);
   if (setup) return setup;
   ev.device = { ...(await pixel.state()) };
-  try {
-    await pixel.audio.playCode(PIXEL_LANE.surface);
-  } catch (error) {
-    return audioFault(error);
+  if (!audioFailure) {
+    try {
+      await pixel.audio.playCode(PIXEL_LANE.surface);
+    } catch (error) {
+      audioFailure = audioFault(error);
+    }
   }
   try {
-    const { failure } = await callWake(ctx, pixel, PIXEL_LANE, { audio: pixel.audio }, ev);
-    return failure ?? pass();
+    const { failure } = await callWake(ctx, pixel, PIXEL_LANE, {
+      audio: audioFailure ? undefined : pixel.audio,
+      judgeRobotHearing: !audioFailure,
+    }, ev);
+    return failure ?? audioFailure ?? pass();
   } finally {
     await pixel.audio.stop();
   }

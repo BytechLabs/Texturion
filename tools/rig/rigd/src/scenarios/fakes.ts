@@ -607,6 +607,7 @@ export class FakeBrowser implements BrowserApi {
     const {script} = this;
     const {actions} = this;
     return {
+      async waitForPhoneReady() {},
       async waitForRing(timeoutMs) {
         const after = script.ringsAfterMs;
         return after !== undefined && after <= timeoutMs ? after : undefined;

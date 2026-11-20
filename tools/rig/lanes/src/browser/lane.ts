@@ -564,6 +564,10 @@ export class MemberPage {
     return this.page.evaluate((n) => (window as unknown as { __rigJudge?: RigJudgeHandle }).__rigJudge?.mark(n), name);
   }
 
+  async waitForPhoneReady(): Promise<void> {
+    await this.page.getByTitle("Your browser will ring for incoming calls", { exact: true }).waitFor({ timeout: 15_000 });
+  }
+
   /** Waits for the ring dialog; resolves with how long it took, or undefined if it never showed. */
   async waitForRing(timeoutMs: number): Promise<number | undefined> {
     const started = Date.now();
@@ -714,7 +718,7 @@ export class BrowserLane {
   }
 
   /** The member's page, launched once and reused for the run. */
-  async open(member: string, surface: Surface, path = "/", options: OpenOptions = {}): Promise<MemberPage> {
+  async open(member: string, surface: Surface, path = "/inbox", options: OpenOptions = {}): Promise<MemberPage> {
     if (!/^[a-z0-9-]+$/.test(member)) throw new Error(`browser lane: "${member}" is not a member key`);
     const chrome = options.push ? this.#o.chrome : undefined;
     const name = profileName(member, chrome !== undefined);

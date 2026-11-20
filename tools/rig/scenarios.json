@@ -173,7 +173,8 @@
       "far_end": "ROBOT-1 speaks after the beep",
       "runs_on": "rig",
       "runs": [
-        {}
+        { "label": "unanswered" },
+        { "label": "decline" }
       ],
       "dials": 1,
       "far_end_legs": 1,

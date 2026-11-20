@@ -114,7 +114,7 @@ Drive the AVD from a second terminal while recording. `screenrecord` captures pi
 | Offline | `dev shell cmd connectivity airplane-mode enable`, `dev shell svc wifi disable` and `dev shell svc data disable`. Confirm the API is unreachable **from the app**. | Disable airplane mode and restore Wi-Fi and mobile data to their previous values. |
 | Slow link | Use [EmulatorConsole.shape](../tools/rig/lanes/src/android/emulator-console.ts) from the VM for speed and latency. Record the settings used. | Reset the shape and Wi-Fi. |
 
-Use `rig run D02p` for the guarded ring FCM path without a dial. For a message push to QA-A, run this on the VM with the technician signed in to Android. The robot chooses its owned numbers by role.
+Use `rig run D02p` for the guarded ring FCM path without a dial. On API 34 or later, check the nonprod app's full-screen intent access in Android Settings first. The scenario locks the AVD and verifies that the incoming call activity opens over the keyguard. For a message push to QA-A, run this on the VM with the technician signed in to Android. The robot chooses its owned numbers by role.
 
 ```sh
 ROBOT_ROLE=ROBOT-1 node --input-type=module <<'JS'
