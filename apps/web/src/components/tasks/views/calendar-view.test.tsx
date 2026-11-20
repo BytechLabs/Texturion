@@ -145,6 +145,25 @@ describe("Calendar reads", () => {
     await screen.findByText(EN.tasks.calendarEmptyDueDate);
   });
 
+  it("shows both published bookings even when their task is due outside this month", async () => {
+    apiFetch.mockImplementation(async (_path, options) => ({
+      data: options?.searchParams?.schedule_after ? [{
+        ...overlapTask,
+        due_at: "2026-12-14T15:00:00.000Z",
+        published_work: [
+          { id: "visit-1", starts_at: "2026-11-12T15:00:00Z", ends_at: "2026-11-12T15:40:00Z" },
+          { id: "visit-2", starts_at: "2026-11-12T19:00:00Z", ends_at: "2026-11-12T19:40:00Z" },
+        ],
+      }] : [],
+      next_cursor: null,
+    }));
+    renderCalendar();
+    const visits = await screen.findAllByRole("link", { name: /Service the furnace/ });
+    expect(visits).toHaveLength(2);
+    expect(visits[0].textContent).toContain("10:00");
+    expect(visits[1].textContent).toContain("2:00");
+  });
+
   it("a month step keeps the chips it still shows while the next month loads", async () => {
     const { container } = renderCalendar();
     const chip = await screen.findByRole("link", { name: "Service the furnace" });

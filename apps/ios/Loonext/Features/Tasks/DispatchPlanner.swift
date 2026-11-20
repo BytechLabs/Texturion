@@ -739,31 +739,31 @@ private struct DispatchShiftEditor: View {
 
     private static let defaultShift = DispatchShift(start: "09:00", end: "17:00")
     private var weekday: Int { (calendar.component(.weekday, from: date) + 5) % 7 + 1 }
-    private func text(_ suffix: String) -> String { AppStrings.translate(locale, "contactsTasks.dispatch" + suffix) }
+    private func text(_ key: String) -> String { AppStrings.translate(locale, key) }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(text("Assignee"), selection: $worker) {
-                        ForEach(members) { member in Text(member.name ?? text("Assignee")).tag(member.id) }
+                    Picker(text("contactsTasks.dispatchAssignee"), selection: $worker) {
+                        ForEach(members) { member in Text(member.name ?? text("contactsTasks.dispatchAssignee")).tag(member.id) }
                     }
-                    Picker(text("Availability"), selection: $mode) {
-                        Text(text("WorkspaceHours")).tag("workspace")
-                        Text(text("CustomShift")).tag("shift")
-                        Text(text("DayOff")).tag("off")
+                    Picker(text("contactsTasks.dispatchAvailability"), selection: $mode) {
+                        Text(text("contactsTasks.dispatchWorkspaceHours")).tag("workspace")
+                        Text(text("contactsTasks.dispatchCustomShift")).tag("shift")
+                        Text(text("contactsTasks.dispatchDayOff")).tag("off")
                     }
                     if mode == "shift" {
-                        TextField(text("ShiftStart"), text: Binding(get: { shift.start ?? "" }, set: { shift.start = $0 }))
-                        TextField(text("ShiftEnd"), text: Binding(get: { shift.end ?? "" }, set: { shift.end = $0 }))
+                        TextField(text("contactsTasks.dispatchShiftStart"), text: Binding(get: { shift.start ?? "" }, set: { shift.start = $0 }))
+                        TextField(text("contactsTasks.dispatchShiftEnd"), text: Binding(get: { shift.end ?? "" }, set: { shift.end = $0 }))
                         ForEach(shift.breaks.indices, id: \.self) { index in
                             if shift.breaks.indices.contains(index) {
-                                TextField(text("BreakStart"), text: breakTime(index, start: true))
-                                TextField(text("BreakEnd"), text: breakTime(index, start: false))
-                                Button(text("RemoveBreak")) { shift.breaks.remove(at: index) }
+                                TextField(text("contactsTasks.dispatchBreakStart"), text: breakTime(index, start: true))
+                                TextField(text("contactsTasks.dispatchBreakEnd"), text: breakTime(index, start: false))
+                                Button(text("contactsTasks.dispatchRemoveBreak")) { shift.breaks.remove(at: index) }
                             }
                         }
-                        Button(text("AddBreak")) { shift.breaks.append(DispatchWindow(start: "12:00", end: "12:30")) }
+                        Button(text("contactsTasks.dispatchAddBreak")) { shift.breaks.append(DispatchWindow(start: "12:00", end: "12:30")) }
                             .disabled(shift.breaks.count >= 6)
                     }
                     if let failure { Text(failure).foregroundStyle(BrandColor.destructive) }
@@ -772,7 +772,7 @@ private struct DispatchShiftEditor: View {
                         TimestampFormat.weekday(date, locale: locale, timeZone: calendar.timeZone)]))
                 }
             }
-            .navigationTitle(text("Shifts"))
+            .navigationTitle(text("contactsTasks.dispatchShifts"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

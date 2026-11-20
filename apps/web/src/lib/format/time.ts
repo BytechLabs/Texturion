@@ -435,6 +435,14 @@ export function formatScheduledTime(iso: string, locale: string, timeZone?: stri
   }).format(new Date(iso));
 }
 
+export function formatScheduledRange(start: string, end: string, locale: string, timeZone: string): string {
+  return getFormatter(locale, timeZone, { timeStyle: "short" }).formatRange(new Date(start), new Date(end));
+}
+
+export function formatWallWeekday(date: string, locale: string): string {
+  return getFormatter(locale, "UTC", { weekday: "long" }).format(new Date(`${date}T12:00:00Z`));
+}
+
 export function formatScheduleDay(date: string, locale: string): string {
   return getFormatter(locale, "UTC", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date));
 }

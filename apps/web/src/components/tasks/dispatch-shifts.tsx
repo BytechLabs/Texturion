@@ -7,6 +7,7 @@ import { DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/c
 import { Input } from "@/components/ui/input";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
+import { formatWallWeekday } from "@/lib/format/time";
 
 import type { DispatchPlan, DispatchShift } from "./dispatch-data";
 import { dayFromKey } from "./views/calendar-create";
@@ -32,12 +33,11 @@ export function DispatchShifts({ date, person, plan, busy, error, onSave }: {
   };
   const [shift, setShift] = useState<ShiftDraft | null>(() => initialShift(person));
   const mode = shift === null ? "workspace" : (shift.start === null ? "off" : "shift");
-  const weekdays = new Intl.DateTimeFormat(t.locale, { weekday: "long" });
 
   return (
     <DialogContent className="max-h-[85dvh] overflow-y-auto">
       <DialogTitle>{t("tasks.dispatchShifts")}</DialogTitle>
-      <DialogDescription>{t("tasks.dispatchShiftWeekday", { day: weekdays.format(day) })}</DialogDescription>
+      <DialogDescription>{t("tasks.dispatchShiftWeekday", { day: formatWallWeekday(date, t.locale) })}</DialogDescription>
       <form className="grid gap-3" onSubmit={(event) => {
         event.preventDefault();
         onSave(worker, weekday, shift && { ...shift, breaks: shift.breaks.map(({ start, end }) => ({ start, end })) });

@@ -30,6 +30,7 @@ import { useCompany } from "@/lib/api/companies";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import {
   browserTimezone,
+  formatScheduledRange,
   formatWallDay,
   formatWallHour,
 } from "@/lib/format/time";
@@ -583,8 +584,7 @@ export { movedDueAt, RESCHEDULE_MOVES } from "../task-reschedule";
 function ScheduledChip({ task, block, timeZone }: { task: Task; block: PublishedWork; timeZone: string }) {
   const t = useT();
   const { hrefForTask } = useTaskDrawer();
-  const time = new Intl.DateTimeFormat(t.locale, { timeStyle: "short", timeZone });
-  const hours = time.formatRange(new Date(block.starts_at), new Date(block.ends_at));
+  const hours = formatScheduledRange(block.starts_at, block.ends_at, t.locale, timeZone);
   return (
     <Link href={hrefForTask(task.id)} scroll={false} onClick={taskLinkClickHandler(task.id)}
       title={t("tasks.publishedWorkTime", { title: task.title, hours })}

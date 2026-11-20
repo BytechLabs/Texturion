@@ -59,9 +59,9 @@ begin
   if (select count(*) from public.task_schedule_blocks where task_id = task) is distinct from 2
   then raise exception 'The second booking overwrote the first'; end if;
 
-  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-23', '2026-11-24')) <> 2
+  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-23', '2026-11-24')) is distinct from 2
   then raise exception 'The task calendar lost a booking'; end if;
-  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-27', '2026-11-28')) <> 0
+  if (select count(*) from public.api_task_published_work(company, crew_id, array[task], '2026-11-27', '2026-11-28')) is distinct from 0
   then raise exception 'The calendar treated a deadline as a booking'; end if;
 
   if public.api_dispatch_set_shift(company, crew_id, crew_id, 1, null, 2) is distinct from 'not_found'
@@ -76,7 +76,7 @@ begin
   then raise exception 'A booking crossed the break'; end if;
   if public.dispatch_fits_worker_shift(company, crew_id, '2026-11-23T16:00Z', '2026-11-23T16:40Z') is distinct from false
   then raise exception 'An existing break conflict was not detected'; end if;
-  if (select count(*) from public.task_schedule_blocks where task_id = task) <> 2
+  if (select count(*) from public.task_schedule_blocks where task_id = task) is distinct from 2
   then raise exception 'Changing availability altered an existing booking'; end if;
 
   if public.api_dispatch_read(company, gen_random_uuid(), '2026-11-23', 7) is not null
