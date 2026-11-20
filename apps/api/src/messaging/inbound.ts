@@ -553,6 +553,7 @@ export async function finishThreadedInbound(
             companyId,
             conversationId: threaded.conversation_id,
             body,
+            optedOut: threaded.opted_out || carrierOwnedIt,
             verdict: threaded.crew_notify_verdict,
             requireUnread: !threaded.created,
           }));

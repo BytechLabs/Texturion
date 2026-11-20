@@ -38,14 +38,20 @@ final class DeviceChecklists: XCTestCase {
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
         try await control("push?thread=1&title=Reply%20from%20the%20shade")
-        openNotificationCenter()
-        let title = try waitFor(springboard.staticTexts["Reply from the shade"].firstMatch)
+        let title = springboard.staticTexts["Reply from the shade"].firstMatch
         let replyAction = springboard.buttons["Reply"].firstMatch
-        try await Task.sleep(for: .seconds(2))
-        for _ in 0..<2 where !replyAction.exists {
-            title.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).press(forDuration: 1.5)
+        let point = title.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+        if title.waitForExistence(timeout: 4), title.frame.minY < 150 {
+            point.press(forDuration: 0.1, thenDragTo: point.withOffset(CGVector(dx: 0, dy: 140)))
         }
-        shot("777 notification after touch and hold")
+        if !replyAction.exists {
+            openNotificationCenter()
+            try waitFor(title)
+            for _ in 0..<2 where !replyAction.exists {
+                point.press(forDuration: 1.5)
+            }
+        }
+        shot("777 native notification actions")
         try waitFor(replyAction).tap()
         let keyboardIntro = springboard.buttons["Continue"].firstMatch
         if keyboardIntro.waitForExistence(timeout: 5) {
