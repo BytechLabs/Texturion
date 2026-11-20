@@ -49,13 +49,19 @@ final class DeviceChecklists: XCTestCase {
         }
         shot("777 notification after touch and hold")
         try waitFor(replyAction).tap()
+        let keyboardIntro = springboard.buttons["Continue"].firstMatch
+        if keyboardIntro.waitForExistence(timeout: 5) {
+            keyboardIntro.tap()
+        }
         let reply = try waitFor(springboard.textViews.matching(
             NSPredicate(format: "identifier == %@ AND label == %@", "", "")
         ).firstMatch)
+        XCTAssertTrue(reply.isHittable)
         reply.typeText(body)
+        XCTAssertEqual(reply.value as? String, body)
         let send = try waitFor(springboard.buttons["Send text"].firstMatch)
-        XCTAssertTrue(send.isEnabled)
         shot("777 reply ready to send in Notification Center")
+        XCTAssertTrue(send.isEnabled && send.isHittable)
         send.tap()
         try await assertOneWrite(path: "/v1/messages/send", field: "body", value: body, requiresKey: true)
         app.activate()
