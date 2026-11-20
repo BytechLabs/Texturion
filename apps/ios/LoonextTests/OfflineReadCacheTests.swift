@@ -244,7 +244,17 @@ final class OfflineReadCacheTests: XCTestCase {
             companyId: "workspace"
         )
         XCTAssertEqual(cached?.data.map(\.id), ["original"])
+
+        home.selectShellLine("line")
+        await home.reload(showLoading: true).value
         await transport.goOffline()
+
+        let restored = InboxController(api: api, companyId: "workspace", meUserId: "member")
+        restored.selectShellLine("line")
+        await restored.reload(showLoading: true).value
+        guard case .ready = restored.state else { return XCTFail("The selected line should open offline") }
+        XCTAssertEqual(restored.rows.map(\.id), ["original"])
+        XCTAssertEqual(restored.pinnedRows.map(\.id), ["pin"])
 
         let filters: [(name: String, apply: @MainActor (InboxController) -> Void)] = [
             ("Unassigned", { $0.setUnassignedFilter() }),

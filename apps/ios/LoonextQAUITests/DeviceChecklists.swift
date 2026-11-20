@@ -195,6 +195,8 @@ final class DeviceChecklists: XCTestCase {
             try waitFor(springboard.buttons["Allow"].firstMatch).tap()
         }
         try waitFor(shell, timeout: 30)
+        let savePassword = springboard.buttons["Not Now"].firstMatch
+        if savePassword.exists { savePassword.tap() }
     }
 
     private func openThread(_ name: String) throws {
@@ -203,7 +205,8 @@ final class DeviceChecklists: XCTestCase {
             tab.tap()
         }
         XCTAssertTrue(tab.isSelected)
-        try waitFor(app.staticTexts[name].firstMatch).tap()
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+        try waitFor(row).coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
         try waitFor(app.buttons["Back"].firstMatch)
     }
 
