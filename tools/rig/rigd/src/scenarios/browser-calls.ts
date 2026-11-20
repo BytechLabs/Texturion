@@ -418,6 +418,15 @@ export function transferTimeline(variant: TransferVariant) {
   return { targetBy, ringing, after, hangup: after.end_ms + 4000 };
 }
 
+async function openTransferPages(ctx: ScenarioContext) {
+  const started = ctx.now();
+  const owner = await ctx.browser.open(OWNER, OWNER, "/calls");
+  const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN, "/calls");
+  await Promise.all([owner.waitForPhoneReady(), technician.waitForPhoneReady()]);
+  ctx.evidence.phones_ready_ms = ctx.now() - started;
+  return { owner, technician };
+}
+
 export const S07: ScenarioRunner = {
   id: "S07",
   async run(ctx) {
@@ -428,8 +437,7 @@ export const S07: ScenarioRunner = {
     // Keep the technician out of the initial ring so its audio belongs to the transfer leg.
     const unset = await changeCompany(ctx, "QA-W", { ring_strategy: "in_turn" });
     if (unset) return unset;
-    const owner = await ctx.browser.open(OWNER, OWNER);
-    const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN);
+    const {owner, technician} = await openTransferPages(ctx);
     const since = ctx.now();
     const dialed = await ctx.robot.dial({
       scenario: ctx.scenario,
@@ -529,8 +537,7 @@ export const S08: ScenarioRunner = {
       const unset = await changeCompany(ctx, "QA-W", { ring_strategy: "in_turn" });
       if (unset) return unset;
     }
-    const owner = await ctx.browser.open(OWNER, OWNER, "/calls");
-    const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN);
+    const {owner, technician} = await openTransferPages(ctx);
     const since = ctx.now();
     const plan: Omit<CallPlan, "direction"> = {
       scenario: ctx.scenario,
