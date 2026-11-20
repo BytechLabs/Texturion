@@ -24,7 +24,7 @@ const RING_WITHIN_MS = 12_000;
 const NO_RING_WAIT_MS = 15_000;
 const TALK_MS = 25_000;
 const ANSWER_WITHIN_MS = 15_000;
-const HEAR_MS = 12_000;
+const HEAR_MS = 20_000;
 /** Push attempts and beacons are sent in the background; this is how long they get, PostHog's ingestion on top. */
 const EVIDENCE_WAIT_MS = 30_000 + EVENT_INGEST_MS;
 /** A device's clock may run behind the rig's. Beacons are matched by session, so a wide margin costs nothing. */
@@ -352,6 +352,8 @@ export async function callWake(
     role: "ROBOT-1",
     to: lane.number,
     expect: lane.surface,
+    // Injection waits for the guest to open its microphone after answering.
+    ...(options.audio ? { window: { start_ms: 2000, end_ms: HEAR_MS } } : {}),
     hangup_after_ms: TALK_MS,
   });
   if (dialed.state === "failed") return { failure: dialFailure(dialed) };

@@ -163,7 +163,10 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(robot.plans).toHaveLength(1);
-    expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: "DEV-A1", expect: "pixel", lease_id: "lease-test" });
+    expect(robot.plans[0]).toMatchObject({
+      direction: "outbound", role: "ROBOT-1", to: "DEV-A1", expect: "pixel", lease_id: "lease-test",
+      window: { start_ms: 2000, end_ms: 20_000 },
+    });
     expect(audio.played).toEqual(["pixel"]);
     expect(stopped).toBe(true);
     expect(ctx.evidence).toMatchObject({
