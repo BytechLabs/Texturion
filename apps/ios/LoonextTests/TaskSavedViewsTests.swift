@@ -189,11 +189,26 @@ final class TaskSavedViewsTests: XCTestCase {
         taskViewState(taskViewFilters(state, meUserId: me), meUserId: me)
     }
 
-    func testTheDefaultScreenSavesAsMyOpenTasks() {
+    func testAllTasksStartsWithoutFilters() {
         let filters = taskViewFilters(TaskViewState(), meUserId: me)
-        XCTAssertEqual(filters["status"], .string("open"))
-        XCTAssertEqual(filters["assigned_user_id"], .string(me))
-        XCTAssertEqual(filters.count, 2)
+        XCTAssertTrue(filters.isEmpty)
+    }
+
+    func testMyWorkWithStatusBookingsAndFieldsRoundTrips() {
+        var state = TaskViewState(assigneeUserId: assigneeMe, due: .week, layout: .list)
+        state.meta.statusOnly = "open"
+        state.meta.scheduled = false
+        state.meta.columns = ["status", "due"]
+        let saved = taskViewFilters(state, meUserId: me)
+        XCTAssertEqual(saved["assigned_user_id"], .string("me"))
+        XCTAssertEqual(saved["scheduled"], .bool(false))
+        let opened = taskViewState(saved, meUserId: sam)
+        XCTAssertEqual(opened.assigneeUserId, assigneeMe)
+        XCTAssertEqual(opened.meta.columns, state.meta.columns)
+        XCTAssertEqual(opened.meta.scheduled, state.meta.scheduled)
+        XCTAssertEqual(opened.due, .week)
+        XCTAssertEqual(opened.layout, .list)
+        XCTAssertEqual(taskViewFilters(opened, meUserId: sam), saved)
     }
 
     func testEveryTabComesBack() {

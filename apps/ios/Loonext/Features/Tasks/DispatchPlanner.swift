@@ -745,21 +745,26 @@ private struct DispatchShiftEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(text("contactsTasks.dispatchAssignee"), selection: $worker) {
-                        ForEach(members) { member in Text(member.name ?? text("contactsTasks.dispatchAssignee")).tag(member.id) }
+                    let assignee = text("contactsTasks.dispatchAssignee")
+                    LabeledContent(assignee) {
+                        SelectField(options: members.map { SelectOption($0.id, title: $0.name ?? assignee) },
+                            selected: worker, label: assignee, enabled: !busy) { worker = $0 }
                     }
-                    Picker(text("contactsTasks.dispatchAvailability"), selection: $mode) {
-                        Text(text("contactsTasks.dispatchWorkspaceHours")).tag("workspace")
-                        Text(text("contactsTasks.dispatchCustomShift")).tag("shift")
-                        Text(text("contactsTasks.dispatchDayOff")).tag("off")
+                    let availability = text("contactsTasks.dispatchAvailability")
+                    LabeledContent(availability) {
+                        SelectField(options: [
+                            SelectOption("workspace", title: text("contactsTasks.dispatchWorkspaceHours")),
+                            SelectOption("shift", title: text("contactsTasks.dispatchCustomShift")),
+                            SelectOption("off", title: text("contactsTasks.dispatchDayOff")),
+                        ], selected: mode, label: availability, enabled: !busy) { mode = $0 }
                     }
                     if mode == "shift" {
-                        TextField(text("contactsTasks.dispatchShiftStart"), text: Binding(get: { shift.start ?? "" }, set: { shift.start = $0 }))
-                        TextField(text("contactsTasks.dispatchShiftEnd"), text: Binding(get: { shift.end ?? "" }, set: { shift.end = $0 }))
+                        timeField("contactsTasks.dispatchShiftStart", value: Binding(get: { shift.start ?? "" }, set: { shift.start = $0 }))
+                        timeField("contactsTasks.dispatchShiftEnd", value: Binding(get: { shift.end ?? "" }, set: { shift.end = $0 }))
                         ForEach(shift.breaks.indices, id: \.self) { index in
                             if shift.breaks.indices.contains(index) {
-                                TextField(text("contactsTasks.dispatchBreakStart"), text: breakTime(index, start: true))
-                                TextField(text("contactsTasks.dispatchBreakEnd"), text: breakTime(index, start: false))
+                                timeField("contactsTasks.dispatchBreakStart", value: breakTime(index, start: true))
+                                timeField("contactsTasks.dispatchBreakEnd", value: breakTime(index, start: false))
                                 Button(text("contactsTasks.dispatchRemoveBreak")) { shift.breaks.remove(at: index) }
                             }
                         }
@@ -771,7 +776,10 @@ private struct DispatchShiftEditor: View {
                     Text(AppStrings.translate(locale, "contactsTasks.dispatchShiftWeekday", ["day":
                         TimestampFormat.weekday(date, locale: locale, timeZone: calendar.timeZone)]))
                 }
+                .listRowBackground(BrandColor.paper)
             }
+            .scrollContentBackground(.hidden)
+            .background(BrandColor.canvas)
             .navigationTitle(text("contactsTasks.dispatchShifts"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -790,6 +798,18 @@ private struct DispatchShiftEditor: View {
                 mode = existing == nil ? "workspace" : existing?.start == nil ? "off" : "shift"
                 shift = existing?.start == nil ? Self.defaultShift : existing ?? Self.defaultShift
             }
+        }
+    }
+
+    private func timeField(_ key: String, value: Binding<String>) -> some View {
+        let label = text(key)
+        return LabeledContent(label) {
+            TextField("HH:mm", text: value)
+                .keyboardType(.numbersAndPunctuation)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .accessibilityLabel(label)
+                .disabled(busy)
         }
     }
 
