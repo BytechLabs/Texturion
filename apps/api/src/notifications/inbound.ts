@@ -31,8 +31,9 @@ import { canTextConversation, listConversationViewers } from "../auth/conversati
 import { MAX_EMAIL_RECIPIENTS_PER_CLAIM } from "../billing/plans";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { RigResendBudgetError, sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { contactDisplayName } from "./contact-name";
 import {
   loadConversationPrefs,
@@ -263,7 +264,8 @@ export async function notifyInboundMessage(
   // legacy shape).
   const link = `${env.APP_ORIGIN}/inbox/${input.conversationId}`;
 
-  const failures: unknown[] = [];
+  const emailFailures: unknown[] = [];
+  const pushFailures: unknown[] = [];
 
   const notifyEmail = async () => {
     if (emailUsers.length === 0) return;
@@ -275,7 +277,7 @@ export async function notifyInboundMessage(
         }))),
         db.from("profiles").select("user_id,locale").in("user_id", emailUsers),
       ]);
-      if (profiles.error) failures.push(new Error(`notification email locales: ${profiles.error.message}`));
+      if (profiles.error) emailFailures.push(new Error(`notification email locales: ${profiles.error.message}`));
       const preferences = new Map((profiles.data ?? []).map((profile) => [profile.user_id, profile.locale]));
       const groups = new Map<Locale, string[]>();
       const workspaceLocale = conversation.companies?.locale;
@@ -284,7 +286,7 @@ export async function notifyInboundMessage(
           // One member's lookup failing must NOT drop the email for the whole
           // team — record it as a soft failure and skip just that recipient,
           // exactly as an unresolvable member is treated as un-notifiable.
-          failures.push(
+          emailFailures.push(
             new Error(
               `auth admin lookup failed for member ${userId}: ${result.error.message}`,
             ),
@@ -330,10 +332,17 @@ export async function notifyInboundMessage(
         });
       }));
       for (const result of sends) {
-        if (result.status === "rejected") failures.push(result.reason);
+        if (result.status !== "rejected") continue;
+        if (result.reason instanceof RigResendBudgetError) {
+          void captureEvent(env, "rig_resend_budget_refused", SYSTEM_DISTINCT_ID, {
+            operation: "inbound-notification",
+          });
+        } else {
+          emailFailures.push(result.reason);
+        }
       }
     } catch (error) {
-      failures.push(error);
+      emailFailures.push(error);
     }
   };
 
@@ -414,10 +423,10 @@ export async function notifyInboundMessage(
     overridesQuietHours: input.emergencyClaimed
       ? { reason: "emergency" }
       : undefined,
-    failures,
+    failures: pushFailures,
   };
   const assignee = conversation.assigned_user_id;
-  const results = await Promise.allSettled([
+  const [mine, others, email] = await Promise.allSettled([
     deliverPush(env, db, {
       ...push,
       category: "messages_mine",
@@ -430,14 +439,15 @@ export async function notifyInboundMessage(
     }),
     notifyEmail(),
   ]);
-  for (const result of results) {
-    if (result.status === "rejected") failures.push(result.reason);
+  for (const result of [mine, others]) {
+    if (result.status === "rejected") pushFailures.push(result.reason);
   }
+  if (email.status === "rejected") emailFailures.push(email.reason);
 
-  if (failures.length > 0) {
+  if (pushFailures.length > 0 || emailFailures.length > 0) {
     throw new AggregateError(
-      failures,
-      `notification pipeline: ${failures.length} delivery step(s) failed for conversation ${input.conversationId}`,
+      [...pushFailures, ...emailFailures],
+      `notification pipeline: ${pushFailures.length} push and ${emailFailures.length} email delivery step(s) failed for conversation ${input.conversationId}`,
     );
   }
   if (!attempt) await startDelivery?.();

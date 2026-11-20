@@ -744,6 +744,7 @@ async function fanOutPush(
           delivery.collapseKey,
         ),
     );
+    if (result.transportRestricted) return;
     if (result.gone) {
       // Permanently dead endpoint (unsubscribed/expired): drop the row.
       const { error } = await db

@@ -397,10 +397,22 @@ describe("notifyInboundMessage (§8)", () => {
     });
     stubFetch(...world.routes);
 
-    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow(
-      /delivery step\(s\) failed/,
-    );
+    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow(/1 push and 0 email/);
     expect(world.resend.calls).toHaveLength(1); // email still went out
+  });
+
+  it("keeps the Chrome subscription and records no failure for the rig's transport and mail limits", async () => {
+    const rigEnv = { ...env, DEPLOY_ENV: "rig" as const, RESEND_API_BASE: "https://edge.example.test/g/resend" };
+    const world = buildWorld({ members: [OWNER], subscriptions: [await subscriptionFor(OWNER, "chrome")] });
+    const budgetRefusal = vi.fn(async (url: URL) => url.href === `${rigEnv.RESEND_API_BASE}/emails`
+      ? new Response(null, { status: 429, headers: { "x-rig-refused-by": "budget.resend_day" } })
+      : undefined);
+    stubFetch(...world.routes, budgetRefusal);
+
+    await expect(notifyInboundMessage(rigEnv, INPUT)).resolves.toBeUndefined();
+    expect(budgetRefusal).toHaveBeenCalledWith(new URL(`${rigEnv.RESEND_API_BASE}/emails`), expect.any(Request));
+    expect(world.push.calls).toHaveLength(0);
+    expect(world.sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(0);
   });
 
   it("never notifies for a spam thread", async () => {

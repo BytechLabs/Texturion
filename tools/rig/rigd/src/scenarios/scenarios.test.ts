@@ -9,7 +9,7 @@ const TENANT_OF_NUMBER: Record<string, string> = { "DEV-W1": "QA-W", "DEV-E1": "
 
 function textWorld(scenario: string) {
   const world = fakeContext(scenario);
-  const { app, robot, time } = world;
+  const { app, browser, robot, time } = world;
   app.onSend = (send, id) => {
     app.thread(TENANT_OF_MEMBER[send.member]!, send.body, "outbound");
     app.usage.set(id, [{ type: "sms", quantity: 1, stripe_reported_at: new Date(time.now).toISOString() }]);
@@ -23,6 +23,7 @@ function textWorld(scenario: string) {
     const tenant = TENANT_OF_NUMBER[message.to_role];
     if (tenant) app.thread(tenant, message.text, "inbound");
     app.pushes.push({ tenant: tenant ?? "", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: new Date(time.now).toISOString() });
+    browser.script.notifications = [{ title: "A customer", body: message.text, tag: "conversation:1" }];
   };
   return world;
 }
@@ -115,6 +116,26 @@ describe("S21, inbound text", () => {
     unable.browser.script.canPush = false;
     await expect(S21.run(unable.ctx)).resolves.toMatchObject({ outcome: "infra", component: "push-target" });
     expect(unable.robot.sent).toEqual([]);
+  });
+
+  it.each(["transport_error", "transport_restricted"] as const)("reports %s as infrastructure", async (status) => {
+    const { ctx, app, robot } = textWorld("S21");
+    const receive = robot.onSms;
+    robot.onSms = (message) => {
+      receive(message);
+      app.pushes[0]!.response_class = status;
+    };
+    await expect(S21.run(ctx)).resolves.toMatchObject({ outcome: "infra", component: "web-push-transport" });
+  });
+
+  it("requires Chrome to display the exact text even after the provider accepts it", async () => {
+    const { ctx, browser, robot } = textWorld("S21");
+    const receive = robot.onSms;
+    robot.onSms = (message) => {
+      receive(message);
+      browser.script.notifications = [{ title: "A customer", body: "Another text", tag: "conversation:1" }];
+    };
+    await expect(S21.run(ctx)).resolves.toMatchObject({ failure_class: "web_push_not_shown" });
   });
 });
 

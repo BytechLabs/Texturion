@@ -95,6 +95,16 @@ describe(timedPush, () => {
     await timedPush(log, TARGET, async () => ({ ok: true, status: 0, gone: false }));
     expect(log).toEqual([]);
   });
+
+  it("records a transport restriction without inventing an HTTP response", async () => {
+    const log: PushAttempt[] = [];
+    await timedPush(log, TARGET, async () => ({
+      ok: false, status: 0, gone: false, transportRestricted: true as const,
+    }));
+    expect(log).toEqual([
+      expect.objectContaining({ responseClass: "transport_restricted", httpStatus: null }),
+    ]);
+  });
 });
 
 describe(recordPushAttempts, () => {

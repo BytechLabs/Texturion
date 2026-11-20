@@ -27,13 +27,15 @@ export type PushResponseClass =
   | "rejected"
   | "throttled"
   | "provider_error"
-  | "transport_error";
+  | "transport_error"
+  | "transport_restricted";
 
 /** What both senders report, which is all the classification needs. */
 export interface PushOutcome {
   ok: boolean;
   status: number;
   gone: boolean;
+  transportRestricted?: true;
 }
 
 /** Who and what a send was for, known before it goes out. */
@@ -66,6 +68,7 @@ export interface PushAttempt extends PushTarget {
  * (throttled), or wait it out (provider_error).
  */
 export function classifyPushResponse(outcome: PushOutcome): PushResponseClass {
+  if (outcome.transportRestricted) return "transport_restricted";
   if (outcome.gone) return "gone";
   if (outcome.ok) return "accepted";
   if (outcome.status === 401 || outcome.status === 403) return "unauthorized";
@@ -78,8 +81,8 @@ export function classifyPushResponse(outcome: PushOutcome): PushResponseClass {
  * Send, timing it, and append what happened to `log`. The send's own result
  * or throw passes through untouched.
  *
- * A status of 0 is the sender's "not configured, nothing sent" answer, and
- * nothing sent is not an attempt.
+ * Status 0 is normally an unconfigured sender. An explicit transport
+ * restriction still gives the rig a verdict without an HTTP status.
  */
 export async function timedPush<T extends PushOutcome>(
   log: PushAttempt[],
@@ -100,11 +103,11 @@ export async function timedPush<T extends PushOutcome>(
     });
     throw error;
   }
-  if (result.status !== 0) {
+  if (result.status !== 0 || result.transportRestricted) {
     log.push({
       ...target,
       responseClass: classifyPushResponse(result),
-      httpStatus: result.status,
+      httpStatus: result.status || null,
       latencyMs: Date.now() - started,
       startedAt: started,
     });
