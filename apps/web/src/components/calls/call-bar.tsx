@@ -73,7 +73,7 @@ function CallIdentity({ call }: { call: CallInfo }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2.5">
       <span className="grid size-9 shrink-0 place-items-center rounded-app-card bg-[var(--call-fill)] text-[var(--call-label)]">
-        <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+        <Icon className="size-5" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3">
         <span className="min-w-0 truncate text-sm font-semibold text-app-ink">
