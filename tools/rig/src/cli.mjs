@@ -4,6 +4,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { APK_DIR, buildApk } from "./apk.mjs";
@@ -13,6 +14,7 @@ import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
 import { fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { runHealth } from "./health.mjs";
 import { rigLayout, rigSettings, TOOLING_ROOT } from "./layout.mjs";
+import { changeLock } from "./lock.mjs";
 import { qaAndroid } from "./qa.mjs";
 import { runCommand } from "./run.mjs";
 import { secretStore } from "./secrets.mjs";
@@ -27,6 +29,8 @@ export const USAGE = `rig <command>
 
 The rig runs nothing on a timer. Every command below is something you ask for.
 
+  lock <worker>                  reserve the shared rig for your deployment and runs
+  unlock <worker>                release your reservation
   deploy --ref <tag|branch|sha>   worktree, install, derive, migrate or reset+reseed, restart
          --worktree <path>        deploy a checkout in place instead of a ref
          [--reset] [--reseed] [--pre-seam] [--skip-install] [--skip-web]
@@ -136,6 +140,12 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
   if (!command || flags.help) {
     log(USAGE);
     return command ? 0 : 2;
+  }
+
+  if (command === "lock" || command === "unlock") {
+    if (rest.length !== 1 || Object.keys(flags).length > 0) throw new Error(`rig ${command}: give your worker name`);
+    log(changeLock(join(homedir(), "rig.lock"), command, rest[0]));
+    return 0;
   }
 
   if (command === "health") {

@@ -4,6 +4,8 @@
 
 Use a branch, tag or commit SHA and record the web deployment and Android APK SHAs separately. Use the rig's seeded workspaces and numbers. Tell anyone sharing the rig before deploying, reseeding or changing an AVD's state. A deploy changes the stack for every lane.
 
+On the VM, run `rig lock <worker>` before deploying or starting a scenario. Use the same worker name with `rig unlock <worker>` after collecting the verdicts. A lock older than 90 minutes can be replaced.
+
 ## Connect and check
 
 On the Windows host, run these commands from a checkout of the tooling.
@@ -23,6 +25,7 @@ export RIG_HOME=/var/lib/loonext-rig
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 alias rig='node /var/lib/loonext-rig/tooling/tools/rig/bin/rig.mjs'
 rig health --only api,web,hostd,adbTunnel
+rig lock qa-calls
 rig deploy --ref <ref>
 cat "$RIG_HOME/state/deployed.json"
 ```
