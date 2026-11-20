@@ -148,6 +148,18 @@ describe("the app probe's messages", () => {
 });
 
 describe("the app probe's calls", () => {
+  it("counts all billable call leg kinds for the requested session", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("call_records")}`]: () => json([{ billable_seconds: 26 }]),
+    });
+    await expect(probe.meteredSeconds({ tenant: "QA-W", callSessionId: "browser-call" })).resolves.toBe(26);
+    expect(query(requests[0]!)).toMatchObject({
+      company_id: `eq.${COMPANY}`,
+      call_session_id: "eq.browser-call",
+      leg: "in.(forward,out_customer,in_browser)",
+    });
+  });
+
   it("reads a tenant's ring_beacon events from PostHog since a time, a member's by their user id, in the device's order", async () => {
     const { probe, requests } = probeWith({
       [`POST ${HOGQL}`]: () =>
