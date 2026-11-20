@@ -186,6 +186,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
+      configs:
+        QA:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) LOONEXT_QA"
   # #238: Apple's accessibility audit (performAccessibilityAudit) over the
   # primary flows. A UI-test target rather than a unit test because the audit is
   # an XCUIApplication API: it drives the app through the OS accessibility

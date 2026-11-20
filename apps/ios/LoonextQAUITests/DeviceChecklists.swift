@@ -35,27 +35,15 @@ final class DeviceChecklists: XCTestCase {
 
     func testNotificationReply() async throws {
         let body = "Simulator shade reply"
-        let push = "push?thread=1&title=Reply%20from%20the%20shade"
         try signIn(notifications: true)
         XCUIDevice.shared.press(.home)
+        try await control("push?thread=1&title=Reply%20from%20the%20shade")
         openNotificationCenter()
-        try await control(push)
-        let card = springboard.buttons.matching(NSPredicate(
-            format: "identifier == %@ AND label CONTAINS %@", "ListCell", "Reply from the shade"
-        )).firstMatch
+        let title = try waitFor(springboard.staticTexts["Reply from the shade"].firstMatch)
         let replyAction = springboard.buttons["Reply"].firstMatch
+        try await Task.sleep(for: .seconds(2))
         for _ in 0..<2 where !replyAction.exists {
-            try await hold(try waitFor(card))
-            if replyAction.waitForExistence(timeout: 2) { break }
-        }
-        if !replyAction.exists {
-            XCUIDevice.shared.press(.home)
-            let banner = springboard.staticTexts["Reply from the shade"].firstMatch
-            for _ in 0..<2 where !replyAction.exists {
-                try await control(push)
-                if banner.waitForExistence(timeout: 4) { try await hold(banner) }
-                if replyAction.waitForExistence(timeout: 2) { break }
-            }
+            title.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).press(forDuration: 1.5)
         }
         shot("777 notification after touch and hold")
         try waitFor(replyAction).tap()
@@ -281,14 +269,6 @@ final class DeviceChecklists: XCTestCase {
         request.httpMethod = "POST"
         let (body, response) = try await URLSession.shared.data(for: request)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200, String(decoding: body, as: UTF8.self))
-    }
-
-    private func hold(_ element: XCUIElement) async throws {
-        // SpringBoard can wait for animations long after the card is ready for touch.
-        let frame = element.frame
-        if !frame.isEmpty {
-            try await control("hold?x=\(Int(frame.midX))&y=\(Int(frame.midY))")
-        }
     }
 
     private func assertOneWrite(path: String, field: String, value: String, requiresKey: Bool = false) async throws {

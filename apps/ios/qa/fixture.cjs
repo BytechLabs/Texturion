@@ -123,13 +123,6 @@ const server = createServer(async (req, res) => {
       await push(index, title, searchParams.has("missed"));
       return json({ ok: true });
     }
-    if (path === "/__qa/hold" && req.method === "POST") {
-      const x = searchParams.get("x");
-      const y = searchParams.get("y");
-      if (!/^\d{1,4}$/.test(x) || !/^\d{1,4}$/.test(y)) return json({ error: "Invalid touch coordinates" }, 400);
-      await run("idb", ["ui", "tap", x, y, "--duration", "1.2", "--udid", process.env.QA_SIMULATOR]);
-      return json({ ok: true });
-    }
 
     if (state.mode === "offline") return req.socket.destroy();
     if (state.mode === "revoked") {

@@ -94,15 +94,16 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|calls|offline|autosave|copy-and-media|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions calls offline autosave copy-and-media accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
     notification-actions) run_scenario "$name" "$ui/testNotificationReply" "$ui/testNotificationTrayClearance" \
       "$unit/NotificationsPushPayloadTests" || failed=1 ;;
+    notification-reply-transport) run_scenario "$name" "$unit/NotificationReplyFixtureTests" || failed=1 ;;
     calls) run_scenario "$name" "$audit/testInCallControls" "$audit/testCallLog" \
       "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" "$unit/TelephonyMappingTests" || failed=1 ;;
     offline) run_scenario "$name" "$ui/testOfflineRelaunchAndOutbox" "$unit/OfflineReadCacheTests" || failed=1 ;;
