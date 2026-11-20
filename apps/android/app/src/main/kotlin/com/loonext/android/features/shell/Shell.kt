@@ -6,11 +6,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +34,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.Icon
@@ -52,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -62,17 +62,16 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.foundation.selection.selectableGroup
 import com.loonext.android.ui.common.asTab
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.loonext.android.AppGraph
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.contacts.ContactsTab
 import com.loonext.android.features.foryou.ForYouTab
@@ -81,7 +80,6 @@ import com.loonext.android.features.inbox.InboxTab
 import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.common.AttentionDot
-import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.NavPillMaxWidth
 import com.loonext.android.ui.common.contentMaxWidth
@@ -103,29 +101,14 @@ enum class ShellTab(val labelKey: String) {
     Inbox("shell.navInbox"),
     Calls("shell.navCalls"),
     Tasks("shell.navTasks"),
+    Lou("shell.navLou"),
 
     /** Not a nav slot — reached from the You sheet (design IA). */
     Contacts("shell.navContacts"),
 }
 
-/**
- * The mobile shell (Loonext Mobile.dc.html): content runs edge-to-edge and the
- * FLOATING DARK PILL nav sits over it — ink capsule, 14dp inset, four icon
- * slots (For you · Inbox · Calls · Tasks) + the avatar. The active slot is a
- * paper circle; a coral dot on the avatar means unread notifications. A canvas
- * gradient fades content out behind the pill. No labels, no numeral badges —
- * the design keeps the nav silent.
- *
- * #203: the four slot tabs are pages of ONE HorizontalPager — holding and
- * dragging slides the neighboring tab into view continuously, a settle
- * switches tabs through the SAME path a pill tap takes, and the paper circle
- * tracks the pager's scroll fraction under the finger (taps keep the spring).
- * Contacts stays OUTSIDE the pager (a You-sheet surface, not a slot): the
- * pager parks where it was and Contacts renders above it on its own canvas.
- */
 @Composable
 fun MainShell(
-    me: Me,
     counts: ShellCounts,
     unreadNotifications: Int,
     tab: ShellTab,
@@ -144,6 +127,10 @@ fun MainShell(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             val haptics = rememberHaptics()
+            var lastConversationsTab by rememberSaveable { mutableStateOf(ShellTab.Inbox) }
+            val conversationsTab = if (tab == ShellTab.Inbox || tab == ShellTab.Calls) tab else lastConversationsTab
+            LaunchedEffect(conversationsTab) { lastConversationsTab = conversationsTab }
+            val highlightedTab = if (tab == ShellTab.Calls) ShellTab.Inbox else tab
             val pagerState = rememberPagerState(
                 initialPage = shellPageForTab(tab) ?: 0,
             ) { SHELL_PAGE_TABS.size }
@@ -182,9 +169,9 @@ fun MainShell(
             LaunchedEffect(pagerState) {
                 snapshotFlow { pagerState.settledPage }.collect { page ->
                     val settled = shellTabForPage(page)
-                    if (currentTab != ShellTab.Contacts && settled != currentTab) {
+                    if (currentTab != ShellTab.Contacts && shellPageForTab(currentTab) != page) {
                         haptics.tap()
-                        currentOnTabChange(settled)
+                        currentOnTabChange(if (settled == ShellTab.Inbox) lastConversationsTab else settled)
                     }
                 }
             }
@@ -254,7 +241,8 @@ fun MainShell(
                     // nav and fade gradient stay full-width (drawn above this).
                     Column(Modifier.fillMaxSize().contentMaxWidth()) {
                         topNotice?.invoke()
-                        content(shellTabForPage(page), Modifier.weight(1f))
+                        val pageTab = shellTabForPage(page)
+                        content(if (pageTab == ShellTab.Inbox) conversationsTab else pageTab, Modifier.weight(1f))
                     }
                 }
             }
@@ -349,16 +337,8 @@ fun MainShell(
                     )
                     .padding(horizontal = 8.dp),
             ) {
-                // The active paper circle GLIDES between slots instead of
-                // jumping (#194): every slot reports its center and the
-                // indicator springs to the selected one. It hides entirely
-                // when the active surface has no slot (Contacts rides the
-                // You sheet, not the pill). #203: while the user DRAGS the
-                // pager (through its fling settle) the circle abandons the
-                // spring and tracks the scroll fraction, so the paper circle
-                // rides the finger; pill taps and programmatic tab changes
-                // keep the spring.
-                slotCenters[tab]?.let { centerX ->
+                // During a swipe the circle follows the pager. A tap moves it with a spring.
+                slotCenters[highlightedTab]?.let { centerX ->
                     val dragged by pagerState.interactionSource.collectIsDraggedAsState()
                     var followPager by remember { mutableStateOf(false) }
                     LaunchedEffect(dragged, pagerState.isScrollInProgress) {
@@ -415,25 +395,19 @@ fun MainShell(
                 ) {
                     NavSlot(
                         Icons.Outlined.Bolt, t(ShellTab.ForYou.labelKey), tab == ShellTab.ForYou,
+                        attention = counts.forYou > 0,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.ForYou] =
                                 it.positionInParent().x + it.size.width / 2f
                         },
                     ) { selectTab(ShellTab.ForYou) }
                     NavSlot(
-                        Icons.Outlined.Inbox, t(ShellTab.Inbox.labelKey), tab == ShellTab.Inbox,
+                        Icons.Outlined.Inbox, t("shell.navConversations"), highlightedTab == ShellTab.Inbox,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.Inbox] =
                                 it.positionInParent().x + it.size.width / 2f
                         },
-                    ) { selectTab(ShellTab.Inbox) }
-                    NavSlot(
-                        Icons.Outlined.Call, t(ShellTab.Calls.labelKey), tab == ShellTab.Calls,
-                        modifier = Modifier.onGloballyPositioned {
-                            slotCenters[ShellTab.Calls] =
-                                it.positionInParent().x + it.size.width / 2f
-                        },
-                    ) { selectTab(ShellTab.Calls) }
+                    ) { selectTab(conversationsTab) }
                     NavSlot(
                         Icons.Outlined.Checklist, t(ShellTab.Tasks.labelKey), tab == ShellTab.Tasks,
                         modifier = Modifier.onGloballyPositioned {
@@ -441,39 +415,21 @@ fun MainShell(
                                 it.positionInParent().x + it.size.width / 2f
                         },
                     ) { selectTab(ShellTab.Tasks) }
-                    Box(Modifier.padding(horizontal = 6.dp)) {
-                        val avatarInteraction = remember { MutableInteractionSource() }
-                        // Read outside the semantics block: `t` is @Composable
-                        // and the SemanticsPropertyReceiver lambda is not.
-                        val accountLabel = if (unreadNotifications > 0) {
-                            t("shell.accountUnread", "count" to "$unreadNotifications")
-                        } else {
-                            t("shell.account")
-                        }
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .pressScale(avatarInteraction)
-                                .clickable(
-                                    interactionSource = avatarInteraction,
-                                    indication = LocalIndication.current,
-                                ) {
-                                    haptics.tap()
-                                    onOpenAccountSheet()
-                                }
-                                // Name the account button + surface the unread
-                                // dot to screen readers (it was purely visual).
-                                .semantics { contentDescription = accountLabel },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            InitialsAvatar(me.display_name.ifBlank { null }, size = 34.dp)
-                        }
-                        if (unreadNotifications > 0) {
-                            AttentionDot(
-                                Modifier.align(Alignment.TopEnd),
-                                size = 9.dp,
-                            )
-                        }
+                    NavSlot(
+                        Icons.Outlined.AutoAwesome, t(ShellTab.Lou.labelKey), tab == ShellTab.Lou,
+                        modifier = Modifier.onGloballyPositioned {
+                            slotCenters[ShellTab.Lou] = it.positionInParent().x + it.size.width / 2f
+                        },
+                    ) { selectTab(ShellTab.Lou) }
+                    NavSlot(
+                        Icons.Outlined.MoreHoriz, t("shell.navMore"), tab == ShellTab.Contacts,
+                        attention = unreadNotifications > 0,
+                        modifier = Modifier.onGloballyPositioned {
+                            slotCenters[ShellTab.Contacts] = it.positionInParent().x + it.size.width / 2f
+                        },
+                    ) {
+                        haptics.tap()
+                        onOpenAccountSheet()
                     }
                 }
             }
@@ -499,6 +455,7 @@ private fun NavSlot(
     contentDescription: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    attention: Boolean = false,
     onClick: () -> Unit,
 ) {
     // The paper circle itself lives in the parent Box and glides between
@@ -524,6 +481,7 @@ private fun NavSlot(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Large))
+            if (attention) AttentionDot(Modifier.align(Alignment.TopEnd).padding(4.dp), size = 8.dp)
         }
     }
 }
@@ -584,8 +542,38 @@ fun ShellContent(
     inboxDestination: InboxDestination?,
     onInboxDestinationConsumed: () -> Unit,
     onViewedConversationChanged: (conversationId: String?) -> Unit,
+    selectedLine: PhoneNumberSummary? = null,
+    onSelectLine: (String?) -> Unit = {},
+    onSelectConversationsTab: (ShellTab) -> Unit = {},
 ) {
     when (tab) {
+        ShellTab.Inbox, ShellTab.Calls -> Column(modifier) {
+            ConversationsHeader(me.company?.numbers.orEmpty(), selectedLine, onSelectLine, tab, onSelectConversationsTab)
+            if (tab == ShellTab.Inbox) {
+                InboxTab(
+                    graph, companyId, me,
+                    destination = inboxDestination,
+                    onDestinationConsumed = onInboxDestinationConsumed,
+                    onOpenThread = onOpenThread,
+                    onOpenTask = onOpenTask,
+                    onComposeNew = onComposeNew,
+                    modifier = Modifier.weight(1f),
+                    phoneLineId = selectedLine?.id,
+                    onSelectPhoneLine = onSelectLine,
+                )
+            } else {
+                CallsScreen(
+                    graph, companyId, me, Modifier.weight(1f),
+                    openConversation = { onOpenThread(it, null, null) },
+                    onComposeTo = onComposeTo,
+                    onOpenContact = onOpenContact,
+                    onOpenContacts = onOpenContacts,
+                    onOpenCall = onOpenCall,
+                    onOpenAiSettings = { onOpenSettings(SettingsSection.Ai) },
+                    phoneLineId = selectedLine?.id,
+                )
+            }
+        }
         ShellTab.ForYou -> ForYouTab(
             graph, companyId, me, modifier,
             onOpenCalls = onOpenCalls,
@@ -600,25 +588,7 @@ fun ShellContent(
             onOpenSettings = onOpenSettings,
         )
 
-        ShellTab.Inbox -> InboxTab(
-            graph, companyId, me,
-            destination = inboxDestination,
-            onDestinationConsumed = onInboxDestinationConsumed,
-            onOpenThread = onOpenThread,
-            onOpenTask = onOpenTask,
-            onComposeNew = onComposeNew,
-            modifier = modifier,
-        )
-
-        ShellTab.Calls -> CallsScreen(
-            graph, companyId, me, modifier,
-            openConversation = { onOpenThread(it, null, null) },
-            onComposeTo = onComposeTo,
-            onOpenContact = onOpenContact,
-            onOpenContacts = onOpenContacts,
-            onOpenCall = onOpenCall,
-            onOpenAiSettings = { onOpenSettings(SettingsSection.Ai) },
-        )
+        ShellTab.Lou -> LouTab(graph, companyId, me, modifier, onOpenCall)
 
         ShellTab.Tasks -> TasksTab(
             graph, companyId, me, modifier,

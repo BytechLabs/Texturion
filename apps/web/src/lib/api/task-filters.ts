@@ -56,6 +56,7 @@ export interface TaskListFilters {
   created_by?: string;
   /** #690: promoted from a text, from a call, or from neither. */
   source?: "text" | "call" | "none";
+  source_line_id?: string;
   /** #690: carries a file. */
   has_attachments?: boolean;
   /** #690: referenced from a note, a task or a comment. */

@@ -40,11 +40,15 @@ class CallsRepository(private val api: ApiClient) {
         limit: Int = 25,
         /** #725: only the calls a routing or an end reason touched. */
         reason: String? = null,
+        phoneLineId: String? = null,
+        louActivity: Boolean = false,
     ): Page<Call> = api.get(
         "/v1/calls",
         query = mapOf(
             "outcome" to outcome,
             "reason" to reason,
+            "phone_number_id" to phoneLineId,
+            "lou_activity" to "1".takeIf { louActivity },
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),

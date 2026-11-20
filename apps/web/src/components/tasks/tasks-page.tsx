@@ -2,11 +2,17 @@
 
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Button } from "@/components/ui/button";
 import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
 import { useT } from "@/i18n/provider";
+import { useSavedViews } from "@/lib/api/saved-views";
+import type { SavedView } from "@/lib/api/saved-views";
+import { useActiveCompany } from "@/lib/company/provider";
+import { viewToTaskState } from "./task-saved-views";
 import { replaceSearch } from "@/lib/url/search-state";
 
 import { NewTaskButton } from "./new-task";
@@ -26,6 +32,12 @@ const VIEW_ICONS: Record<TaskView, typeof List> = {
   map: MapPin,
 };
 
+const PLANNER_VIEWS = [
+  { id: "calendar", label: "shell.plannerSchedule" },
+  { id: "board", label: "shell.plannerWorkload" },
+  { id: "map", label: "shell.plannerRoutes" },
+] as const;
+
 function writeTaskState(next: TaskPageState): void {
   replaceSearch(serializeTaskState(next));
 }
@@ -38,38 +50,70 @@ function writeTaskState(next: TaskPageState): void {
  * active), the filters are one-glance chips (no drawer), and each row/card/pin
  * deep-links back to its source message + conversation.
  */
-export function TasksPage() {
+export function SavedTasksPage({ viewId }: { viewId: string }) {
+  const t = useT();
+  const { data, isPending, isError, refetch } = useSavedViews("tasks");
+  if (isPending) return <div role="status" className="p-6">{t("shell.loading")}</div>;
+  if (isError) return <Button onClick={() => void refetch()}>{t("common.retry")}</Button>;
+  const saved = data?.data.find((view) => view.id === viewId);
+  if (!saved) return <Button asChild variant="link"><Link href="/tasks">{t("shell.navTasks")}</Link></Button>;
+  return <TasksPage saved={saved} />;
+}
+
+export function TasksPage({ planner = false, saved }: { planner?: boolean; saved?: SavedView }) {
   const t = useT();
   const searchParams = useSearchParams();
 
-  const state = useMemo(
-    () => parseTaskSearchParams(new URLSearchParams(searchParams.toString())),
-    [searchParams],
-  );
+  const { userId } = useActiveCompany();
+  const state = useMemo(() => {
+    const query = new URLSearchParams(searchParams.toString());
+    const parsed = parseTaskSearchParams(query);
+    if (saved && !query.has("edited")) return viewToTaskState(saved.filters, userId, parsed);
+    if (planner && parsed.view === "list") return { ...parsed, view: "calendar" } as const;
+    return parsed;
+  }, [planner, saved, searchParams, userId]);
+
+  function changeState(next: TaskPageState) {
+    if (saved) {
+      const query = new URLSearchParams(serializeTaskState(next));
+      query.set("edited", "1");
+      replaceSearch(query.toString());
+    } else {
+      writeTaskState(next);
+    }
+  }
+
+  function changeView(view: TaskView) {
+    changeState({
+      ...state,
+      view,
+      tab: coerceTabForView(state.tab, view),
+      ...(planner && view === "board" ? { group: "assignee" } : {}),
+    });
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <PageHeader
-          title={t("tasks.pageTitle")}
-          secondary={
-            <ViewSwitcher
-              view={state.view}
-              onChange={(view) =>
-                // #113: keep the tab meaningful for the new view (Board/Map only
-                // support Mine | All, so Open/Done coerce to Mine).
-                writeTaskState({
-                  ...state,
-                  view,
-                  tab: coerceTabForView(state.tab, view),
-                })
-              }
+          title={saved?.name ?? t(planner ? "shell.navPlanner" : "tasks.pageTitle")}
+          secondary={planner ? (
+            <SegmentedControl<TaskView>
+              ariaLabel={t("tasks.viewAria")}
+              value={state.view}
+              onChange={changeView}
+              options={PLANNER_VIEWS.map(({ id, label }) => ({ value: id, label: t(label) }))}
             />
-          }
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <ViewSwitcher view={state.view} onChange={changeView} />
+              <Button asChild variant="ghost" size="sm"><Link href="/tasks/planner">{t("shell.navPlanner")}</Link></Button>
+            </div>
+          )}
           primary={<NewTaskButton variant="default" size="sm" />}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TaskFilterBar state={state} onChange={writeTaskState} />
+          <TaskFilterBar state={state} onChange={changeState} showSavedViews={!planner} />
           {/* #304: quiet, beside the filters that already say what it covers.
               Absent for anybody without `contacts.bulk` — every task names a
               customer. Downloads the current view at once (#745). */}

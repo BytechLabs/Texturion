@@ -77,6 +77,7 @@ data class TaskListFilters(
     val createdBy: String? = null,
     /** #690: "text", "call" or "none". */
     val source: String? = null,
+    val sourceLineId: String? = null,
     val hasAttachments: Boolean = false,
     val hasReferences: Boolean = false,
     val confirmed: Boolean? = null,
@@ -125,6 +126,7 @@ fun taskQueryParams(
         "contact_id" to filters.contactId,
         "created_by" to filters.createdBy,
         "source" to filters.source,
+        "source_line_id" to filters.sourceLineId,
         "has_attachments" to if (filters.hasAttachments) "true" else null,
         "has_references" to if (filters.hasReferences) "true" else null,
         "confirmed" to filters.confirmed?.toString(),
@@ -206,6 +208,7 @@ fun taskListArms(
         contactId = extra.contactId,
         createdBy = extra.createdBy,
         source = extra.source,
+        sourceLineId = extra.sourceLineId,
         hasAttachments = extra.hasAttachments,
         confirmed = if (extra.notConfirmed) false else null,
         hasReferences = extra.hasReferences,

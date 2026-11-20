@@ -20,6 +20,8 @@ struct InboxTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    var phoneLineId: String? = nil
+    var onSelectPhoneLine: (@MainActor (String?) -> Void)? = nil
 
     @State private var selection: String?
     @State private var composeOpen = false
@@ -30,6 +32,8 @@ struct InboxTab: View {
             graph: graph,
             companyId: companyId,
             me: me,
+            phoneLineId: phoneLineId,
+            onSelectPhoneLine: onSelectPhoneLine,
             selection: $selection,
             onOpen: { conversationId, highlightMessageId in
                 // Push the thread onto the shell's root stack. The highlight
@@ -183,7 +187,12 @@ final class InboxController {
     /// tap on a cold start, which is exactly when that race is lost.
     private(set) var assigneeUserId: String?
     private(set) var unassignedOnly = false
-    private(set) var lineId: String?
+    private var shellLineId: String?
+    private var filterLineId: String?
+    private(set) var lineId: String? {
+        get { shellLineId ?? filterLineId }
+        set { filterLineId = newValue }
+    }
     private(set) var tagId: String?
 
     /// The filtered teammate, once the roster can name them. Labels only.
@@ -348,6 +357,14 @@ final class InboxController {
         assigneeUserId = nil
         unassignedOnly = true
         reload(showLoading: true)
+    }
+
+    func selectShellLine(_ id: String?) {
+        guard shellLineId != id else { return }
+        shellLineId = id
+        scheduled = []
+        reload(showLoading: true)
+        refreshScheduled()
     }
 
     func setLineFilter(_ id: String?) {
@@ -601,10 +618,11 @@ final class InboxController {
 
     /// #233: what the workspace has queued. Quiet failure — it gates one icon.
     func refreshScheduled() {
+        let line = shellLineId
         Task {
             if let page = try? await self.repo.scheduledMessages(
-                companyId: self.companyId
-            ) {
+                companyId: self.companyId, phoneLineId: line
+            ), line == self.shellLineId {
                 self.scheduled = page.scheduled_messages
             }
         }
@@ -1285,6 +1303,8 @@ private struct InboxList: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
+    var phoneLineId: String? = nil
+    var onSelectPhoneLine: (@MainActor (String?) -> Void)? = nil
     /// List highlight only (the split view is gone in #186); opens route up.
     @Binding var selection: String?
     /// (conversationId, highlightMessageId?) — the highlight rides search hits.
@@ -1312,7 +1332,8 @@ private struct InboxList: View {
     @State private var appliedDestinationToken: Int?
 
     private var lines: [(id: String, label: String)] {
-        (me.company?.numbers ?? []).compactMap { number in
+        guard phoneLineId == nil else { return [] }
+        return (me.company?.numbers ?? []).compactMap { number in
             number.number_e164.map { (number.id, MergeFields.formatNanpNumber($0)) }
         }
     }
@@ -1367,6 +1388,7 @@ private struct InboxList: View {
         // again whenever it changes, because the setting is a person's and can
         // be changed while this screen is up.
         .onChange(of: appLocale) { _, next in controller?.locale = next }
+        .onChange(of: phoneLineId) { _, next in controller?.selectShellLine(next) }
         .task(id: companyId) {
             if controller == nil {
                 let created = InboxController(
@@ -1376,6 +1398,7 @@ private struct InboxList: View {
                 )
                 created.locale = appLocale
                 controller = created
+                created.selectShellLine(phoneLineId)
                 created.start()
             } else {
                 controller?.locale = appLocale
@@ -1537,7 +1560,11 @@ private struct InboxList: View {
                     controller.markLocallyRead(id)
                     onOpen(id, nil)
                 },
-                onCancel: { controller.cancelScheduled($0) }
+                onCancel: { controller.cancelScheduled($0) },
+                lineMenu: onSelectPhoneLine.map { select in
+                    let available = accessiblePhoneLines(me.company?.numbers ?? [])
+                    return PhoneLineMenu(lines: available, selected: available.first { $0.id == phoneLineId }, onSelect: select)
+                }
             )
         }
         // The row swipe's Assign — the thread's picker, the thread's mutation.
@@ -1589,34 +1616,17 @@ private struct InboxTitleRow: View {
         HStack(alignment: .firstTextBaseline) {
             ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
             Spacer(minLength: 0)
-            // #233: self-surfacing rather than buried. The whole ask is "so
-            // nobody is surprised", and a control that only appears when
-            // something IS queued does that without costing a permanent
-            // slot on the days nothing is. *Applying: Zen of Clarity.*
-            if scheduledCount > 0 {
-                Button {
-                    onOpenScheduled()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(BrandColor.muted500)
-                        CountPill(scheduledCount)
-                    }
-                    // The clock and pill are small; the tap area is not.
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+            Button(action: onOpenScheduled) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(BrandColor.muted500)
+                    if scheduledCount > 0 { CountPill(scheduledCount) }
                 }
-                .accessibilityLabel(
-                    scheduledCount == 1
-                        ? AppStrings.translate(appLocale, "inbox.scheduledOneAria")
-                        : AppStrings.translate(
-                            appLocale,
-                            "inbox.scheduledManyAria",
-                            ["count": String(scheduledCount)]
-                        )
-                )
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .accessibilityLabel(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)

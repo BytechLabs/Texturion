@@ -243,6 +243,7 @@ interface TaskFilters {
   createdBy?: string;
   /** #690: promoted from a text, from a call, or neither. */
   source?: "text" | "call" | "none";
+  sourceLineId?: string | null;
   /** #690: carries a file by the D28 union. */
   hasAttachments?: boolean;
   /**
@@ -307,6 +308,8 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   if (filters.tagId !== undefined) q = q.eq("task_tags.tag_id", filters.tagId);
   if (filters.contactOr !== undefined) q = q.or(filters.contactOr);
   if (filters.createdBy !== undefined) q = q.eq("created_by_user_id", filters.createdBy);
+  if (filters.sourceLineId === null) q = q.is("source_line_id", null).not("source_line_id", "is", null);
+  else if (filters.sourceLineId !== undefined) q = q.eq("source_line_id", filters.sourceLineId);
   if (filters.source === "text") q = q.not("message_id", "is", null);
   if (filters.source === "call") q = q.not("source_call_id", "is", null);
   if (filters.source === "none") q = q.is("message_id", null).is("source_call_id", null);
@@ -353,13 +356,14 @@ interface ExtraTaskFilterInput {
   contact_id?: string;
   created_by?: string;
   source?: TaskFilters["source"];
+  source_line_id?: string;
   has_attachments?: boolean;
   has_references?: boolean;
 }
 
 type ExtraTaskFilters = Pick<
   TaskFilters,
-  "contactOr" | "createdBy" | "source" | "hasAttachments" | "referencedHidden"
+  "contactOr" | "createdBy" | "source" | "sourceLineId" | "hasAttachments" | "referencedHidden"
 >;
 
 const TASK_SOURCES = ["text", "call", "none"] as const;
@@ -400,13 +404,16 @@ async function resolveExtraTaskFilters(
   }
   if (input.source !== undefined) out.source = input.source;
   if (input.has_attachments === true) out.hasAttachments = true;
-  if (input.has_references === true) {
+  if (input.has_references === true || input.source_line_id !== undefined) {
     const access = await resolveNumberAccess(db, {
       companyId,
       userId: c.get("userId"),
       role: c.get("role"),
     });
-    out.referencedHidden = access.hiddenNumberIds ?? [];
+    if (input.has_references === true) out.referencedHidden = access.hiddenNumberIds ?? [];
+    if (input.source_line_id !== undefined) {
+      out.sourceLineId = access.levelFor(input.source_line_id) === "none" ? null : input.source_line_id;
+    }
   }
   return out;
 }
@@ -1367,6 +1374,7 @@ const taskSelectionSchema = z.strictObject({
   contact_id: z.uuid().optional(),
   created_by: taskMemberFilter.optional(),
   source: z.enum(TASK_SOURCES).optional(),
+  source_line_id: z.uuid().toLowerCase().optional(),
   has_attachments: z.boolean().optional(),
   has_references: z.boolean().optional(),
 }).refine(
@@ -1396,6 +1404,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     contact_id: query.contact_id,
     created_by: query.created_by,
     source: query.source,
+    source_line_id: query.source_line_id,
     has_attachments: query.has_attachments === "true" || undefined,
     has_references: query.has_references === "true" || undefined,
   } satisfies Record<keyof z.input<typeof taskSelectionSchema>, unknown>;

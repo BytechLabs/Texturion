@@ -51,9 +51,11 @@ const PHONE_LINE =
 /** `section.key` to why "thread" is the right word there. */
 const THREAD_OTHER_MEANINGS: Record<string, string> = {};
 
-/** `section.key` to why "line" is not a phone line there. */
-const LINE_OTHER_MEANINGS: Record<string, string> = {
+const LINE_EXCEPTIONS: Record<string, string> = {
   "appShell.aiCatchupBoundary": "every line of a catch-up is a line of text quoting a message",
+  "shell.phoneLine": "#877 groups Messages and Calls by phone line",
+  "shell.phoneLineNamed": "#877 names the selected phone line in the rail",
+  "shell.allPhoneLines": "#877 filters Lou activity locally",
 };
 
 describe("English says conversation, not thread", () => {
@@ -81,14 +83,14 @@ describe("English says number, not line, for a phone line", () => {
 
   it("no value calls a phone number a line", () => {
     const offenders = all
-      .filter(([key, value]) => PHONE_LINE.test(readable(value)) && !(key in LINE_OTHER_MEANINGS))
+      .filter(([key, value]) => PHONE_LINE.test(readable(value)) && !(key in LINE_EXCEPTIONS))
       .map(([key, value]) => `${key}: ${value}`);
     expect(offenders).toEqual([]);
   });
 
   it("every named exception still matches", () => {
     const byKey = new Map(all);
-    const stale = Object.keys(LINE_OTHER_MEANINGS).filter((key) => {
+    const stale = Object.keys(LINE_EXCEPTIONS).filter((key) => {
       const value = byKey.get(key);
       return value === undefined || !PHONE_LINE.test(readable(value));
     });

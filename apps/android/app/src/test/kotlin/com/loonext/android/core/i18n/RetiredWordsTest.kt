@@ -42,9 +42,10 @@ class RetiredWordsTest {
     /** Key to why "thread" is the right word there. */
     private val threadOtherMeanings = emptyMap<String, String>()
 
-    /** Key to why "line" is not a phone line there. */
-    private val lineOtherMeanings = mapOf(
+    private val lineExceptions = mapOf(
         "settings.aiCatchUpHelp" to "every line of a catch-up is a line of text quoting a message",
+        "shell.phoneLine" to "#877 groups Messages and Calls by phone line",
+        "shell.allPhoneLines" to "#877 filters Lou activity locally",
     )
 
     /** Placeholders such as `{label}` name a variable, not a word the reader sees. */
@@ -70,14 +71,14 @@ class RetiredWordsTest {
     @Test
     fun `no English value calls a phone number a line`() {
         val offenders = AppStrings.en
-            .filter { (key, value) -> phoneLine.containsMatchIn(readable(value)) && key !in lineOtherMeanings }
+            .filter { (key, value) -> phoneLine.containsMatchIn(readable(value)) && key !in lineExceptions }
             .map { (key, value) -> "$key: $value" }
         assertEquals("a phone number is called a line", emptyList<String>(), offenders)
     }
 
     @Test
     fun `every line exception still matches`() {
-        val stale = lineOtherMeanings.keys.filter { key ->
+        val stale = lineExceptions.keys.filter { key ->
             val value = AppStrings.en[key]
             value == null || !phoneLine.containsMatchIn(readable(value))
         }

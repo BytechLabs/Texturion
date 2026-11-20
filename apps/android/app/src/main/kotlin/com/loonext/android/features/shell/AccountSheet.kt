@@ -202,7 +202,7 @@ internal fun AccountSheetContent(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         InitialsAvatar(
-                            workspaceName ?: me.display_name,
+                            me.display_name.ifBlank { workspaceName },
                             44.dp,
                             shape = RoundedCornerShape(14.dp),
                             glyph = 13.sp,

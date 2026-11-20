@@ -166,11 +166,13 @@ const FILTERS: Record<
     conversation_id: isUuid,
     created_by: (v) => v === "me" || isUuid(v),
     source: oneOf("text", "call", "none"),
+    source_line_id: isUuid,
     has_attachments: isBool,
     has_references: isBool,
     // #689 G: how the board groups its columns. A view setting only: no list
     // request carries it.
     group: oneOf("status", "assignee", "priority"),
+    layout: oneOf("list", "board", "calendar", "map"),
   },
 };
 
@@ -182,7 +184,7 @@ export function savedViewFilterKeys(surface: SavedViewSurface): string[] {
 export type SavedViewFilters = Record<string, FilterValue>;
 
 /** Keys a view stores that no list endpoint reads: how it is laid out, not what it shows. */
-const VIEW_ONLY_KEYS = new Set(["group"]);
+const VIEW_ONLY_KEYS = new Set(["group", "layout"]);
 
 /**
  * Keep only the filters this surface understands, with values it accepts.

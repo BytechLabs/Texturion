@@ -1,5 +1,6 @@
 "use client";
 
+import { Ellipsis } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -7,43 +8,28 @@ import { useState } from "react";
 import { CountPill } from "@/components/ui/count-pill";
 import { useT } from "@/i18n/provider";
 import { useNotificationsUnreadCount } from "@/lib/api/notifications";
-import { useActiveCompany } from "@/lib/company/provider";
 import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notifications";
 import { cn } from "@/lib/utils";
 
 
-import { InitialsAvatar } from "./initials-avatar";
 import { MobileAccountSheet } from "./mobile-account-sheet";
 import { isNavActive, MOBILE_NAV } from "./nav";
 import { useForYouNavCount, useInboxNavCount } from "./use-nav-counts";
 import { NavGlyph } from "./workspace-bits";
-import { avatarInitials } from "@loonext/shared";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
   return n > 9 ? "9+" : `${n}`;
 }
 
-/**
- * Mobile/tablet bottom tab bar (PORTAL-UX §5, #100, <1000px): For you · Inbox ·
- * Tasks · Contacts · You — four LABELED nav links plus the ACCOUNT AVATAR,
- * which replaced "More" (#100) and opens the account sheet (workspace info,
- * number(s), notifications, theme, Settings, Sign out). All five are 44px+
- * touch targets with safe-area padding; labels stay visible (never bare
- * icons). For-you and Inbox carry quiet stone count badges (issue #64: the one
- * petrol accent in this region is the compose FAB, never a count). Unread
- * NOTIFICATIONS surface as a dot on the avatar (#100).
- */
 export function MobileTabBar() {
   const t = useT();
   const pathname = usePathname();
   const forYouCount = useForYouNavCount();
   const inboxCount = useInboxNavCount();
-  const { membership, displayName } = useActiveCompany();
+  const moreActive = ["/contacts", "/settings", "/trash"].some((href) => isNavActive(pathname, href));
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Keep the avatar's unread dot live off the shared realtime signal — the
-  // desktop bell isn't mounted on mobile anymore (the top header is gone).
   useForYouNotificationsRealtime();
   const unread = useNotificationsUnreadCount();
   const unreadCount = unread.data?.count ?? 0;
@@ -56,7 +42,7 @@ export function MobileTabBar() {
       >
         <div className="grid grid-cols-5">
           {MOBILE_NAV.map((item) => {
-            const active = isNavActive(pathname, item.href);
+            const active = isNavActive(pathname, item.href) || (item.href === "/inbox" && isNavActive(pathname, "/calls"));
             const count =
               item.href === "/for-you"
                 ? forYouCount
@@ -100,25 +86,21 @@ export function MobileTabBar() {
             );
           })}
 
-          {/* #100: the account avatar — replaces "More". Opens the account
-              sheet; unread notifications show as a dot on the avatar. */}
           <button
             type="button"
             aria-label={
               unreadCount > 0
-                ? t("shell.youAccountUnread", { count: unreadCount })
-                : t("shell.youAccount")
+                ? t("shell.navCount", { label: t("shell.navMore"), count: unreadCount })
+                : t("shell.navMore")
             }
+            aria-current={moreActive ? "page" : undefined}
             aria-haspopup="dialog"
             aria-expanded={sheetOpen}
             onClick={() => setSheetOpen(true)}
-            className="flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out"
+            className={cn("flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium", moreActive ? "text-app-olive-deep" : "text-app-muted")}
           >
             <span className="relative">
-              <InitialsAvatar
-                initials={avatarInitials(displayName || membership.name)}
-                className="grid size-5 place-items-center rounded-full bg-app-tint text-[9px] font-semibold text-app-olive-deep"
-              />
+              <Ellipsis className="size-5" aria-hidden />
               {unreadCount > 0 && (
                 <span
                   aria-hidden
@@ -126,7 +108,7 @@ export function MobileTabBar() {
                 />
               )}
             </span>
-            {t("shell.you")}
+            {t("shell.navMore")}
           </button>
         </div>
       </nav>

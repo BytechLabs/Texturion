@@ -129,6 +129,7 @@ export interface TaskPageState {
   createdBy?: string;
   /** #690: where the task came from. */
   source?: TaskSource;
+  sourceLine?: string;
   /** #690: only tasks carrying a file. */
   files?: boolean;
   /** #690: only tasks referenced from a note, a task or a comment. */
@@ -201,6 +202,8 @@ export function parseTaskSearchParams(
   if (source !== null && SOURCE_VALUES.has(source as TaskSource)) {
     state.source = source as TaskSource;
   }
+  const sourceLine = params.get("sourceLine");
+  if (sourceLine && UUID_RE.test(sourceLine)) state.sourceLine = sourceLine;
   if (params.get("files") === "1") state.files = true;
   if (params.get("refs") === "1") state.refs = true;
   const from = params.get("from");
@@ -234,6 +237,7 @@ export function serializeTaskState(state: TaskPageState): string {
   if (state.contact) params.set("contact", state.contact);
   if (state.createdBy) params.set("by", state.createdBy);
   if (state.source) params.set("source", state.source);
+  if (state.sourceLine) params.set("sourceLine", state.sourceLine);
   if (state.files) params.set("files", "1");
   if (state.refs) params.set("refs", "1");
   if (state.dueFrom) params.set("from", state.dueFrom);
@@ -335,6 +339,7 @@ export function toTaskFilters(
   if (state.contact) filters.contact_id = state.contact;
   if (state.createdBy) filters.created_by = state.createdBy;
   if (state.source) filters.source = state.source;
+  if (state.sourceLine) filters.source_line_id = state.sourceLine;
   if (state.files) filters.has_attachments = true;
   if (state.refs) filters.has_references = true;
 
@@ -354,6 +359,7 @@ export function hasActiveChips(state: TaskPageState): boolean {
       state.contact ||
       state.createdBy ||
       state.source ||
+      state.sourceLine ||
       state.files ||
       state.refs ||
       state.dueFrom ||

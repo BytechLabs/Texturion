@@ -31,6 +31,8 @@ const PAGE_NAMES: Record<string, MessageKey> = {
   "/scheduled": "tasks.scheduledTitle",
   "/contacts": "shell.navContacts",
   "/tasks": "shell.navTasks",
+  "/tasks/planner": "shell.navPlanner",
+  "/lou": "shell.navLou",
   "/calls": "shell.navCalls",
   "/settings": "shell.navSettings",
   "/trash": "trash.title",
@@ -52,7 +54,7 @@ function readSidebarCollapsed(): boolean {
  * full-viewport-height row (`h-svh overflow-hidden`) so the browser page never
  * scrolls — the sidebar is pinned and the inner panes/documents scroll.
  *
- * - Sidebar (232px expanded / 64px icon rail, lg+): workspace tile, search,
+ * - Sidebar (232px expanded / 56px icon rail, lg+): workspace tile, search,
  *   FOCUS nav, footer user-bar. The collapse choice is persisted per browser.
  *   Hidden <1000px, where the labeled bottom tab bar owns primary nav.
  * - WorkspaceStatusBanner: ambient not-ready strip, app-wide above the content.

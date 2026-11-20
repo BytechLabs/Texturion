@@ -16,13 +16,14 @@ class ShellPagerTest {
     @Test
     fun `the four nav slots map to pages in slot order`() {
         assertEquals(
-            listOf(ShellTab.ForYou, ShellTab.Inbox, ShellTab.Calls, ShellTab.Tasks),
+            listOf(ShellTab.ForYou, ShellTab.Inbox, ShellTab.Tasks, ShellTab.Lou),
             SHELL_PAGE_TABS,
         )
         assertEquals(0, shellPageForTab(ShellTab.ForYou))
         assertEquals(1, shellPageForTab(ShellTab.Inbox))
-        assertEquals(2, shellPageForTab(ShellTab.Calls))
-        assertEquals(3, shellPageForTab(ShellTab.Tasks))
+        assertEquals(1, shellPageForTab(ShellTab.Calls))
+        assertEquals(2, shellPageForTab(ShellTab.Tasks))
+        assertEquals(3, shellPageForTab(ShellTab.Lou))
     }
 
     @Test
@@ -41,8 +42,8 @@ class ShellPagerTest {
     @Test
     fun `out-of-range pages clamp to the edges instead of crashing`() {
         assertEquals(ShellTab.ForYou, shellTabForPage(-1))
-        assertEquals(ShellTab.Tasks, shellTabForPage(SHELL_PAGE_TABS.size))
-        assertEquals(ShellTab.Tasks, shellTabForPage(99))
+        assertEquals(ShellTab.Lou, shellTabForPage(SHELL_PAGE_TABS.size))
+        assertEquals(ShellTab.Lou, shellTabForPage(99))
     }
 
     // ---- indicator blend ---------------------------------------------------

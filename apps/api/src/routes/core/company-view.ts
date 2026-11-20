@@ -135,7 +135,7 @@ export const COMPANY_COLUMNS =
 // provision_failed number — the field name matches GET /v1/numbers' sanitized
 // shape. The raw last_provision_error + telnyx_* ids are never selected here.
 const NUMBER_COLUMNS =
-  "id,status,source,voice_enabled,country,number_e164,requested_area_code," +
+  "id,status,source,voice_enabled,country,number_e164,label,requested_area_code," +
   "created_at,failure_reason:provision_failure_reason,provision_attempts";
 
 const REGISTRATION_COLUMNS =

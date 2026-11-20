@@ -40,6 +40,7 @@ struct TaskViewState: Equatable, Sendable {
     var due: DueChip? = nil
     var meta: TaskMetaFilters = TaskMetaFilters()
     var group: String = TaskGroup.status
+    var layout: TaskViewKind? = nil
 }
 
 private let priorityNames: Set<String> = ["none", "low", "normal", "high", "urgent"]
@@ -87,7 +88,7 @@ func sanitizeTaskFilters(_ raw: [String: JSONValue]) -> [String: JSONValue] {
         let keep: Bool
         switch key {
         case "status": keep = text.map { taskStatuses.contains($0) } ?? false
-        case "assigned_user_id", "tag_id", "contact_id", "conversation_id":
+        case "assigned_user_id", "tag_id", "contact_id", "conversation_id", "source_line_id":
             keep = text.map(isSavedViewUUID) ?? false
         case "unassigned", "overdue", "has_location", "has_attachments", "has_references":
             keep = flag != nil
@@ -104,6 +105,7 @@ func sanitizeTaskFilters(_ raw: [String: JSONValue]) -> [String: JSONValue] {
         case "created_by": keep = text.map { $0 == "me" || isSavedViewUUID($0) } ?? false
         case "source": keep = text.map { TaskSourceChoice.all.contains($0) } ?? false
         case "group": keep = text.map { TaskGroup.all.contains($0) } ?? false
+        case "layout": keep = text.flatMap(TaskViewKind.init(rawValue:)) != nil
         default: keep = false
         }
         if keep { out[key] = value }
@@ -114,6 +116,7 @@ func sanitizeTaskFilters(_ raw: [String: JSONValue]) -> [String: JSONValue] {
 /// The controls as a view stores them.
 func taskViewFilters(_ state: TaskViewState, meUserId: String) -> [String: JSONValue] {
     var raw: [String: JSONValue] = [:]
+    if let layout = state.layout { raw["layout"] = .string(layout.rawValue) }
     switch state.tab {
     case .open: raw["status"] = .string("open")
     case .done: raw["status"] = .string("done")
@@ -139,6 +142,7 @@ func taskViewFilters(_ state: TaskViewState, meUserId: String) -> [String: JSONV
     if let contact = meta.contactId { raw["contact_id"] = .string(contact) }
     if let by = meta.createdBy { raw["created_by"] = .string(by) }
     if let source = meta.source { raw["source"] = .string(source) }
+    if let sourceLineId = meta.sourceLineId { raw["source_line_id"] = .string(sourceLineId) }
     if meta.hasAttachments { raw["has_attachments"] = .bool(true) }
     if meta.hasReferences { raw["has_references"] = .bool(true) }
     if meta.notConfirmed { raw["confirmed"] = .bool(false) }
@@ -172,6 +176,7 @@ func taskViewState(_ filters: [String: JSONValue], meUserId: String) -> TaskView
     let clean = sanitizeTaskFilters(filters)
     let status = filterText(clean, "status")
     var state = TaskViewState()
+    state.layout = filterText(clean, "layout").flatMap(TaskViewKind.init(rawValue:))
     var meta = TaskMetaFilters()
 
     if filterFlag(clean, "unassigned") {
@@ -200,6 +205,7 @@ func taskViewState(_ filters: [String: JSONValue], meUserId: String) -> TaskView
     meta.contactId = filterText(clean, "contact_id")
     meta.createdBy = filterText(clean, "created_by")
     meta.source = filterText(clean, "source")
+    meta.sourceLineId = filterText(clean, "source_line_id")
     meta.hasAttachments = filterFlag(clean, "has_attachments")
     meta.hasReferences = filterFlag(clean, "has_references")
     if case .bool(false) = clean["confirmed"] { meta.notConfirmed = true }
@@ -214,7 +220,10 @@ func taskViewMatches(
     _ state: TaskViewState,
     meUserId: String
 ) -> Bool {
-    sanitizeTaskFilters(filters) == taskViewFilters(state, meUserId: meUserId)
+    let saved = sanitizeTaskFilters(filters)
+    var effective = state
+    if saved["layout"] == nil { effective.layout = nil }
+    return saved == taskViewFilters(effective, meUserId: meUserId)
 }
 
 /// True when the screen holds something a view would leave out (a relative due

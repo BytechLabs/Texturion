@@ -1,7 +1,18 @@
-import { Home, Inbox, ListChecks, PhoneIncoming, Settings, Users } from 'lucide-react';
+import { Home, Inbox, ListChecks, PhoneIncoming, Settings, Sparkles, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
+import type { MemberRole } from "@loonext/shared";
+
 import type { MessageKey } from "@/i18n/translate";
+
+/** Role names as a person would read them. */
+export const ROLE_LABEL_KEYS: Partial<Record<MemberRole, MessageKey>> = {
+  owner: "shell.roleOwner",
+  admin: "shell.roleAdmin",
+  member: "shell.roleMember",
+  read_only: "shell.roleReadOnly",
+  bookkeeper: "shell.roleBookkeeper",
+};
 
 export interface NavItem {
   /**
@@ -31,9 +42,6 @@ const INBOX_NAV: NavItem = {
   icon: Inbox,
   countsUnread: true,
 };
-/** #129 Calls — the call log. Desktop + palette surface; on mobile it lives
- *  in the account sheet because the tab bar is locked at four links + the
- *  avatar (#100), and every call also reaches the inbox as a timeline line. */
 const CALLS_NAV: NavItem = {
   labelKey: "shell.navCalls",
   href: "/calls",
@@ -50,16 +58,11 @@ const CONTACTS_NAV: NavItem = {
   icon: Users,
 };
 
-/**
- * Primary navigation, in the APP-LAYOUT-V2 §1.3 order, extended by #129:
- * For You · Inbox · Calls · Tasks · Contacts.
- *
- * /for-you (D23 focus queue) and /tasks (D25 four-view switcher) are the shipped
- * feature surfaces — HOME-AND-VIEWS.md. Every item resolves to a real page, so
- * there are zero dead links. (Templates + Numbers live in Settings — issue #8.)
- */
+const LOU_NAV: NavItem = { labelKey: "shell.navLou", href: "/lou", icon: Sparkles };
+
 export const PRIMARY_NAV: NavItem[] = [
   FOR_YOU_NAV,
+  LOU_NAV,
   INBOX_NAV,
   CALLS_NAV,
   TASKS_NAV,
@@ -72,21 +75,11 @@ export const SETTINGS_NAV: NavItem = {
   icon: Settings,
 };
 
-/**
- * Mobile bottom tabs (PORTAL-UX §5, #100): For you · Inbox · Tasks · Contacts —
- * four 44px+ LABELED link targets that fit a 375px bar (labels stay visible,
- * never bare icons). The fifth cell is the ACCOUNT AVATAR (rendered by the tab
- * bar itself, not a link): it opens the account sheet carrying the workspace
- * info, number(s), notifications, theme, Calls (#129), Settings, and Sign out —
- * the "More" link is gone (#100). Calls deliberately does NOT take a fifth
- * tab: the bar's shape is a shipped decision, and misses reach the crew
- * through the inbox timeline + For You regardless.
- */
 export const MOBILE_NAV: NavItem[] = [
-  FOR_YOU_NAV,
-  INBOX_NAV,
+  { ...FOR_YOU_NAV, labelKey: "shell.navForYou" },
+  { ...INBOX_NAV, labelKey: "shell.navConversations" },
   TASKS_NAV,
-  CONTACTS_NAV,
+  LOU_NAV,
 ];
 
 /** Active when the path is the item or nested under it. */

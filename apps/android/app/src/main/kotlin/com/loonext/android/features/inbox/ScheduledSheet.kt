@@ -80,6 +80,7 @@ fun ScheduledSheet(
     onOpenConversation: (String) -> Unit,
     onCancel: (String) -> Unit,
     onDismiss: () -> Unit,
+    lineMenu: (@Composable () -> Unit)? = null,
 ) {
     val held = rows.filter { it.status == "held" }
     val pending = rows.filter { it.status != "held" }
@@ -93,6 +94,7 @@ fun ScheduledSheet(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
+        lineMenu?.invoke()
         if (rows.isEmpty()) {
             // Reassurance IS the honest empty answer: the question this sheet
             // exists to settle is "is something about to go out that I don't

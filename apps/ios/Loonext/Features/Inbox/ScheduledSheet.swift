@@ -29,6 +29,7 @@ struct ScheduledSheet: View {
     let rows: [ScheduledMessage]
     let onOpenConversation: @MainActor (String) -> Void
     let onCancel: @MainActor (String) -> Void
+    var lineMenu: PhoneLineMenu? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
@@ -79,6 +80,12 @@ struct ScheduledSheet: View {
                         }
                     }
                 }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                lineMenu
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .background(BrandColor.canvas)
             }
             .navigationTitle(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
             .navigationBarTitleDisplayMode(.inline)

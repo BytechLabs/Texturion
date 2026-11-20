@@ -306,6 +306,7 @@ export interface EmailState {
 /** Numbers summary embedded in company views (routes/core/company-view.ts). */
 export interface PhoneNumberSummary {
   id: string;
+  label?: string | null;
   status: NumberStatus;
   country: Country;
   number_e164: string | null;

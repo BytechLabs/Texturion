@@ -239,6 +239,7 @@ scheduledMessageRoutes.post(
  */
 const listSchema = z.object({
   conversation_id: z.uuid().optional(),
+  phone_number_id: z.uuid().optional(),
   status: z.enum(["live", "all"]).optional(),
 });
 
@@ -288,6 +289,9 @@ scheduledMessageRoutes.get(
 
     if (parsed.data.conversation_id) {
       query = query.eq("conversation_id", parsed.data.conversation_id);
+    }
+    if (parsed.data.phone_number_id) {
+      query = query.eq("conversations.phone_number_id", parsed.data.phone_number_id);
     }
     if (access.hiddenNumberIds?.length) {
       query = query.or(

@@ -276,6 +276,7 @@ struct TaskMapView: View {
                         "contact_id": meta.contactId,
                         "created_by": meta.createdBy,
                         "source": meta.source,
+                        "source_line_id": meta.sourceLineId,
                         "confirmed": meta.notConfirmed ? "false" : nil,
                         "cursor": cursor,
                         "limit": "100",

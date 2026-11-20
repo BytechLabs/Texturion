@@ -186,8 +186,9 @@ internal suspend fun fetchCallsLog(
     outcome: String?,
     cacheKey: String,
     reason: String? = null,
+    phoneLineId: String? = null,
 ): CallsLog {
-    val page = repo.calls(companyId, outcome = outcome, reason = reason)
+    val page = repo.calls(companyId, outcome = outcome, reason = reason, phoneLineId = phoneLineId)
     val cached = cache.flowOf<CallsLog>(cacheKey).value
     if (cached == null || cached.calls.size <= page.data.size) {
         return CallsLog(page.data, page.next_cursor)
@@ -222,6 +223,7 @@ fun CallsScreen(
     /** #734: a row's Details action, by the call's carrier session id. */
     onOpenCall: (sessionId: String) -> Unit = {},
     onOpenAiSettings: () -> Unit = {},
+    phoneLineId: String? = null,
 ) {
     val context = LocalContext.current
     val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
@@ -300,17 +302,18 @@ fun CallsScreen(
     // to a previously-used filter) paints instantly from StoreCache while the
     // first page revalidates silently; only a never-fetched filter may show
     // the loading state.
-    val cacheKey = CacheKeys.calls(
+    fun logKey(filter: CallsFilter, reason: String? = null): String = CacheKeys.calls(
         companyId,
-        filter.filterKey + (reason?.let { ":$it" } ?: ""),
+        filter.filterKey + reason?.let { ":$it" }.orEmpty() + phoneLineId?.let { "/line/$it" }.orEmpty(),
     )
+    val cacheKey = logKey(filter, reason)
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
         try {
-            fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey, reason)
+            fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey, reason, phoneLineId)
         } finally {
             refreshing = false
         }
@@ -332,8 +335,8 @@ fun CallsScreen(
     // #210: ongoing (outcome-null) rows always derive from the All-filter
     // payload — an outcome= filter can never return them — so the pinned card
     // stays truthful whatever filter pill is active.
-    val defaultCallsKey = CacheKeys.calls(companyId)
-    val defaultLog by remember(companyId) {
+    val defaultCallsKey = logKey(CallsFilter.All)
+    val defaultLog by remember(defaultCallsKey) {
         graph.storeCache.flowOf<CallsLog>(defaultCallsKey)
     }.collectAsStateWithLifecycle()
     val ongoing = remember(defaultLog) { ongoingCalls(defaultLog?.calls ?: emptyList()) }
@@ -341,12 +344,12 @@ fun CallsScreen(
     // While a narrower filter is active, realtime/reconnect/pull bumps of
     // refreshKey only revalidate that filter's key above — replay the All
     // fetch too so the card clears the moment a call resolves.
-    LaunchedEffect(companyId, refreshKey, filter) {
+    LaunchedEffect(companyId, refreshKey, filter, phoneLineId) {
         if (filter != CallsFilter.All) {
             runCatching {
                 graph.storeCache.put(
                     defaultCallsKey,
-                    fetchCallsLog(graph.storeCache, repo, companyId, null, defaultCallsKey),
+                    fetchCallsLog(graph.storeCache, repo, companyId, null, defaultCallsKey, phoneLineId = phoneLineId),
                 )
             }
         }
@@ -383,7 +386,7 @@ fun CallsScreen(
     var deletingCall by remember(companyId) { mutableStateOf<Call?>(null) }
     fun editLogs(edit: (List<Call>) -> List<Call>) {
         CallsFilter.entries.forEach { f ->
-            val key = CacheKeys.calls(companyId, f.filterKey)
+            val key = logKey(f)
             val cached = graph.storeCache.flowOf<CallsLog>(key).value ?: return@forEach
             graph.storeCache.put(key, cached.copy(calls = edit(cached.calls)))
         }
@@ -674,6 +677,7 @@ fun CallsScreen(
                                                             outcome = outcome,
                                                             cursor = cursor,
                                                             reason = onlyReason,
+                                                            phoneLineId = phoneLineId,
                                                         )
                                                         // Append onto whatever the cache
                                                         // holds NOW (a silent revalidate

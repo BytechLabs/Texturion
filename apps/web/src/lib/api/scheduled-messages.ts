@@ -90,18 +90,18 @@ export const scheduledKeys = {
  * scroll past last month's sent messages to show what is coming would be
  * showing the wrong thing.
  */
-export function useScheduledMessages(conversationId?: string) {
+export function useScheduledMessages(conversationId?: string, lineId?: string) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: conversationId
       ? scheduledKeys.thread(companyId, conversationId)
-      : scheduledKeys.all(companyId),
+      : [...scheduledKeys.all(companyId), ...(lineId ? ["line", lineId] : [])],
     queryFn: () =>
       apiFetch<{ scheduled_messages: ScheduledMessage[] }>(
         conversationId
           ? `/v1/scheduled-messages?conversation_id=${conversationId}`
           : "/v1/scheduled-messages",
-        { companyId },
+        { companyId, searchParams: { phone_number_id: lineId } },
       ),
     select: (data) => data.scheduled_messages,
   });

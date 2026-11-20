@@ -67,6 +67,7 @@ data class TaskExtraFilters(
     val contactId: String? = null,
     val createdBy: String? = null,
     val source: String? = null,
+    val sourceLineId: String? = null,
     val hasAttachments: Boolean = false,
     val hasReferences: Boolean = false,
     val notConfirmed: Boolean = false,
@@ -77,14 +78,14 @@ data class TaskExtraFilters(
 ) {
     val isFiltering: Boolean
         get() = priorities.isNotEmpty() || tagId != null || contactId != null ||
-            createdBy != null || source != null || hasAttachments || hasReferences || notConfirmed ||
+            createdBy != null || source != null || sourceLineId != null || hasAttachments || hasReferences || notConfirmed ||
             dueAfter != null || dueBefore != null
 
     /** How many of the Filters sheet's own filters are on (the number on the pill). */
     val activeCount: Int
         get() = listOf(
             priorities.isNotEmpty(), tagId != null, contactId != null, createdBy != null,
-            source != null, hasAttachments, hasReferences, notConfirmed, dueAfter != null || dueBefore != null,
+            source != null, sourceLineId != null, hasAttachments, hasReferences, notConfirmed, dueAfter != null || dueBefore != null,
         ).count { it }
 
     /** True when anything differs from the plain list. */
@@ -108,6 +109,7 @@ data class TaskExtraFilters(
             if (notConfirmed) "unconfirmed" else "-",
             dueAfter ?: "-",
             dueBefore ?: "-",
+            sourceLineId ?: "-",
             group.wire,
         )
         val plain = more.dropLast(1).all { it == "-" } && group == TaskGroup.Status

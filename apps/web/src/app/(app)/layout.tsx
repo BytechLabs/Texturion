@@ -7,6 +7,7 @@ import { MemberOrientation } from "@/components/onboarding/member-orientation";
 import { HandoverBanner } from "@/components/ownership/handover-banner";
 import { AppShell } from "@/components/shell/app-shell";
 import { MfaGate } from "@/components/shell/mfa-gate";
+import { PhoneLineProvider } from "@/components/shell/phone-line";
 import { PortalScope } from "@/components/shell/portal-scope";
 import { UpdatePrompt } from "@/components/shell/update-prompt";
 import { InertWhileAriaHidden } from "@/components/a11y/inert-while-aria-hidden";
@@ -88,7 +89,9 @@ export default function AppLayout({
                 once. This covers the shell with one sentence and the route
                 that fixes it, rather than thirty broken panels. */}
             <MfaGate>
-              <AppShell>{children}</AppShell>
+              <PhoneLineProvider>
+                <AppShell>{children}</AppShell>
+              </PhoneLineProvider>
             </MfaGate>
             {/* #286: the four screens a new tech gets on their first sign-in.
                 Mounted on the shell rather than a route because it belongs to

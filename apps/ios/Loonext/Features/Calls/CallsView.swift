@@ -41,6 +41,7 @@ struct CallsView: View {
     let companyId: String
     let me: Me
     var openConversation: (String) -> Void = { _ in }
+    let phoneLineId: String?
 
     private let manager: CallsManager
     private let service: CallsService
@@ -53,6 +54,7 @@ struct CallsView: View {
     @State private var state: LoadState<[Call]> = .loading
     @State private var nextCursor: String?
     @State private var loadingMore = false
+    @State private var paginationTask: Task<Void, Never>?
     @State private var refreshKey = 0
     @State private var offerVoicemailIntake = false
     /// #210: the rows the Ongoing card pins, and the roster that names who is
@@ -81,11 +83,13 @@ struct CallsView: View {
         graph: AppGraph,
         companyId: String,
         me: Me,
+        phoneLineId: String? = nil,
         openConversation: @escaping (String) -> Void = { _ in }
     ) {
         self.graph = graph
         self.companyId = companyId
         self.me = me
+        self.phoneLineId = phoneLineId
         self.openConversation = openConversation
         self.manager = CallsManager.get(graph: graph)
         self.service = CallsService(api: graph.api)
@@ -106,7 +110,13 @@ struct CallsView: View {
             let settings: CompanyAiSettings? = try? await graph.api.get("/v1/company/ai-settings", companyId: companyId)
             offerVoicemailIntake = settings?.voicemail_intake == false
         }
-        .task(id: "\(companyId)|\(filter.rawValue)|\(reason ?? "")|\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)|\(phoneLineId ?? "")|\(filter.rawValue)|\(reason ?? "")|\(refreshKey)") { await reload() }
+        .onChange(of: phoneLineId) { _, _ in
+            paginationTask?.cancel()
+            nextCursor = nil
+            ongoing = []
+            state = .loading
+        }
         .onReceive(AppRouter.shared.$callsReason) { requested in
             guard let requested else { return }
             reason = isCallReasonFilter(requested) ? requested : nil
@@ -611,7 +621,7 @@ struct CallsView: View {
         let fullLog = outcome == nil && requestedReason == nil
         if case .loading = state,
            let cached: Page<Call> = await graph.api.cachedGet(
-               "/v1/calls", query: ["limit": "25", "outcome": outcome, "reason": requestedReason], companyId: companyId
+               "/v1/calls", query: ["limit": "25", "outcome": outcome, "reason": requestedReason, "phone_number_id": phoneLineId], companyId: companyId
            ), !Task.isCancelled {
             nextCursor = cached.next_cursor
             state = .ready(cached.data)
@@ -622,8 +632,10 @@ struct CallsView: View {
             let page = try await service.calls(
                 companyId: companyId,
                 outcome: outcome,
-                reason: requestedReason
+                reason: requestedReason,
+                phoneLineId: phoneLineId
             )
+            guard !Task.isCancelled else { return }
             nextCursor = page.next_cursor
             state = .ready(page.data)
             // On the default pill the page just fetched IS the ongoing source,
@@ -645,7 +657,8 @@ struct CallsView: View {
         // otherwise the live call would vanish the moment Missed is tapped. A
         // failure here just leaves the last known card up, never an error.
         if !fullLog,
-           let page = try? await service.calls(companyId: companyId) {
+           let page = try? await service.calls(companyId: companyId, phoneLineId: phoneLineId),
+           !Task.isCancelled {
             ongoing = ongoingCalls(page.data)
         }
     }
@@ -653,15 +666,17 @@ struct CallsView: View {
     private func loadMore() {
         guard let cursor = nextCursor, !loadingMore else { return }
         loadingMore = true
-        Task {
+        paginationTask = Task {
             defer { loadingMore = false }
             do {
                 let page = try await service.calls(
                     companyId: companyId,
                     outcome: filter.outcome,
                     cursor: cursor,
-                    reason: reason
+                    reason: reason,
+                    phoneLineId: phoneLineId
                 )
+                guard !Task.isCancelled else { return }
                 nextCursor = page.next_cursor
                 if case .ready(let existing) = state {
                     let seen = Set(existing.map(\.id))
