@@ -178,21 +178,14 @@ final class DeviceChecklists: XCTestCase {
 
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
+        app.launchEnvironment["LOONEXT_QA_TEST_PASSWORD"] = "Simulator12345"
         app.launch()
-        let email = app.textFields["Email"].firstMatch
-        let shell = app.buttons["Conversations"].firstMatch
-        if email.waitForExistence(timeout: 5) {
-            email.tap()
-            email.typeText("qa@example.invalid")
-            let password = try waitFor(app.secureTextFields.firstMatch)
-            password.tap()
-            password.typeText("Simulator12345")
-            try waitFor(app.buttons["Sign in"].firstMatch).tap()
-        }
+        app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_EMAIL")
+        app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_PASSWORD")
+        try waitFor(app.buttons["Conversations"].firstMatch, timeout: 30)
         let allow = app.buttons["Turn on notifications"].firstMatch
-        let savePassword = springboard.buttons["Not Now"].firstMatch
         if allow.waitForExistence(timeout: 4) {
-            if savePassword.exists { savePassword.tap() }
             if notifications {
                 let permission = springboard.buttons["Allow"].firstMatch
                 for _ in 0..<2 where allow.exists && !permission.exists {
@@ -207,8 +200,6 @@ final class DeviceChecklists: XCTestCase {
             let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: allow)
             XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
         }
-        try waitFor(shell, timeout: 30)
-        if savePassword.exists { savePassword.tap() }
     }
 
     private func openThread(_ name: String) throws {

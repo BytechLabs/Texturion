@@ -66,6 +66,16 @@ struct LoonextApp: App {
             .environment(\.locale, UiLocale.platformLocale(appLocale))
             .tint(BrandColor.olive)
             .preferredColorScheme(preferredScheme)
+            #if LOONEXT_QA
+            .task {
+                let environment = ProcessInfo.processInfo.environment
+                if AppConfig.supabaseURL.host == "127.0.0.1", graph.sessionStore.current() == nil,
+                   let email = environment["LOONEXT_QA_TEST_EMAIL"],
+                   let password = environment["LOONEXT_QA_TEST_PASSWORD"] {
+                    try? await graph.authManager.signIn(email: email, password: password)
+                }
+            }
+            #endif
             .task { ConnectionWatch.shared.start() }
             .onChange(of: ConnectionWatch.shared.connection) { _, connection in
                 if connection != .unknown { graph.outbox.requestFlush() }

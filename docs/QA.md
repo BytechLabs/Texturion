@@ -164,6 +164,8 @@ Open **Actions → iOS QA → Run workflow** and choose a scenario or `all`. The
 
 Each scenario records a video, a final screenshot, XCUITest screenshots and results, and its fixture server log. Network scenarios also capture the synthetic request bodies and any injected `.apns` payloads. Open the `ios-qa-*` artifact on the run page. The run summary lists each scenario's result.
 
+The workflow signs in to the loopback fixture with synthetic credentials supplied at launch. This keeps the system Save Password prompt out of the device checklists. The dedicated sign-in accessibility audit still exercises the form.
+
 | Scenario | Issue | Simulator evidence |
 | --- | --- | --- |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
