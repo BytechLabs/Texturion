@@ -255,12 +255,10 @@ export function Sidebar({
   }
 
   const logo = (
-    <span
-      aria-hidden
+    <InitialsAvatar
+      initials={companyInitials(membership.name)}
       className="grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-app-tint text-[14px] font-semibold text-app-olive-deep"
-    >
-      {companyInitials(membership.name)}
-    </span>
+    />
   );
 
   const companyTileExpanded = (
@@ -277,6 +275,19 @@ export function Sidebar({
         />
       )}
     </>
+  );
+
+  const workspaceName = t("shell.workspaceNamed", { name: membership.name });
+  const workspaceTrigger = (
+    <DropdownMenuTrigger
+      aria-label={`${workspaceName}. ${t("shell.switchWorkspace")}`}
+      className={cn(
+        "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+        collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-2 py-1 text-left",
+      )}
+    >
+      {collapsed ? logo : companyTileExpanded}
+    </DropdownMenuTrigger>
   );
 
   const workspaceMenu = (
@@ -320,35 +331,30 @@ export function Sidebar({
     </Tooltip>
   ) : collapseButton;
 
-  const memberTile = (
-    <MemberMenu>
-      {/* Named by what it shows (the member, their role) and then what it
-          opens, so the name holds the visible words in order (WCAG 2.5.3).
-          The space after the name keeps it and the role two words. */}
-      <button
-        type="button"
-        className={cn(
-          "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
-          collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
-        )}
-      >
-        <InitialsAvatar
-          initials={avatarInitials(displayName || membership.name)}
-          className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
-        />
-        {!collapsed && (
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12.5px] font-semibold text-app-ink">
-              {displayName || t("shell.you")}
-            </span>{" "}
-            <span className="block truncate text-[11px] text-app-muted-2">
-              {roleLabel}
-            </span>
+  const memberButton = (
+    <button
+      type="button"
+      className={cn(
+        "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
+        collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
+      )}
+    >
+      <InitialsAvatar
+        initials={avatarInitials(displayName || membership.name)}
+        className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
+      />
+      {!collapsed && (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-semibold text-app-ink">
+            {displayName || t("shell.you")}
+          </span>{" "}
+          <span className="block truncate text-[11px] text-app-muted-2">
+            {roleLabel}
           </span>
-        )}
-        <span className="sr-only">{t("shell.accountAndSettings")}</span>
-      </button>
-    </MemberMenu>
+        </span>
+      )}
+      <span className="sr-only">{t("shell.accountAndSettings")}</span>
+    </button>
   );
 
   return (
@@ -368,17 +374,12 @@ export function Sidebar({
         >
           {multi ? (
             <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label={t("shell.switchWorkspace")}
-                className={cn(
-                  "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
-                  collapsed
-                    ? "size-10 justify-center"
-                    : "w-full gap-2.5 px-2 py-1 text-left",
-                )}
-              >
-                {collapsed ? logo : companyTileExpanded}
-              </DropdownMenuTrigger>
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>{workspaceTrigger}</TooltipTrigger>
+                  <TooltipContent side="right">{workspaceName}</TooltipContent>
+                </Tooltip>
+              ) : workspaceTrigger}
               {workspaceMenu}
             </DropdownMenu>
           ) : (
@@ -387,9 +388,8 @@ export function Sidebar({
                 "flex items-center",
                 collapsed ? "" : "gap-2.5 px-2",
               )}
-              aria-label={t("shell.workspaceNamed", { name: membership.name })}
             >
-              {collapsed ? logo : companyTileExpanded}
+              {collapsed ? <>{logo}<span className="sr-only">{workspaceName}</span></> : companyTileExpanded}
             </div>
           )}
         </div>
@@ -481,8 +481,13 @@ export function Sidebar({
             <>
               {navRows.includes(TRASH) && <div className="w-full">{renderRow(TRASH)}</div>}
               {collapseToggle}
-              <NotificationBell appVariant />
-              {memberTile}
+              <NotificationBell appVariant tooltip />
+              <Tooltip>
+                <MemberMenu>
+                  <TooltipTrigger asChild>{memberButton}</TooltipTrigger>
+                </MemberMenu>
+                <TooltipContent side="right">{t("shell.accountAndSettings")}</TooltipContent>
+              </Tooltip>
             </>
           ) : (
             <>
@@ -491,7 +496,7 @@ export function Sidebar({
                 {collapseToggle}
                 <NotificationBell appVariant />
               </div>
-              {memberTile}
+              <MemberMenu>{memberButton}</MemberMenu>
             </>
           )}
         </div>

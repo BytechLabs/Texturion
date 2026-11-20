@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import {
@@ -322,6 +323,7 @@ export function NotificationFeed({
  */
 export function NotificationBell({
   appVariant = false,
+  tooltip = false,
 }: {
   /**
    * APP-SHELL-REDESIGN top-bar styling: render the trigger as the mockup
@@ -329,6 +331,7 @@ export function NotificationBell({
    * unread indicator) instead of the ghost header button. Behavior is identical.
    */
   appVariant?: boolean;
+  tooltip?: boolean;
 } = {}) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -339,60 +342,50 @@ export function NotificationBell({
   const unread = useNotificationsUnreadCount();
 
   const count = unread.data?.count ?? 0;
+  const label = count > 0 ? t("misc.notificationsUnreadAria", { count }) : t("misc.notifications");
 
   // Opening and dismissing the popover changes nothing. Marking read is
   // something you do — tap an item, or the explicit Mark all read — because a
   // glance here used to clear the badge on the user's phone too.
   const onOpenChange = (next: boolean) => setOpen(next);
 
+  const trigger = (
+    <PopoverTrigger asChild>
+      {appVariant ? (
+        <button
+          type="button"
+          aria-label={label}
+          className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-paper text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Bell className="size-5" strokeWidth={1.75} aria-hidden />
+          {count > 0 && (
+            <span
+              aria-hidden
+              className="absolute right-[9px] top-2 size-[7px] rounded-full border-2 border-app-paper bg-primary"
+            />
+          )}
+        </button>
+      ) : (
+        <Button variant="ghost" size="icon-sm" className="relative" aria-label={label}>
+          <Bell className="size-5" strokeWidth={1.75} aria-hidden />
+          {count > 0 && (
+            <CountPill tone="primary" size="sm" aria-hidden className="absolute -right-0.5 -top-0.5">
+              {badgeCount(count)}
+            </CountPill>
+          )}
+        </Button>
+      )}
+    </PopoverTrigger>
+  );
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        {appVariant ? (
-          // Mockup .icon-btn.has-dot: a bordered white square with a soft petrol
-          // shadow and a single unread DOT (not a numeral) top-right.
-          <button
-            type="button"
-            aria-label={
-              count > 0
-                ? t("misc.notificationsUnreadAria", { count })
-                : t("misc.notifications")
-            }
-            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-paper text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Bell className="size-5" strokeWidth={1.75} aria-hidden />
-            {count > 0 && (
-              <span
-                aria-hidden
-                className="absolute right-[9px] top-2 size-[7px] rounded-full border-2 border-app-paper bg-primary"
-              />
-            )}
-          </button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="relative"
-            aria-label={
-              count > 0
-                ? t("misc.notificationsUnreadAria", { count })
-                : t("misc.notifications")
-            }
-          >
-            <Bell className="size-5" strokeWidth={1.75} aria-hidden />
-            {count > 0 && (
-              <CountPill
-                tone="primary"
-                size="sm"
-                aria-hidden
-                className="absolute -right-0.5 -top-0.5"
-              >
-                {badgeCount(count)}
-              </CountPill>
-            )}
-          </Button>
-        )}
-      </PopoverTrigger>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent side="right">{label}</TooltipContent>
+        </Tooltip>
+      ) : trigger}
       <PopoverContent
         align="end"
         sideOffset={8}

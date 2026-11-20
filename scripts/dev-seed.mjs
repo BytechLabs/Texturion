@@ -293,8 +293,8 @@ values
 on conflict (id) do nothing;
 
 insert into public.saved_views (id, company_id, surface, name, filters, created_by)
-values ('${TASK_VIEW_ID}', '${COMPANY}', 'tasks', 'Open service tasks',
-        '{"layout":"board","group":"assignee","tab":"open"}', '${dana}')
+values ('${TASK_VIEW_ID}', '${COMPANY}', 'tasks', 'Service task board',
+        '{"layout":"board","group":"assignee"}', '${dana}')
 on conflict (id) do nothing;
 
 insert into public.conversation_events

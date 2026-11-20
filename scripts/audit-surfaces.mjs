@@ -97,7 +97,7 @@ const fixedSurfaces = [
     path: `/tasks/views/${TASK_VIEW_ID}`,
     label: "saved task view",
     auth: true,
-    ready: 'role=heading[name="Open service tasks"]',
+    ready: 'role=heading[name="Service task board"]',
   },
   // #238: the rest of the daily path. Each of these failed WCAG A or AA the
   // first time it was looked at, which is the argument for looking.

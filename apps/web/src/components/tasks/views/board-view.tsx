@@ -357,7 +357,7 @@ function BoardCard({
           onClick={taskLinkClickHandler(task.id)}
           className={cn(
             "min-w-0 flex-1 text-[13px] font-medium text-foreground hover:text-primary",
-            task.done && "text-muted-foreground line-through opacity-70",
+            task.done && "text-muted-foreground line-through",
           )}
         >
           <TaskNumber task={task} className="mr-1.5" />
