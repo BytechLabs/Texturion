@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { ALL_MACHINES } from "./index";
 
-const ROOT = join(__dirname, "..", "..", "..", "..");
+const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 
 const ANDROID = "apps/android/app/src/main/kotlin/com/loonext/android/";
 const IOS = "apps/ios/Loonext/";
@@ -200,12 +200,11 @@ describe("allowed_actions roster", () => {
         ["ios", entry.ios],
       ] as const) {
         const file = readerFile(reader);
-        if (file === null) {
-          expect((reader as { none: string }).none.length, `${machine.id} ${client} needs a reason`).toBeGreaterThan(10);
-          continue;
-        }
-        expect(mentionsAllowedActions(file), `${machine.id} ${client}: ${file}`).toBe(true);
-        checked += 1;
+        const valid = file === null
+          ? (reader as { none: string }).none.length > 10
+          : mentionsAllowedActions(file);
+        expect(valid, `${machine.id} ${client}: ${file ?? "missing reason"}`).toBe(true);
+        if (file !== null) checked += 1;
       }
     }
     expect(checked).toBeGreaterThan(0);

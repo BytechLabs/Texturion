@@ -223,7 +223,7 @@ if (untestable > 0) {
     process.exit(assertMode ? 1 : 0);
   }
   const floorOk =
-    Number.parseFloat(config.value) >= Number.parseFloat(REQUIRED);
+    Number(config.value) >= Number(REQUIRED);
   console.log(
     floorOk
       ? `The zone is configured at ${config.value}, which is what this asserts on.`

@@ -398,7 +398,7 @@ function scopedFiles() {
     .filter(Boolean);
   return [...new Set(listed)]
     .filter((file) => inScope(file) && existsSync(join(REPO_ROOT, file)))
-    .sort()
+    .toSorted()
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 

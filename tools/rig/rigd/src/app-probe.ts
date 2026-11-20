@@ -468,7 +468,7 @@ export class AppProbe implements AppApi {
       screen_locked: flagOf(p.screen_locked),
       standby_bucket: textOf(p.standby_bucket),
     }));
-    return beacons.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+    return beacons.toSorted((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
   }
 
   async callLegs(args: { tenant: string; callSessionId: string }) {
@@ -1205,7 +1205,7 @@ export class AppProbe implements AppApi {
     });
     return {
       ...company,
-      notices: notices.map((notice) => notice.threshold_day).sort((a, b) => a - b),
+      notices: notices.map((notice) => notice.threshold_day).toSorted((a, b) => a - b),
       numbers: await this.numberRows(args),
       live_campaigns: campaigns.length,
     };

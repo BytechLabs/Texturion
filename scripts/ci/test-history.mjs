@@ -31,7 +31,7 @@ export function writeHistory(file, { sha, files }) {
   const table = [];
   const index = new Map();
   const encode = (paths) =>
-    [...paths].toSorted().map((p) => {
+    [...paths].toSorted((a, b) => a < b ? -1 : Number(a > b)).map((p) => {
       if (!index.has(p)) {
         index.set(p, table.length);
         table.push(p);

@@ -77,7 +77,7 @@ async function main() {
   const data = await response.json();
   const backups = (data.backups ?? [])
     .map((row) => row.inserted_at)
-    .sort();
+    .toSorted();
 
   const pitr = data.pitr_enabled === true;
   console.log(`project        ${ref} (${data.region ?? "unknown region"})`);

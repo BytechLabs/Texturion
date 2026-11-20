@@ -231,7 +231,16 @@ export class Adb {
       return await this.#exec(this.#adb, line);
     } catch (error) {
       const { code, killed, signal } = error as { code?: unknown; killed?: unknown; signal?: unknown };
-      const how = killed ? "timed out" : signal ? `ended by ${String(signal)}` : code === undefined ? "failed" : `exited ${String(code)}`;
+      let how;
+      if (killed) {
+        how = "timed out";
+      } else if (typeof signal === "string" && signal !== "") {
+        how = `ended by ${signal}`;
+      } else if (typeof code === "number" || typeof code === "string") {
+        how = `exited ${code}`;
+      } else {
+        how = "failed";
+      }
       throw new Error(`adb: ${step} on ${this.serial} ${how}`, { cause: error });
     }
   }

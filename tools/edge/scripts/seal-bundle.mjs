@@ -224,9 +224,9 @@ export function bundleParts(bundle) {
     throw new Error(`bundle needs ${parts.length} parts; the edge reads at most ${MAX_PARTS}`);
   }
   const bulk = { RIG_SECRET_BUNDLE_PARTS: String(parts.length) };
-  parts.forEach((part, i) => {
+  for (const [i, part] of parts.entries()) {
     bulk[`RIG_SECRET_BUNDLE_${i + 1}`] = part;
-  });
+  }
   return bulk;
 }
 
@@ -329,8 +329,10 @@ async function main() {
 }
 
 if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main().catch((/** @type {unknown} */ error) => {
+  try {
+    await main();
+  } catch (error) {
     console.error(`seal-bundle: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
-  });
+  }
 }

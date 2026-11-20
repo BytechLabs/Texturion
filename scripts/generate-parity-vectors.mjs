@@ -919,7 +919,7 @@ for (const [name, build] of Object.entries(FILES)) {
     console.log(`  wrote ${path} (${build().length} cases)`);
     continue;
   }
-  let current = "";
+  let current;
   try {
     current = readFileSync(path, "utf8");
   } catch {

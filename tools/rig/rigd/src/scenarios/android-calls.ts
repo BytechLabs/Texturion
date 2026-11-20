@@ -397,14 +397,16 @@ export const D01: ScenarioRunner = {
 
       const [pageRingMs, rings] = await Promise.all([page.waitForRing(RING_WITHIN_MS), pixel.device.waitForRinging(RING_WITHIN_MS)]);
       ctx.evidence.ring = { page_ms: pageRingMs, telecom_ms: rings?.telecom_ms, full_screen_ms: rings?.full_screen_ms };
-      const unrung =
-        pageRingMs === undefined
-          ? fail("page_did_not_ring", "the dispatcher's page did not ring within 8 s")
-          : rings?.telecom_ms === undefined
-            ? fail("pixel_not_ringing", "Telecom did not report the call ringing on the emulator within 8 s")
-            : rings.full_screen_ms === undefined
-              ? fail("no_full_screen_ring", "the emulator's full-screen ring did not show within 8 s")
-              : undefined;
+      let unrung;
+      if (pageRingMs === undefined) {
+        unrung = fail("page_did_not_ring", "the dispatcher's page did not ring within 8 s");
+      } else if (rings?.telecom_ms === undefined) {
+        unrung = fail("pixel_not_ringing", "Telecom did not report the call ringing on the emulator within 8 s");
+      } else if (rings.full_screen_ms === undefined) {
+        unrung = fail("no_full_screen_ring", "the emulator's full-screen ring did not show within 8 s");
+      } else {
+        unrung = undefined;
+      }
       if (unrung) {
         await ctx.robot.wait(dialed.plan_id, 90_000);
         return unrung;
@@ -635,17 +637,17 @@ export const D09: ScenarioRunner = {
 
       const answered: { page?: number; pixel?: number } = {};
       const raceAt = ctx.now();
+      const answerPage = async () => {
+        await ctx.sleep(lead);
+        await page.answer();
+        answered.page = ctx.now();
+      };
       const [tapped] = await Promise.all([
         pixel.device.tap("call_answer").then((ok) => {
           answered.pixel = ctx.now();
           return ok;
         }),
-        ctx
-          .sleep(lead)
-          .then(() => page.answer())
-          .then(() => {
-            answered.page = ctx.now();
-          }),
+        answerPage(),
       ]);
       const gap = Math.abs(answered.pixel! - answered.page!);
       ctx.evidence.answer_gap_ms = gap;
@@ -858,10 +860,9 @@ export const D14: ScenarioRunner = {
     const listed = await poll(ctx, () => pixel.device.showing({ text: PLAY_VOICEMAIL }), LISTED_WITHIN_MS, 1000);
     if (!listed) return fail("voicemail_not_listed", `the app's calls showed no "${PLAY_VOICEMAIL}" control within ${LISTED_WITHIN_MS / 1000} s`);
     // Recording from before the tap, so the phrase's first word is not lost.
-    const recording = pixel.audio.transcribe({ stream: "media", ms: PLAYBACK_MS }).then(
-      (text) => ({ text }),
-      (error: unknown) => ({ error }),
-    );
+    const recording = pixel.audio.transcribe({ stream: "media", ms: PLAYBACK_MS })
+      .then((text) => ({ text }))
+      .catch((error: unknown) => ({ error }));
     const tapped = await pixel.device.tapText(PLAY_VOICEMAIL);
     const heard = await recording;
     if ("error" in heard) return audioFault(heard.error);

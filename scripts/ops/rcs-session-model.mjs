@@ -101,7 +101,7 @@ const PAGE = 1000;
 
 function median(values) {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
@@ -110,7 +110,7 @@ function median(values) {
 
 function percentile(values, p) {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   const index = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
   return sorted[index];
 }

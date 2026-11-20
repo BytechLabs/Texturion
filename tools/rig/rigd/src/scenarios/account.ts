@@ -395,8 +395,12 @@ export const S29: ScenarioRunner = {
   },
 };
 
-const severity = (result: ScenarioResult) =>
-  result.outcome === "fail" ? (result.critical ? 0 : 1) : result.outcome === "infra" ? 2 : result.outcome === "preempted" ? 3 : 4;
+function severity(result: ScenarioResult): number {
+  if (result.outcome === "fail") return result.critical ? 0 : 1;
+  if (result.outcome === "infra") return 2;
+  if (result.outcome === "preempted") return 3;
+  return 4;
+}
 
 /** The most severe of independent halves; the earlier one on a tie. */
 function worst(results: ScenarioResult[]): ScenarioResult {
@@ -909,7 +913,7 @@ async function numberStepFailed(ctx: ScenarioContext, choice: NumberChoice): Pro
   const searches = activityEntries((await ctx.guard.activity(ctx.lease.id)).activity).filter((e) => e.endpoint === SEARCH);
   ctx.evidence.searches = Object.fromEntries(searches.map((e) => [e.outcome, e.count]));
   if (searches.some((e) => e.outcome === "provisioning.search_needs_lease")) return infra("guard", "search allowance not deployed");
-  const where = choice.inventory === "failed" ? "its picker never loaded numbers" : choice.inventory === "none" ? `no number in any of ${S32_AREA_CODES.join(", ")}` : "Continue did not reach the plan step";
+  const where = choice.inventory === "failed" ? "its picker never loaded numbers" : (choice.inventory === "none" ? `no number in any of ${S32_AREA_CODES.join(", ")}` : "Continue did not reach the plan step");
   return fail("number_step", `the number step stopped: ${where}${choice.alert ? ` (${choice.alert})` : ""}`);
 }
 

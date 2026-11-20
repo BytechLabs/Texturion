@@ -33,8 +33,8 @@ func responseArcSentence(
     else { return nil }
     let label = ResponseTimeFormat.format(then)
     return direction == "faster"
-        ? AppStrings.translate(locale, "inbox.responseArcDown", ["then": label])
-        : AppStrings.translate(locale, "inbox.responseArcUp", ["then": label])
+        ? AppStrings.translate(locale, "inbox.responseArcDown", ["previous": label])
+        : AppStrings.translate(locale, "inbox.responseArcUp", ["previous": label])
 }
 
 /// Why there is no arc yet, said plainly rather than left blank.

@@ -59,7 +59,7 @@ export function stubPartition() {
  */
 export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" }) } = {}) {
   const requests = [];
-  const server = createServer(async (request, response) => {
+  async function handleRequest(request, response) {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = Buffer.concat(chunks).toString("utf8");
@@ -93,7 +93,8 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
       return;
     }
     send(404, { error: "not_found" });
-  });
+  }
+  const server = createServer((request, response) => { void handleRequest(request, response); });
   const close = () => new Promise((resolve) => {
     server.close(resolve);
   });

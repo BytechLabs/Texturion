@@ -122,14 +122,14 @@ describe(webhookForwarder, () => {
     const dir = mkdtempSync(join(tmpdir(), "rig-late-"));
     try {
       const ledger = new LateDeliveries(join(dir, "late.jsonl"));
-      const entry = (signedAt: number, text: string): LateDelivery => ({
+      const entry = (signedAt: number, messageText: string): LateDelivery => ({
         at: NOW,
         frame_id: "e",
         path: "/t/m",
         attempt: 1,
         age_s: 400,
         signed_at: signedAt,
-        text_sha256: textHash(text),
+        text_sha256: textHash(messageText),
       });
       ledger.record(entry(NOW - 400_000, "STOP"));
       ledger.record(entry(NOW - 3_600_000, "START"));

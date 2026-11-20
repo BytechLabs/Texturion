@@ -19,7 +19,7 @@
  *
  *   node --experimental-strip-types tools/guard/scripts/admin-routine.ts
  */
-import { resolve } from "node:path";
+import { resolve as resolvePath } from "node:path";
 
 import { EDGE_PATHS, GUARD_ROUTES } from '../../rig-protocol/src/index.ts';
 import type { GuardHealth } from '../../rig-protocol/src/index.ts';
@@ -259,12 +259,12 @@ function count(name: string, value: string): number {
 
 /** What the inputs ask to file, in the guard's own shapes; empty inputs file nothing. */
 export function measurementPosts(inputs: Measurements, now: Date = new Date()): { route: string; body: Item }[] {
-  const given = (value: string | undefined): value is string => typeof value === "string" && value.trim() !== "";
+  const hasValue = (value: string | undefined): value is string => typeof value === "string" && value.trim() !== "";
   const posts: { route: string; body: Item }[] = [];
-  if (given(inputs.reserveLegs)) posts.push({ route: "/reserve", body: { legs: count("reserve_legs", inputs.reserveLegs) } });
+  if (hasValue(inputs.reserveLegs)) posts.push({ route: "/reserve", body: { legs: count("reserve_legs", inputs.reserveLegs) } });
   const ratio = [inputs.calls, inputs.abandoned, inputs.short];
-  if (ratio.some(given)) {
-    if (!ratio.every(given)) throw new Error("calls, abandoned and short are filed together");
+  if (ratio.some(hasValue)) {
+    if (!ratio.every(hasValue)) throw new Error("calls, abandoned and short are filed together");
     posts.push({
       route: "/ratios",
       body: {
@@ -274,10 +274,10 @@ export function measurementPosts(inputs: Measurements, now: Date = new Date()): 
       },
     });
   }
-  if (given(inputs.windowStartHour)) {
+  if (hasValue(inputs.windowStartHour)) {
     posts.push({ route: "/window", body: { start_hour: count("window_start_hour", inputs.windowStartHour) } });
   }
-  if (given(inputs.usageUsd)) {
+  if (hasValue(inputs.usageUsd)) {
     if (!/^\d{1,5}(?:\.\d{1,6})?$/.test(inputs.usageUsd.trim())) throw new Error("usage_usd must be dollars, like 4.25");
     posts.push({ route: "/ledger", body: { month: now.toISOString().slice(0, 7), usage_usd: Number(inputs.usageUsd.trim()) } });
   }
@@ -396,8 +396,8 @@ export async function measureProduction(
   const plan = planFiling(outcome.read, guard?.paid_dials ? windowDue(guard.paid_dials.window_measured_at, now) : false, now);
   lines.push(...plan.lines);
   for (const { route, body } of plan.measured) {
-    const answer = await post(route, body);
-    if (!ok(answer)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, answer).lines] };
+    const postResult = await post(route, body);
+    if (!ok(postResult)) return { ok: false, lines: [...lines, ...failed(`Filing ${route.slice(1)} failed`, postResult).lines] };
     lines.push(`filed ${route.slice(1)}: ${JSON.stringify(body)}`);
   }
   if (!given(plan.inputs)) return { ok: true, lines };
@@ -455,6 +455,6 @@ async function main(): Promise<number> {
   return outcome.ok ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
+if (process.argv[1] && import.meta.filename === resolvePath(process.argv[1])) {
   process.exitCode = await main();
 }

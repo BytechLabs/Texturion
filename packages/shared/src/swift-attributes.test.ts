@@ -35,7 +35,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const IOS_ROOT = join(__dirname, "..", "..", "..", "apps", "ios");
+const IOS_ROOT = join(import.meta.dirname, "..", "..", "..", "apps", "ios");
 
 function swiftFiles(dir: string): string[] {
   let out: string[] = [];

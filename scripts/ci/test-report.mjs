@@ -40,12 +40,12 @@ for (const entry of readdirSync(args.results, { recursive: true })) {
 const ranIn = new Map();
 const files = new Map();
 const states = {};
-plan.shards.forEach((shard, position) => {
+for (const [position, shard] of plan.shards.entries()) {
   const index = position + 1;
   const result = shardResults.get(index);
   if (!result) {
     problems.push(`shard ${index} reported nothing`);
-    return;
+    continue;
   }
   const planned = new Set(shard.files);
   for (const [file, entry] of Object.entries(result.files)) {
@@ -57,7 +57,7 @@ plan.shards.forEach((shard, position) => {
     if (entry.state !== "passed" && entry.state !== "skipped") failures.push(`${file}: ${entry.state}`);
   }
   for (const file of planned) if (!(file in result.files)) problems.push(`${file} was planned for shard ${index} and has no result`);
-});
+}
 
 const totalMs = [...files.values()].reduce((sum, entry) => sum + entry.ms, 0);
 const lines = [

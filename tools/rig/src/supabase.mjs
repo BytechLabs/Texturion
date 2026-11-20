@@ -84,7 +84,7 @@ export function refMigrationVersions(refRoot) {
   return readdirSync(join(refRoot, "supabase", "migrations"))
     .map((file) => /^(\d+)_.*\.sql$/.exec(file)?.[1])
     .filter(Boolean)
-    .sort();
+    .toSorted((a, b) => a < b ? -1 : Number(a > b));
 }
 
 export function appliedMigrationVersions(projectId) {
@@ -93,7 +93,7 @@ export function appliedMigrationVersions(projectId) {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .sort();
+      .toSorted();
   } catch {
     return null;
   }

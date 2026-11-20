@@ -104,7 +104,9 @@ export function recordingActive(dump: string): boolean {
 
 export function s16FromPcm(samples: Float32Array): Buffer {
   const bytes = Buffer.alloc(samples.length * 2);
-  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2));
+  for (const [i, x] of samples.entries()) {
+    bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2);
+  }
   return bytes;
 }
 

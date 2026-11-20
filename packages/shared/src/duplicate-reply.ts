@@ -134,18 +134,20 @@ export function duplicateReplyPrompt(
    */
   const minutes = Math.floor(secondsAgo / 60);
   const hours = Math.floor(secondsAgo / 3600);
-  const when =
-    secondsAgo < 60
-      ? say("thread.agoJustNow")
-      : secondsAgo < 3600
-        ? minutes === 1
-          ? say("thread.agoOneMinute")
-          : say("thread.agoMinutes").replace("{count}", String(minutes))
-        : secondsAgo < 86_400
-          ? hours === 1
-            ? say("thread.agoOneHour")
-            : say("thread.agoHours").replace("{count}", String(hours))
-          : say("thread.agoSinceWriting");
+  let when;
+  if (secondsAgo < 60) {
+    when = say("thread.agoJustNow");
+  } else if (secondsAgo < 3600) {
+    when = minutes === 1
+      ? say("thread.agoOneMinute")
+      : say("thread.agoMinutes").replace("{count}", String(minutes));
+  } else if (secondsAgo < 86_400) {
+    when = hours === 1
+      ? say("thread.agoOneHour")
+      : say("thread.agoHours").replace("{count}", String(hours));
+  } else {
+    when = say("thread.agoSinceWriting");
+  }
 
   const name = who?.trim();
   return name

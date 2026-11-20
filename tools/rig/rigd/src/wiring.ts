@@ -7,7 +7,7 @@
  * (`state/uplink.json`) sits directly in `state/`.
  */
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { BrowserLane, HostdClient } from "@loonext/rig-lanes";
 import { isRobotRole, loadMargins, localSupabase, RobotClient, robotLocalToken, standingBook, SURFACES,systemClock,WhisperTranscriber,writeFakeMicWavs } from '@loonext/rig-robot';
 import type { NumberBook } from '@loonext/rig-robot';
@@ -63,7 +63,7 @@ export interface Rig {
 }
 
 /** tools/rig/bin/rig.mjs, beside this package in the tooling checkout. */
-const RIG_BIN = resolve(import.meta.dirname, "..", "..", "bin", "rig.mjs");
+const RIG_BIN = resolvePath(import.meta.dirname, "..", "..", "bin", "rig.mjs");
 
 /** Where bootstrap.sh puts Google Chrome stable; `RIG_CHROME_BIN` names another. */
 export const CHROME_STABLE_PATH = "/usr/bin/google-chrome-stable";
@@ -175,7 +175,7 @@ export function buildRig(config: RigdConfig): Rig {
           notifications: () => page.notifications(),
           waitForText: (text, ms) => page.waitForText(text, ms),
           enablePush: () => page.enablePush(),
-          hear: (options) => page.hear({ margins: loadMargins(marginsFile), ...options }),
+          hear: (hearOptions) => page.hear({ margins: loadMargins(marginsFile), ...hearOptions }),
           mark: (name) => page.mark(name),
         };
       },

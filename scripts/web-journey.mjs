@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -197,7 +197,7 @@ async function checkJourney(page, web, api, telnyx) {
   }
 }
 
-const varsFile = resolve(process.env.LOONEXT_JOURNEY_VARS ?? join(API_ROOT, ".dev.vars"));
+const varsFile = resolvePath(process.env.LOONEXT_JOURNEY_VARS ?? join(API_ROOT, ".dev.vars"));
 const vars = parseEnv(await readFile(varsFile, "utf8"));
 assert.equal(vars.DEPLOY_ENV, "local");
 loopback(vars.SUPABASE_URL);

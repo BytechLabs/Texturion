@@ -79,7 +79,7 @@ for (const file of walk(API_SRC).filter((f) => f.endsWith(".ts"))) {
       // It was still right about the pair, because tasks-export.ts alongside
       // it had no hint and had been failing outright with PGRST201.
       if (embed[2]) continue;
-      embedded.add([root, child].sort().join("|"));
+      embedded.add([root, child].toSorted().join("|"));
     }
   }
 }
@@ -91,7 +91,7 @@ const relationships = new Map();
 
 function note(from, to, where) {
   if (from === to) return;
-  const key = [from, to].sort().join("|");
+  const key = [from, to].toSorted((a, b) => a < b ? -1 : Number(a > b)).join("|");
   if (!relationships.has(key)) relationships.set(key, []);
   const seen = relationships.get(key);
   // One relationship can be declared and re-declared across migrations (a drop
@@ -99,7 +99,7 @@ function note(from, to, where) {
   if (!seen.some((entry) => entry.label === where.label)) seen.push(where);
 }
 
-for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort()) {
+for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).toSorted()) {
   const sql = readFileSync(join(MIGRATIONS, file), "utf8");
   // Column-level: `foo_id uuid references public.bar(id)` inside a create/alter
   // whose own table we track by the nearest preceding table name.

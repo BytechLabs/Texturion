@@ -161,11 +161,11 @@ describe("#228 the insight as a key, and the English it must not drift from", ()
   ];
 
   it("says exactly what the wire says, word for word", () => {
-    for (const report of cases) {
-      const message = pipelineInsightKeys(report);
-      expect(message, JSON.stringify(report)).not.toBeNull();
+    for (const caseReport of cases) {
+      const message = pipelineInsightKeys(caseReport);
+      expect(message, JSON.stringify(caseReport)).not.toBeNull();
       if (message === null) continue;
-      expect(sayEn(message.key, message.vars)).toBe(pipelineInsight(report));
+      expect(sayEn(message.key, message.vars)).toBe(pipelineInsight(caseReport));
     }
   });
 
@@ -173,12 +173,12 @@ describe("#228 the insight as a key, and the English it must not drift from", ()
     // Below five decided jobs there is nothing honest to say. Two functions
     // that disagreed about WHEN would show a card on one client and not the
     // other.
-    for (const report of [
+    for (const caseReport of [
       { quoted: 4, won: 2, lost: 2, open: 0, median_days_to_win: null },
       { quoted: 3, won: 0, lost: 0, open: 3, median_days_to_win: null },
     ] as PipelineReport[]) {
-      expect(pipelineInsight(report)).toBeNull();
-      expect(pipelineInsightKeys(report)).toBeNull();
+      expect(pipelineInsight(caseReport)).toBeNull();
+      expect(pipelineInsightKeys(caseReport)).toBeNull();
     }
   });
 
@@ -193,8 +193,8 @@ describe("#228 the insight as a key, and the English it must not drift from", ()
   });
 
   it("reads in French with every variable filled", () => {
-    for (const report of cases) {
-      const message = pipelineInsightKeys(report);
+    for (const caseReport of cases) {
+      const message = pipelineInsightKeys(caseReport);
       if (message === null) continue;
       const french = sayFr(message.key, message.vars);
       expect(french).not.toMatch(/\{/);

@@ -57,15 +57,6 @@ export interface PostHogErrorsOptions {
   fetch?: typeof fetch;
 }
 
-/** rigd's PostHog sender and reader, with the keys the rig's secret store holds now. */
-export function posthogFromStore(store: Pick<SecretFiles, "readOptional">): PostHogErrors {
-  return new PostHogErrors({
-    projectKey: store.readOptional("posthog-api-key"),
-    personalKey: store.readOptional("posthog-personal-api-key"),
-    projectId: store.readOptional("posthog-project-id"),
-  });
-}
-
 export class PostHogErrors {
   readonly #o: PostHogErrorsOptions;
   readonly #fetch: typeof fetch;
@@ -146,6 +137,15 @@ export class PostHogErrors {
     if (!Array.isArray(body.results)) throw new TypeError("PostHog's HogQL query answered no results");
     return body.results as unknown[][];
   }
+}
+
+/** rigd's PostHog sender and reader, with the keys the rig's secret store holds now. */
+export function posthogFromStore(store: Pick<SecretFiles, "readOptional">): PostHogErrors {
+  return new PostHogErrors({
+    projectKey: store.readOptional("posthog-api-key"),
+    personalKey: store.readOptional("posthog-personal-api-key"),
+    projectId: store.readOptional("posthog-project-id"),
+  });
 }
 
 const clip = (text: string, max: number) => (text.length > max ? text.slice(0, max) : text);

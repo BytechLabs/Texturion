@@ -153,10 +153,10 @@ if (defined.size < 300) {
   failures.push(`only ${defined.size} keys defined across the catalogue sections.`);
 }
 
-for (const [key, screens] of [...used].sort()) {
+for (const [key, screens] of [...used].toSorted(([a], [b]) => a < b ? -1 : Number(a > b))) {
   if (!defined.has(key)) {
     failures.push(
-      `${key} is asked for by ${[...screens].sort().join(", ")} and defined ` +
+      `${key} is asked for by ${[...screens].toSorted((a, b) => a < b ? -1 : Number(a > b)).join(", ")} and defined ` +
         `nowhere. It will render as its own name.`,
     );
   }
@@ -191,7 +191,7 @@ if (literalsChecked === 0) {
   failures.push(`no key-shaped literals found in the iOS app. The literal pattern stopped matching.`);
 }
 
-for (const [key, places] of [...undefinedLiterals].sort()) {
+for (const [key, places] of [...undefinedLiterals].toSorted(([a], [b]) => a < b ? -1 : Number(a > b))) {
   failures.push(
     `${key} is written at ${places.join(", ")} and defined nowhere. It will ` +
       `render as its own name. If it is not a catalogue key, add it to NOT_KEYS with the reason.`,
@@ -250,8 +250,8 @@ for (const file of swiftFiles(CATALOGUE)) {
   for (const [key, english] of maps.en) {
     const french = maps.fr.get(key);
     if (french === undefined) continue;
-    const left = [...english.matchAll(TOKEN)].map((m) => m[1]).sort().join(",");
-    const right = [...french.matchAll(TOKEN)].map((m) => m[1]).sort().join(",");
+    const left = [...english.matchAll(TOKEN)].map((m) => m[1]).toSorted((a, b) => a < b ? -1 : Number(a > b)).join(",");
+    const right = [...french.matchAll(TOKEN)].map((m) => m[1]).toSorted((a, b) => a < b ? -1 : Number(a > b)).join(",");
     if (left !== right) {
       failures.push(
         `${name}: ${key} interpolates {${left || "nothing"}} in English and ` +

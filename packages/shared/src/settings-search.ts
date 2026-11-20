@@ -441,13 +441,13 @@ export function searchSettings(
     const labelMatch = phraseMatches(q, normalizeSettingsQuery(label));
     const rank = labelMatch
       ? 0
-      : words.slice(1).some((word) => phraseMatches(q, normalizeSettingsQuery(word)))
+      : (words.slice(1).some((word) => phraseMatches(q, normalizeSettingsQuery(word)))
         ? 1
-        : -1;
+        : -1);
     if (rank >= 0) results.push({ entry: item, label, rank });
   }
   return results
     .map((result, index) => ({ result, index }))
-    .sort((a, b) => a.result.rank - b.result.rank || a.index - b.index)
+    .toSorted((a, b) => a.result.rank - b.result.rank || a.index - b.index)
     .map(({ result }) => result);
 }

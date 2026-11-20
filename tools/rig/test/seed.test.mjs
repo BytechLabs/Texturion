@@ -288,7 +288,7 @@ test("every tenant's messaging profile is a distinct profile the guard's spec cr
   const specKeys = new Set(spec.messaging_profiles.profiles.map((profile) => profile.key));
   const keyOfRole = new Map(spec.numbers.standing.map((entry) => [entry.role, entry.messaging_profile]));
   const keys = TENANTS.map((tenant) => tenant.messagingProfile ?? keyOfRole.get(tenant.numbers[0]?.role));
-  assert.ok(keys.every((key) => specKeys.has(key)), `every tenant's profile is in the spec: ${keys}`);
+  assert.ok(keys.every((key) => specKeys.has(key)), `every tenant's profile is in the spec: ${JSON.stringify(keys)}`);
   assert.equal(new Set(keys).size, keys.length, "no two tenants share a profile");
   assert.ok(specKeys.has("qa-g"), "the spec creates QA-G's profile");
 });

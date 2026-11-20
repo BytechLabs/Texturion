@@ -127,7 +127,7 @@ export function presenceFor(
   }
 
   return [...seen.values()]
-    .sort((a, b) => b.entry.at - a.entry.at)
+    .toSorted((a, b) => b.entry.at - a.entry.at)
     .map(({ entry, typing }) => ({
       user_id: entry.user_id,
       display_name: entry.display_name.trim() || "A teammate",

@@ -487,9 +487,8 @@ describe("seasonal, while paused (#277)", () => {
     // only meet a number of days inside a sentence about cancelling. "Your pause
     // ends in 30 days" would pass a toContain check on the copy and fail here.
     for (const sentence of paused().body.split(/(?<=\.)\s+/)) {
-      if (sentence.includes(`${CANCELLATION_GRACE_DAYS} days`)) {
-        expect(sentence.toLowerCase()).toContain("cancel");
-      }
+      if (!sentence.includes(`${CANCELLATION_GRACE_DAYS} days`)) continue;
+      expect(sentence.toLowerCase()).toContain("cancel");
     }
     expect(paused().body).toContain(`${CANCELLATION_GRACE_DAYS} days`);
   });
@@ -590,9 +589,8 @@ describe("what no offer may ever claim", () => {
     // "nothing hands a paused workspace the plan switcher", swept over every
     // reason, plan and phase rather than spot-checked on the one that had it.
     for (const { input, offer: result } of allOffers([true])) {
-      if (input.phase === "before") {
-        expect(result.action).not.toBe("change_plan");
-      }
+      if (input.phase !== "before") continue;
+      expect(result.action).not.toBe("change_plan");
     }
   });
 
@@ -781,11 +779,10 @@ describe("every offer says itself in French too", () => {
       const where = `${input.reason}/${input.plan}/${input.phase}/paused=${input.paused}`;
       expect(fr.heading, where).not.toBe(en.heading);
       expect(fr.body, where).not.toBe(en.body);
-      if (en.actionLabel !== null) {
-        expect(fr.actionLabel, where).not.toBe(en.actionLabel);
-      }
       // The control is a decision, not copy, and must not move with the words.
       expect(fr.action, where).toBe(en.action);
+      if (en.actionLabel === null) continue;
+      expect(fr.actionLabel, where).not.toBe(en.actionLabel);
     }
     // A loop that answered nothing would pass in silence, and most of these
     // inputs legitimately return null.

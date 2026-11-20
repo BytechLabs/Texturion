@@ -86,19 +86,18 @@ function walk(dir, out = []) {
 if (ios !== null) {
   const retyped = new RegExp(`\\.frame\\(maxWidth:\\s*${ios}\\)`);
   for (const path of walk(IOS_FEATURES)) {
-    readFileSync(path, "utf8")
-      .split(/\r?\n/)
-      .forEach((line, index) => {
-        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-        if (retyped.test(line)) {
-          problems.push(
-            `${path}:${index + 1} — the shared reading measure, retyped. Use ` +
-              `\`.contentMaxWidth()\`: the second \`.frame(maxWidth: .infinity)\` ` +
-              `is what centres it, and half the idiom typed from memory pins ` +
-              `content to the leading edge on an iPad.`,
-          );
-        }
-      });
+    const lines = readFileSync(path, "utf8").split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;
+      if (retyped.test(line)) {
+        problems.push(
+          `${path}:${index + 1} — the shared reading measure, retyped. Use ` +
+            `\`.contentMaxWidth()\`: the second \`.frame(maxWidth: .infinity)\` ` +
+            `is what centres it, and half the idiom typed from memory pins ` +
+            `content to the leading edge on an iPad.`,
+        );
+      }
+    }
   }
 }
 

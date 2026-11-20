@@ -308,7 +308,10 @@ describe("the real registry's refusals", () => {
     const { registry, configs } = realInput();
     for (const config of [EDGE, GUARD]) {
       const entries = registry.crons.filter((entry) => entry.config === config);
-      expect(entries.map((entry) => entry.cron).toSorted()).toEqual([...(configs[config] ?? [])].toSorted());
+      expect(entries.map((entry) => entry.cron).toSorted((a, b) => {
+        if (typeof a !== "string" || typeof b !== "string") throw new TypeError("Expected text in the test fixture");
+        return a < b ? -1 : Number(a > b);
+      })).toEqual([...(configs[config] ?? [])].toSorted());
       expect(entries.length).toBeGreaterThan(0);
       for (const entry of entries) {
         expect(entry.class).toBe("skip");

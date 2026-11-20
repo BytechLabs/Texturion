@@ -72,7 +72,8 @@ export function parseMatch(text: string): Matcher | undefined {
   ];
   let rest = source;
   while (rest.length > 0) {
-    const found = patterns.map(([pattern, make]) => [pattern.exec(rest), make] as const).find(([m]) => m);
+    const remaining = rest;
+    const found = patterns.map(([pattern, make]) => [pattern.exec(remaining), make] as const).find(([m]) => m);
     if (!found) return undefined;
     const [m, make] = found;
     const clause = make(m!);

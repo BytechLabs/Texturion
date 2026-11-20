@@ -586,9 +586,9 @@ export function contactImportUndeclaredPropertiesReference(
   const key: ContactImportErrorMessageKey =
     more > 0
       ? "apiErrors.contactImportUndeclaredPropertiesCapped"
-      : properties.length === 1
+      : (properties.length === 1
         ? "apiErrors.contactImportUndeclaredPropertiesOne"
-        : "apiErrors.contactImportUndeclaredPropertiesMany";
+        : "apiErrors.contactImportUndeclaredPropertiesMany");
   return {
     key,
     vars: {

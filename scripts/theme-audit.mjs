@@ -77,7 +77,7 @@ const AUDIT = (hasReadyCheck) => {
   const parse = (css) => {
     const m = css.match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
-    const [r, g, b, a = "1"] = m[1].split(",").map((s) => Number.parseFloat(s.trim()));
+    const [r, g, b, a = "1"] = m[1].split(",").map((s) => Number(s.trim()));
     return { r, g, b, a };
   };
   const lum = ({ r, g, b }) => {
@@ -132,7 +132,7 @@ const AUDIT = (hasReadyCheck) => {
   // that silently examines nothing is worse than no check, because it also
   // tells you everything is fine.
   const painted = document.querySelectorAll("body *").length;
-  const loading = /loading your workspace|loading…/i.test(document.body.innerText || "");
+  const loading = /loading your workspace|loading…/i.test(document.body.textContent || "");
   if ((!hasReadyCheck && painted < 40) || loading) {
     faults.push({
       kind: "EMPTY",
@@ -240,7 +240,7 @@ const AUDIT = (hasReadyCheck) => {
     if (own.length < 2) continue;
     const style = getComputedStyle(el);
     if (style.visibility === "hidden" || style.display === "none") continue;
-    if (Number.parseFloat(style.opacity) < 0.5) continue;
+    if (Number(style.opacity) < 0.5) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width < 4 || rect.height < 4) continue;
 
@@ -250,8 +250,8 @@ const AUDIT = (hasReadyCheck) => {
     const composited = fg.a < 0.999 ? over(fg, bg) : fg;
 
     // WCAG large text: >=24px, or >=18.66px bold.
-    const size = Number.parseFloat(style.fontSize);
-    const weight = Number.parseInt(style.fontWeight, 10) || 400;
+    const size = Number(style.fontSize.replace(/px$/, ""));
+    const weight = Number(style.fontWeight) || 400;
     const large = size >= 24 || (size >= 18.66 && weight >= 700);
     const floor = large ? 3 : 4.5;
     const r = ratio(composited, bg);
@@ -336,7 +336,7 @@ const A11Y = (checkTapSize) => {
   const visible = (el) => {
     const style = getComputedStyle(el);
     if (style.display === "none" || style.visibility === "hidden") return false;
-    if (Number.parseFloat(style.opacity || "1") === 0) return false;
+    if (Number(style.opacity || "1") === 0) return false;
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0;
   };
@@ -618,7 +618,7 @@ const FOCUS_WALK = (maxStops) => {
       .filter((pseudo) => pseudo.content !== "none" && pseudo.content !== "normal"),
   ];
   for (const drawn of drawnStyles) {
-    const outlineWidth = Number.parseFloat(drawn.outlineWidth) || 0;
+    const outlineWidth = Number(drawn.outlineWidth.replace(/px$/, "")) || 0;
     const hasOutline = drawn.outlineStyle !== "none" && outlineWidth > 0;
     if (hasOutline && !uaRing) {
       const c = parse(drawn.outlineColor);

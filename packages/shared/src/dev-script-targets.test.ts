@@ -73,11 +73,9 @@ describe("localSupabaseUrl", () => {
     expect(() => localSupabaseUrl({ SUPABASE_URL: REMOTE_URL })).toThrow(
       /points at a remote host/,
     );
-    try {
-      localSupabaseUrl({ SUPABASE_URL: REMOTE_URL });
-    } catch (error) {
-      expect(String(error)).not.toContain(REMOTE_PROJECT);
-    }
+    expect(() => localSupabaseUrl({ SUPABASE_URL: REMOTE_URL })).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining(REMOTE_PROJECT) }),
+    );
   });
 });
 

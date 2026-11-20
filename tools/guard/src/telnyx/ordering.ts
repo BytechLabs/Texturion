@@ -77,7 +77,7 @@ type Item = Record<string, unknown>;
 export async function productionCapable(ctx: Ctx): Promise<boolean> {
   const cached = await ctx.store.get<ProductionHealth>(ORDER_KEYS.health);
   if (cached && ctx.now() - cached.checked_at < PRODUCTION_HEALTH_CACHE_MS) return cached.capable;
-  let capable = false;
+  let capable: boolean;
   try {
     const response = await ctx.fetch(`${PRODUCTION_API_ORIGIN}/health`, { headers: { accept: "application/json" } });
     const body = (await response.json().catch(() => null)) as { capabilities?: unknown } | null;
@@ -248,10 +248,11 @@ export async function verifyFirstOrder(ctx: Ctx): Promise<FirstOrder["state"] | 
     return stop(ctx, "number_ambiguous", "The ordered number is listed with no id. Nothing was released.");
   }
   if (number.billing_group_id !== record.billing_group_id) {
+    const group = typeof number.billing_group_id === "string" ? number.billing_group_id : "none";
     return stop(
       ctx,
       "group_not_kept",
-      `The ordered number is not in the partition's billing group (${String(number.billing_group_id ?? "none")}). ` +
+      `The ordered number is not in the partition's billing group (${group}). ` +
         "Production's sweep treats a number with no group as its own. Nothing was released; regroup or release it by hand.",
     );
   }

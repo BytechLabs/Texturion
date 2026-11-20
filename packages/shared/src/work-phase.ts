@@ -130,7 +130,7 @@ export function groupJobPhotos<T extends JobPhotoLike>(
     // move a visit later in the day than it happened.
     if (item.created_at < existing.at) existing.at = item.created_at;
   }
-  return [...groups.values()].sort((left, right) => {
+  return [...groups.values()].toSorted((left, right) => {
     if (left.at !== right.at) return left.at < right.at ? -1 : 1;
     return (left.note_id ?? "") < (right.note_id ?? "") ? -1 : 1;
   });

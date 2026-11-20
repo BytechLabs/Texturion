@@ -54,6 +54,6 @@ export function inSettingsGroupOrder<T>(
   };
   return sections
     .map((section, index) => ({ section, index }))
-    .sort((a, b) => rank(a.section) - rank(b.section) || a.index - b.index)
+    .toSorted((a, b) => rank(a.section) - rank(b.section) || a.index - b.index)
     .map(({ section }) => section);
 }

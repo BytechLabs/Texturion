@@ -125,15 +125,19 @@ describe("guard.yml's admin routines", () => {
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
+    const heldIds = held.map(({ id }) => {
+      if (typeof id !== "string") throw new TypeError("Expected a held number ID");
+      return id;
+    });
     expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
-    await h.store.put(`detached:${held[7].id}`, { at: h.clock.now, reason: "stranger_flood" });
+    await h.store.put(`detached:${heldIds[7]}`, { at: h.clock.now, reason: "stranger_flood" });
 
     await fileValidation(h);
     h.telnyx.log.length = 0;
     const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
     await expect(answer.json()).resolves.toMatchObject({ ordered: null, bound: 7, voice_deferred: [ROLES[7]] });
     const bound = h.telnyx.requests("PATCH").filter((entry) => (entry.body as Record<string, unknown>)?.connection_id !== undefined);
-    expect(bound.map((entry) => entry.path)).toEqual(held.slice(0, 7).map((item) => `/v2/phone_numbers/${item.id}`));
+    expect(bound.map((entry) => entry.path)).toEqual(heldIds.slice(0, 7).map((id) => `/v2/phone_numbers/${id}`));
     expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, true, true, true, true, true, false]);
   });
 

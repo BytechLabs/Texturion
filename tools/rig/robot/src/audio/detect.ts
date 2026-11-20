@@ -292,7 +292,7 @@ function template(frameMs: number): Template {
   const sign = new Int8Array(cycleFrames);
   const burst = new Int8Array(cycleFrames).fill(-1);
   let bursts = 0;
-  PATTERN.forEach((on, slot) => {
+  for (const [slot, on] of PATTERN.entries()) {
     for (let i = 0; i < slotFrames; i++) {
       const edge = slotFrames >= 3 && (i === 0 || i === slotFrames - 1);
       const q = slot * slotFrames + i;
@@ -300,7 +300,7 @@ function template(frameMs: number): Template {
       if (on && !edge) burst[q] = bursts;
     }
     if (on) bursts += 1;
-  });
+  }
   const built = { cycleFrames, sign, burst, bursts };
   templates.set(frameMs, built);
   return built;

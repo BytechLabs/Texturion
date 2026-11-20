@@ -139,10 +139,10 @@ describe("instantForWallClock (#539's switch)", () => {
     // Newfoundland is UTC-3:30 (UTC-2:30 in summer). An offset rounded to hours
     // would be wrong every single hour of every day here, not twice a year.
     for (let hour = 0; hour < 24; hour += 1) {
-      const wall = { year: 2026, month: 8, day: 11, hour, minute: 45 };
-      const at = instantForWallClock(wall, "America/St_Johns");
+      const localClock = { year: 2026, month: 8, day: 11, hour, minute: 45 };
+      const at = instantForWallClock(localClock, "America/St_Johns");
       expect(at, `hour ${hour}`).not.toBeNull();
-      expect(wallClockInZone(at!, "America/St_Johns"), `hour ${hour}`).toEqual(wall);
+      expect(wallClockInZone(at!, "America/St_Johns"), `hour ${hour}`).toEqual(localClock);
     }
   });
 
@@ -176,9 +176,9 @@ describe("instantForWallClock (#539's switch)", () => {
   });
 
   it("handles midnight, where an hour of 24 would move the day", () => {
-    const wall = { year: 2026, month: 8, day: 11, hour: 0, minute: 0 };
-    const at = instantForWallClock(wall, "America/Toronto");
-    expect(wallClockInZone(at!, "America/Toronto")).toEqual(wall);
+    const localClock = { year: 2026, month: 8, day: 11, hour: 0, minute: 0 };
+    const at = instantForWallClock(localClock, "America/Toronto");
+    expect(wallClockInZone(at!, "America/Toronto")).toEqual(localClock);
     expect(reads(at!, "America/Toronto")).toContain("08/11/2026");
   });
 

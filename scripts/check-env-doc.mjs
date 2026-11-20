@@ -104,6 +104,7 @@ function documentedKeys(markdown, surface) {
   const keys = new Set();
   // Rows lead with the variable in backticks, sometimes with a note before
   // the next cell: | `FOO_BAR` — **OPTIONAL** | ... |
+  // oxlint-disable-next-line eslint/no-control-regex -- Only spaces and tabs may indent names in a table row.
   for (const match of section.matchAll(/^\|[ 	]*`([A-Z][A-Z0-9_]*)`[^|]*\|/gm)) {
     keys.add(match[1]);
   }
@@ -116,8 +117,8 @@ let failed = false;
 for (const surface of SURFACES) {
   const inCode = schemaKeys(readFileSync(surface.file, "utf8"), surface);
   const inDoc = documentedKeys(markdown, surface);
-  const missing = [...inCode].filter((k) => !inDoc.has(k)).sort();
-  const stale = [...inDoc].filter((k) => !inCode.has(k)).sort();
+  const missing = [...inCode].filter((k) => !inDoc.has(k)).toSorted((a, b) => a < b ? -1 : Number(a > b));
+  const stale = [...inDoc].filter((k) => !inCode.has(k)).toSorted((a, b) => a < b ? -1 : Number(a > b));
 
   if (missing.length === 0 && stale.length === 0) {
     console.log(

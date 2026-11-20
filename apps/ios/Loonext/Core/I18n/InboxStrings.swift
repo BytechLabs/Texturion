@@ -390,8 +390,8 @@ enum InboxStrings {
                 + "is nothing to measure yet.",
             "inbox.responseRingAria": "{answered} of {leads} new customers answered",
             "inbox.responseToAnswer": "to answer a new customer",
-            "inbox.responseArcDown": "Down from {then} when you started",
-            "inbox.responseArcUp": "Up from {then} when you started",
+            "inbox.responseArcDown": "Down from {previous} when you started",
+            "inbox.responseArcUp": "Up from {previous} when you started",
             "inbox.responseBaselineCollecting": "Gathering a baseline. {answered} of {required} leads answered.",
             "inbox.responseMissedCallers": "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
             "inbox.responseNoArcTooNew":
@@ -432,8 +432,8 @@ enum InboxStrings {
                 "Too few answers to average yet — {answered} of {minimum}",
             "inbox.satisfactionRingAria": "{score} out of 5, from {count} answers",
             "inbox.satisfactionOutOfFive": "out of 5, from {count} answers",
-            "inbox.satisfactionArcUp": "Up from {then} in the prior {days} days",
-            "inbox.satisfactionArcDown": "Down from {then} in the prior {days} days",
+            "inbox.satisfactionArcUp": "Up from {previous} in the prior {days} days",
+            "inbox.satisfactionArcDown": "Down from {previous} in the prior {days} days",
             "inbox.satisfactionNoBaseline":
                 "No comparison data for the prior {days} days",
             "inbox.satisfactionSame": "About the same as the prior {days} days",
@@ -840,8 +840,8 @@ enum InboxStrings {
             "inbox.responseRingAria":
                 "{answered} nouveaux clients sur {leads} ont eu une réponse",
             "inbox.responseToAnswer": "pour répondre à un nouveau client",
-            "inbox.responseArcDown": "En baisse depuis {then} à vos débuts",
-            "inbox.responseArcUp": "En hausse depuis {then} à vos débuts",
+            "inbox.responseArcDown": "En baisse depuis {previous} à vos débuts",
+            "inbox.responseArcUp": "En hausse depuis {previous} à vos débuts",
             "inbox.responseBaselineCollecting": "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
             "inbox.responseMissedCallers": "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
             "inbox.responseNoArcTooNew":
@@ -881,8 +881,8 @@ enum InboxStrings {
                 "Trop peu de réponses pour faire une moyenne — {answered} sur {minimum}",
             "inbox.satisfactionRingAria": "{score} sur 5, à partir de {count} réponses",
             "inbox.satisfactionOutOfFive": "sur 5, à partir de {count} réponses",
-            "inbox.satisfactionArcUp": "En hausse par rapport à {then} au cours des {days} jours précédents",
-            "inbox.satisfactionArcDown": "En baisse par rapport à {then} au cours des {days} jours précédents",
+            "inbox.satisfactionArcUp": "En hausse par rapport à {previous} au cours des {days} jours précédents",
+            "inbox.satisfactionArcDown": "En baisse par rapport à {previous} au cours des {days} jours précédents",
             "inbox.satisfactionNoBaseline":
                 "Aucune donnée de comparaison pour les {days} jours précédents",
             "inbox.satisfactionSame": "À peu près comme les {days} jours précédents",

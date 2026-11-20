@@ -221,7 +221,7 @@ export function numberAccessIsRestricted(level: NumberAccessLevel): boolean {
 export function sortNumberAccessExplanations(
   rows: readonly NumberAccessExplanation[],
 ): NumberAccessExplanation[] {
-  return [...rows].sort((a, b) => {
+  return rows.toSorted((a, b) => {
     const byRestriction =
       Number(numberAccessIsRestricted(b.level)) -
       Number(numberAccessIsRestricted(a.level));

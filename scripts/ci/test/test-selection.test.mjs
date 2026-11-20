@@ -83,7 +83,7 @@ test("selection follows imports, reads, listings, deletions and the unknown", ()
   const select = (changes) => selectAffected({ units, changes, graph, history });
 
   const docs = select([{ status: "M", path: "docs/RIG.md" }]);
-  assert.deepEqual([...docs.keys()].toSorted(), [
+  assert.deepEqual([...docs.keys()].toSorted((a, b) => a < b ? -1 : Number(a > b)), [
     "apps/web/src/broken.test.ts",
     "apps/web/src/guard.test.ts",
     "apps/web/src/new.test.ts",
@@ -145,8 +145,8 @@ test("with no recorded time, shards balance file count", () => {
   const files = ["a", "b", "c", "d", "e", "f", "g"];
   const { timing, shards } = partition(files, new Map(), 3);
   assert.equal(timing, "file-count");
-  assert.deepEqual(shards.map((s) => s.files.length).toSorted(), [2, 2, 3]);
-  assert.deepEqual(shards.flatMap((s) => s.files).toSorted(), files);
+  assert.deepEqual(shards.map((s) => s.files.length).toSorted((a, b) => a - b), [2, 2, 3]);
+  assert.deepEqual(shards.flatMap((s) => s.files).toSorted((a, b) => a < b ? -1 : Number(a > b)), files);
 });
 
 test("every file lands in exactly one shard", () => {

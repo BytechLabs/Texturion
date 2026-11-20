@@ -250,8 +250,8 @@ export function createScrubber() {
       })
       .replaceAll(UUID, (uuid) => uuidFor(uuid))
       .replaceAll(CALL_CONTROL_ID, (id) => callControlIdFor(id))
-      .replaceAll(E164, (whole, prefix, digits, offset, text) =>
-        standsAlone(text, offset) ? `${prefix}${renumberDigits(digits)}` : whole,
+      .replaceAll(E164, (whole, prefix, digits, offset, sourceText) =>
+        standsAlone(sourceText, offset) ? `${prefix}${renumberDigits(digits)}` : whole,
       )
       .replaceAll(WRITTEN, (whole, area, exchange, line) => {
         const fictional = renumberDigits(`1${area}${exchange}${line}`).slice(1);
@@ -321,14 +321,14 @@ export function realNumbersIn(text) {
 /** Where a fixture still holds a number the guard would refuse, one entry per number. */
 function survivorsIn(fixture) {
   const found = realNumbersIn(JSON.stringify(fixture, null, 2)).map((line) => `fixture line ${line}`);
-  fixture.events.forEach((event, index) => {
+  for (const [index, event] of fixture.events.entries()) {
     for (const state of clientStatesIn(event)) {
       const decoded = decodeClientState(state);
       const where = `client_state in event ${index + 1}`;
       if (decoded) found.push(...realNumbersIn(decoded.text).map(() => `a ${where}`));
       else found.push(`an unreadable ${where}`);
     }
-  });
+  }
   return found;
 }
 
@@ -357,11 +357,11 @@ export function parseTrace(text) {
   const events = items.map((item) =>
     item && typeof item === "object" && !item.data && item.payload?.data ? item.payload : item,
   );
-  events.forEach((event, index) => {
+  for (const [index, event] of events.entries()) {
     if (typeof event?.data?.event_type !== "string") {
       throw new TypeError(`entry ${index + 1} is not a Telnyx webhook envelope (no data.event_type)`);
     }
-  });
+  }
   return events;
 }
 

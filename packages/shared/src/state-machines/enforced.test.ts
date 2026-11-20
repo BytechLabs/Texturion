@@ -36,7 +36,7 @@ import { webhookDeliveryMachine } from "./webhook-delivery";
 import { workspaceMachine } from "./workspace";
 import { ALL_MACHINES } from "./index";
 
-const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
+const MIGRATIONS = join(import.meta.dirname, "..", "..", "..", "..", "supabase", "migrations");
 
 /** The `old.<column> = 'x' and new.<column> in (...)` pairs in a guard function. */
 function triggerEdges(file: string, fn: string): Map<string, string[]> {
@@ -126,22 +126,21 @@ describe("#722 enforced machines", () => {
     ["port_messaging", portMessagingMachine, "port_requests_messaging_forward_only"],
     ["subscription", subscriptionMachine, "companies_subscription_status_forward_only"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
-    const edges = triggerEdges(
-      fn === "quotes_transition_guard"
-        ? "20261119195601_withdraw_quotes.sql"
-        : fn === "calls_transition_guard"
-        ? "20261111410000_a_call_never_goes_backwards.sql"
-        : REMAINING_GUARDS.has(fn)
-        ? "20261111400000_the_remaining_machines_keep_their_lifecycles.sql"
-        : fn === "phone_numbers_transition_guard"
-        ? "20261111330000_a_number_keeps_its_lifecycle.sql"
-        : fn.endsWith("_status_forward_only")
-          ? "20261111340000_registrations_and_text_enablement_keep_their_lifecycles.sql"
-          : CALENDAR_GUARDS.has(fn)
-            ? "20261111350000_the_calendar_keeps_its_lifecycles.sql"
-            : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
-      fn,
-    );
+    let migration = "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql";
+    if (fn === "quotes_transition_guard") {
+      migration = "20261119195601_withdraw_quotes.sql";
+    } else if (fn === "calls_transition_guard") {
+      migration = "20261111410000_a_call_never_goes_backwards.sql";
+    } else if (REMAINING_GUARDS.has(fn)) {
+      migration = "20261111400000_the_remaining_machines_keep_their_lifecycles.sql";
+    } else if (fn === "phone_numbers_transition_guard") {
+      migration = "20261111330000_a_number_keeps_its_lifecycle.sql";
+    } else if (fn.endsWith("_status_forward_only")) {
+      migration = "20261111340000_registrations_and_text_enablement_keep_their_lifecycles.sql";
+    } else if (CALENDAR_GUARDS.has(fn)) {
+      migration = "20261111350000_the_calendar_keeps_its_lifecycles.sql";
+    }
+    const edges = triggerEdges(migration, fn);
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
     for (const state of machine.states as readonly string[]) {
       const defined = (machine.transitions as Record<string, readonly string[]>)[state]

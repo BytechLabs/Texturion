@@ -88,8 +88,8 @@ export function opsClient() {
     return `${base}/rest/v1/${table}?${params.toString()}`;
   };
 
-  const send = async (what, url, init = {}) => {
-    const response = await fetch(url, {
+  const send = async (what, requestUrl, init = {}) => {
+    const response = await fetch(requestUrl, {
       ...init,
       headers: { ...headers, ...init.headers },
     });
@@ -179,9 +179,9 @@ export function announceTarget(apply, readOnly = false) {
   const { host } = new URL(process.env.SUPABASE_URL ?? "http://unset");
   const mode = readOnly
     ? "report — this script has no write path"
-    : apply
+    : (apply
       ? "APPLY — this will write"
-      : "dry run — nothing will be written";
+      : "dry run — nothing will be written");
   console.log("");
   console.log(`  target : ${host}`);
   console.log(`  mode   : ${mode}`);

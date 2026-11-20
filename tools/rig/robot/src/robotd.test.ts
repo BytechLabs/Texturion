@@ -15,8 +15,9 @@ const EDGE = "https://rig-edge.example.workers.dev";
 function recordingFetch(respond: (url: string, init: RequestInit) => Response) {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetch = (async (input: string | URL | Request, init: RequestInit = {}) => {
-    calls.push({ url: String(input), init });
-    return respond(String(input), init);
+    const url = input instanceof Request ? input.url : String(input);
+    calls.push({ url, init });
+    return respond(url, init);
   }) as typeof globalThis.fetch;
   return { fetch, calls };
 }

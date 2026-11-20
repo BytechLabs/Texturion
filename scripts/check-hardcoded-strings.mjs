@@ -850,6 +850,7 @@ function isDateFormatPattern(text) {
 function stripComments(source) {
   return source
     .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    // oxlint-disable-next-line eslint/no-control-regex -- Match space and tab indentation without consuming newlines.
     .replaceAll(/^[ 	]*\/\/\/?.*$/gm, "");
 }
 
@@ -1296,7 +1297,7 @@ for (const [name, client] of Object.entries(CLIENTS)) {
 
   if (baseline) {
     const sorted = Object.fromEntries(
-      Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)),
+      Object.entries(counts).toSorted(([a], [b]) => a.localeCompare(b)),
     );
     writeFileSync(client.ledger, `${JSON.stringify(sorted, null, 2)}
 `);

@@ -79,7 +79,7 @@ fun satisfactionArcSentence(report: SatisfactionReport, locale: String): String?
     return AppStrings.translate(
         locale,
         if (direction == "better") "inbox.satisfactionArcUp" else "inbox.satisfactionArcDown",
-        mapOf("then" to then, "days" to report.window.days.toString()),
+        mapOf("previous" to then, "days" to report.window.days.toString()),
     )
 }
 

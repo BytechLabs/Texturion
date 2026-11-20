@@ -184,7 +184,7 @@ export function aiModelsByVendor(): { vendor: string; count: number }[] {
     .map(([vendor, models]) => ({ vendor, count: models.size }))
     // Most models first, then alphabetically — a stable order, so the sentence
     // does not reshuffle itself between builds.
-    .sort((a, b) => b.count - a.count || a.vendor.localeCompare(b.vendor));
+    .toSorted((a, b) => b.count - a.count || a.vendor.localeCompare(b.vendor));
 }
 
 /** Vendor slug → the name a customer would recognise. */

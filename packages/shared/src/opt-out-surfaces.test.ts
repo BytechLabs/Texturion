@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /** packages/shared/src → repo root. */
-const REPO = join(__dirname, "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const CLIENT_ROOTS = [
   join(REPO, "apps", "web", "src"),
@@ -216,16 +216,19 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
    */
   function catalogueFor(file: string): string | null {
     const path = file.replaceAll("\\", "/");
-    const dir = path.includes("/apps/web/")
-      ? join(REPO, "apps", "web", "src", "i18n", "sections")
-      : path.includes("/apps/android/")
-        ? join(
-            REPO,
-            "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n",
-          )
-        : path.includes("/apps/ios/")
-          ? join(REPO, "apps/ios/Loonext/Core/I18n")
-          : null;
+    let dir;
+    if (path.includes("/apps/web/")) {
+      dir = join(REPO, "apps", "web", "src", "i18n", "sections");
+    } else if (path.includes("/apps/android/")) {
+      dir = join(
+          REPO,
+          "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n",
+        );
+    } else if (path.includes("/apps/ios/")) {
+      dir = join(REPO, "apps/ios/Loonext/Core/I18n");
+    } else {
+      dir = null;
+    }
     if (dir === null) return null;
     let catalogue = "";
     for (const entry of readdirSync(dir)) {

@@ -25,7 +25,7 @@ import { describe, expect, it } from "vitest";
 
 import { ALL_MACHINES } from "./index";
 
-const ROOT = join(__dirname, "..", "..", "..", "..");
+const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const MIGRATIONS = join(ROOT, "supabase", "migrations");
 const CAPTURE_MIGRATION = "supabase/migrations/20261111420000_every_state_transition_is_recorded.sql";
 const SCHEDULE_UNDO_MIGRATION = join(MIGRATIONS, "20261118004800_restore_canceled_scheduled_message.sql");
@@ -173,26 +173,26 @@ describe("every machine's transitions are recorded (#722 phase 4)", () => {
   });
 
   it("names where a person sees each move, or says why not", () => {
-    let recorded = 0;
-    let none = 0;
-    for (const machine of ALL_MACHINES) {
-      const {activity} = ROSTER[machine.id];
-      if ("recordActivity" in activity) {
-        expect(activityKinds.has(activity.recordActivity), `${machine.id}: record_activity has no kind ${activity.recordActivity}`).toBe(true);
-        recorded += 1;
-      } else if ("auditLog" in activity) {
-        const path = join(ROOT, activity.file);
-        expect(existsSync(path), `${machine.id}: ${activity.file} does not exist`).toBe(true);
-        const text = readFileSync(path, "utf8");
-        expect(
-          text.includes(`"${activity.auditLog}"`) || text.includes(`'${activity.auditLog}'`),
-          `${machine.id}: ${activity.file} does not write ${activity.auditLog}`,
-        ).toBe(true);
-        recorded += 1;
-      } else {
-        expect(activity.none.length, `${machine.id}: a none needs a reason`).toBeGreaterThan(20);
-        none += 1;
-      }
+    const records = ALL_MACHINES.map((machine) => ({ id: machine.id, activity: ROSTER[machine.id].activity }));
+    const recorded = records.filter(({ activity }) => !("none" in activity)).length;
+    const none = records.filter(({ activity }) => "none" in activity).length;
+    for (const { id, activity } of records) {
+      if (!("recordActivity" in activity)) continue;
+      expect(activityKinds.has(activity.recordActivity), `${id}: record_activity has no kind ${activity.recordActivity}`).toBe(true);
+    }
+    for (const { id, activity } of records) {
+      if (!("auditLog" in activity)) continue;
+      const path = join(ROOT, activity.file);
+      expect(existsSync(path), `${id}: ${activity.file} does not exist`).toBe(true);
+      const text = readFileSync(path, "utf8");
+      expect(
+        text.includes(`"${activity.auditLog}"`) || text.includes(`'${activity.auditLog}'`),
+        `${id}: ${activity.file} does not write ${activity.auditLog}`,
+      ).toBe(true);
+    }
+    for (const { id, activity } of records) {
+      if (!("none" in activity)) continue;
+      expect(activity.none.length, `${id}: a none needs a reason`).toBeGreaterThan(20);
     }
     console.log(`transition-records: ${recorded} machines leave an activity row, ${none} are PostHog only`);
     expect(recorded + none).toBe(ALL_MACHINES.length);

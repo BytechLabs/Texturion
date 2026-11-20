@@ -87,6 +87,48 @@ export function openJournals(dir: string): JournalEntry[] {
   });
 }
 
+export class Lease {
+  readonly #client: LeaseClient;
+  readonly #entry: JournalEntry;
+  #released = false;
+
+  constructor(client: LeaseClient, entry: JournalEntry) {
+    this.#client = client;
+    this.#entry = entry;
+  }
+
+  get id(): string {
+    return this.#entry.lease_id;
+  }
+
+  get scenario(): string {
+    return this.#entry.scenario;
+  }
+
+  /** Records an undo before the change it reverses, so a crash between the two still undoes. */
+  registerUndo(action: UndoAction): void {
+    if (this.#released) throw new Error(`lease ${this.id} is already released`);
+    const path = this.#client.path(this.id);
+    let current: JournalEntry;
+    try {
+      current = JSON.parse(readFileSync(path, "utf8")) as JournalEntry;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new LeaseReapedError(this.id);
+      throw error;
+    }
+    current.undo.push({ kind: action.kind, params: action.params });
+    writeAtomic(path, current);
+    this.#entry.undo = current.undo;
+  }
+
+  async release(): Promise<ReleaseResult> {
+    if (this.#released) throw new Error(`lease ${this.id} is already released`);
+    this.#released = true;
+    const finished = await this.#client.finish(this.id, this.#client.path(this.id), "releasing");
+    return finished ?? { lease_id: this.id, reaped: true, undone: 0, failed: [] };
+  }
+}
+
 export class LeaseClient {
   readonly #o: LeaseClientOptions;
   readonly #fetch: typeof fetch;
@@ -232,48 +274,6 @@ export class LeaseClient {
   #url(leaseId?: string): string {
     const base = `${stripTrailingSlashes(this.#o.edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.lease}`;
     return leaseId ? `${base}/${encodeURIComponent(leaseId)}` : base;
-  }
-}
-
-export class Lease {
-  readonly #client: LeaseClient;
-  readonly #entry: JournalEntry;
-  #released = false;
-
-  constructor(client: LeaseClient, entry: JournalEntry) {
-    this.#client = client;
-    this.#entry = entry;
-  }
-
-  get id(): string {
-    return this.#entry.lease_id;
-  }
-
-  get scenario(): string {
-    return this.#entry.scenario;
-  }
-
-  /** Records an undo before the change it reverses, so a crash between the two still undoes. */
-  registerUndo(action: UndoAction): void {
-    if (this.#released) throw new Error(`lease ${this.id} is already released`);
-    const path = this.#client.path(this.id);
-    let current: JournalEntry;
-    try {
-      current = JSON.parse(readFileSync(path, "utf8")) as JournalEntry;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new LeaseReapedError(this.id);
-      throw error;
-    }
-    current.undo.push({ kind: action.kind, params: action.params });
-    writeAtomic(path, current);
-    this.#entry.undo = current.undo;
-  }
-
-  async release(): Promise<ReleaseResult> {
-    if (this.#released) throw new Error(`lease ${this.id} is already released`);
-    this.#released = true;
-    const finished = await this.#client.finish(this.id, this.#client.path(this.id), "releasing");
-    return finished ?? { lease_id: this.id, reaped: true, undone: 0, failed: [] };
   }
 }
 

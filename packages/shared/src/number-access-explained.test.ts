@@ -91,7 +91,7 @@ describe("why", () => {
 });
 
 describe("the order they are read in", () => {
-  const row = (
+  const ruleRow = (
     number: string,
     level: NumberAccessExplanation["level"],
   ): NumberAccessExplanation => ({
@@ -106,9 +106,9 @@ describe("the order they are read in", () => {
     // An owner opening this is checking a suspicion, not reading a report. A
     // list that opens with six green rows buries the one red one.
     const sorted = sortNumberAccessExplanations([
-      row("+15550003", "text"),
-      row("+15550001", "none"),
-      row("+15550002", "note"),
+      ruleRow("+15550003", "text"),
+      ruleRow("+15550001", "none"),
+      ruleRow("+15550002", "note"),
     ]);
     expect(sorted.map((r) => r.number_e164)).toEqual([
       "+15550001",
@@ -120,14 +120,14 @@ describe("the order they are read in", () => {
   it("orders by number inside each group", () => {
     // So comparing two members puts the same numbers in the same places.
     const sorted = sortNumberAccessExplanations([
-      row("+15550009", "text"),
-      row("+15550004", "text"),
+      ruleRow("+15550009", "text"),
+      ruleRow("+15550004", "text"),
     ]);
     expect(sorted.map((r) => r.number_e164)).toEqual(["+15550004", "+15550009"]);
   });
 
   it("does not mutate the input", () => {
-    const rows = [row("+15550002", "text"), row("+15550001", "none")];
+    const rows = [ruleRow("+15550002", "text"), ruleRow("+15550001", "none")];
     sortNumberAccessExplanations(rows);
     expect(rows[0].number_e164).toBe("+15550002");
   });

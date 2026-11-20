@@ -62,7 +62,7 @@ function sourceFiles() {
   return walk(join(REPO_ROOT, API_SRC))
     .map((full) => relative(REPO_ROOT, full).split("\\").join("/"))
     .filter((file) => isApiSource(file) && file !== REGISTRY_FILE)
-    .sort()
+    .toSorted()
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 
@@ -290,7 +290,7 @@ export function scanFile(ts, file, text) {
   };
 
   const any = (results) =>
-    results.includes(true) ? true : results.includes(UNKNOWN) ? UNKNOWN : false;
+    results.includes(true) ? true : (results.includes(UNKNOWN) ? UNKNOWN : false);
 
   /**
    * Whether a URL is built on the Telnyx base: true, false, or UNKNOWN when
@@ -385,17 +385,18 @@ export function scanFile(ts, file, text) {
       })
       .join("");
     const segments = joined.split("/").slice(1);
+    // oxlint-disable-next-line eslint/no-control-regex -- NUL separates the source fragments from the scanner's markers.
     const MARKER = /^\u0000(\d+)\u0000$/;
 
     let templates = [[]];
-    segments.forEach((segment, i) => {
+    for (const [i, segment] of segments.entries()) {
       const marker = MARKER.exec(segment);
       if (!marker) {
         if (segment.includes("\u0000")) {
           throw new UnfollowableError(`${where(node)}: an interpolation shares a path segment with text; give it a segment of its own`);
         }
         templates = templates.map((t) => [...t, segment]);
-        return;
+        continue;
       }
       if (i <= 1) {
         throw new UnfollowableError(`${where(node)}: the collection after /v2/ is interpolated, so the endpoint is unknowable`);
@@ -410,7 +411,7 @@ export function scanFile(ts, file, text) {
       } else {
         templates = templates.map((t) => [...t, ":id"]);
       }
-    });
+    }
     return templates.map((t) => `/${t.join("/")}`);
   };
 
@@ -716,7 +717,7 @@ export function compare(entries, requests) {
     called.get(k).push(request.where);
   }
 
-  for (const [k, sites] of [...called].sort()) {
+  for (const [k, sites] of [...called].toSorted(([a], [b]) => a < b ? -1 : Number(a > b))) {
     if (!registered.has(k)) {
       failures.push(
         `${k} is called at ${sites.join(", ")} but is not in ${REGISTRY_FILE}. ` +
@@ -724,7 +725,7 @@ export function compare(entries, requests) {
       );
     }
   }
-  for (const [k, entry] of [...registered].sort()) {
+  for (const [k, entry] of [...registered].toSorted(([a], [b]) => a < b ? -1 : Number(a > b))) {
     if (!called.has(k)) {
       failures.push(
         `${REGISTRY_FILE}:${entry.line}: ${k} is registered but nothing calls it. ` +

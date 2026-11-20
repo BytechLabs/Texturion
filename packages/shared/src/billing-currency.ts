@@ -169,7 +169,7 @@ export function formatMoney(
   });
   if (locale === "fr-CA") {
     const french = amount.replaceAll(/[\u00A0\u202F]/gu, " ");
-    const suffix = currency === audience ? "" : currency === "usd" ? " US" : " CA";
+    const suffix = currency === audience ? "" : (currency === "usd" ? " US" : " CA");
     return `${french} $${suffix}`;
   }
   if (currency === audience) return `$${amount}`;

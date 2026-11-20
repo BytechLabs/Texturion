@@ -265,9 +265,9 @@ export function revenueCents(row) {
   if (isChurned(row)) return 0;
   const planCents = isPaused(row)
     ? (row.paused_price_cents ?? 0)
-    : row.prepaid_cents > 0 && row.prepaid_months > 0
+    : (row.prepaid_cents > 0 && row.prepaid_months > 0
       ? Math.round(row.prepaid_cents / row.prepaid_months)
-      : PLAN_MONTHLY_REVENUE_CENTS[row.plan];
+      : PLAN_MONTHLY_REVENUE_CENTS[row.plan]);
   const modules = (row.modules ?? []).reduce(
     (sum, id) => sum + (MODULE_CATALOG[id] ?? 0),
     0,
@@ -518,7 +518,7 @@ await runScript(
         `    ${pad("workspace", 26)}${pad("plan", 9)}${pad("net", 10)}` +
           `${pad("cost", 10)}${pad("margin", 10)}${pad("limit", 8)}state`,
       );
-      for (const p of [...priced].sort((a, b) => a.margin - b.margin)) {
+      for (const p of priced.toSorted((a, b) => a.margin - b.margin)) {
         console.log(
           [
             `    ${pad(p.row.name.slice(0, 24), 26)}${pad(p.row.plan, 9)}`,
@@ -529,7 +529,7 @@ await runScript(
             // as a Pro tenant paying $5, which looks like a billing bug. A
             // cancelled row needs the same sentence for the same reason — `pro`
             // at $0 reads as an unpaid invoice rather than as somebody who left.
-            (p.churned ? "cancelled" : p.paused ? "paused" : ""),
+            (p.churned ? "cancelled" : (p.paused ? "paused" : "")),
           ].join(""),
         );
       }

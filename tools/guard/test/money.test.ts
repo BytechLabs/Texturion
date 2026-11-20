@@ -138,7 +138,10 @@ describe("the cap", () => {
     const detached = await enforceCap(h.ctx, view);
     expect(detached).toBe(4);
     const robot = h.telnyx.numbers.filter((item) => item.connection_id === "conn-robot");
-    expect(robot.map((item) => item.id).toSorted()).toEqual(["num-robot1", "num-robot2", "num-stranger1"]);
+    expect(robot.map((item) => item.id).toSorted((a, b) => {
+      if (typeof a !== "string" || typeof b !== "string") throw new TypeError("Expected text in the test fixture");
+      return a < b ? -1 : Number(a > b);
+    })).toEqual(["num-robot1", "num-robot2", "num-stranger1"]);
     expect(h.telnyx.numbers.find((item) => item.id === "num-prod")?.connection_id).toBe("conn-prod-voice");
     await expect(enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }))).resolves.toBe(0);
     expect(detachEvents(h)).toEqual([]);

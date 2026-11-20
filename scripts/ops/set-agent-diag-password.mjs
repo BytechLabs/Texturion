@@ -99,8 +99,8 @@ function devVarsCandidates(root) {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
-    const main = /^worktree (.+)$/m.exec(out);
-    if (main) candidates.push(join(main[1].trim(), "apps", "api", ".dev.vars"));
+    const mainWorktreeMatch = /^worktree (.+)$/m.exec(out);
+    if (mainWorktreeMatch) candidates.push(join(mainWorktreeMatch[1].trim(), "apps", "api", ".dev.vars"));
   } catch {
     // Not a git checkout: this one's own file is the only candidate.
   }
@@ -322,18 +322,21 @@ function main() {
   const out = resolve(
     typeof args.out === "string"
       ? args.out
-      : target.production
+      : (target.production
         ? agentDiagEnvFile(home)
-        : join(home, ".loonext", "agent-diag.local.env"),
+        : join(home, ".loonext", "agent-diag.local.env")),
   );
 
-  const mode = dryRun
-    ? "dry run: connects to nothing, writes nothing"
-    : check
-      ? "check: read-only, changes nothing"
-      : withdraw
-        ? "WITHDRAW: agent_diag loses its password and cannot log in"
-        : "ROTATE: sets a new password";
+  let mode;
+  if (dryRun) {
+    mode = "dry run: connects to nothing, writes nothing";
+  } else if (check) {
+    mode = "check: read-only, changes nothing";
+  } else if (withdraw) {
+    mode = "WITHDRAW: agent_diag loses its password and cannot log in";
+  } else {
+    mode = "ROTATE: sets a new password";
+  }
   console.log("");
   console.log(`  target : ${target.label}`);
   console.log(`  login  : agent_diag${target.production ? ".<project ref>" : ""}, ${withdraw ? "deleted from" : "written to"} ${out}`);

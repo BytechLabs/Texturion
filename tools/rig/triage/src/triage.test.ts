@@ -20,10 +20,12 @@ interface Call {
 function github() {
   const calls: Call[] = [];
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+    const url = input instanceof Request ? input.url : String(input);
     const method = init?.method ?? "GET";
     const auth = new Headers(init?.headers).get("authorization") ?? undefined;
-    calls.push({ method, url, auth, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    const body = init?.body;
+    if (body && typeof body !== "string") throw new TypeError("Expected a JSON request body");
+    calls.push({ method, url, auth, body: body ? JSON.parse(body) : undefined });
     const ok = (value: unknown, status = 200) => Response.json(value, { status });
     if (url.endsWith("/repos/BytechLabs/Texturion/installation")) return ok({ id: 77 });
     if (url.endsWith("/app/installations/77/access_tokens")) return ok({ token: "ghs_installation_token" }, 201);

@@ -61,9 +61,9 @@ function wakeWorld(scenario: string) {
     if (!script.pushes) return;
     const attempt = { tenant, purpose: "ring", platform: "android", attempted_at: new Date(time.now).toISOString(), call_session_id: sessionId, ...script.push };
     app.pushes.push(attempt);
-    stages.forEach((stage, i) =>
-      app.beacons.push({ tenant, member, stage, platform: "android", occurred_at: new Date(time.now + 500 * (i + 1)).toISOString(), call_session_id: sessionId }),
-    );
+    for (const [i, stage] of stages.entries()) {
+      app.beacons.push({ tenant, member, stage, platform: "android", occurred_at: new Date(time.now + 500 * (i + 1)).toISOString(), call_session_id: sessionId });
+    }
   };
   app.pushAttempts = async (args: { tenant: string; since: number; purpose?: string }) =>
     app.pushes.filter((p) => p.tenant === args.tenant && Date.parse(p.attempted_at) >= args.since && (!args.purpose || p.purpose === args.purpose));
@@ -615,7 +615,8 @@ describe("D04, Android variants", () => {
     expect((await D04.run(world.ctx)).outcome).toBe("pass");
     expect(world.device.actions).toEqual(SETUP[variant.name]);
     expect(world.undo[0]).toEqual({ kind: "device.reset", params: { device: world.device.name } });
-    if (variant.undo) expect(world.undo[1]).toEqual({ kind: variant.undo, params: { device: world.device.name } });
+    const undo = variant.undo ? { kind: variant.undo, params: { device: world.device.name } } : undefined;
+    expect(world.undo[1]).toEqual(undo);
     expect(world.robot.plans[0]).toMatchObject({
       to: where === "pixel" ? "DEV-A1" : "DEV-E1",
       play: null,
@@ -1260,8 +1261,7 @@ describe("the wake runners' budgets", () => {
         arrange(world);
         expect(runner.prepare).toBeUndefined();
         expect((await runner.run(world.ctx)).outcome).not.toBe("infra");
-        expect(world.robot.plans.length).toBeLessThanOrEqual(row.far_end_legs);
-        if (row.dials === 0) expect(world.robot.plans).toEqual([]);
+        expect(world.robot.plans.length).toBeLessThanOrEqual(row.dials === 0 ? 0 : row.far_end_legs);
       }
     },
   );

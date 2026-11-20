@@ -56,7 +56,9 @@ function compiledManifest(packageName, { utf8 = false } = {}) {
   poolHeader.writeUInt32LE(utf8 ? 0x1_00 : 0, 16);
   poolHeader.writeUInt32LE(28 + strings.length * 4, 20);
   const offsetTable = Buffer.alloc(strings.length * 4);
-  offsets.forEach((value, i) => offsetTable.writeUInt32LE(value, i * 4));
+  for (const [i, value] of offsets.entries()) {
+    offsetTable.writeUInt32LE(value, i * 4);
+  }
   const pool = Buffer.concat([poolHeader, offsetTable, data]);
 
   const element = Buffer.alloc(56);
@@ -319,7 +321,7 @@ test("the build's properties go through the environment and name rig hosts only"
   // Exactly the list the build file reads, which fails a half-configured build.
   const gradle = readFileSync(join(TOOLING_ROOT, "apps", "android", "app", "build.gradle.kts"), "utf8");
   const [, list] = /val nonprodPropertyNames = listOf\(([\s\S]*?)\)/.exec(gradle);
-  const wanted = [...list.matchAll(/"(loonextNonprod\w+)"/g)].map((match) => match[1]).toSorted();
+  const wanted = [...list.matchAll(/"(loonextNonprod\w+)"/g)].map((match) => match[1]).toSorted((a, b) => a < b ? -1 : Number(a > b));
   const names = Object.keys(env).map((key) => key.replace("ORG_GRADLE_PROJECT_", ""));
   assert.ok(wanted.length >= 8);
   assert.deepEqual(names.toSorted(), wanted);

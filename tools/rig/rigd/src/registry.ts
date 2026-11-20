@@ -77,13 +77,13 @@ export function validateRegistry(value: unknown, source = "scenarios.json"): Reg
 
   const seen = new Set<string>();
   const scenarios: RegisteredScenario[] = [];
-  (Array.isArray(root.scenarios) ? root.scenarios : []).forEach((raw, index) => {
+  for (const [index, raw] of (Array.isArray(root.scenarios) ? root.scenarios : []).entries()) {
     const entry = readScenario(raw, `scenarios[${index}]`, problems);
-    if (!entry) return;
+    if (!entry) continue;
     if (seen.has(entry.id)) problems.push(`scenarios[${index}] (${entry.id}): id repeats an earlier entry`);
     seen.add(entry.id);
     scenarios.push(entry);
-  });
+  }
   if (problems.length > 0 || !caps) {
     throw new Error(`${source} does not have the shape rigd runs from:\n  - ${problems.join("\n  - ")}`);
   }
@@ -136,11 +136,11 @@ function readScenario(raw: unknown, where: string, problems: string[]): Register
   if (problems.length > before) return undefined;
 
   const runs: RunSlot[] = [];
-  (entry.runs as unknown[]).forEach((rawRun, index) => {
+  for (const [index, rawRun] of (entry.runs as unknown[]).entries()) {
     const run = (rawRun ?? {}) as Record<string, unknown>;
     if (run.label !== undefined && typeof run.label !== "string") problems.push(`${label} runs[${index}]: label must be a string`);
     runs.push({ index, ...(typeof run.label === "string" ? { label: run.label } : {}) });
-  });
+  }
   if (problems.length > before) return undefined;
   return {
     id: entry.id as string,
