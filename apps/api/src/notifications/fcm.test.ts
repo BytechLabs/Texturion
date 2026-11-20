@@ -384,6 +384,11 @@ describe("sendFcm — iOS aps payload", () => {
     expect(message.apns.payload.aps.badge).toBe(0);
   });
 
+  it("a missed-call alert carries the default sound and the recipient's unread badge", async () => {
+    const message = await sendIos("missed_call", "conversation:thread-1", 4);
+    expect(message.apns.payload.aps).toMatchObject({ sound: "default", badge: 4 });
+  });
+
   it.each(["call", "call_end"])("%s preserves the current badge", async (kind) => {
     const message = await sendIos(kind, "call:sess-1", 12);
     expect(message.apns.payload.aps).not.toHaveProperty("badge");

@@ -7,12 +7,14 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { getDb } from "../db";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
 import { notificationSnippet, notifyInboundMessage } from "./inbound";
+import { deliverSavedInboundAlert } from "./pending-inbound";
 
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -436,6 +438,38 @@ describe("notifyInboundMessage (§8)", () => {
 const DEVICE_ROW_ID = "30000000-aaaa-4000-8000-000000000001";
 
 describe("notifyInboundMessage — native device push (#151)", () => {
+  it.each([false, true])("keeps the saved message ID and opt-out state (%s) on native alerts", async (optedOut) => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+      { id: SUB_ID, user_id: OWNER, platform: "ios", token: "tok-i" },
+    ]);
+    world.sb.on("POST", "/rest/v1/rpc/api_unread_push_badges", () => [{ user_id: OWNER, unread_count: 3 }]);
+    world.sb.on("POST", "/rest/v1/rpc/api_mark_inbound_notify_attempted", () => true);
+    stubFetch(...world.routes, ...service.routes);
+    const pushEnv = fcmEnv(account);
+    const messageId = "eeeeeeee-0000-4000-8000-00000000000e";
+
+    await deliverSavedInboundAlert(pushEnv, getDb(pushEnv), {
+      ...INPUT,
+      messageId,
+      optedOut,
+      requireUnread: true,
+      verdict: { allow_email: false, allow_push: true, notify_reason: "append", emergency: false, media_count: 0 },
+    });
+
+    expect(service.sends).toHaveLength(2);
+    for (const { message } of service.sends) {
+      expect(message.data).toMatchObject({ action_message_id: messageId, can_reply: String(!optedOut) });
+    }
+    const ios = service.sends.find(({ message }) => message.token === "tok-i");
+    expect(ios?.message.apns).toMatchObject({
+      payload: { aps: { sound: "default", badge: 3, category: optedOut ? "MESSAGE_READ_ONLY" : "MESSAGE" } },
+    });
+  });
+
   it("uses one dedicated, private push for an opt-out hint", async () => {
     const account = await makeServiceAccount();
     const service = fcmService();

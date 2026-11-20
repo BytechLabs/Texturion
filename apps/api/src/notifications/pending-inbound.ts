@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { isRecipientOptedOut } from "../messaging/opt-out";
 import { classifyInbound } from "../messaging/spam-flag";
 import { captureException } from "../observability/capture";
 import { notifyInboundMessage } from "./inbound";
@@ -50,6 +51,7 @@ export async function deliverSavedInboundAlert(
     companyId: string;
     conversationId: string;
     body: string;
+    optedOut: boolean;
     verdict: CrewNotifyVerdict;
     requireUnread: boolean;
     recoveredByBackstop?: boolean;
@@ -59,6 +61,8 @@ export async function deliverSavedInboundAlert(
   await notifyInboundMessage(env, {
     companyId: input.companyId,
     conversationId: input.conversationId,
+    messageId: input.messageId,
+    optedOut: input.optedOut || verdict.notify_reason === "opt_out_hint",
     body: input.body,
     mediaCount: verdict.media_count,
     allowEmail: verdict.allow_email,
@@ -125,6 +129,7 @@ export async function runPendingInboundNotifications(
       companyId: row.company_id,
       conversationId: row.conversation_id,
       body: row.body,
+      optedOut: row.crew_notify_verdict.allow_push && await isRecipientOptedOut(db, row.company_id, fromE164),
       verdict: row.crew_notify_verdict,
       requireUnread: true,
       recoveredByBackstop: true,

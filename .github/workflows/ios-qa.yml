@@ -118,6 +118,10 @@ jobs:
         timeout-minutes: 7
         run: |
           xcrun simctl bootstatus "$QA_SIMULATOR" -b
+          for flag in DidShowContinuousPathIntroduction DidShowGestureKeyboardIntroduction \
+            KeyboardDidShowProductivityTutorial UIKeyboardDidShowInternationalInfoIntroduction; do
+            xcrun simctl spawn "$QA_SIMULATOR" defaults write com.apple.keyboard.preferences "$flag" -bool true
+          done
           app="$RUNNER_TEMP/ios-qa-build/Build/Products/QA-iphonesimulator/Loonext.app"
           /usr/libexec/PlistBuddy -c 'Print :LoonextQAApiURL' "$app/Info.plist" | grep -Fx 'http://127.0.0.1:8765'
           xcrun simctl install "$QA_SIMULATOR" "$app"
