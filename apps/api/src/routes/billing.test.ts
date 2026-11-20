@@ -2053,7 +2053,7 @@ describe("plan-builder modules (#12)", () => {
     // PostgREST answers a `head: true` count in the Content-Range header and
     // sends no body, which is why this returns a real Response rather than a
     // value: the count never travels as JSON.
-    const countResponse = (count: number) =>
+    const numberCountResponse = (count: number) =>
       new Response(null, {
         status: 200,
         headers: { "content-range": `*/${count}` },
@@ -2061,7 +2061,7 @@ describe("plan-builder modules (#12)", () => {
 
     it("counts the calls that reached a line which could not take them", async () => {
       const harness = makeHarness([
-        endpoint("HEAD", /\/rest\/v1\/calls/, () => countResponse(7)),
+        endpoint("HEAD", /\/rest\/v1\/calls/, () => numberCountResponse(7)),
         endpoint("GET", /\/rest\/v1\/calls/, () => [
           { started_at: "2026-07-30T18:00:00.000Z" },
         ]),
@@ -2092,7 +2092,7 @@ describe("plan-builder modules (#12)", () => {
       const harness = makeHarness([
         endpoint("HEAD", /\/rest\/v1\/calls/, (call) => {
           seen.push(call.url);
-          return countResponse(0);
+          return numberCountResponse(0);
         }),
         endpoint("GET", /\/rest\/v1\/calls/, (call) => {
           seen.push(call.url);

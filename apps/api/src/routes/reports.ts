@@ -305,7 +305,7 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
   const baseline = "baseline" in first && new Date(first.baseline.until) <= since
     ? first.baseline
     : null;
-  const baselineUnavailable = "reason" in first ? first.reason : baseline ? null : "too_new";
+  const baselineUnavailable = "reason" in first ? first.reason : (baseline ? null : "too_new");
   const improvedBy =
     baseline?.median_seconds != null && current.median_seconds != null
       ? baseline.median_seconds - current.median_seconds

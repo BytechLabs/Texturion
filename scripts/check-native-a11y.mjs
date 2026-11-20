@@ -108,41 +108,40 @@ const IOS_CUSTOM = /\.custom\([^)]*\b(?:size|fixedSize):/;
 // badge). A bare literal there is the same offence as anywhere else.
 {
   const source = readFileSync(IOS_SCALING_IMPL, "utf8").split(/\r?\n/);
-  source.forEach((line, index) => {
-    if (isComment(line, "//")) return;
-    if (!line.includes(IOS_RAW_SYSTEM) && !IOS_CUSTOM.test(line)) return;
+  for (const [index, line] of source.entries()) {
+    if (isComment(line, "//")) continue;
+    if (!line.includes(IOS_RAW_SYSTEM) && !IOS_CUSTOM.test(line)) continue;
     // `relativeTo:` IS the scaling overload — the display and body factories are built
     // from it and are the correct thing, not an exemption. Leaving this out flagged
     // both of them on the first run.
-    if (line.includes("relativeTo:")) return;
-    if (/\b(scaledValue|boundedGlyph)\b/.test(line)) return;
+    if (line.includes("relativeTo:")) continue;
+    if (/\b(scaledValue|boundedGlyph)\b/.test(line)) continue;
     // A factory taking an already-scaled value as a parameter is the same thing one
     // step removed; the parameter name is the contract.
-    if (/\bsize:\s*points\b|fixedSize:\s*points\b/.test(line)) return;
+    if (/\bsize:\s*points\b|fixedSize:\s*points\b/.test(line)) continue;
     failures.push(
       `${IOS_SCALING_IMPL}:${index + 1}  builds a non-scaling font from a size that ` +
         `never saw the reader's setting - it must come from TypeScale.scaledValue or ` +
         `TypeScale.boundedGlyph`,
     );
-  });
+  }
 }
 
 for (const file of sourceFiles(IOS_ROOT, ".swift")) {
   if (file === IOS_SCALING_IMPL) continue;
-  readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .forEach((line, index) => {
-      if (isComment(line, "//")) return;
-      const where = `${file}:${index + 1}`;
-      if (line.includes(IOS_RAW_SYSTEM)) {
-        failures.push(`${where}  .system(size:) does not scale - use Font.scaled(_:weight:design:)`);
-      }
-      if (IOS_CUSTOM.test(line) && !line.includes("relativeTo:")) {
-        failures.push(
-          `${where}  ${line.includes("fixedSize:") ? ".custom(_:fixedSize:)" : ".custom(_:size:)"} does not scale - use Font.golos/.display`,
-        );
-      }
-    });
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (isComment(line, "//")) continue;
+    const where = `${file}:${index + 1}`;
+    if (line.includes(IOS_RAW_SYSTEM)) {
+      failures.push(`${where}  .system(size:) does not scale - use Font.scaled(_:weight:design:)`);
+    }
+    if (IOS_CUSTOM.test(line) && !line.includes("relativeTo:")) {
+      failures.push(
+        `${where}  ${line.includes("fixedSize:") ? ".custom(_:fixedSize:)" : ".custom(_:size:)"} does not scale - use Font.golos/.display`,
+      );
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -155,14 +154,13 @@ for (const file of sourceFiles(IOS_ROOT, ".swift")) {
 const ANDROID_DP_TEXT = /\b(fontSize|lineHeight|letterSpacing)\s*=\s*[^,)\n]*\b\d+(?:\.\d+)?\.dp\b/;
 
 for (const file of sourceFiles(ANDROID_ROOT, ".kt")) {
-  readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .forEach((line, index) => {
-      if (isComment(line, "//")) return;
-      if (ANDROID_DP_TEXT.test(line)) {
-        failures.push(`${file}:${index + 1}  text size in dp does not scale - use sp`);
-      }
-    });
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (isComment(line, "//")) continue;
+    if (ANDROID_DP_TEXT.test(line)) {
+      failures.push(`${file}:${index + 1}  text size in dp does not scale - use sp`);
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */

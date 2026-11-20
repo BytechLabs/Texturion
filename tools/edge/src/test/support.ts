@@ -85,16 +85,16 @@ export function fakeGuard(): FakeGuard {
     async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const request = new Request(input, init);
       const url = new URL(request.url);
-      const call: GuardCall = {
+      const guardCall: GuardCall = {
         method: request.method,
         path: `${url.pathname}${url.search}`,
         headers: Object.fromEntries(request.headers),
         body: request.body ? await request.text() : "",
       };
-      guard.calls.push(call);
+      guard.calls.push(guardCall);
       const wait = guard.latency[url.pathname];
       if (wait) await new Promise((resolve) => { setTimeout(resolve, wait); });
-      const custom = guard.respond(call);
+      const custom = guard.respond(guardCall);
       if (custom) return custom;
       if (url.pathname === "/partition") {
         return guard.partition
@@ -287,6 +287,15 @@ export async function connectRig(e: Env): Promise<FakeRig> {
     inbox.push(JSON.parse(event.data as string) as EdgeToRig);
     wake?.();
   });
+  function waitForFrame(remaining: number) {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, Math.min(remaining, 50));
+      wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+  }
   return {
     ws,
     async next(match = () => true, timeoutMs = 10_000) {
@@ -296,13 +305,7 @@ export async function connectRig(e: Env): Promise<FakeRig> {
         if (index !== -1) return inbox.splice(index, 1)[0];
         const remaining = deadline - Date.now();
         if (remaining <= 0) throw new Error("no matching frame from the edge");
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(resolve, Math.min(remaining, 50));
-          wake = () => {
-            clearTimeout(timer);
-            resolve();
-          };
-        });
+        await waitForFrame(remaining);
         wake = null;
       }
     },

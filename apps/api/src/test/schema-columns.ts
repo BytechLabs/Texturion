@@ -355,7 +355,7 @@ export function schemaViolationResponse(
     const keys = new Set(
       method === "GET" || method === "HEAD"
         ? [...url.searchParams.keys()].filter((key) => !RESERVED_PARAMS.has(key))
-        : body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body) : [],
+        : (body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body) : []),
     );
     const signatures = SCHEMA_SNAPSHOT.rpc[rpc[1]];
     const matches = Array.isArray(signatures) && signatures.some((signature) =>
@@ -363,7 +363,7 @@ export function schemaViolationResponse(
       signature.every(({ name, hasDefault }) => hasDefault || (name !== null && keys.has(name))),
     );
     if (matches) return undefined;
-    const message = `Could not find public.${rpc[1]}(${[...keys].sort().join(", ")}) in the schema cache`;
+    const message = `Could not find public.${rpc[1]}(${[...keys].toSorted().join(", ")}) in the schema cache`;
     console.error(`[schema snapshot] ${message}`);
     return Response.json({ code: "PGRST202", message }, { status: 404 });
   }
@@ -375,7 +375,7 @@ export function schemaViolationResponse(
   if (problems.length === 0) {
     const onConflict = url.searchParams.get("on_conflict");
     if (!onConflict) return undefined;
-    const columns = onConflict.split(",").sort().join(",");
+    const columns = onConflict.split(",").toSorted().join(",");
     if (SCHEMA_SNAPSHOT.uniqueKeys[table]?.some((key) => key.join(",") === columns)) return undefined;
     const message = `No unique key on ${table} matches on_conflict=${onConflict}`;
     console.error(`[schema snapshot] ${message}`);

@@ -560,9 +560,9 @@ function FilterPopover({
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="w-64 p-0 shadow-lg">
         <Command
-          filter={(_value, search, keywords) => {
+          filter={(_value, query, keywords) => {
             const haystack = (keywords ?? []).join(" ").toLowerCase();
-            return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
+            return haystack.includes(query.toLowerCase().trim()) ? 1 : 0;
           }}
         >
           <CommandInput

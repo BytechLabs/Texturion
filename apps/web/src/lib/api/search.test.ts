@@ -1,3 +1,4 @@
+import { fetchInputUrl } from "./test-support";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./core";
@@ -35,7 +36,7 @@ function makeClient(
 ) {
   const fetchSpy = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) =>
-      handler(String(input), init),
+      handler(fetchInputUrl(input), init),
   );
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
@@ -123,7 +124,7 @@ describe("search — request shape on the wire", () => {
     await search(request, "furnace");
 
     const [[url, init]] = fetchSpy.mock.calls;
-    const parsed = new URL(String(url));
+    const parsed = new URL(fetchInputUrl(url));
     expect(parsed.origin).toBe("https://api.loonext.test");
     expect(parsed.pathname).toBe("/v1/search");
     expect(parsed.searchParams.get("q")).toBe("furnace");
@@ -147,7 +148,7 @@ describe("search — request shape on the wire", () => {
     );
     await search(request, "furnace", "b3BhcXVl");
 
-    const url = new URL(String(fetchSpy.mock.calls[0][0]));
+    const url = new URL(fetchInputUrl(fetchSpy.mock.calls[0][0]));
     expect(url.searchParams.get("cursor")).toBe("b3BhcXVl");
   });
 });

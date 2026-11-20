@@ -67,21 +67,19 @@ describe("the code", () => {
     expect(drawn.size).toBeGreaterThan(150);
   });
 
-  it("hashes with the row's id, so two identical codes do not collide", () => 
+  it("hashes with the row's id, so two identical codes do not collide", async () => {
     // Six digits means collisions are ordinary, not exotic. Without the salt,
     // one rainbow table covers every code this product will ever send.
-    Promise.all([
+    const [a, b, again] = await Promise.all([
       hashWidgetCode("11111111-1111-4111-8111-111111111111", "123456"),
       hashWidgetCode("22222222-2222-4222-8222-222222222222", "123456"),
       hashWidgetCode("11111111-1111-4111-8111-111111111111", "123456"),
-    ]).then(([a, b, again]) => {
-      expect(a).not.toBe(b);
-      expect(a).toBe(again);
-      expect(a).toMatch(/^[0-9a-f]{64}$/);
-      // And the code itself is nowhere in it.
-      expect(a).not.toContain("123456");
-    })
-  );
+    ]);
+    expect(a).not.toBe(b);
+    expect(a).toBe(again);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).not.toContain("123456");
+  });
 });
 
 describe("the numbers this feature is bounded by", () => {

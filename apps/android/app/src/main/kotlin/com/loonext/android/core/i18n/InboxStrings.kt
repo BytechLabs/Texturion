@@ -383,8 +383,8 @@ object InboxStrings : AppStrings.Section {
             "there is nothing to measure yet.",
         "inbox.responseRingAria" to "{answered} of {leads} new customers answered",
         "inbox.responseToAnswer" to "to answer a new customer",
-        "inbox.responseArcDown" to "Down from {then} when you started",
-        "inbox.responseArcUp" to "Up from {then} when you started",
+        "inbox.responseArcDown" to "Down from {previous} when you started",
+        "inbox.responseArcUp" to "Up from {previous} when you started",
         "inbox.responseBaselineCollecting" to "Gathering a baseline. {answered} of {required} leads answered.",
         "inbox.responseMissedCallers" to "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
         "inbox.responseNoArcTooNew" to
@@ -420,8 +420,8 @@ object InboxStrings : AppStrings.Section {
             "Too few answers to average yet — {answered} of {minimum}",
         "inbox.satisfactionRingAria" to "{score} out of 5, from {count} answers",
         "inbox.satisfactionOutOfFive" to "out of 5, from {count} answers",
-        "inbox.satisfactionArcUp" to "Up from {then} in the prior {days} days",
-        "inbox.satisfactionArcDown" to "Down from {then} in the prior {days} days",
+        "inbox.satisfactionArcUp" to "Up from {previous} in the prior {days} days",
+        "inbox.satisfactionArcDown" to "Down from {previous} in the prior {days} days",
         "inbox.satisfactionNoBaseline" to "No comparison data for the prior {days} days",
         "inbox.satisfactionSame" to "About the same as the prior {days} days",
         "inbox.satisfactionDetails" to "Details",
@@ -793,8 +793,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseRingAria" to
             "{answered} nouveaux clients sur {leads} ont eu une réponse",
         "inbox.responseToAnswer" to "pour répondre à un nouveau client",
-        "inbox.responseArcDown" to "En baisse depuis {then} à vos débuts",
-        "inbox.responseArcUp" to "En hausse depuis {then} à vos débuts",
+        "inbox.responseArcDown" to "En baisse depuis {previous} à vos débuts",
+        "inbox.responseArcUp" to "En hausse depuis {previous} à vos débuts",
         "inbox.responseBaselineCollecting" to "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
         "inbox.responseMissedCallers" to "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
         "inbox.responseNoArcTooNew" to
@@ -832,8 +832,8 @@ object InboxStrings : AppStrings.Section {
             "Trop peu de réponses pour faire une moyenne — {answered} sur {minimum}",
         "inbox.satisfactionRingAria" to "{score} sur 5, à partir de {count} réponses",
         "inbox.satisfactionOutOfFive" to "sur 5, à partir de {count} réponses",
-        "inbox.satisfactionArcUp" to "En hausse par rapport à {then} au cours des {days} jours précédents",
-        "inbox.satisfactionArcDown" to "En baisse par rapport à {then} au cours des {days} jours précédents",
+        "inbox.satisfactionArcUp" to "En hausse par rapport à {previous} au cours des {days} jours précédents",
+        "inbox.satisfactionArcDown" to "En baisse par rapport à {previous} au cours des {days} jours précédents",
         "inbox.satisfactionNoBaseline" to
             "Aucune donnée de comparaison pour les {days} jours précédents",
         "inbox.satisfactionSame" to "À peu près comme les {days} jours précédents",

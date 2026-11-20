@@ -13,7 +13,8 @@ afterEach(() => {
 it("copies the complete number without activating the surrounding row", async () => {
   const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
   const open = vi.fn();
-  render(<div onClick={open}><CopyablePhoneNumber number="+14165550177" /></div>);
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- This test checks whether the copy click bubbles to its parent.
+    render(<div onClick={open}><CopyablePhoneNumber number="+14165550177" /></div>);
   fireEvent.click(screen.getByRole("button", { name: /copy number.*555-0177/i }));
   await waitFor(() => expect(write).toHaveBeenCalledWith("+14165550177"));
   expect(open).not.toHaveBeenCalled();

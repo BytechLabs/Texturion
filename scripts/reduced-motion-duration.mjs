@@ -5,7 +5,9 @@ export const MAX_REDUCED_TRANSITION_MS = 0.1;
 export function maxTransitionDurationMs(raw) {
   const durations = raw.split(",").map((part) => {
     const token = part.trim();
-    const value = Number.parseFloat(token);
+    const magnitude = token.replace(/m?s$/, "");
+    if (magnitude === "") return Number.POSITIVE_INFINITY;
+    const value = Number(magnitude);
     if (!Number.isFinite(value)) return Number.POSITIVE_INFINITY;
     return token.endsWith("ms") ? value : value * 1000;
   });

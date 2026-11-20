@@ -104,10 +104,10 @@ export function useInboxShortcuts({
         rows: list,
         cursorId: cursor,
         activeConversationId: active,
-        listQuery,
-        scrollToIndex,
-        runBulkOn,
-        t,
+        listQuery: activeListQuery,
+        scrollToIndex: scrollToRow,
+        runBulkOn: runSelectionAction,
+        t: translate,
       } = latest.current;
       const current = cursor ?? active;
       const index = current ? list.findIndex((row) => row.id === current) : -1;
@@ -123,7 +123,7 @@ export function useInboxShortcuts({
             Math.max(0, index < 0 ? (step === 1 ? 0 : list.length - 1) : index + step),
           );
           setCursorId(list[target].id);
-          scrollToIndex(target);
+          scrollToRow(target);
           return;
         }
         case "help": {
@@ -136,28 +136,31 @@ export function useInboxShortcuts({
             ?.focus();
           return;
         }
+        default: {
+          break;
+        }
       }
 
       if (!row) return;
       switch (action) {
         case "open": {
           if (row.id !== active) queueThreadHeading(focus, row.id);
-          router.push(inboxHref({ conversationId: row.id, listQuery }));
+          router.push(inboxHref({ conversationId: row.id, listQuery: activeListQuery }));
           return;
         }
         case "reply": {
-          if (row.id !== active) router.push(inboxHref({ conversationId: row.id, listQuery }));
+          if (row.id !== active) router.push(inboxHref({ conversationId: row.id, listQuery: activeListQuery }));
           requestComposerFocus();
           return;
         }
         case "close": {
           const next = list[index + 1] ?? list[index - 1];
-          runBulkOn([row.id], { action: "set_status", target_status: "closed" }, t("inbox.shortcutClosed"));
+          runSelectionAction([row.id], { action: "set_status", target_status: "closed" }, translate("inbox.shortcutClosed"));
           setCursorId(next?.id ?? null);
           return;
         }
         case "toggleUnread": {
-          const onError = () => toast.error(t("inbox.shortcutFailed"));
+          const onError = () => toast.error(translate("inbox.shortcutFailed"));
           if (row.unread) markRead.mutate(row.id, { onError });
           else markUnread.mutate(row.id, { onError });
           return;

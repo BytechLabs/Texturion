@@ -60,10 +60,8 @@ describe(validateMmsFile, () => {
       size: 1000,
     }, 0, sayEn);
     expect(check.ok).toBe(false);
-    if (!check.ok) {
-      expect(check.reason).toContain('"backup.zip"');
-      expect(check.reason).toContain("can carry");
-    }
+    expect(check).toMatchObject({ reason: expect.stringContaining('"backup.zip"') });
+    expect(check).toMatchObject({ reason: expect.stringContaining("can carry") });
   });
 
   it("rejects SVG (matches the API: active document, never deliverable)", () => {
@@ -78,7 +76,7 @@ describe(validateMmsFile, () => {
   it("rejects an empty file", () => {
     const check = validateMmsFile({ name: "note.txt", type: "text/plain", size: 0 }, 0, sayEn);
     expect(check.ok).toBe(false);
-    if (!check.ok) expect(check.reason).toContain("empty");
+    expect(check).toMatchObject({ reason: expect.stringContaining("empty") });
   });
 
   it("rejects a file over the 1 MB carrier ceiling", () => {
@@ -88,7 +86,7 @@ describe(validateMmsFile, () => {
       size: MMS_MAX_MEDIA_BYTES + 1,
     }, 0, sayEn);
     expect(check.ok).toBe(false);
-    if (!check.ok) expect(check.reason).toContain("1 MB");
+    expect(check).toMatchObject({ reason: expect.stringContaining("1 MB") });
   });
 
   it("admits a file exactly at the ceiling", () => {
@@ -102,8 +100,10 @@ describe(validateMmsFile, () => {
 
   it("rejects past the item cap", () => {
     const check = validateMmsFile(jpeg, MMS_MAX_MEDIA_ITEMS, sayEn);
-    expect(check.ok).toBe(false);
-    if (!check.ok) expect(check.reason).toContain(`${MMS_MAX_MEDIA_ITEMS}`);
+    expect(check).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining(String(MMS_MAX_MEDIA_ITEMS)),
+    });
   });
 });
 

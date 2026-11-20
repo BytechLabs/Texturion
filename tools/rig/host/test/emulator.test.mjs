@@ -231,7 +231,7 @@ test("a hard kill terminates the emulator's own pid and the launcher's; a soft o
   const { devices, killed } = fakeDevices({ alive, removed, discover: (device) => (device.name === "pixel" ? { path: "pid_7000.ini", pid: 7000, grpcToken: "g", mtimeMs: 1000 } : null) });
   await devices.boot("pixel");
   assert.deepEqual(await devices.kill("pixel", { hard: true }), { status: 200, body: { state: "off" } });
-  assert.deepEqual(killed.toSorted(), [7000, 9000]);
+  assert.deepEqual(killed.toSorted((a, b) => a - b), [7000, 9000]);
   assert.deepEqual(removed, ["pid_7000.ini"], "the file a terminated emulator leaves is removed");
   assert.equal(devices.list().find((device) => device.name === "pixel").state, "off");
   assert.deepEqual(await devices.kill("pixel"), { status: 200, body: { state: "off" } }, "killing an off device is a no-op");

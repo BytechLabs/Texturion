@@ -32,13 +32,13 @@ interface SessionRead {
 }
 
 const { browserFactory, serverFactory, sessionRead } = vi.hoisted(() => {
-  const sessionRead: { current: SessionRead } = {
+  const mockSessionRead: { current: SessionRead } = {
     current: { data: { session: null }, error: null },
   };
   return {
-    sessionRead,
+    sessionRead: mockSessionRead,
     browserFactory: vi.fn<ClientFactory>(() => ({
-      auth: { getSession: async () => sessionRead.current },
+      auth: { getSession: async () => mockSessionRead.current },
     })),
     serverFactory: vi.fn<ClientFactory>(() => ({})),
   };

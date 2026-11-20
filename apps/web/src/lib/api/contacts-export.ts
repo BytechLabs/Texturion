@@ -88,7 +88,7 @@ export async function fetchContactsExport(
   if (!response.ok) {
     // The error arm still speaks JSON (SPEC §7 envelope) even though the
     // success arm is CSV — parse it for a typed, calm message.
-    let payload: unknown = null;
+    let payload: unknown;
     try {
       payload = await response.json();
     } catch {

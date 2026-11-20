@@ -169,13 +169,16 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     [mode, days],
   );
   // One tab stop for the whole grid (roving): the arrows move within it.
-  const tabStop = cellKeys.includes(activeKey ?? "")
-    ? activeKey
-    : mode === "week"
-      ? (cellKeys.find((k) => k.startsWith(todayKey)) ?? cellKeys[0])
-      : cellKeys.includes(todayKey)
-        ? todayKey
-        : cellKeys[0];
+  let tabStop;
+  if (cellKeys.includes(activeKey ?? "")) {
+    tabStop = activeKey;
+  } else if (mode === "week") {
+    tabStop = (cellKeys.find((k) => k.startsWith(todayKey)) ?? cellKeys[0]);
+  } else if (cellKeys.includes(todayKey)) {
+    tabStop = todayKey;
+  } else {
+    [tabStop] = cellKeys;
+  }
 
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -260,6 +263,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       </header>
 
       <div className="overflow-x-auto">
+        {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- The handler coordinates focus between the day buttons. */}
         <div
           className="min-w-[640px]"
           onKeyDown={onGridKeyDown}

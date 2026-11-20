@@ -29,7 +29,7 @@ export interface OnboardingState {
    * arrive as "loading", or the next caller inherits the same trap.
    */
   status: "loading" | "error" | "ready" | "signed-out";
-  retry: () => void;
+  handleRetry: () => void;
   /** Active company id (memberships + persisted cookie), null pre-creation. */
   companyId: string | null;
   company: CompanyView | null;
@@ -93,18 +93,15 @@ export function useOnboardingState(): OnboardingState {
     };
   }, [loading, error, company.data, registration.data, draft, role]);
 
+  // Without a session /v1/me stays idle and the loading flag never clears.
+  let status: OnboardingState["status"] = "ready";
+  if (sessionState === "signed-out") status = "signed-out";
+  else if (error) status = "error";
+  else if (loading) status = "loading";
+
   return {
-    // Order matters: with no session /v1/me never fires, so `loading` would
-    // otherwise stay true forever and hide the dead end behind a skeleton.
-    status:
-      sessionState === "signed-out"
-        ? "signed-out"
-        : error
-          ? "error"
-          : loading
-            ? "loading"
-            : "ready",
-    retry: () => {
+    status,
+    handleRetry: () => {
       if (me.isError) void me.refetch();
       if (company.isError) void company.refetch();
       if (registration.isError) void registration.refetch();
@@ -144,7 +141,7 @@ export function useWizardStepGuard(step: WizardStep): {
 
   if (stuck) {
     return {
-      state: { ...state, status: "error", retry: () => window.location.reload() },
+      state: { ...state, status: "error", handleRetry: () => window.location.reload() },
       ready: false,
     };
   }

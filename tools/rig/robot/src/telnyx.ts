@@ -238,7 +238,11 @@ export class GuardedTelnyx implements CallControlApi {
     }
     if (!response.ok) {
       const errors = (json as { errors?: { code?: unknown }[] } | undefined)?.errors ?? [];
-      throw new TelnyxApiError(response.status, path.split("?")[0]!, errors.map((e) => String(e.code ?? "")).filter(Boolean));
+      const codes = errors.flatMap((error) => {
+        const code = error?.code;
+        return typeof code === "number" || (typeof code === "string" && code !== "") ? [String(code)] : [];
+      });
+      throw new TelnyxApiError(response.status, path.split("?")[0]!, codes);
     }
     return (json as { data?: unknown } | undefined)?.data;
   }

@@ -356,7 +356,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   if (registration.isError) {
     return (
       <SettingsCard id="us-registration" title={t("settingsMore.regSectionTitle")}>
-        <LoadError onRetry={() => registration.refetch()} />
+        <LoadError onRetry={() => void registration.refetch()} />
       </SettingsCard>
     );
   }

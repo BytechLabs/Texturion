@@ -70,9 +70,9 @@ export function WorkspaceSummary({
   // user picked one, else the area code we'll auto-assign within.
   const numberLabel = chosenNumber
     ? formatPhone(chosenNumber)
-    : areaHint
+    : (areaHint
       ? areaHint.label
-      : (areaCode ?? "—");
+      : (areaCode ?? "—"));
 
   function fail(cause: unknown) {
     setError(
@@ -162,6 +162,7 @@ export function WorkspaceSummary({
                   aria-label={t("onboarding.workspaceNameLabel")}
                   autoComplete="organization"
                   maxLength={200}
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- The Edit button opens this field.
                   autoFocus
                 />
                 <Button

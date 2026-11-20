@@ -410,7 +410,7 @@ async function main() {
     direction: m.dir,
     body: m.body,
     created_at: m.at,
-    status: m.dir === "note" ? null : m.dir === "inbound" ? "received" : (m as { status?: string }).status,
+    status: m.dir === "note" ? null : (m.dir === "inbound" ? "received" : (m as { status?: string }).status),
     sent_by_user_id: "by" in m ? (m as { by?: string }).by : null,
     telnyx_message_id:
       m.dir === "note" || ("noTelnyxId" in m && (m as { noTelnyxId?: boolean }).noTelnyxId)
@@ -679,7 +679,7 @@ async function main() {
   console.log(`  Company number: ${COMPANY_NUMBER}`);
 }
 
-main().catch((error: unknown) => {
+await main().catch((error: unknown) => {
   console.error(error);
   process.exit(1);
 });

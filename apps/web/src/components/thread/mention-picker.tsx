@@ -62,6 +62,19 @@ export function MentionPicker({
     member.display_name.trim() || t("thread.teammate");
   const labels = new Map(rows.map((member) => [member.user_id, label(member)]));
 
+  function renderEmptyList() {
+    if (members.isPending) {
+      return t("thread.loadingTeammates");
+    }
+    if (members.isError) {
+      return t("thread.teammatesLoadFailed");
+    }
+    if (rows.length === 0) {
+      return t("thread.noTeammatesCanSee");
+    }
+    return t("thread.noTeammatesMatch");
+  }
+
   const list = (autoFocus: boolean) => (
     // Filter on the NAME only. Using the row value meant the uuid was
     // searchable, so any hex-looking query ("abc", "1234") matched every
@@ -74,17 +87,12 @@ export function MentionPicker({
     >
       <CommandInput
         placeholder={t("thread.searchTeammates")}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus stays in the picker after the trigger opens it.
         autoFocus={autoFocus}
       />
       <CommandList>
         <CommandEmpty>
-          {members.isPending
-            ? t("thread.loadingTeammates")
-            : members.isError
-              ? t("thread.teammatesLoadFailed")
-              : rows.length === 0
-                ? t("thread.noTeammatesCanSee")
-                : t("thread.noTeammatesMatch")}
+          {renderEmptyList()}
         </CommandEmpty>
         {rows.length > 0 && (
           <CommandGroup heading={t("thread.mention")}>

@@ -97,6 +97,7 @@ const PLATFORMS = new Set(["web", "android", "ios"]);
 const RING_BEACON_OS_SHAPE =
   /^(android-[0-9]{1,3}|ios-[0-9]{1,2}(\.[0-9]{1,2}){0,2}|web(-(android|chrome-os|chromium-os|fuchsia|ios|linux|macos|unknown|windows))?)$/;
 
+/* oxlint-disable unicorn/prefer-top-level-await -- Zod supplies defaults for invalid fields. */
 const beaconSchema = z.object({
   // Telnyx session ids and the server's versioned ones both carry a hyphen or
   // a colon. All digits is a phone number in the wrong field, which must never
@@ -125,6 +126,7 @@ const beaconSchema = z.object({
   device_idle: z.boolean().optional().catch(undefined),
   screen_locked: z.boolean().optional().catch(undefined),
 });
+/* oxlint-enable unicorn/prefer-top-level-await */
 
 /** Known keys with known values only; anything else is silence. */
 function knownPermissions(

@@ -27,7 +27,7 @@
  */
 import { monitorEventLoopDelay } from "node:perf_hooks";
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 import { assertHostedTarget, CapacityConfigError } from "./deployed-capacity-lib.ts";
@@ -158,10 +158,10 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("join deadline")), JOIN_DEADLINE_MS);
       channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") {
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
           clearTimeout(timer);
           resolve();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        } else if (status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR || status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT || status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
           clearTimeout(timer);
           reject(new Error(status));
         }
@@ -325,7 +325,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+await main().catch((error: unknown) => {
   process.stderr.write(
     error instanceof CapacityConfigError || (error instanceof Error && error.message.includes("required"))
       ? `capacity: ${error.message}\n`

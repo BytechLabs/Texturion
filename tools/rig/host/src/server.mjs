@@ -67,7 +67,7 @@ export function parseFlags(text, allowed) {
  * never a header or a body.
  */
 export function createHostdServer({ token, devices, health, log = () => {} }) {
-  return createServer(async (request, response) => {
+  async function handleRequest(request, response) {
     const [path] = (request.url ?? "/").split("?");
     let status = 500;
     try {
@@ -115,7 +115,8 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
     } finally {
       log(`${request.method} ${path} ${status}`);
     }
-  });
+  }
+  return createServer((request, response) => { void handleRequest(request, response); });
 }
 
 /** Listens on loopback and nowhere else. */

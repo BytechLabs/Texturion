@@ -104,7 +104,7 @@ for (const root of ROOTS) {
       continue;
     }
     const lines = text.split(/\r?\n/);
-    lines.forEach((line, index) => {
+    for (const [index, line] of lines.entries()) {
       for (const match of line.matchAll(CITATION)) {
         const [, cited] = match;
         if (isGlob(cited)) continue;
@@ -113,7 +113,7 @@ for (const root of ROOTS) {
           problems.push({ path: cited, where: `${file}:${index + 1}` });
         }
       }
-    });
+    }
   }
 }
 

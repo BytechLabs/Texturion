@@ -32,13 +32,13 @@ const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("EGRESS_ALLOWANCE_BYTES (#16/#121)", () => {
-  const GB = 1024 * 1024 * 1024;
+  const gibibyte = 1024 * 1024 * 1024;
 
   it("is the fixed 200 GB per-period anti-abuse pool", () => {
     // #121: no longer derived from storage budgets (which are gone) — a flat
     // pool matching the old maxed-Pro ceiling so nobody legitimate is newly
     // blocked.
-    expect(EGRESS_ALLOWANCE_BYTES).toBe(200 * GB);
+    expect(EGRESS_ALLOWANCE_BYTES).toBe(200 * gibibyte);
   });
 });
 

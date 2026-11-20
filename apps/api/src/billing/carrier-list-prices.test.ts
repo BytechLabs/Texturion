@@ -46,7 +46,8 @@ describe("carrier list prices — freshness", () => {
         price.voiceOutboundUsdPerMin,
         price.numberMonthlyUsd,
       ]) {
-        if (field !== null) expect(field).toBeGreaterThan(0);
+        if (field === null) continue;
+        expect(field).toBeGreaterThan(0);
       }
     }
   });

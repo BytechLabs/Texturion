@@ -54,11 +54,11 @@ function loadTurnstileScript(): Promise<void> {
     const script = document.createElement("script");
     script.src = SCRIPT_SRC;
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
+    script.addEventListener("load", () => resolve());
+    script.addEventListener("error", () => {
       scriptPromise = null;
       reject(new Error("Failed to load the Turnstile script."));
-    };
+    });
     document.head.append(script);
   });
   return scriptPromise;

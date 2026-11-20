@@ -100,7 +100,7 @@ process.chdir(REPO_ROOT);
 let mode = "full";
 let reason = "every test runs on this event";
 let reasons = new Map();
-let changes = [];
+let changes;
 if (affected) {
   changes = parseNameStatus(
     execFileSync("git", ["diff", "--name-status", "-M", args["changed-since"], "HEAD"], {

@@ -121,13 +121,18 @@ export function ThreadDeepDive({
         <ol className="mt-8 space-y-1">
           {captions.map((caption, i) => {
             const step = i + 1;
-            const state = engaged
-              ? activeStep === step
-                ? "active"
-                : activeStep != null && step < activeStep
-                  ? "past"
-                  : "rest"
-              : "rest";
+              let state: "active" | "past" | "rest";
+            if (engaged) {
+              if (activeStep === step) {
+                state = "active";
+              } else if (activeStep != null && step < activeStep) {
+                state = "past";
+              } else {
+                state = "rest";
+              }
+            } else {
+              state = "rest";
+            }
             return (
               <DeepDiveCaption
                 key={caption}

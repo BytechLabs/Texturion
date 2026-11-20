@@ -31,7 +31,7 @@ export function nextWebhookAttempt(
     EXTENDED_TELNYX_PREFIXES.some((prefix) => event.eventType.startsWith(prefix));
   const minutes = extended
     ? EXTENDED_BACKOFF_MINUTES[attempt - 1]
-    : attempt < SHORT_ATTEMPT_LIMIT ? SHORT_RETRY_MINUTES : undefined;
+    : (attempt < SHORT_ATTEMPT_LIMIT ? SHORT_RETRY_MINUTES : undefined);
   return minutes === undefined ? null : new Date(now + minutes * MINUTE_MS).toISOString();
 }
 

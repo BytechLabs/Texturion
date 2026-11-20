@@ -16,7 +16,7 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 /** Posix path under src/ -> why this dialog is not a simple confirm. */
 const EXCEPTIONS: Record<string, string> = {

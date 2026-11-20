@@ -226,7 +226,7 @@ export default function BusinessIdentityPage() {
     })();
   }, [ready, seeded, brandRow, form]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   if (!ready || !state.snapshot || !state.company || !state.companyId) return <StepLoading />;
 
   const { company, companyId } = state;
@@ -299,7 +299,7 @@ export default function BusinessIdentityPage() {
     >
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
           className="space-y-6"
           noValidate
         >
@@ -334,7 +334,7 @@ export default function BusinessIdentityPage() {
                 </FormLabel>
                 <SegmentedControl
                   value={field.value}
-                  onChange={field.onChange}
+                  onChange={(value) => field.onChange(value)}
                   fill
                   ariaLabel={t("onboarding.hasEinLabel", {
                     idName:
@@ -507,7 +507,7 @@ export default function BusinessIdentityPage() {
                   <FormControl>
                     <SimpleSelect
                       value={field.value}
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => field.onChange(value)}
                       placeholder={
                         country === "US"
                           ? t("onboarding.stateLabel")
@@ -614,7 +614,7 @@ export default function BusinessIdentityPage() {
                 <FormControl>
                   <SimpleSelect
                     value={field.value}
-                    onValueChange={field.onChange}
+                    onValueChange={(value) => field.onChange(value)}
                     options={verticalOptions(t)}
                   />
                 </FormControl>

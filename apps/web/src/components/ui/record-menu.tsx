@@ -128,7 +128,7 @@ export function RecordMenuItems({
                         ? (event: Event) => event.preventDefault()
                         : undefined
                     }
-                    onCheckedChange={() => action.onSelect?.()}
+                    onCheckedChange={() => { void action.onSelect?.(); }}
                   >
                     {icon}
                     {action.label}
@@ -141,7 +141,7 @@ export function RecordMenuItems({
                   data-action={action.id}
                   variant={action.destructive ? "destructive" : "default"}
                   disabled={action.disabled}
-                  onSelect={() => action.onSelect?.()}
+                  onSelect={() => { void action.onSelect?.(); }}
                 >
                   {icon}
                   {action.label}
@@ -170,7 +170,7 @@ function SubmenuItems({
       <kit.Item
         key={sub.id}
         data-action={`${action.id}.${sub.id}`}
-        onSelect={sub.onSelect}
+        onSelect={() => sub.onSelect()}
       >
         {SubIcon && (
           <SubIcon className={ICON_CLASS} strokeWidth={1.75} aria-hidden />

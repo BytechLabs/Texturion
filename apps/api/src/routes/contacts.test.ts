@@ -280,12 +280,12 @@ describe("GET /v1/contacts", () => {
   });
 
   it("decorates rows with opted_out (G6 badge) and last_activity_at (conversation activity, never updated_at) via batched lookups", async () => {
-    const OTHER_ID = "eeeeeeee-1111-4222-8333-444444444444";
+    const SECOND_CONTACT_ID = "eeeeeeee-1111-4222-8333-444444444444";
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [
       contactRow(), // +14165550199
       contactRow({
-        id: OTHER_ID,
+        id: SECOND_CONTACT_ID,
         phone_e164: "+15125550105",
         name: "Rosa Delgado",
         created_at: "2026-06-30T09:00:00+00:00",
@@ -317,7 +317,7 @@ describe("GET /v1/contacts", () => {
         last_activity_at: "2026-06-26T18:04:00+00:00",
       }),
       expect.objectContaining({
-        id: OTHER_ID,
+        id: SECOND_CONTACT_ID,
         opted_out: true,
         last_activity_at: null,
       }),
@@ -335,7 +335,7 @@ describe("GET /v1/contacts", () => {
       `eq.${COMPANY_ID}`,
     );
     expect(activity.url.searchParams.get("contact_id")).toBe(
-      `in.(${CONTACT_ID},${OTHER_ID})`,
+      `in.(${CONTACT_ID},${SECOND_CONTACT_ID})`,
     );
     expect(activity.url.searchParams.get("order")).toBe(
       "last_message_at.desc",
@@ -2334,7 +2334,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       .find("POST", "/rest/v1/opt_outs")
       .flatMap((call) => call.body as { phone_e164: string }[])
       .map((row) => row.phone_e164)
-      .sort();
+      .toSorted();
     expect(optOuts).toEqual(["+14165550100", "+14165550101"]);
     // The extra ROW is still discarded and still reported — which of two
     // spellings of a name to keep is not a judgement to make silently.
@@ -4615,7 +4615,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     expect(res.status).toBe(200);
     for (const call of sb.find("POST", "/rest/v1/contacts")) {
       const rows = call.body as Record<string, unknown>[];
-      const shapes = new Set(rows.map((row) => Object.keys(row).sort().join(",")));
+      const shapes = new Set(rows.map((row) => Object.keys(row).toSorted().join(",")));
       expect(shapes.size).toBe(1);
     }
     const named = sb
@@ -4661,8 +4661,8 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     // The upsert carried the E.164-normalized phones + names, company-scoped.
     const [upsert] = sb.find("POST", "/rest/v1/contacts");
     const rows = upsert.body as { phone_e164: string; name?: string; company_id: string }[];
-    const phones = rows.map((r) => r.phone_e164).sort();
-    expect(phones).toEqual(["+14165550111", "+15125550122"].sort());
+    const phones = rows.map((r) => r.phone_e164).toSorted();
+    expect(phones).toEqual(["+14165550111", "+15125550122"].toSorted());
     for (const row of rows) {
       expect(row.company_id).toBe(COMPANY_ID);
     }
@@ -6496,8 +6496,8 @@ describe("dialer search for a customer's other numbers", () => {
       { companyId: COMPANY_ID },
     );
     const body = await res.json<{ data: { id: string }[] }>();
-    expect(body.data.map((row) => row.id).sort()).toEqual(
-      [CONTACT_ID, OTHER_ID].sort(),
+    expect(body.data.map((row) => row.id).toSorted()).toEqual(
+      [CONTACT_ID, OTHER_ID].toSorted(),
     );
   });
 

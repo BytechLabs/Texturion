@@ -33,7 +33,7 @@ export function workspacePackages() {
       }
     }
   }
-  return [...dirs].toSorted().map((dir) => {
+  return [...dirs].toSorted((a, b) => a < b ? -1 : Number(a > b)).map((dir) => {
     const manifest = JSON.parse(readFileSync(join(REPO_ROOT, dir, "package.json"), "utf8"));
     return { dir, name: manifest.name, manifest };
   });

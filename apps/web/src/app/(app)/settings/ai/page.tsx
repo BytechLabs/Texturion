@@ -98,8 +98,8 @@ export default function AiSettingsPage() {
         <div className="space-y-4" aria-label={t("appShell.aiLoading")}>
           <Skeleton className="h-40 w-full rounded-lg" />
         </div>
-      ) : settings.isError ? (
-        <LoadError onRetry={() => settings.refetch()} />
+      ) : (settings.isError ? (
+        <LoadError onRetry={() => void settings.refetch()} />
       ) : (
         <div className="space-y-6">
           <SettingsCard id="ai-task" title={t("appShell.aiTaskCardTitle")}>
@@ -322,7 +322,7 @@ export default function AiSettingsPage() {
             </p>
           )}
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

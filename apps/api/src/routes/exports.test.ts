@@ -160,9 +160,8 @@ describe("workspace export media", () => {
     expect(res.ok).toBe(allowed);
     expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0].body)
       .toMatchObject({ p_objects: [{ bucket: "attachments", bytes: 2048 }] });
-    if (allowed) {
-      await expect(res.json()).resolves.toEqual({ url: expect.stringContaining("download=job-site.jpg") });
-    }
+    const body = await res.json<{ url?: string }>();
+    expect(body.url?.includes("download=job-site.jpg")).toBe(allowed ? true : undefined);
   });
 
   it("refuses files after the export expires", async () => {

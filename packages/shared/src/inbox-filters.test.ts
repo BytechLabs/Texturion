@@ -135,10 +135,8 @@ describe("#548 hasSecondaryInboxFilters", () => {
       home({ assignedToMe: true, assigneeUserId: "u-2" }),
       home({ segment: "all", tagId: "t-1", spamOnly: true }),
     ];
-    for (const state of states) {
-      if (hasSecondaryInboxFilters(state)) {
-        expect(isInboxFiltered(state)).toBe(true);
-      }
+    for (const state of states.filter(hasSecondaryInboxFilters)) {
+      expect(isInboxFiltered(state)).toBe(true);
     }
   });
 });

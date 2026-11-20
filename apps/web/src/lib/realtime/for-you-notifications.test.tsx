@@ -118,7 +118,7 @@ describe(useForYouNotificationsRealtime, () => {
       const { client, hook, forYouRefetches } = setup(id);
       change(client, [id, ...tail]);
       await flush();
-      expect(forYouRefetches(), tail.join(" ")).toBe(1);
+      expect(forYouRefetches(), JSON.stringify(tail)).toBe(1);
       hook.unmount();
     }
   });

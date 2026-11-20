@@ -44,8 +44,10 @@ export function formEncode(params: Record<string, unknown>, prefix = ""): string
     if (value !== null && typeof value === "object") {
       const entries = Array.isArray(value) ? Object.fromEntries(value.map((item, i) => [String(i), item])) : (value as Record<string, unknown>);
       pairs.push(...formEncode(entries, name));
-    } else {
+    } else if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
       pairs.push(`${encodeURIComponent(name)}=${encodeURIComponent(value === null ? "" : String(value))}`);
+    } else {
+      throw new TypeError(`Unsupported Stripe form field ${name}`);
     }
   }
   return pairs;

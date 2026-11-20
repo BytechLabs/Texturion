@@ -59,7 +59,7 @@ export interface RecordAction {
   hint?: string;
   /** A function is called only when the submenu opens. */
   submenu?: RecordSubAction[] | (() => RecordSubAction[]);
-  onSelect?: () => void;
+  onSelect?: () => void | Promise<void>;
 }
 
 /** A submenu's items, building them if they are built on open. */

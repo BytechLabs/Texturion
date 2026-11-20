@@ -126,19 +126,15 @@ describe(assertNumberLevel, () => {
     stubFetch(
       makeHarness(memberEndpoints([restricted(NUM_A, "note")])).route,
     );
-    const thrown = await assertNumberLevel(getDb(env), {
+    const attempt = assertNumberLevel(getDb(env), {
       companyId: COMPANY,
       userId: USER,
       role: "member",
       phoneNumberId: NUM_A,
       need: "text",
-    }).then(
-      () => null,
-      (error: unknown) => error,
-    );
-    expect(thrown).toBeInstanceOf(ApiError);
-    expect((thrown as ApiError).code).toBe("forbidden");
-    expect((thrown as ApiError).message).toBe(NOTE_ONLY_MESSAGE);
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApiError);
+    await expect(attempt).rejects.toMatchObject({ code: "forbidden", message: NOTE_ONLY_MESSAGE });
   });
 
   it("lets a notes-only member read and note", async () => {

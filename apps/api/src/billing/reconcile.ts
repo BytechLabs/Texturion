@@ -572,10 +572,10 @@ async function sweepOrphanSubscriptions(
         pause.reading === "paused"
           ? (row.paused_at ?? null) === null ||
             (row.paused_price_cents ?? null) !== pause.priceCents
-          : pause.reading === "not_paused"
+          : (pause.reading === "not_paused"
             ? (row.paused_at ?? null) !== null ||
               (row.paused_price_cents ?? null) !== null
-            : false;
+            : false);
       if (stale) {
         await syncSubscription(env, row.stripe_subscription_id, db);
         summary.reconciled += 1;

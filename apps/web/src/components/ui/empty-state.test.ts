@@ -11,7 +11,7 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 /**
  * Outside the pattern on purpose: marketing, public pages, auth and

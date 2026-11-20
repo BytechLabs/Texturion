@@ -164,7 +164,7 @@ describe(notifyVoicemail, () => {
       data: { kind: "missed_call", alert_id: "alert-1", title, body },
       apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
     });
-    if (!includeContent) expect(JSON.stringify(message)).not.toContain("42 Elm St");
+    expect(JSON.stringify(message).includes("42 Elm St")).toBe(includeContent);
     const [lookup] = sb.find("GET", "/rest/v1/alert_escalations");
     expect(lookup.url.searchParams.get("call_session_id")).toBe(`eq.${INPUT.callSessionId}`);
     expect(lookup.url.searchParams.get("acknowledged_at")).toBe("is.null");

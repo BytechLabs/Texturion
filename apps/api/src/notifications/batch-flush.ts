@@ -41,13 +41,13 @@ export async function runBatchFlush(
     try {
       let consumed = false;
       const consumeBatch = async (): Promise<boolean> => {
-        const { data, error } = await db.rpc("api_consume_notification_batch", {
+        const { data: consumedBatch, error: consumeError } = await db.rpc("api_consume_notification_batch", {
           p_company_id: batch.company_id,
           p_user_id: batch.user_id,
           p_lease_id: leaseId,
         });
-        if (error) throw new Error(error.message);
-        consumed = data === true;
+        if (consumeError) throw new Error(consumeError.message);
+        consumed = consumedBatch === true;
         return consumed;
       };
 

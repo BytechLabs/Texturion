@@ -83,9 +83,9 @@ function formatPushNotification(rawText, origin) {
   const body =
     payload && typeof payload.body === "string" && payload.body.trim() !== ""
       ? payload.body
-      : isCall
+      : (isCall
         ? "Someone is calling your business number."
-        : "You have a new message.";
+        : "You have a new message.");
   const url = normalizeNotificationUrl(payload ? payload.url : null, origin);
   let tag = isCall ? callTag(url, origin) : coalescingTag(payload, url);
   if (missedCallSession) tag = callSessionTag(missedCallSession);
@@ -211,7 +211,7 @@ function callTag(url, origin) {
  */
 function callEndNotification(rawText, origin) {
   if (typeof rawText !== "string" || rawText.length === 0) return null;
-  let payload = null;
+  let payload;
   try {
     payload = JSON.parse(rawText);
   } catch {
@@ -367,7 +367,8 @@ function routeInTab(client, path) {
       resolve(routed);
     };
     const timer = setTimeout(() => finish(false), ROUTE_REPLY_MS);
-    channel.port1.onmessage = (event) => finish(event.data?.ok === true);
+    channel.port1.addEventListener("message", (event) => finish(event.data?.ok === true));
+    channel.port1.start();
     client.postMessage({ type: "loonext:navigate", path }, [channel.port2]);
   });
 }

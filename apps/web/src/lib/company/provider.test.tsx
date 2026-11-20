@@ -121,7 +121,8 @@ function calls(): string[] {
 }
 
 function setCompanyCookie(value: string | null) {
-  document.cookie =
+    // oxlint-disable-next-line unicorn/no-document-cookie -- Seed the same browser cookie used by the provider.
+    document.cookie =
     value === null
       ? `${COMPANY_COOKIE}=; Max-Age=0; Path=/`
       : `${COMPANY_COOKIE}=${value}; Path=/`;

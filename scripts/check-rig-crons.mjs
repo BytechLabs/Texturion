@@ -466,7 +466,7 @@ function trackedConfigs(ref) {
     .split("\n")
     .map((line) => line.trim())
     .filter((file) => CONFIG_NAME.test(file))
-    .sort();
+    .toSorted();
 }
 
 function parseArgs(argv) {

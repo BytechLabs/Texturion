@@ -127,7 +127,10 @@ export function AccessibilityPageBody({
 
       <LegalSectionBlock id="verified" number="2" heading={copy.sectionVerified}>
         <p><LegalRichText text={copy.verifiedIntro} /></p>
-        <div className="overflow-x-auto" tabIndex={0}>
+        <div className="overflow-x-auto"
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users can scroll the table horizontally.
+          tabIndex={0}
+        >
           <table className="w-full min-w-[40rem] border-collapse text-left">
             <caption className="sr-only">{copy.tableCaption}</caption>
             <thead>

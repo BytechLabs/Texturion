@@ -135,8 +135,10 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);
-  });
+  }
 }

@@ -190,17 +190,14 @@ describe("dispatchOutbound — §10 layer 3 rate limiter", () => {
     const env: Env = { ...completeEnv(), SEND_RATE_LIMITER: limiter };
     const stubs = dispatchStubs();
 
-    const thrown = await dispatchOutbound(
+    const attempt = dispatchOutbound(
       env,
       getDb(env),
       message(),
       SEND_ARGS,
-    ).then(
-      () => null,
-      (error: unknown) => error,
     );
-    expect(thrown).toBeInstanceOf(ApiError);
-    expect((thrown as ApiError).code).toBe("rate_limited");
+    await expect(attempt).rejects.toBeInstanceOf(ApiError);
+    await expect(attempt).rejects.toMatchObject({ code: "rate_limited" });
 
     // Never reached Telnyx; the row carries a §7-retryable failure
     // (status failed + telnyx_message_id still NULL).
@@ -571,12 +568,9 @@ describe("claimMessageRetry — the atomic retry arbiter (#19/#20/#47)", () => {
   ] as const)("maps RPC error %s to the typed ApiError", async (rpcError, code) => {
     const { env } = claimStubs(() => ({ error: rpcError }));
 
-    const thrown = await claimMessageRetry(getDb(env), ARGS).then(
-      () => null,
-      (error: unknown) => error,
-    );
-    expect(thrown).toBeInstanceOf(ApiError);
-    expect((thrown as ApiError).code).toBe(code);
+    const attempt = claimMessageRetry(getDb(env), ARGS);
+    await expect(attempt).rejects.toBeInstanceOf(ApiError);
+    await expect(attempt).rejects.toMatchObject({ code });
   });
 
   it("throws (500 path) on an unknown RPC error code", async () => {

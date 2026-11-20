@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AccountMethods } from "@/components/settings/account-methods";
 import { ChangeEmailCard } from "@/components/settings/change-email-card";
@@ -37,7 +37,7 @@ export default function AccountSettingsPage() {
   const me = useMe();
   const hasPassword = me.data?.has_password;
 
-  function load() {
+  const load = useCallback(() => {
     setState({ status: "loading" });
     void getSupabaseBrowser()
       .auth.getUser()
@@ -48,11 +48,11 @@ export default function AccountSettingsPage() {
         }
         setState({ status: "ready", user: data.user });
       });
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   return (
     <SettingsPage

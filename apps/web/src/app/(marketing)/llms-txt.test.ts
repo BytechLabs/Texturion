@@ -172,9 +172,7 @@ describe("llms.txt keeps up with what shipped", () => {
     expect(aiSection).not.toMatch(/every AI feature is off/i);
     expect(aiSection).toMatch(/switch/i);
 
-    if (defaults.some((d) => d.on)) {
-      expect(aiSection).toMatch(/on by default/i);
-    }
+    expect(/on by default/i.test(aiSection) || !defaults.some((d) => d.on)).toBe(true);
     // Every feature that genuinely ships OFF has to be named as off, so a
     // fifth toggle cannot arrive undocumented the way this one did.
     for (const off of defaults.filter((d) => !d.on)) {

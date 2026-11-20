@@ -178,8 +178,8 @@ export function listFiles(root, { all = false } = {}) {
     }
   }
   return {
-    committable: [...committable].sort(),
-    ignored: [...new Set(ignored)].filter((file) => !committable.has(file)).sort(),
+    committable: [...committable].toSorted(),
+    ignored: [...new Set(ignored)].filter((file) => !committable.has(file)).toSorted(),
   };
 }
 

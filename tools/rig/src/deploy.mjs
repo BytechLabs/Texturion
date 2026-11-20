@@ -502,7 +502,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
       if (recordStanding(store, standing)) log("store: standing-numbers.json rewritten from the partition");
 
       writeDerived(files);
-      const record = {
+      const deployRecord = {
         sha,
         ref: ref ?? null,
         worktree: root,
@@ -512,12 +512,12 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
       // Written before the restart, because the units start whatever it names;
       // `rig health` compares it with state/serving-<service>.json.
       mkdirSync(layout.state, { recursive: true });
-      writeFileSync(join(layout.state, "deployed.json"), `${JSON.stringify(record, null, 2)}\n`);
+      writeFileSync(join(layout.state, "deployed.json"), `${JSON.stringify(deployRecord, null, 2)}\n`);
       const historyPath = join(layout.state, "history.json");
       const history = existsSync(historyPath) ? JSON.parse(readFileSync(historyPath, "utf8")) : [];
-      writeFileSync(historyPath, `${JSON.stringify([...history, record].slice(-50), null, 2)}\n`);
+      writeFileSync(historyPath, `${JSON.stringify([...history, deployRecord].slice(-50), null, 2)}\n`);
       pointCurrent(layout, root);
-      return { record };
+      return { record: deployRecord };
     },
   });
   if (!restart && settings.systemd) {

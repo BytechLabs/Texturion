@@ -112,7 +112,7 @@ function stripPrivilegeStatements(sql) {
   );
 }
 
-const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
+const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).toSorted();
 const offenders = [];
 
 for (const file of files) {

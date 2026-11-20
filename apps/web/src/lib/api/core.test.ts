@@ -1,3 +1,4 @@
+import { fetchInputUrl } from "./test-support";
 import { AuthRetryableFetchError } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -17,7 +18,7 @@ function makeClient(
 ) {
   const fetchSpy = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) =>
-      handler(String(input), init),
+      handler(fetchInputUrl(input), init),
   );
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
@@ -93,7 +94,7 @@ describe("api client request building (G12)", () => {
       body: { conversation_id: "c1", body: "hi" },
     });
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe("https://api.loonext.test/v1/messages/send");
+    expect(fetchInputUrl(url)).toBe("https://api.loonext.test/v1/messages/send");
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-token");
     expect(headers["X-Company-Id"]).toBe("company-1");
@@ -113,7 +114,7 @@ describe("api client request building (G12)", () => {
       companyId: "company-1",
       searchParams: { status: "open", q: undefined, unread: true },
     });
-    const url = new URL(String(fetchSpy.mock.calls[0][0]));
+    const url = new URL(fetchInputUrl(fetchSpy.mock.calls[0][0]));
     expect(url.searchParams.get("status")).toBe("open");
     expect(url.searchParams.get("unread")).toBe("true");
     expect(url.searchParams.has("q")).toBe(false);

@@ -97,8 +97,8 @@ describe("POST /v1/rig/simulate-incoming exists only on the rig", () => {
 
   it("is mounted behind authentication on the rig", async () => {
     const env = getEnv(rigEnv());
-    const auth = await createTestAuth(env);
-    stubFetch(jwksRoute(auth), supabaseStub(env).route);
+    const testAuth = await createTestAuth(env);
+    stubFetch(jwksRoute(testAuth), supabaseStub(env).route);
     const response = await dispatch(rigEnv(), SIMULATE, { method: "POST" });
     expect(response.status).toBe(401);
   });
@@ -186,7 +186,7 @@ describe("the inbound gate at the Telnyx webhook", () => {
     const response = await deliver(text(STRANGER));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ received: true, ignored: true });
-    expect(sb.calls.map((call) => call.path)).toEqual([POSTURE]);
+    expect(sb.calls.map((fetchCall) => fetchCall.path)).toEqual([POSTURE]);
   });
 
   it.each([
@@ -203,7 +203,7 @@ describe("the inbound gate at the Telnyx webhook", () => {
     const response = await deliver(call(from));
     expect(response.status).toBe(200);
     expect(sent).toEqual([`${RIG_TELNYX_API_BASE}/v2/calls/ccid-stranger/actions/reject`]);
-    expect(sb.calls.map((call) => call.path)).toEqual([POSTURE]);
+    expect(sb.calls.map((fetchCall) => fetchCall.path)).toEqual([POSTURE]);
   });
 
   it("lets the partition's own numbers through to the ledger", async () => {

@@ -101,21 +101,25 @@ async function main(): Promise<void> {
   };
 
   const sipToLine = new Map<string, number>();
-  lines.forEach((line, index) => line.sip.forEach((sip) => sipToLine.set(sip, index)));
+  for (const [index, line] of lines.entries()) {
+    for (const sip of line.sip) {
+      sipToLine.set(sip, index);
+    }
+  }
   const lineOf = (leg: Leg): number | undefined => {
     const sip = /^sip:([^@]+)@/.exec(leg.to)?.[1];
     return sip ? sipToLine.get(sip) : undefined;
   };
 
   /** Deliver what the switch queues until it has been quiet for QUIET_MS. */
-  async function drain(sign: Signer, acks: Ack[]): Promise<number> {
+  async function drain(signAck: Signer, acks: Ack[]): Promise<number> {
     let quietSince: number | null = null;
     let lastActivity = performance.now();
     for (;;) {
       const events = await ctl<{ data: { id: string } }[]>("events");
       if (events.length > 0) {
         quietSince = null;
-        acks.push(...(await Promise.all(events.map((event) => postSigned(apiOrigin, sign, event)))));
+        acks.push(...(await Promise.all(events.map((event) => postSigned(apiOrigin, signAck, event)))));
         lastActivity = performance.now();
         continue;
       }
@@ -164,7 +168,7 @@ async function main(): Promise<void> {
     // Answer: the first crew phone of each call picks up.
     const answerStart = performance.now();
     const answering = new Map<number, Leg>();
-    for (const leg of dials.sort((a, b) => a.startedAtMs - b.startedAtMs)) {
+    for (const leg of dials.toSorted((a, b) => a.startedAtMs - b.startedAtMs)) {
       const at = lineOf(leg);
       if (at !== undefined && !answering.has(at)) answering.set(at, leg);
     }
@@ -231,7 +235,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+await main().catch((error: unknown) => {
   process.stderr.write(
     error instanceof CapacityConfigError || (error instanceof Error && /required|switch control/.test(error.message))
       ? `capacity: ${error.message}\n`

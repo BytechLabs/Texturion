@@ -90,7 +90,7 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
         confirmLabel={t("settings.leaveWorkspaceAction")}
         pendingLabel={t("settings.leaveWorkspaceLeaving")}
         pending={leave.isPending}
-        onConfirm={confirm}
+        onConfirm={() => { void confirm(); }}
       />
     </SettingsCard>
   );

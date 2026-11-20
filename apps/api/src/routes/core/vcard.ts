@@ -95,7 +95,7 @@ function unfold(text: string): LogicalLine[] {
   const normalized = text.replaceAll(/\r\n?/g, "\n");
   const rawLines = normalized.split("\n");
   const lines: LogicalLine[] = [];
-  rawLines.forEach((line, index) => {
+  for (const [index, line] of rawLines.entries()) {
     if ((line.startsWith(" ") || line.startsWith("\t")) && lines.length > 0) {
       // #528: A LEADING SPACE BEFORE A DELIMITER MERGES TWO PEOPLE.
       //
@@ -118,7 +118,7 @@ function unfold(text: string): LogicalLine[] {
     } else {
       lines.push({ text: line, line: index + 1 });
     }
-  });
+  }
   return lines;
 }
 

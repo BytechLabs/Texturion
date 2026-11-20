@@ -256,7 +256,7 @@ export function filtersToQuery(filters: SavedViewFilters): [string, string][] {
     }
     pairs.push([key, value]);
   }
-  return pairs.sort((a, b) => a[0].localeCompare(b[0]));
+  return pairs.toSorted((a, b) => a[0].localeCompare(b[0]));
 }
 
 /** True when a view holds no filters — it is the unfiltered list under a name. */

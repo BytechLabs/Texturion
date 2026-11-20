@@ -130,6 +130,67 @@ export function CallsView() {
     (call) => !isOngoingCall(call),
   );
 
+  let callRows;
+  if (calls.isPending) {
+    callRows = <ListSkeleton rows={4} avatar lines={2} className="p-3" />;
+  } else if (calls.isError) {
+    callRows = (
+      <EmptyState
+        icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
+        title={t("shell.callsLoadFailed")}
+        description={t("shell.checkConnection")}
+        action={
+          <Button variant="outline" onClick={() => void calls.refetch()}>
+            {t("common.retry")}
+          </Button>
+        }
+      />
+    );
+  } else if (rows.length === 0) {
+    callRows = (
+      <EmptyState
+        icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
+        title={
+          outcome === "missed"
+            ? t("shell.emptyMissed")
+            : (outcome === "voicemail"
+              ? t("shell.emptyVoicemail")
+              : t("shell.emptyCalls"))
+        }
+        description={
+          outcome === undefined
+            ? t("shell.emptyCallsDescription")
+            : // D43: the browser is the phone — say what happens and
+              // where the voicemail/screening knobs live.
+              undefined
+        }
+        action={
+          outcome === undefined ? (
+            <Button asChild variant="outline">
+              <Link href="/settings/missed-calls">
+                {t("shell.setUpCalls")}
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+    );
+  } else {
+    callRows = (
+      <div
+        aria-busy={calls.isPlaceholderData}
+        className={cn(
+          "transition-opacity duration-150",
+          calls.isPlaceholderData && "opacity-60",
+        )}
+      >
+        {rows.map((call) => (
+          <CallRow key={call.id} call={call} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
       {/* Wraps on a phone: the title, the phone status, Dial and the three
@@ -184,66 +245,13 @@ export function CallsView() {
           {t("shell.recentCalls")}
         </h2>
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-          {calls.isPending ? (
-            <ListSkeleton rows={4} avatar lines={2} className="p-3" />
-          ) : calls.isError ? (
-            <EmptyState
-              icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
-              title={t("shell.callsLoadFailed")}
-              description={t("shell.checkConnection")}
-              action={
-                <Button variant="outline" onClick={() => calls.refetch()}>
-                  {t("common.retry")}
-                </Button>
-              }
-            />
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
-              title={
-                outcome === "missed"
-                  ? t("shell.emptyMissed")
-                  : (outcome === "voicemail"
-                    ? t("shell.emptyVoicemail")
-                    : t("shell.emptyCalls"))
-              }
-              description={
-                outcome === undefined
-                  ? t("shell.emptyCallsDescription")
-                  : // D43: the browser is the phone — say what happens and
-                    // where the voicemail/screening knobs live.
-                    undefined
-              }
-              action={
-                outcome === undefined ? (
-                  <Button asChild variant="outline">
-                    <Link href="/settings/missed-calls">
-                      {t("shell.setUpCalls")}
-                    </Link>
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            // A filter's first paint borrows the All list's rows until its own land.
-            <div
-              aria-busy={calls.isPlaceholderData}
-              className={cn(
-                "transition-opacity duration-150",
-                calls.isPlaceholderData && "opacity-60",
-              )}
-            >
-              {rows.map((call) => (
-                <CallRow key={call.id} call={call} />
-              ))}
-            </div>
-          )}
+          {callRows}
         </div>
         {calls.hasNextPage && (
           <div className="flex justify-center pt-3">
             <Button
               variant="ghost"
-              onClick={() => calls.fetchNextPage()}
+              onClick={() => void calls.fetchNextPage()}
               disabled={calls.isFetchingNextPage}
             >
               {calls.isFetchingNextPage

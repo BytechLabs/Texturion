@@ -125,7 +125,7 @@ export default function TextingDetailsPage() {
     });
   }, [ready, seeded, campaignRow, state.company?.name, form, t]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
 
   const progress = stepProgress("texting", state.snapshot);
@@ -185,7 +185,7 @@ export default function TextingDetailsPage() {
     >
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
           className="space-y-6"
           noValidate
         >

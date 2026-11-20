@@ -124,7 +124,7 @@ const ENTRY_ONLY_PROOFS: Readonly<Record<string, EntryOnlyProof>> = {
   },
 };
 
-const REPO = join(__dirname, "..", "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..", "..");
 
 const withEntryEffects = ALL_MACHINES.filter(
   (machine) => Object.keys(machine.entryEffects).length > 0,

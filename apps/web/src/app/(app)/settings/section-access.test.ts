@@ -335,14 +335,10 @@ describe("the gate cannot silently fall behind the app", () => {
 
     for (const [id, coverage] of Object.entries(WEB_SECTION_ROUTES)) {
       const section = SETTINGS_SECTIONS.find((s) => s.id === id);
-      if (coverage === "route") {
-        expect(section, id).toBeDefined();
-        // Sections may live outside /settings/*; only the ones that don't are
-        // a claim about this directory.
-        if (!section!.href) expect(routes.has(section!.slug), id).toBe(true);
-      } else {
-        expect(section, `${id} is marked not-on-web but has a nav row`).toBeUndefined();
-      }
+      expect(Boolean(section), id).toBe(coverage === "route");
+    }
+    for (const section of SETTINGS_SECTIONS.filter((entry) => !entry.href)) {
+      expect(routes.has(section.slug), section.id).toBe(true);
     }
   });
 

@@ -218,6 +218,117 @@ export function ThreadSummaryCard({
 
   if (!showCard) return null;
 
+  let summaryBody;
+  if (summary.isPending) {
+    summaryBody = (
+      <div className="px-3 pb-3 pt-1" aria-label={t("thread.readingThreadAria")}>
+        {/* Two placeholders, not a spinner: the card keeps roughly the shape
+            the sections will take instead of jumping when they land. */}
+        {[0, 1].map((row) => (
+          <div
+            key={row}
+            className="mb-1.5 h-[34px] animate-pulse rounded-app-card bg-app-inset"
+            aria-hidden
+          />
+        ))}
+      </div>
+    );
+  } else if (result === null) {
+    summaryBody = failure === null
+      ? null
+      : (
+        <p
+          role="status"
+          className="px-3 pb-3 pt-0.5 text-[13px] leading-[1.45] text-app-muted"
+        >
+          {failure.message}
+        </p>
+      );
+  } else if (result.lines.length === 0) {
+    summaryBody = (
+      <p className="px-3 pb-3 pt-0.5 text-[13px] leading-[1.45] text-app-muted">
+        {threadSummaryFailureMessage(result.reason, t)}
+      </p>
+    );
+  } else {
+    summaryBody = (
+      <>
+        {/* The frame, before the lines rather than as a footnote under them:
+            a reader has to know whose reading this is BEFORE they read it,
+            and this sentence is also how they learn the lines are tappable.
+            One shared string (#437) so three clients cannot word it three
+            ways. */}
+        <p className="px-3 pb-1.5 text-[11px] leading-[1.4] text-app-muted-2">
+          {t(THREAD_SUMMARY_ATTRIBUTION)}
+        </p>
+
+        {askedAt.current === newestMessageId ? null : (
+          // Citation defends against invention and does nothing against
+          // staleness: a correctly cited "we'll get someone out Tuesday" can
+          // be superseded two messages later, and a receipt makes a crew
+          // trust it MORE. This is the client's half of that mitigation —
+          // the card says out loud that the thread has moved under it.
+          <p
+            role="status"
+            className="mx-3 mb-1.5 rounded-app-card bg-app-tint px-2 py-1 text-[11px] leading-[1.4] text-app-olive-deep"
+          >
+            {t("thread.newMessagesSinceCatchUp")}
+          </p>
+        )}
+
+        <ul className="pb-1">
+          {groupThreadSummary(result.lines).map((group) => (
+            <li key={group.id} className="pb-1.5">
+              {/* Heading and its lines are a tight pair; the gap BETWEEN
+                  sections is the wider one, carried by the padding above.
+                  *Applying: Relationship Strength.* */}
+              <h4 className={cn(SECTION_LABEL_CLASS, "px-3 pb-0.5")}>
+                {t(group.label)}
+              </h4>
+              <ul>
+                {group.lines.map((line) => (
+                  <li key={`${line.section}:${line.message_id}:${line.text}`}>
+                    <button
+                      type="button"
+                      onClick={() => openCited(line.message_id)}
+                      aria-label={t("thread.openMessageBehindAria", {
+                        text: line.text,
+                      })}
+                      className="flex w-full items-start gap-2 px-3 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-[1.45] text-app-ink">
+                        {line.text}
+                      </span>
+                      {/* The cited message's age, not the catch-up's. The
+                          server orders by it so the later word reads last;
+                          this is what lets a reader see that "Tuesday" was
+                          said three weeks ago. */}
+                      <Timestamp
+                        at={line.at}
+                        style="short"
+                        className="shrink-0 pt-0.5 text-[11px] text-app-muted-2"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+
+        {result.truncated ? (
+          // No figure printed. The window size lives in the API package and
+          // is not a shared constant, and a number typed into this file would
+          // be exactly the kind that quietly becomes last quarter's. The
+          // scope is what the reader needs; the count is not.
+          <p className="px-3 pb-2.5 text-[11px] leading-[1.4] text-app-muted-2">
+            {t("thread.threadLongerThanRead")}
+          </p>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <section
       aria-label={t("thread.catchUp")}
@@ -271,116 +382,7 @@ export function ThreadSummaryCard({
         )}
       </div>
 
-      {summary.isPending ? (
-        <div className="px-3 pb-3 pt-1" aria-label={t("thread.readingThreadAria")}>
-          {/* Two placeholders, not a spinner: the card keeps roughly the shape
-              the sections will take instead of jumping when they land. */}
-          {[0, 1].map((row) => (
-            <div
-              key={row}
-              className="mb-1.5 h-[34px] animate-pulse rounded-app-card bg-app-inset"
-              aria-hidden
-            />
-          ))}
-        </div>
-      ) : result === null ? (
-        failure === null ? null : (
-          // ANNOUNCED, where the refusal sentence below is not, and the
-          // asymmetry is deliberate rather than an oversight. This is the only
-          // branch where somebody pressed a control and the product produced
-          // nothing — the one moment a screen reader cannot be left to infer
-          // the outcome from a silent re-render.
-          // A rejected RE-ask can now sit under a held standing, and the two do
-          // not read over each other: that strip is the same node carrying the
-          // same words it carried before the press, so this sentence is the
-          // only thing on the card that changed.
-          <p
-            role="status"
-            className="px-3 pb-3 pt-0.5 text-[13px] leading-[1.45] text-app-muted"
-          >
-            {failure.message}
-          </p>
-        )
-      ) : result.lines.length === 0 ? (
-        <p className="px-3 pb-3 pt-0.5 text-[13px] leading-[1.45] text-app-muted">
-          {threadSummaryFailureMessage(result.reason, t)}
-        </p>
-      ) : (
-        <>
-          {/* The frame, before the lines rather than as a footnote under them:
-              a reader has to know whose reading this is BEFORE they read it,
-              and this sentence is also how they learn the lines are tappable.
-              One shared string (#437) so three clients cannot word it three
-              ways. */}
-          <p className="px-3 pb-1.5 text-[11px] leading-[1.4] text-app-muted-2">
-            {t(THREAD_SUMMARY_ATTRIBUTION)}
-          </p>
-
-          {askedAt.current === newestMessageId ? null : (
-            // Citation defends against invention and does nothing against
-            // staleness: a correctly cited "we'll get someone out Tuesday" can
-            // be superseded two messages later, and a receipt makes a crew
-            // trust it MORE. This is the client's half of that mitigation —
-            // the card says out loud that the thread has moved under it.
-            <p
-              role="status"
-              className="mx-3 mb-1.5 rounded-app-card bg-app-tint px-2 py-1 text-[11px] leading-[1.4] text-app-olive-deep"
-            >
-              {t("thread.newMessagesSinceCatchUp")}
-            </p>
-          )}
-
-          <ul className="pb-1">
-            {groupThreadSummary(result.lines).map((group) => (
-              <li key={group.id} className="pb-1.5">
-                {/* Heading and its lines are a tight pair; the gap BETWEEN
-                    sections is the wider one, carried by the padding above.
-                    *Applying: Relationship Strength.* */}
-                <h4 className={cn(SECTION_LABEL_CLASS, "px-3 pb-0.5")}>
-                  {t(group.label)}
-                </h4>
-                <ul>
-                  {group.lines.map((line) => (
-                    <li key={`${line.section}:${line.message_id}:${line.text}`}>
-                      <button
-                        type="button"
-                        onClick={() => openCited(line.message_id)}
-                        aria-label={t("thread.openMessageBehindAria", {
-                          text: line.text,
-                        })}
-                        className="flex w-full items-start gap-2 px-3 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                      >
-                        <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-[1.45] text-app-ink">
-                          {line.text}
-                        </span>
-                        {/* The cited message's age, not the catch-up's. The
-                            server orders by it so the later word reads last;
-                            this is what lets a reader see that "Tuesday" was
-                            said three weeks ago. */}
-                        <Timestamp
-                          at={line.at}
-                          style="short"
-                          className="shrink-0 pt-0.5 text-[11px] text-app-muted-2"
-                        />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-
-          {result.truncated ? (
-            // No figure printed. The window size lives in the API package and
-            // is not a shared constant, and a number typed into this file would
-            // be exactly the kind that quietly becomes last quarter's. The
-            // scope is what the reader needs; the count is not.
-            <p className="px-3 pb-2.5 text-[11px] leading-[1.4] text-app-muted-2">
-              {t("thread.threadLongerThanRead")}
-            </p>
-          ) : null}
-        </>
-      )}
+      {summaryBody}
     </section>
   );
 }

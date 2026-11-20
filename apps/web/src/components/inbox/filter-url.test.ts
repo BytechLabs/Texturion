@@ -442,8 +442,8 @@ describe("the shared rule this file now defers to", () => {
         snoozed: { snoozed: true },
         awaiting: { awaiting: true },
       };
-    expect(Object.keys(perDimension).sort()).toEqual(
-      [...INBOX_FILTER_DIMENSIONS].sort(),
+    expect(Object.keys(perDimension).toSorted()).toEqual(
+      INBOX_FILTER_DIMENSIONS.toSorted(),
     );
     for (const [dimension, filters] of Object.entries(perDimension)) {
       expect(hasActiveFilters(filters), dimension).toBe(true);
@@ -455,7 +455,7 @@ describe("the shared rule this file now defers to", () => {
     // them missing the status segment. If this module moves, the Kotlin and
     // Swift parity tests go looking for it too.
     const shared = readFileSync(
-      join(__dirname, "../../../../../packages/shared/src/inbox-filters.ts"),
+      join(import.meta.dirname, "../../../../../packages/shared/src/inbox-filters.ts"),
       "utf8",
     );
     expect(shared).toContain("export function isInboxFiltered");

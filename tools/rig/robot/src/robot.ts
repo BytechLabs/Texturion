@@ -484,9 +484,9 @@ export class Robot {
     try {
       const ids = recordingId
         ? [recordingId]
-        : record.ids.call_leg_id
+        : (record.ids.call_leg_id
           ? (await this.#o.telnyx.listRecordings({ call_leg_id: record.ids.call_leg_id }, c)).map((r) => r.id)
-          : [];
+          : []);
       if (ids.length === 0) {
         record.errors.push("delete: no recording id to delete");
         return false;

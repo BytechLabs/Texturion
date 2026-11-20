@@ -51,7 +51,7 @@ describe("the two labels (#294)", () => {
     expect(isWorkPhase("before")).toBe(true);
     expect(isWorkPhase("after")).toBe(true);
     for (const bad of ["during", "BEFORE", "", null, undefined, 1, {}]) {
-      expect(isWorkPhase(bad), String(bad)).toBe(false);
+      expect(isWorkPhase(bad), JSON.stringify(bad)).toBe(false);
     }
   });
 });

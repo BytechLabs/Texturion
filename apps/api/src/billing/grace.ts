@@ -196,9 +196,9 @@ function warningCopy(
   const body =
     day === 1
       ? opening
-      : day === 15
+      : (day === 15
         ? opening + reassignment
-        : opening + reassignment + wayOut;
+        : opening + reassignment + wayOut);
 
   return { subject, text: `${body}Resubscribe: ${resubscribeUrl}\n\nLoonext` };
 }
@@ -375,9 +375,9 @@ async function companiesWithUnreleasedResources(
       const embedded = row.companies;
       const companies: EmbeddedCompany[] = Array.isArray(embedded)
         ? (embedded as EmbeddedCompany[])
-        : embedded
+        : (embedded
           ? [embedded as EmbeddedCompany]
-          : [];
+          : []);
       for (const company of companies) {
         if (company?.canceled_at) {
           found.set(company.id, {

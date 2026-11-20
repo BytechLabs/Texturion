@@ -46,9 +46,9 @@ export function ProgressDots({
             "size-2 rounded-full transition-colors duration-150 ease-out",
             i + 1 === shownIndex
               ? "bg-primary"
-              : i + 1 < shownIndex
+              : (i + 1 < shownIndex
                 ? "bg-primary/40"
-                : "border border-border bg-transparent",
+                : "border border-border bg-transparent"),
           )}
         />
       ))}

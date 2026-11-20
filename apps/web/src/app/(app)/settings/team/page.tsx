@@ -321,7 +321,7 @@ function OffboardDialog({
           <p className="text-sm text-muted-foreground">
             {t("appShell.teamCheckingHoldings", { name })}
           </p>
-        ) : hasWork ? (
+        ) : (hasWork ? (
           <div className="space-y-3">
             {/* Three fragments: the two counts are bold inside the sentence,
                 so a single key would have to carry markup. */}
@@ -363,7 +363,7 @@ function OffboardDialog({
           <p className="text-sm text-muted-foreground">
             {t("appShell.teamHoldsNothing", { name })}
           </p>
-        )}
+        ))}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -401,12 +401,12 @@ function OffboardDialog({
                     toast.success(
                       alreadyGone
                         ? `${where.charAt(0).toUpperCase()}${where.slice(1)}.`
-                        : moved === 0
+                        : (moved === 0
                           ? t("appShell.teamMemberRemoved", { name })
                           : t("appShell.teamMemberRemovedWithWork", {
                               name,
                               where,
-                            }),
+                            })),
                     );
                   },
                   onError: (cause) =>
@@ -420,12 +420,12 @@ function OffboardDialog({
             }
           >
             {deactivate.isPending
-              ? alreadyGone
+              ? (alreadyGone
                 ? t("appShell.teamMoving")
-                : t("appShell.teamRemoving")
-              : alreadyGone
+                : t("appShell.teamRemoving"))
+              : (alreadyGone
                 ? t("appShell.teamMoveTheWork")
-                : t("appShell.teamRemove")}
+                : t("appShell.teamRemove"))}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -710,7 +710,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     >
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
           className="space-y-3"
           noValidate
         >
@@ -747,7 +747,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
                   <FormControl>
                     <RoleSelect
                       value={field.value}
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => field.onChange(value)}
                       t={t}
                       disabled={seats.full}
                     />
@@ -863,8 +863,8 @@ export default function TeamSettingsPage() {
             <Skeleton className="h-16 w-full rounded-lg" />
             <Skeleton className="h-16 w-full rounded-lg" />
           </div>
-        ) : members.isError ? (
-          <LoadError onRetry={() => members.refetch()} />
+        ) : (members.isError ? (
+          <LoadError onRetry={() => void members.refetch()} />
         ) : (
           <>
             <SettingsCard id="team-members" title={t("appShell.teamMembersTitle")}>
@@ -925,7 +925,7 @@ export default function TeamSettingsPage() {
               </p>
             )}
           </>
-        )}
+        ))}
       </div>
     </SettingsPage>
   );

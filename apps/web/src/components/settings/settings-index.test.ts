@@ -19,7 +19,7 @@ import { settingsSectionOf } from "@/components/settings/settings-nav";
  *   - a titled card has no id, or has an id the index does not list.
  */
 
-const SRC = resolve(__dirname, "../..");
+const SRC = resolve(import.meta.dirname, "../..");
 const ROOTS = [
   join(SRC, "app", "(app)", "settings"),
   join(SRC, "components", "settings"),
@@ -128,7 +128,8 @@ describe(`#719 settings index against the pages (${cards.length} cards found, ${
       const section = settingsSectionOf(entry.section, entry.page);
       expect(section, entry.id).toBeDefined();
       expect(section?.id, entry.id).toBe(entry.section);
-      if (entry.page) expect(section?.slug, entry.id).toBe(entry.page);
+      if (entry.page === undefined) continue;
+      expect(section?.slug, entry.id).toBe(entry.page);
     }
   });
 });

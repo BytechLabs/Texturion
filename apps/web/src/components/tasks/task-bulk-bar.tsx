@@ -75,11 +75,11 @@ function BulkAssign({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1">
-        <ul role="listbox" aria-multiselectable aria-label={t("tasks.bulkAssign")} className="max-h-64 overflow-y-auto">
+        <div role="listbox" aria-multiselectable aria-label={t("tasks.bulkAssign")} className="max-h-64 overflow-y-auto">
           {[...roster].map(([userId, name]) => {
             const selected = picked.includes(userId);
             return (
-              <li key={userId} role="presentation">
+              <div key={userId} role="presentation">
                 <button
                   type="button"
                   role="option"
@@ -92,10 +92,10 @@ function BulkAssign({
                   <span className="flex-1 truncate">{name}</span>
                   {selected && <Check className="size-4 text-primary" aria-hidden />}
                 </button>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
         <p className="px-2 pb-2 pt-2 text-xs text-muted-foreground">
           {atMax
             ? t("tasks.assigneesMax", { max: MAX_ASSIGNEES })

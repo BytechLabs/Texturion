@@ -111,7 +111,7 @@ export function bandProblems({ cloud, production }) {
 export function derivedProblems(file, config, derived) {
   const problems = [];
   const key = (limiter) => `${limiter.name}=${limiter.id}`;
-  const source = limiters(config).map(key).sort();
+  const source = limiters(config).map(key).toSorted();
   for (const [label, section] of [["", derived], ["env.rig.", derived.env?.rig]]) {
     if (section === undefined) {
       problems.push(`${file}  derived config has no env.rig section, which rig serve selects`);
@@ -121,7 +121,7 @@ export function derivedProblems(file, config, derived) {
     for (const limiter of kept) {
       if (limiter.remote) problems.push(`${file}  derived ${label}${limiter.name} is remote, so its counter is the account's`);
     }
-    const keys = kept.map(key).sort();
+    const keys = kept.map(key).toSorted();
     if (keys.join(",") !== source.join(",")) {
       problems.push(
         `${file}  derived ${label || "top-level "}limiters are [${keys.join(", ")}], not the ref's ` +

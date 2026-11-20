@@ -60,7 +60,7 @@ export function AttachmentFileChip({
         <span className="text-sm">{label}</span>
         <button
           type="button"
-          onClick={() => url.refetch()}
+          onClick={() => void url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
           {t("thread.didntLoadRetry")}

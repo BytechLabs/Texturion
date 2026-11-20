@@ -79,7 +79,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
     // A 404 here is also what a member without access to this call's number
     // gets — deliberately indistinguishable, so a permalink cannot be used to
     // prove a call exists.
-    return <LoadError onRetry={() => call.refetch()} />;
+    return <LoadError onRetry={() => void call.refetch()} />;
   }
 
   // A list row cannot say whether its words were attempted, so that sentence waits for the detail.

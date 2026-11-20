@@ -176,10 +176,10 @@ describe("#320 app components take their colours from tokens", () => {
       const rel = relative(APP_SRC, file).split(sep).join("/");
       if (ALLOWED.has(rel)) continue;
       const text = readFileSync(file, "utf8");
-      text.split(/\r?\n/).forEach((line, index) => {
-        if (isComment(line)) return;
+      for (const [index, line] of text.split(/\r?\n/).entries()) {
+        if (isComment(line)) continue;
         if (LITERAL.test(withoutShadows(line))) offenders.push(`${rel}:${index + 1}`);
-      });
+      }
     }
 
     expect(

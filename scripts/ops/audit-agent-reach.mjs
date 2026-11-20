@@ -252,7 +252,9 @@ function jsonEntries(document) {
   const entries = [];
   const visit = (node, key) => {
     if (typeof node === "string") entries.push({ name: key ?? "", value: node, commented: false });
-    else if (Array.isArray(node)) node.forEach((child) => visit(child, key));
+    else if (Array.isArray(node)) {
+      for (const child of node) visit(child, key);
+    }
     else if (node && typeof node === "object") {
       for (const [childKey, child] of Object.entries(node)) visit(child, childKey);
     }

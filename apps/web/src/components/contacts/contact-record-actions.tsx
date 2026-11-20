@@ -59,7 +59,7 @@ export interface ContactActionsInput {
     open: () => void;
     text: () => void;
     call: () => void;
-    copyNumber: () => void;
+    copyNumber: () => void | Promise<void>;
     askBlock: () => void;
     unblock: () => void;
     askOptOut: () => void;

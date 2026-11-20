@@ -178,6 +178,7 @@ const prefsSchema = z.object({
  */
 const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10;
 
+/* oxlint-disable unicorn/prefer-top-level-await -- Zod supplies defaults for invalid fields. */
 const subscriptionSchema = z.object({
   endpoint: z
     .url()
@@ -229,6 +230,7 @@ const subscriptionSchema = z.object({
    */
   locale: z.string().max(100).optional().catch(undefined),
 });
+/* oxlint-enable unicorn/prefer-top-level-await */
 
 interface PrefsRow {
   email_enabled: boolean;

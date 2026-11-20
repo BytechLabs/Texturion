@@ -43,13 +43,13 @@
     "eslint/one-var": ["error", "never"],
     "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
     "eslint/no-plusplus": ["error", { "allowForLoopAfterthoughts": true }],
-        "eslint/no-use-before-define": ["off", { "functions": false, "classes": true, "variables": false, "typedefs": false }], // not yet clean: 12 (#822)
+    "eslint/no-use-before-define": ["error", { "functions": false, "classes": true, "variables": false, "typedefs": false }],
     "eslint/sort-imports": ["error", { "ignoreCase": true, "ignoreDeclarationSort": true }],
     "eslint/new-cap": ["error", { "capIsNew": false }],
     "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
     "eslint/no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
-    "eslint/class-methods-use-this": ["off", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }], // not yet clean: 11 (#822)
-    "eslint/no-underscore-dangle": ["off", { "allow": ["__vitest_worker__", "_def"], "allowAfterThis": true }], // not yet clean: 16 (#822)
+    "eslint/class-methods-use-this": ["error", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }],
+    "eslint/no-underscore-dangle": ["error", { "allow": ["__vitest_worker__", "__loonextGtm", "__loonextSw", "__rigJudge", "__auditLastStop", "_friendlyError"], "allowAfterThis": true }],
     "jsdoc/check-tag-names": ["error", { "definedTags": ["vitest-environment"] }],
     "unicorn/import-style": ["error", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }],
     "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "server-only", "client-only", "@/env"] }],
@@ -177,51 +177,9 @@
     "jsdoc/require-param-description": "off", // follows require-param
     "jsdoc/require-returns-description": "off", // follows require-returns
 
-    // Not yet clean: these can apply, and their findings (counted on 2026-11-17)
-    // need a hand rewrite. Each turns on as its count reaches zero (#822).
-    "unicorn/no-nested-ternary": "off", // 124
-    "vitest/no-conditional-expect": "off", // 106
-    "typescript/no-base-to-string": "off", // 104
-    "unicorn/no-array-sort": "off", // 101
-    "typescript/no-misused-promises": "off", // 87
-    "eslint/no-shadow": "off", // 83
-    "react/jsx-handler-names": "off", // 66
-    "typescript/restrict-template-expressions": "off", // 65
-    "unicorn/no-array-for-each": "off", // 54
-    "typescript/no-deprecated": "off", // 47
-    "unicorn/prefer-module": "off", // 39
-    "typescript/switch-exhaustiveness-check": "off", // 35
-    "promise/always-return": "off", // 30
-    "typescript/require-array-sort-compare": "off", // 28
-    "unicorn/prefer-top-level-await": "off", // 27
-    "react/no-array-index-key": "off", // 24
-    "eslint/no-useless-assignment": "off", // 21
-    "promise/prefer-catch": "off", // 19
-    "typescript/no-unsafe-enum-comparison": "off", // 17
-    "eslint/no-loop-func": "off", // 15
-    "jsx-a11y/no-autofocus": "off", // 15
-    "react/exhaustive-effect-dependencies": "off", // 14
-    "unicorn/prefer-number-coercion": "off", // 11
-    "unicorn/filename-case": "off", // 9
-    "typescript/no-implied-eval": "off", // 8
-    "unicorn/prefer-add-event-listener": "off", // 8
-    "unicorn/no-thenable": "off", // 7
-    "jsx-a11y/no-noninteractive-tabindex": "off", // 6
-    "react/no-danger": "off", // 6
-    "unicorn/prefer-event-target": "off", // 6
-    "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
-    "jsx-a11y/no-static-element-interactions": "off", // 5
-    "react/exhaustive-deps": "off", // 5
-    "unicorn/no-process-exit": "off", // 5
-    "eslint/no-control-regex": "off", // 4
-    "jsx-a11y/click-events-have-key-events": "off", // 4
-    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off", // 4
-    "jsx-a11y/media-has-caption": "off", // 3
-    "jsx-a11y/interactive-supports-focus": "off", // 2
+    "promise/always-return": ["error", { "ignoreLastCallback": true }],
+    "typescript/switch-exhaustiveness-check": ["error", { "considerDefaultExhaustiveForUnions": true }],
     "oxc/no-async-endpoint-handlers": ["error", { "allowedNames": ["createOrResendInvite", "revokeOptOut"] }],
-    "unicorn/no-document-cookie": "off", // 2
-    "react/iframe-missing-sandbox": "off", // 1
-    "unicorn/prefer-dom-node-text-content": "off", // 1
 
     // Off by design: React effects, Hono middleware and test fetch fakes return
     // on some branches, and their types (void | Destructor, Response | void) allow it.
@@ -260,6 +218,10 @@
       "env": { "browser": true }
     },
     {
+      "files": ["apps/web/src/i18n/sections/*.ts"],
+      "rules": { "unicorn/filename-case": ["error", { "cases": { "camelCase": true, "kebabCase": true } }] }
+    },
+    {
       // Next.js loads these by default export, and tools load their configs the same way.
       "files": [
         "apps/web/src/app/**/{page,layout,template,loading,error,global-error,not-found,global-not-found,default,opengraph-image,twitter-image,icon,apple-icon,sitemap,robots,manifest}.{ts,tsx}",
@@ -279,12 +241,13 @@
       // Browser scripts served as files: the embed widget and the service worker.
       "files": ["apps/web/public/**/*.js"],
       "rules": {
-        "eslint/no-implicit-globals": "off" // a classic service worker script is written in the global scope
+        "eslint/no-implicit-globals": "off", // a classic service worker script is written in the global scope
+        "unicorn/prefer-module": "off" // the worker and embed ship as classic scripts
       }
     },
     {
       // Command-line programs.
-      "files": ["scripts/**", "tools/rig/bin/**", "tools/rig/host/**", "apps/api/scripts/**", "apps/web/scripts/**", ".githooks/**"],
+      "files": ["scripts/**", "tools/rig/bin/**", "tools/rig/host/**", "tools/rig/robot/src/main.ts", "tools/rig/test/support/stub-keytool.mjs", "brand/generate.mjs", "apps/api/scripts/**", "apps/web/scripts/**", ".githooks/**"],
       "rules": {
         "unicorn/no-process-exit": "off" // a CLI reports its result through the exit code
       }
@@ -305,6 +268,26 @@
       "rules": {
         "vitest/no-import-node-test": "off" // these suites are node:test suites by design
       }
+    },
+    {
+      // These tests execute trusted snippets shipped by the repository.
+      "files": [
+        "apps/api/src/billing/pricing-report-{mirror,revenue}.test.ts",
+        "apps/web/src/components/marketing/{google-tag-manager,gtm-boot}.test.tsx",
+        "apps/web/src/lib/marketing/widget-embed.test.ts",
+        "packages/shared/src/state-machines/state-machines.test.ts"
+      ],
+      "rules": { "typescript/no-implied-eval": "off" }
+    },
+    {
+      // ChildProcess doubles must implement Node's EventEmitter contract.
+      "files": ["tools/rig/host/test/{audio-mute,emulator,server,tunnel}.test.mjs", "tools/rig/lanes/src/android.test.ts"],
+      "rules": { "unicorn/prefer-event-target": "off" }
+    },
+    {
+      // The injected audio probe runs in pages without AudioWorklet modules.
+      "files": ["tools/rig/lanes/src/browser/page-judge.ts"],
+      "rules": { "typescript/no-deprecated": "off" }
     }
   ]
 }

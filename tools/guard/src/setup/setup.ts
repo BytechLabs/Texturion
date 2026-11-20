@@ -304,7 +304,7 @@ async function ensureNotifications(ctx: Ctx, spec: TelnyxSpec): Promise<SetupSte
     const wanted = spec.notifications.event_conditions.map((label) => label.toLowerCase());
     let missing = 0;
     for (const label of wanted) {
-      const condition = conditions.find((item) => String(item.name ?? "").toLowerCase().includes(label));
+      const condition = conditions.find((item) => typeof item.name === "string" && item.name.toLowerCase().includes(label));
       const conditionId = idOf(condition);
       if (!conditionId) {
         missing += 1;

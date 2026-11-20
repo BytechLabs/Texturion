@@ -10,7 +10,9 @@ import { decodeWav } from "./wav.ts";
 describe("the surface table", () => {
   it("keeps every code 200 Hz or more from every other, and off the reserved tones", () => {
     const hz = Object.values(SURFACE_HZ).toSorted((a, b) => a - b);
-    hz.slice(1).forEach((f, i) => expect(f - hz[i]!).toBeGreaterThanOrEqual(200));
+    for (const [i, f] of hz.slice(1).entries()) {
+      expect(f - hz[i]!).toBeGreaterThanOrEqual(200);
+    }
     // DTMF rows and columns, North American call progress, and the 2,600 Hz
     // trunk tone. The nearest pairs are close (1,300 to 1,336 and 1,500 to
     // 1,477), which is safe only because a keypress has no burst pattern.
@@ -36,8 +38,8 @@ describe(codeSamples, () => {
     const slot = (SLOT_MS * rate) / 1000;
     for (let i = 0; i < 2 * PATTERN.length; i++) {
       const energy = power(samples.subarray(i * slot, (i + 1) * slot));
-      if (PATTERN[i % PATTERN.length]) expect(energy).toBeGreaterThan(0.025);
-      else expect(energy).toBe(0);
+      const active = PATTERN[i % PATTERN.length] === 1;
+      expect(active ? energy > 0.025 : energy === 0, `slot ${i} energy ${energy}`).toBe(true);
     }
   });
 

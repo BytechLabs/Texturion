@@ -118,7 +118,7 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
   const when = formatTimestamp(row.deleted_at, { style: "long", t });
   const { contact_name, contact_phone } = detailsOf(row);
   const linked = row.kind === "message" ? row.message.linked_tasks :
-    row.kind === "call" ? row.call.linked_tasks : undefined;
+    (row.kind === "call" ? row.call.linked_tasks : undefined);
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">

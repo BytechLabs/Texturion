@@ -154,7 +154,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
       unlock: () => android.unlock(),
       reboot: (options) => android.reboot(options),
       cryptoType: () => android.cryptoType(),
-      install: (build) => android.install(build),
+      install: (artifact) => android.install(artifact),
       playServicesMinimum: () => android.playServicesMinimum(),
       pushToken: () => android.pushToken(),
       uninstall: () => android.uninstall(),

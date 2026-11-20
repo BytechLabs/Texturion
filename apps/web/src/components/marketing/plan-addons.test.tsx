@@ -56,7 +56,8 @@ describe("pricing add-ons strip (#28 truth guard)", () => {
     for (const card of ADDON_CARDS) {
       expect(html).toContain(card.label);
       expect(html).toContain(card.price);
-      if (card.detail) expect(html).toContain(card.detail);
+      if (!card.detail) continue;
+      expect(html).toContain(card.detail);
     }
     expect(html).toContain("The add-ons, in plain words.");
     expect(html).toContain("Canada numbers is the only add-on that exists");

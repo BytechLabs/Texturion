@@ -736,25 +736,29 @@ export function ForYouView() {
     return ordered.map((tile) => ({ ...tile, count: counts[tile.id] ?? tile.count }));
   }, [data]);
 
+  function renderDescription() {
+    if (forYou.isPending) {
+      return (
+        // The Skeleton recipe as a span: the header sets this line in a <p>.
+        <span
+          aria-hidden
+          data-slot="skeleton"
+          className="inline-block h-3.5 w-44 animate-pulse rounded-md bg-accent align-middle"
+        />
+      );
+    }
+    if (total > 0) {
+      return t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total });
+    }
+    return hasScheduleDecisions ? undefined : t("inbox.forYouAllCaughtUp");
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl xl:max-w-7xl">
       <PageHeader
         className="mb-6"
         title={t("inbox.forYouTitle")}
-        description={
-          forYou.isPending ? (
-            // The Skeleton recipe as a span: the header sets this line in a <p>.
-            <span
-              aria-hidden
-              data-slot="skeleton"
-              className="inline-block h-3.5 w-44 animate-pulse rounded-md bg-accent align-middle"
-            />
-          ) : (total > 0 ? (
-            t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
-          ) : (
-            hasScheduleDecisions ? undefined : t("inbox.forYouAllCaughtUp")
-          ))
-        }
+        description={renderDescription()}
         secondary={
           <>
             {/* Desktop hosts search + bell in the top bar; keep those two here

@@ -230,6 +230,7 @@ function SaveViewDialog({
             <Label htmlFor="saved-view-name">{t("inbox.viewNameLabel")}</Label>
             <Input
               id="saved-view-name"
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- The save or rename command opens this field.
               autoFocus
               maxLength={60}
               value={name}
@@ -472,6 +473,7 @@ function RenameViewDialog({
           <Label htmlFor="rename-view">{t("inbox.viewNameLabel")}</Label>
           <Input
             id="rename-view"
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- The save or rename command opens this field.
             autoFocus
             maxLength={60}
             value={name}

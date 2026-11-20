@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * customer shares a file with the note composer, so the guard is on where the
  * picker is wired in that file and on who may import it at all.
  */
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

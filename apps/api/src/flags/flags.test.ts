@@ -71,7 +71,7 @@ describe("the registry is the roster", () => {
   });
 
   it("covers exactly the four subsystems the issue names", () => {
-    expect(killSwitchKeys().sort()).toEqual([
+    expect(killSwitchKeys().toSorted()).toEqual([
       "kill:ai",
       "kill:calls",
       "kill:outbound-send",

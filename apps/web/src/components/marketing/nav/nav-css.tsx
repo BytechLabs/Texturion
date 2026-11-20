@@ -157,5 +157,5 @@ html {
  * (mounted once per marketing page by the (marketing) layout).
  */
 export function NavCss() {
-  return <style dangerouslySetInnerHTML={{ __html: CSS }} />;
+  return <style>{CSS}</style>;
 }

@@ -10,7 +10,7 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..");
+const SRC = join(import.meta.dirname, "..");
 const STRING_CALL_ON_KEY = /\b\w+\.key\.(?:toLowerCase|toUpperCase|trim|startsWith|endsWith|charAt|localeCompare)\(/;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
@@ -31,13 +31,12 @@ describe("a keyboard event's key is checked before it is used as a string", () =
     expect(files.length, "no source files were scanned").toBeGreaterThan(0);
     const offenders: string[] = [];
     for (const file of files) {
-      readFileSync(file, "utf8")
-        .split("\n")
-        .forEach((line, index) => {
+      for (const [index, line] of readFileSync(file, "utf8")
+        .split("\n").entries()) {
           if (STRING_CALL_ON_KEY.test(line) && !/typeof\s+\w+\.key\s*===\s*"string"/.test(line)) {
             offenders.push(`${relative(SRC, file)}:${index + 1}: ${line.trim()}`);
           }
-        });
+        }
     }
     expect(offenders).toEqual([]);
   });

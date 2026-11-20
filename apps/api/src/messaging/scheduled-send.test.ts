@@ -18,7 +18,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { pgError, supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch } from "../test/support";
+import { completeEnv, requireString, stubFetch } from "../test/support";
 // The "cross-track-doubles" project resolves this to a vi.fn double that
 // answers all-clear by default (src/test/telnyx-doubles/registration.ts), which
 // is the lever for the gate states below. Reading the real companies row would
@@ -315,7 +315,7 @@ describe("#233 the customer answered in the meantime", () => {
     stubFetch(sb.route);
 
     await runScheduledSendJob(env, NOW);
-    expect(String(holds[0]?.p_reason ?? "")).toMatch(/replied/i);
+    expect(requireString(holds[0]?.p_reason ?? "")).toMatch(/replied/i);
   });
 });
 

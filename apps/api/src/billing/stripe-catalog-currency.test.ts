@@ -166,7 +166,7 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
 
   it.each(CHARGEABLE_PRICES)(
     "gives %s a CAD option, on that price and not merely somewhere in the file",
-    (lookupKey, cadCents) => {
+    (lookupKey) => {
       const body = priceBody(lookupKey);
       expect(
         /currency_options:\s*\{\s*cad:/.test(body),
@@ -176,13 +176,14 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
           `quietly charges its base currency, so a workspace shown "$290" pays ` +
           `US$290 (#522).`,
       ).toBe(true);
-      if (cadCents !== null) {
-        const literal = /currency_options:\s*\{\s*cad:\s*\{\s*unit_amount:\s*(\d(?:_?\d)*)(?=\s*[,}])/.exec(body)?.[1];
-        expect(
-          literal === undefined ? undefined : Number(literal.replaceAll("_", "")),
-          `${lookupKey} files the wrong CAD amount`,
-        ).toBe(cadCents);
-      }
+    },
+  );
+
+  it.each(CHARGEABLE_PRICES.filter(([, cents]) => cents !== null))(
+    "files the shared CAD amount for %s",
+    (lookupKey, cadCents) => {
+      const literal = /currency_options:\s*\{\s*cad:\s*\{\s*unit_amount:\s*(\d(?:_?\d)*)(?=\s*[,}])/.exec(priceBody(lookupKey))?.[1];
+      expect(literal === undefined ? undefined : Number(literal.replaceAll("_", ""))).toBe(cadCents);
     },
   );
 

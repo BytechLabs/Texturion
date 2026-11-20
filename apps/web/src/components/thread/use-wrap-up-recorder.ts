@@ -249,7 +249,7 @@ export function useWrapUpRecorder(options: {
     };
     // A recorder that errors mid-capture must not leave the button stuck in a
     // recording state with the mic still open.
-    recorder.onerror = () => {
+    recorder.addEventListener("error", () => {
       cancelledRef.current = true;
       try {
         recorder.stop();
@@ -259,7 +259,7 @@ export function useWrapUpRecorder(options: {
         setSeconds(0);
       }
       setError(t("thread.micStoppedUnexpectedly"));
-    };
+    });
 
     recorder.start();
     setRecording(true);

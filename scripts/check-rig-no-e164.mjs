@@ -104,7 +104,7 @@ export function findNumbers(text) {
     const fictional = isFictionalNanp(match[1] + match[2] + match[3]);
     found.push({ line: lineAt(match.index), fictional });
   }
-  return found.sort((a, b) => a.line - b.line);
+  return found.toSorted((a, b) => a.line - b.line);
 }
 
 /** Per-file offending lines, and what the legacy counts say about them. */
@@ -157,7 +157,7 @@ function scopedFiles() {
   return [...new Set(listed)]
     .filter((file) => SCOPE.some((pattern) => pattern.test(file)) && !BINARY.test(file))
     .filter((file) => existsSync(join(REPO_ROOT, file)))
-    .sort()
+    .toSorted()
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 

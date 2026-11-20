@@ -43,6 +43,43 @@ export function MakeCallTask({
     onOpenChange?.(next);
   };
 
+  let callAction;
+  if (voicemailDraft) {
+    callAction = (
+      <MakeTaskForm
+        call={{
+          id: voicemailDraft.call_id,
+          title: voicemailDraft.title ?? t("thread.callTaskTitle", { name: callerName }),
+          voicemailDescription: voicemailDraft.description,
+        }}
+        conversationId={conversationId}
+        onDone={() => setOpen(false)}
+      />
+    );
+  } else if (callId === undefined) {
+    callAction = sessionId === undefined
+      ? null
+      : (
+        <FormForSession
+          sessionId={sessionId}
+          conversationId={conversationId}
+          callerName={callerName}
+          onDone={() => setOpen(false)}
+        />
+      );
+  } else {
+    callAction = (
+      <MakeTaskForm
+        call={{
+          id: callId,
+          title: t("thread.callTaskTitle", { name: callerName }),
+        }}
+        conversationId={conversationId}
+        onDone={() => setOpen(false)}
+      />
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {!controlled && (
@@ -62,33 +99,7 @@ export function MakeCallTask({
         </DialogTrigger>
       )}
       <MakeTaskDialogContent>
-        {voicemailDraft ? (
-          <MakeTaskForm
-            call={{
-              id: voicemailDraft.call_id,
-              title: voicemailDraft.title ?? t("thread.callTaskTitle", { name: callerName }),
-              voicemailDescription: voicemailDraft.description,
-            }}
-            conversationId={conversationId}
-            onDone={() => setOpen(false)}
-          />
-        ) : callId === undefined ? (sessionId === undefined ? null : (
-          <FormForSession
-            sessionId={sessionId}
-            conversationId={conversationId}
-            callerName={callerName}
-            onDone={() => setOpen(false)}
-          />
-        )) : (
-          <MakeTaskForm
-            call={{
-              id: callId,
-              title: t("thread.callTaskTitle", { name: callerName }),
-            }}
-            conversationId={conversationId}
-            onDone={() => setOpen(false)}
-          />
-        )}
+        {callAction}
       </MakeTaskDialogContent>
     </Dialog>
   );

@@ -216,7 +216,7 @@ describe("Telnyx's announcement as level evidence", () => {
     const calls: { url: string; init: RequestInit }[] = [];
     let answer = () => Response.json({ recorded: true, level: "paid_or_below" });
     const fetch = (async (input: string | URL | Request, init: RequestInit = {}) => {
-      calls.push({ url: String(input), init });
+      calls.push({ url: input instanceof Request ? input.url : String(input), init });
       return answer();
     }) as typeof globalThis.fetch;
     const edge = "https://rig-edge.example.workers.dev/";

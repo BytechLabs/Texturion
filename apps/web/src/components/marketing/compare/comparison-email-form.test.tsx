@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { requireString } from "../../../lib/api/test-support";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ComparisonEmailForm } from "./comparison-email-form";
@@ -18,7 +19,7 @@ afterEach(cleanup);
 async function submit(locale: "en" | "fr-CA") {
   let submitted: Record<string, unknown> | null = null;
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, request?: RequestInit) => {
-    submitted = JSON.parse(String(request?.body)) as Record<string, unknown>;
+    submitted = JSON.parse(requireString(request?.body)) as Record<string, unknown>;
     return Response.json({ ok: true, sent: false });
   });
   vi.stubGlobal("fetch", fetchMock);

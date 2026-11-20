@@ -153,9 +153,10 @@ export default function InviteAcceptPage() {
     return () => {
       cancelled = true;
     };
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Retry reloads the profile within the same session.
   }, [sessionState, profileRetry]);
 
-  async function submitProfile(e: React.FormEvent) {
+  async function submitProfile(e: React.SubmitEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (saving || !trimmed || (needsPassword && password.length < MIN_PASSWORD_LENGTH)) {
@@ -254,7 +255,7 @@ export default function InviteAcceptPage() {
 
   if (profileState === "form") {
     return (
-      <form method="post" onSubmit={submitProfile} className="space-y-4">
+      <form method="post" onSubmit={(e) => { void submitProfile(e); }} className="space-y-4">
         <div className="space-y-1.5">
           <h1 className="text-2xl font-semibold tracking-tight">
             {t(needsPassword ? "onboarding.inviteProfileTitle" : "onboarding.whatsYourName")}
@@ -267,7 +268,6 @@ export default function InviteAcceptPage() {
           <Label htmlFor="invite-name">{t("onboarding.yourNameLabel")}</Label>
           <Input
             id="invite-name"
-            autoFocus
             autoComplete="name"
             value={name}
             onChange={(event) => setName(event.target.value)}

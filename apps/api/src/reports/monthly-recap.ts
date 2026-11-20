@@ -183,14 +183,14 @@ export async function runResponseTimeRecapJob(
   if (error) throw new Error(`recap company list failed: ${error.message}`);
 
   let sent = 0;
-  let attempted = 0;
+  const delivery = { attempted: 0 };
   let skippedForCap = 0;
 
   for (const row of (companies ?? []) as {
     id: string;
     name: string;
   }[]) {
-    if (attempted >= MAX_RECAPS_PER_RUN) {
+    if (delivery.attempted >= MAX_RECAPS_PER_RUN) {
       skippedForCap += 1;
       continue;
     }
@@ -211,7 +211,7 @@ export async function runResponseTimeRecapJob(
       const delivered = await sendLedgered({
         ...emailLedger(db, row.id, `response_recap:${now.toISOString().slice(0, 7)}`),
         send: async () => {
-          attempted += 1;
+          delivery.attempted += 1;
           const result = await sendEmail(env, {
             to: [owner],
             subject: `${row.name}: how fast you answered this month`,
@@ -222,14 +222,14 @@ export async function runResponseTimeRecapJob(
         },
       });
       if (delivered) sent += 1;
-    } catch (error) {
-      void captureException(env, error, { source: "cron", company_id: row.id });
+    } catch (recapError) {
+      void captureException(env, recapError, { source: "cron", company_id: row.id });
     }
   }
 
   if (skippedForCap > 0) {
     console.warn(
-      `response-time recap: sent ${sent} from ${attempted} attempts (the per-run ceiling of ` +
+      `response-time recap: sent ${sent} from ${delivery.attempted} attempts (the per-run ceiling of ` +
         `${MAX_RECAPS_PER_RUN}); ${skippedForCap} workspaces were deferred.`,
     );
   }

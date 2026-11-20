@@ -1,3 +1,4 @@
+import { fetchInputUrl, requireString } from "../../test/support";
 import { describe, expect, it, vi } from "vitest";
 import {
   exchangeGoogleAuthorizationCode,
@@ -241,7 +242,7 @@ describe("Google calendar provider", () => {
     expect(page.events).toHaveLength(2);
     expect(page.nextPageToken).toBe("page-2");
     expect(page.nextCursor).toBeNull();
-    const request = new URL(String(mock.mock.calls[0]?.[0]));
+    const request = new URL(fetchInputUrl(mock.mock.calls[0]?.[0]));
     expect(request.pathname).toContain("crew%2Fa");
     expect(request.searchParams.get("syncToken")).toBe("sync-1");
     expect(request.searchParams.get("pageToken")).toBe("page-1");
@@ -355,7 +356,7 @@ describe("Google calendar provider", () => {
     const createInit = mock.mock.calls[0][1]!;
     const patchInit = mock.mock.calls[1][1]!;
     expect(createInit.method).toBe("POST");
-    const createBody = JSON.parse(String(createInit.body)) as Record<
+    const createBody = JSON.parse(requireString(createInit.body)) as Record<
       string,
       unknown
     >;
@@ -363,7 +364,7 @@ describe("Google calendar provider", () => {
     expect(createBody.id).toMatch(/^[0-9a-f]{64}$/);
     expect(patchInit.method).toBe("PATCH");
     expect(new Headers(patchInit.headers).get("If-Match")).toBe('"etag-1"');
-    expect(JSON.parse(String(patchInit.body))).not.toHaveProperty("attendees");
+    expect(JSON.parse(requireString(patchInit.body))).not.toHaveProperty("attendees");
     expect("deleteEvent" in provider).toBe(true);
   });
 
@@ -383,7 +384,7 @@ describe("Google calendar provider", () => {
       changes: { timing: false, title: false, description: true },
     });
     for (const [, init] of mock.mock.calls) {
-      expect(JSON.parse(String((init!).body))).toMatchObject({ description: linked });
+      expect(JSON.parse(requireString((init!).body))).toMatchObject({ description: linked });
     }
 
     const read = await normalizeGoogleEvent(googleEvent({ description: linked }), "America/Edmonton");
@@ -403,7 +404,7 @@ describe("Google calendar provider", () => {
     let createNumber = 0;
     const mock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { id: string };
+        const body = JSON.parse(requireString(init.body)) as { id: string };
         eventIds.push(body.id);
         createNumber += 1;
         return createNumber === 1
@@ -411,7 +412,7 @@ describe("Google calendar provider", () => {
           : json({ error: "duplicate" }, 409);
       }
       const instanceId = decodeURIComponent(
-        new URL(String(url)).pathname.split("/").at(-1) ?? "",
+        new URL(fetchInputUrl(url)).pathname.split("/").at(-1) ?? "",
       );
       return json(googleEvent({ id: instanceId }));
     });
@@ -427,7 +428,7 @@ describe("Google calendar provider", () => {
     expect(first.instanceId).toBe(eventIds[0]);
     expect(recovered.instanceId).toBe(eventIds[0]);
     expect(mock).toHaveBeenCalledTimes(3);
-    expect(String(mock.mock.calls[2]?.[0])).toContain(`/events/${eventIds[0]}`);
+    expect(fetchInputUrl(mock.mock.calls[2]?.[0])).toContain(`/events/${eventIds[0]}`);
     const init = mock.mock.calls[2]?.[1];
     expect(init).toBeDefined();
     expect(init?.method).toBeUndefined();
@@ -460,7 +461,7 @@ describe("Google calendar provider", () => {
     });
     const init = mock.mock.calls[0][1]!;
     expect(init.method).toBe("PATCH");
-    expect(JSON.parse(String(init.body))).toEqual({ description: "Note\n\nRemoved" });
+    expect(JSON.parse(requireString(init.body))).toEqual({ description: "Note\n\nRemoved" });
   });
 
   it("deletes safe events without updates and scrubs meetings without schedule fields", async () => {
@@ -485,16 +486,16 @@ describe("Google calendar provider", () => {
     await provider.deleteEvent(base);
     await provider.scrubEvent(base);
 
-    const deleteUrl = new URL(String(mock.mock.calls[0]?.[0]));
+    const deleteUrl = new URL(fetchInputUrl(mock.mock.calls[0]?.[0]));
     const deleteInit = mock.mock.calls[0][1]!;
     expect(deleteInit.method).toBe("DELETE");
     expect(deleteUrl.searchParams.get("sendUpdates")).toBe("none");
     expect(new Headers(deleteInit.headers).get("If-Match")).toBe('"etag-1"');
-    const scrubUrl = new URL(String(mock.mock.calls[1]?.[0]));
+    const scrubUrl = new URL(fetchInputUrl(mock.mock.calls[1]?.[0]));
     const scrubInit = mock.mock.calls[1][1]!;
     expect(scrubInit.method).toBe("PATCH");
     expect(scrubUrl.searchParams.get("sendUpdates")).toBe("none");
-    expect(JSON.parse(String(scrubInit.body))).toEqual({
+    expect(JSON.parse(requireString(scrubInit.body))).toEqual({
       summary: "Loonext event removed",
       description: "",
     });
@@ -530,9 +531,8 @@ describe("Google calendar provider", () => {
     await expect(
       refreshGoogleAccessToken(fetcher, client, "r"),
     ).resolves.toMatchObject({ accessToken: "a2", refreshToken: "r" });
-    expect(String(mock.mock.calls[0]?.[1]?.body)).toContain(
-      "code_verifier=verifier",
-    );
+    const tokenBody = mock.mock.calls[0]?.[1]?.body;
+    expect(tokenBody instanceof URLSearchParams && tokenBody.get("code_verifier")).toBe("verifier");
   });
 
   it("establishes replacement channels before stopping old watches", async () => {
@@ -565,7 +565,7 @@ describe("Google calendar provider", () => {
     expect(mock.mock.calls[0]?.[1]?.method).toBe("POST");
     expect(mock.mock.calls[1]?.[1]?.method).toBe("POST");
     expect(mock.mock.calls[2]?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(mock.mock.calls[2]?.[1]?.body))).toEqual({
+    expect(JSON.parse(requireString(mock.mock.calls[2]?.[1]?.body))).toEqual({
       id: "channel-1",
       resourceId: "resource-1",
     });

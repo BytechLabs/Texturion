@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -120,10 +120,10 @@ function subscribe(index: number, channel: RealtimeChannel): Promise<JoinOutcome
     const deadline = setTimeout(() => finish("hang"), JOIN_DEADLINE_MS);
 
     channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") finish("subscribed");
-      else if (status === "CHANNEL_ERROR") finish("channel_error");
-      else if (status === "TIMED_OUT") finish("timed_out");
-      else if (status === "CLOSED") finish("closed");
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) finish("subscribed");
+      else if (status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR) finish("channel_error");
+      else if (status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT) finish("timed_out");
+      else if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) finish("closed");
     }, JOIN_DEADLINE_MS - 250);
   });
 }
@@ -232,7 +232,7 @@ describe("#251 local Realtime fan-out", () => {
       resolveAll = resolve;
     });
 
-    for (const [subscriber, { channel }] of subscribers.entries()) {
+    function trackArrivals(subscriber: number, { channel }: (typeof subscribers)[number]) {
       channel.on("broadcast", { event: EVENT }, ({ payload }) => {
         const sequence = Number((payload as { sequence?: unknown }).sequence);
         if (!Number.isInteger(sequence) || sequence < 1 || sequence > BROADCASTS) {
@@ -248,6 +248,7 @@ describe("#251 local Realtime fan-out", () => {
         if (uniqueFrames === SUBSCRIBERS * BROADCASTS) resolveAll();
       });
     }
+    for (const [subscriber, entry] of subscribers.entries()) trackArrivals(subscriber, entry);
 
     const joins = await Promise.all(
       subscribers.map(({ channel }, index) => subscribe(index, channel)),

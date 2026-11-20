@@ -160,11 +160,11 @@ export function jwtAuth() {
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");
     }
     try {
-      const { userId, sessionId, aal, factorProvedAt } =
+      const { userId, sessionId, aal, factorProvedAt: verifiedFactorAt } =
         await verifyAccessToken(token, env);
       c.set("userId", userId);
       c.set("aal", aal);
-      c.set("factorProvedAt", factorProvedAt);
+      c.set("factorProvedAt", verifiedFactorAt);
       if (sessionId) c.set("sessionId", sessionId);
     } catch (error) {
       if (keySetUnavailable(error)) {

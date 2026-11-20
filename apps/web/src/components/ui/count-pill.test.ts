@@ -12,7 +12,7 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 const LITERAL = /"[^"\n]*"|`[^`]*`/g;
 

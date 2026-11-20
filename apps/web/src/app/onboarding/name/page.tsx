@@ -116,7 +116,7 @@ export default function CompanyNamePage() {
     }
   }, [draftName, draftCrewSize, draftSignupSource, form]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
 
   const progress = stepProgress("name", state.snapshot);
@@ -142,7 +142,7 @@ export default function CompanyNamePage() {
     >
       <Form {...form}>
         <form
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
           className="space-y-6"
           noValidate
         >
@@ -154,7 +154,6 @@ export default function CompanyNamePage() {
                 <FormLabel>{t("onboarding.companyNameLabel")}</FormLabel>
                 <FormControl>
                   <Input
-                    autoFocus
                     autoComplete="organization"
                     placeholder={t("onboarding.companyNamePlaceholder")}
                     className="h-12 text-base"
@@ -177,7 +176,7 @@ export default function CompanyNamePage() {
                 <FormLabel>{t("onboarding.crewSizeLabel")}</FormLabel>
                 <SegmentedControl
                   value={field.value ?? ""}
-                  onChange={field.onChange}
+                  onChange={(value) => field.onChange(value)}
                   fill
                   ariaLabel={t("onboarding.crewSizeLabel")}
                   options={CREW_SIZE_BUCKETS.map((bucket) => ({
@@ -216,7 +215,7 @@ export default function CompanyNamePage() {
                 <FormLabel>{t(SIGNUP_SOURCE_PROMPT)}</FormLabel>
                 <ChoiceCards
                   value={field.value ?? null}
-                  onChange={field.onChange}
+                  onChange={(value) => field.onChange(value)}
                   ariaLabel={t(SIGNUP_SOURCE_PROMPT)}
                   options={SIGNUP_SOURCES.map((source) => ({
                     value: source,

@@ -914,7 +914,7 @@ function claimedBuckets(body: unknown): string {
 
 describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
   const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
-  const HIDDEN_NUMBER = "bbbbbbbb-0000-4000-8000-000000000002";
+  const CALL_NUMBER_ID = "bbbbbbbb-0000-4000-8000-000000000002";
 
   function detailStub(opts: { hidden?: boolean; row?: Record<string, unknown> } = {}) {
     const sb = supabaseStub(env);
@@ -928,11 +928,11 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       opts.hidden
         ? [
             // Named for somebody else, so the caller resolves to hidden.
-            { phone_number_id: HIDDEN_NUMBER, level: "none" },
+            { phone_number_id: CALL_NUMBER_ID, level: "none" },
           ]
         : [],
     );
-    sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: HIDDEN_NUMBER }]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: CALL_NUMBER_ID }]);
     sb.on("GET", "/rest/v1/calls", () => [
       {
         id: "cccccccc-0000-4000-8000-000000000009",
@@ -940,7 +940,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
         caller_e164: "+16135551234",
         contact_id: null,
         caller_name: "MARIA ALVAREZ",
-        phone_number_id: HIDDEN_NUMBER,
+        phone_number_id: CALL_NUMBER_ID,
         conversation_id: null,
         outcome: "voicemail",
         forward_seconds: 0,

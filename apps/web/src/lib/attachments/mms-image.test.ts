@@ -24,7 +24,7 @@ describe(prepareMmsImage, () => {
         this.height = height;
       }
 
-      getContext() { return { fillRect, drawImage }; }
+      getContext = vi.fn(() => ({ fillRect, drawImage }));
       async convertToBlob({ quality }: ImageEncodeOptions) {
         encodings.push({ width: this.width, height: this.height, quality });
         const size = this.width > 1024 ? MMS_MAX_MEDIA_BYTES + 1 : MMS_MAX_MEDIA_BYTES;

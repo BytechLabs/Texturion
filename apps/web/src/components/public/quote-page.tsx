@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { DEFAULT_LOCALE, isLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
@@ -161,7 +161,7 @@ export function QuotePage({
 
   const busy = state === "sending" || state === "declining";
 
-  async function accept(event: FormEvent<HTMLFormElement>) {
+  async function accept(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const credential = quote && "accept_token" in quote ? quote.accept_token : null;
     if (!credential || name.trim().length === 0 || busy) return;
@@ -223,7 +223,7 @@ export function QuotePage({
 
       {quote.can_accept ? (
         <>
-          <form className="mt-8 flex flex-col gap-3" onSubmit={accept}>
+          <form className="mt-8 flex flex-col gap-3" onSubmit={(event) => { void accept(event); }}>
             <label className="flex flex-col gap-1.5 text-[15px] font-medium">
               {t("quotes.acceptNameLabel")}
               <input
@@ -257,7 +257,7 @@ export function QuotePage({
           {quote.decline_token && (
             <button
               type="button"
-              onClick={decline}
+              onClick={() => { void decline(); }}
               disabled={busy}
               className="mt-2 min-h-11 rounded-app-ctrl px-3 text-[15px] font-medium text-primary hover:underline disabled:opacity-60"
             >

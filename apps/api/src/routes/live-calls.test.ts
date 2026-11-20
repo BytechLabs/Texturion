@@ -270,10 +270,9 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
         { companyId: COMPANY_ID, method: "POST", body: { target_user_id: TARGET_ID } },
       );
       expect(res.status).toBe(expected);
-      expect(transfer.calls).toHaveLength(expected === 202 ? 1 : 0);
-      if (expected === 202) {
-        expect(transfer.calls[0].url.pathname).toBe("/v2/calls");
-        const dial = transfer.calls[0].body as { client_state: string; command_id: string };
+      expect(transfer.calls.map((call) => call.url.pathname)).toEqual(expected === 202 ? ["/v2/calls"] : []);
+      for (const call of transfer.calls) {
+        const dial = call.body as { client_state: string; command_id: string };
         expect(atob(dial.client_state)).toBe(
           `brt|${SESSION}|${TARGET_ID}|${auth.subject}|0|+16135551000|${dial.command_id}`,
         );

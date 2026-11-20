@@ -175,11 +175,11 @@ try {
         const probe = document.createElement("input");
         probe.className = "text-base";
         document.body.append(probe);
-        const size = getComputedStyle(probe).fontSize;
+        const computedSize = getComputedStyle(probe).fontSize;
         probe.remove();
-        return size;
+        return computedSize;
       });
-      if (Number.parseFloat(scaleLoaded) !== 16) {
+      if (scaleLoaded !== "16px") {
         problems.push(
           `${where}: a probe \`<input class="text-base">\` computed ` +
             `${scaleLoaded} instead of 16px, so this page is not styled the way ` +
@@ -245,7 +245,7 @@ try {
             const type = element.getAttribute("type");
             if (type === "hidden" || type === "checkbox" || type === "radio") return false;
             if (element.offsetParent === null) return false;
-            return Number.parseFloat(getComputedStyle(element).fontSize) < 16;
+            return Number(getComputedStyle(element).fontSize.replace(/px$/, "")) < 16;
           })
           .map((element) => element.id || element.name || element.className || "input")
           .slice(0, 5);

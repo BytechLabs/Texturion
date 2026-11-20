@@ -77,7 +77,11 @@ const ACCOUNT_CAP_CODE = "10039";
 
 function errorCodes(reply: TelnyxReply): string[] {
   const errors = (reply.body as { errors?: { code?: unknown }[] } | undefined)?.errors;
-  return Array.isArray(errors) ? errors.map((error) => String(error?.code ?? "")) : [];
+  if (!Array.isArray(errors)) return [];
+  return errors.flatMap((error) => {
+    const code = error?.code;
+    return typeof code === "string" || typeof code === "number" ? [String(code)] : [];
+  });
 }
 
 /**

@@ -285,15 +285,20 @@ export function CommandPalette() {
     results.attachments.length === 0 &&
     results.templates.length === 0 &&
     results.voicemails.length === 0;
-  const searchStatus: "searching" | "empty" | "error" | null = searching
-    ? search.isError
-      ? "error"
-      : search.isFetching && !results
-        ? "searching"
-        : noHits && !search.isFetching && settingHits.length === 0
-          ? "empty"
-          : null
-    : null;
+  let searchStatus: "searching" | "empty" | "error" | null;
+  if (searching) {
+    if (search.isError) {
+      searchStatus = "error";
+    } else if (search.isFetching && !results) {
+      searchStatus = "searching";
+    } else if (noHits && !search.isFetching && settingHits.length === 0) {
+      searchStatus = "empty";
+    } else {
+      searchStatus = null;
+    }
+  } else {
+    searchStatus = null;
+  }
 
   const reset = () => {
     setInput("");

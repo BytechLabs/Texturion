@@ -125,9 +125,9 @@ function ChecklistRow({
           <span className="sr-only">
             {status === "done"
               ? t("onboarding.rowDone")
-              : status === "action"
+              : (status === "action"
                 ? t("onboarding.rowNeedsAttention")
-                : t("onboarding.rowInProgress")}
+                : t("onboarding.rowInProgress"))}
           </span>
         </p>
         {children}
@@ -218,7 +218,7 @@ function OtpRow({
             <Button
               type="button"
               size="sm"
-              onClick={onVerify}
+              onClick={() => { void onVerify(); }}
               disabled={verify.isPending}
             >
               {verify.isPending
@@ -229,7 +229,7 @@ function OtpRow({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={onResend}
+              onClick={() => { void onResend(); }}
               disabled={cooldown > 0 || resend.isPending}
             >
               {cooldown > 0
@@ -289,9 +289,9 @@ function PortRow({
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
           {canAct
-            ? phase === "needs_documents"
+            ? (phase === "needs_documents"
               ? copy.needsDocuments
-              : copy.needsSubmit
+              : copy.needsSubmit)
             : copy.memberDocuments}
         </p>
         {canAct ? (
@@ -329,14 +329,16 @@ function PortRow({
   }
 
   // Carrier-side phases — honest §9 copy, nothing for the user to do here.
-  const body =
-    phase === "date_confirmed"
-      ? PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t))
-      : phase === "texting_activating"
-        ? PORT_STATE_COPY.numberSwitched
-        : phase === "texting_delayed"
-          ? PORT_STATE_COPY.messagingException
-          : `${PORT_STATE_COPY.submitted} ${copy.inReviewWindow}`;
+  let body;
+  if (phase === "date_confirmed") {
+    body = PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t));
+  } else if (phase === "texting_activating") {
+    body = PORT_STATE_COPY.numberSwitched;
+  } else if (phase === "texting_delayed") {
+    body = PORT_STATE_COPY.messagingException;
+  } else {
+    body = `${PORT_STATE_COPY.submitted} ${copy.inReviewWindow}`;
+  }
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">{body}</p>
@@ -460,7 +462,7 @@ function SettingUp() {
     return () => clearInterval(timer);
   }, [needsNudge, companyId, queryClient]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   if (
     state.status !== "ready" ||
     !company ||
@@ -519,23 +521,28 @@ function SettingUp() {
       : null;
   const canActOnRegistration = state.role === "owner" || state.role === "admin";
 
-  const numberStatus: RowStatus = activeNumber
-    ? "done"
-    : numberActionNeeded
-      ? "action"
-      : provisionFailed
-        ? "stalled"
-        : portItem?.actionNeeded
-          ? "action"
-          : "working";
-  const registrationStatus: RowStatus =
-    !owes || campaignApproved
-      ? "done"
-      : registrationStep || otpPending
-        ? "action"
-        : confirming
-          ? "waiting"
-          : "working";
+  let numberStatus: RowStatus;
+  if (activeNumber) {
+    numberStatus = "done";
+  } else if (numberActionNeeded) {
+    numberStatus = "action";
+  } else if (provisionFailed) {
+    numberStatus = "stalled";
+  } else if (portItem?.actionNeeded) {
+    numberStatus = "action";
+  } else {
+    numberStatus = "working";
+  }
+  let registrationStatus: RowStatus;
+  if (!owes || campaignApproved) {
+    registrationStatus = "done";
+  } else if (registrationStep || otpPending) {
+    registrationStatus = "action";
+  } else if (confirming) {
+    registrationStatus = "waiting";
+  } else {
+    registrationStatus = "working";
+  }
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
 
   // The §3.4 peak: once the number lands, the heading carries the app's ONE
@@ -552,6 +559,117 @@ function SettingUp() {
     inboxStatus === "done";
   const aRowNeedsYou =
     numberActionNeeded || portItem?.actionNeeded || otpPending || registrationStep !== null;
+
+  let setupAction;
+  if (owes) {
+    if (campaignApproved) {
+      setupAction = (
+        <p className="text-sm text-muted-foreground">
+          {REGISTRATION_COPY.approved}
+        </p>
+      );
+    } else if (registrationStep) {
+      setupAction = (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {t(registrationStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded")}
+          </p>
+          {canActOnRegistration ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/onboarding/${registrationStep}`}>
+                {t("shell.regFinishRegistration")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      );
+    } else if (registrationRejected) {
+      setupAction = (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {REGISTRATION_COPY.rejected(rejectionReason)}
+          </p>
+          {canActOnRegistration ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/numbers">
+                {t("onboarding.fixAndResubmit")}
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      );
+    } else if (otpPending) {
+      setupAction = (
+        <OtpRow
+          companyId={companyId}
+          phone={otpPhone}
+          canEnter={canActOnRegistration}
+        />
+      );
+    } else {
+      setupAction = (
+        <p className="text-sm text-muted-foreground">
+          {REGISTRATION_COPY.registrationPending}
+        </p>
+      );
+    }
+  } else {
+    setupAction = (
+      <p className="text-sm text-muted-foreground">
+        {t("onboarding.registrationNotNeeded")}
+      </p>
+    );
+  }
+
+  function renderNumberStatus() {
+    if (activeNumber?.number_e164) {
+      return (
+        // §3.4 number reveal via the tokens-track primitive: the
+        // emotional-number scale + fade-rise + copy button.
+        <NumberReveal
+          value={formatPhone(activeNumber.number_e164)}
+          copyValue={activeNumber.number_e164}
+          copyable
+        />
+      );
+    }
+    if (confirming) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {t("onboarding.confirmingPayment")}
+        </p>
+      );
+    }
+    if (numberActionNeeded) {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-foreground">
+            {REGISTRATION_COPY.numberActionNeeded(
+              // Only interpolate the area code for a real no-inventory
+              // failure; a 'timeout' flip must read the honest generic line,
+              // never a false "couldn't get a number in area code X".
+              failedNeedsChoice?.failure_reason === "no_inventory"
+                ? (failedNeedsChoice?.requested_area_code ?? null)
+                : null,
+            )}
+          </p>
+          <Link
+            href="/settings/numbers"
+            className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {t("onboarding.chooseYourNumber")}
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <p className="text-sm text-muted-foreground">
+        {provisionFailed
+          ? REGISTRATION_COPY.numberDelayed
+          : provisioningWaitCopy(provisioningNumber?.created_at, now)}
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-10">
@@ -589,44 +707,7 @@ function SettingUp() {
             order={0}
             title={t("onboarding.rowCreatingNumber")}
           >
-            {activeNumber?.number_e164 ? (
-              // §3.4 number reveal via the tokens-track primitive: the
-              // emotional-number scale + fade-rise + copy button.
-              <NumberReveal
-                value={formatPhone(activeNumber.number_e164)}
-                copyValue={activeNumber.number_e164}
-                copyable
-              />
-            ) : confirming ? (
-              <p className="text-sm text-muted-foreground">
-                {t("onboarding.confirmingPayment")}
-              </p>
-            ) : numberActionNeeded ? (
-              <div className="space-y-2">
-                <p className="text-sm text-foreground">
-                  {REGISTRATION_COPY.numberActionNeeded(
-                    // Only interpolate the area code for a real no-inventory
-                    // failure; a 'timeout' flip must read the honest generic line,
-                    // never a false "couldn't get a number in area code X".
-                    failedNeedsChoice?.failure_reason === "no_inventory"
-                      ? (failedNeedsChoice?.requested_area_code ?? null)
-                      : null,
-                  )}
-                </p>
-                <Link
-                  href="/settings/numbers"
-                  className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {t("onboarding.chooseYourNumber")}
-                </Link>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {provisionFailed
-                  ? REGISTRATION_COPY.numberDelayed
-                  : provisioningWaitCopy(provisioningNumber?.created_at, now)}
-              </p>
-            )}
+            {renderNumberStatus()}
           </ChecklistRow>
         )}
 
@@ -635,53 +716,7 @@ function SettingUp() {
           order={1}
           title={t("onboarding.rowRegistering")}
         >
-          {owes ? (
-            campaignApproved ? (
-              <p className="text-sm text-muted-foreground">
-                {REGISTRATION_COPY.approved}
-              </p>
-            ) : registrationStep ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {t(registrationStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded")}
-                </p>
-                {canActOnRegistration ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/onboarding/${registrationStep}`}>
-                      {t("shell.regFinishRegistration")}
-                    </Link>
-                  </Button>
-                ) : null}
-              </div>
-            ) : registrationRejected ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {REGISTRATION_COPY.rejected(rejectionReason)}
-                </p>
-                {canActOnRegistration ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link href="/settings/numbers">
-                      {t("onboarding.fixAndResubmit")}
-                    </Link>
-                  </Button>
-                ) : null}
-              </div>
-            ) : otpPending ? (
-              <OtpRow
-                companyId={companyId}
-                phone={otpPhone}
-                canEnter={canActOnRegistration}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {REGISTRATION_COPY.registrationPending}
-              </p>
-            )
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t("onboarding.registrationNotNeeded")}
-            </p>
-          )}
+          {setupAction}
         </ChecklistRow>
 
         <ChecklistRow

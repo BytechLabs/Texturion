@@ -411,6 +411,7 @@ function ThreadLoaded({
     return () => document.removeEventListener("visibilitychange", markReadWhenVisible);
   }, [
     conversationId,
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- two messages can share a timestamp.
     newestMessageId,
     newestIsMine,
     otherAt,
@@ -599,7 +600,7 @@ function ThreadLoaded({
               key={`composer-${conversationId}`}
               conversationId={conversationId}
               noteOnly={conversation.viewer_level === "note"}
-              onTyping={presence.onTyping}
+              onTyping={() => presence.onTyping()}
               contactLocale={contact.data?.locale ?? null}
               catchUp={{
                 shown: catchUp.hintShown,

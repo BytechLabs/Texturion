@@ -99,13 +99,12 @@ function decodeCursor(raw: string | undefined): {
  * both is how the guarding half went missing.
  */
 function csvCell(value: unknown): string {
-  const text =
-    value === null || value === undefined
-      ? ""
-      : (typeof value === "object"
-        ? JSON.stringify(value)
-        : String(value));
-  return csvSafeText(text);
+  if (value == null) return "";
+  if (typeof value === "object") return csvSafeText(JSON.stringify(value));
+  if (typeof value === "string") return csvSafeText(value);
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" ||
+    typeof value === "symbol" || typeof value === "function") return csvSafeText(String(value));
+  return "";
 }
 
 auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) => {

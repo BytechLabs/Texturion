@@ -46,7 +46,7 @@ export function CopyablePhoneNumber({
       className={cn("tap-target inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
       aria-label={`${copyLabel}: ${label}`}
       title={copyLabel}
-      onClick={copy}
+      onClick={(event) => { void copy(event); }}
     >
       {!iconOnly && label}
       <Copy className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />

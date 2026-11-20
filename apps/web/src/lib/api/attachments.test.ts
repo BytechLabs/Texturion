@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { fetchInputUrl } from "./test-support";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { createElement } from 'react';
@@ -60,7 +61,7 @@ function makeClient(
 ) {
   const fetchSpy = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) =>
-      handler(String(input), init),
+      handler(fetchInputUrl(input), init),
   );
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
@@ -112,7 +113,7 @@ describe("attachment upload — multipart request shape", () => {
     });
 
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe("https://api.loonext.test/v1/attachments");
+    expect(fetchInputUrl(url)).toBe("https://api.loonext.test/v1/attachments");
     expect(init?.method).toBe("POST");
 
     const headers = init?.headers as Record<string, string>;
@@ -304,7 +305,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
     });
 
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe("https://api.loonext.test/v1/attachments/att-1");
+    expect(fetchInputUrl(url)).toBe("https://api.loonext.test/v1/attachments/att-1");
     expect(init?.method).toBe("DELETE");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Company-Id"]).toBe("company-1");

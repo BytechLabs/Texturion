@@ -214,7 +214,7 @@ async function notifyCallActivity(
     }
     const bodyKey = input.textStatus === "sent"
       ? "bodyTexted"
-      : input.textStatus === "failed" ? "bodyTextFailed" : "bodyNoText";
+      : (input.textStatus === "failed" ? "bodyTextFailed" : "bodyNoText");
     // The contact's name is theirs and rides through untranslated.
     return { title: copy.title(contactName), body: copy[bodyKey], url: link };
   };

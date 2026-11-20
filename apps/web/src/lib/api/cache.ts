@@ -128,11 +128,11 @@ export function threadUpsertMessages(
   const pages = base.pages.map((page) => {
     let pageChanged = false;
     const data = page.data.map((existing) => {
-      const incoming = byId.get(existing.id);
-      if (!incoming) return existing;
+      const updatedRow = byId.get(existing.id);
+      if (!updatedRow) return existing;
       inserted.add(existing.id);
-      if (existing === incoming) return existing;
-      const replacement = mergeMessage(existing, incoming);
+      if (existing === updatedRow) return existing;
+      const replacement = mergeMessage(existing, updatedRow);
       if (existing === replacement) return existing;
       pageChanged = true;
       return replacement;

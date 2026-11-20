@@ -12,7 +12,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 
 import { adbBinary, adbEnv, devicesArgs, foreignSerials, isListening, parseDevices, startServerArgs } from "./src/adb.mjs";
 import { loadContract, loadHostConfig, serialOf } from "./src/config.mjs";
@@ -113,7 +113,7 @@ async function serve({ contract, root, sdk, paths }) {
       .catch((/** @type {unknown} */ error) => ({ whpx: { usable: false, detail: errorMessage(error) }, host: null }));
   };
   await refresh();
-  const timer = setInterval(refresh, FACTS_EVERY_MS);
+  const timer = setInterval(() => { void refresh(); }, FACTS_EVERY_MS);
 
   const health = async () => healthReport({ facts, adbUp: await isListening(adbPort), tunnel: tunnel.state, devices: devices.list() });
 
@@ -261,10 +261,12 @@ async function main(argv) {
   throw new Error("hostd serve | vm status|start|stop|revert <snapshot> | devices list|boot|kill | doctor | install-startup --yes");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main(process.argv.slice(2)).catch((/** @type {unknown} */ error) => {
+if (process.argv[1] && resolvePath(process.argv[1]) === import.meta.filename) {
+  try {
+    await main(process.argv.slice(2));
+  } catch (error) {
     console.error(errorMessage(error));
     process.exit(1);
-  });
+  }
 }
 

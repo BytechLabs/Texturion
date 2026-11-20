@@ -48,17 +48,17 @@ describe("NANP_AREA_CODES table", () => {
   });
 
   it("every geographic entry has a 2-letter region and an Intl-resolvable IANA timezone", () => {
-    const timezones = new Set<string>();
-    for (const entry of Object.values(NANP_AREA_CODES)) {
+    const entries = Object.values(NANP_AREA_CODES);
+    for (const entry of entries) {
       expect(["US", "CA"]).toContain(entry.country);
-      if (entry.geographic) {
-        expect(entry.region).toMatch(/^[A-Z]{2}$/);
-        timezones.add(entry.timezone);
-      } else {
-        expect(entry.region).toBeNull();
-        expect(entry.timezone).toBeNull();
-      }
     }
+    const geographic = entries.filter((entry) => entry.geographic);
+    for (const entry of geographic) expect(entry.region).toMatch(/^[A-Z]{2}$/);
+    for (const entry of entries.filter((candidate) => !candidate.geographic)) {
+      expect(entry.region).toBeNull();
+      expect(entry.timezone).toBeNull();
+    }
+    const timezones = new Set(geographic.map((entry) => entry.timezone));
     expect(timezones.size).toBeGreaterThan(10);
     for (const timezone of timezones) {
       // Throws RangeError on an invalid IANA identifier.

@@ -490,7 +490,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
     expect(summary.retiredModuleItemsRemoved).toBe(2);
     const dels = harness.callsTo("DELETE", /\/v1\/subscription_items/);
     expect(dels).toHaveLength(2);
-    expect(dels.map((d) => d.url.pathname).sort()).toEqual([
+    expect(dels.map((d) => d.url.pathname).toSorted()).toEqual([
       "/v1/subscription_items/si_1",
       "/v1/subscription_items/si_2",
     ]);

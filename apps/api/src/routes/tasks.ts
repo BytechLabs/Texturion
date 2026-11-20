@@ -1671,13 +1671,13 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     const last = pageRows[pageRows.length - 1];
     nextCursor = dueSorted
       ? encodeDueCursor({ d: last.due_at, id: last.id })
-      : prioritySorted
+      : (prioritySorted
         ? encodePriorityCursor({
             r: PRIORITY_RANK[last.priority as TaskPriority],
             ts: last.created_at,
             id: last.id,
           })
-        : encodeCursor({ ts: updatedSorted ? last.updated_at : last.created_at, id: last.id });
+        : encodeCursor({ ts: updatedSorted ? last.updated_at : last.created_at, id: last.id }));
   }
   const [directed, decorated] = await Promise.all([
     withSourceDirections(db, companyId, shaped),
@@ -2268,7 +2268,7 @@ async function loadTaskAttachments(
       if (a.created_at !== b.created_at) {
         return a.created_at < b.created_at ? -1 : 1;
       }
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
     });
   }
   return byTask;
@@ -3141,8 +3141,8 @@ tasksRoutes.put(
     }
 
     await syncTaskReminders(db, { companyId, taskId: id, userId }).catch(
-      (error: unknown) => {
-        void reportHandledFailure(env, "task-reminder-sync", error);
+      (notificationError: unknown) => {
+        void reportHandledFailure(env, "task-reminder-sync", notificationError);
       },
     );
 

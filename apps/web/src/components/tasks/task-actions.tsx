@@ -40,7 +40,7 @@ export interface TaskActionsInput {
   now: Date;
   run: {
     open: () => void;
-    copyLink: () => void;
+    copyLink: () => void | Promise<void>;
     toggleDone: () => void;
     setDue: (dueAt: string) => void;
     requestDelete: () => void;

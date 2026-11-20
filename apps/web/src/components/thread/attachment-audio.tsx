@@ -64,7 +64,7 @@ export function AttachmentAudio({
         <span className="text-sm">{t("thread.audioMessage")}</span>
         <button
           type="button"
-          onClick={() => url.refetch()}
+          onClick={() => void url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
           {t("thread.didntLoadRetry")}
@@ -105,6 +105,7 @@ export function AttachmentAudio({
       {/* `preload="none"` keeps a thread full of clips from pulling every file
           on render — the browser fetches only what someone presses play on. */}
       {playable ? (
+        // oxlint-disable-next-line jsx-a11y/media-has-caption -- Audio attachments carry only the original recording.
         <audio
           ref={audioRef}
           controls

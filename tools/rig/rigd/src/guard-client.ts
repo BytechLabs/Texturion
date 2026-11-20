@@ -145,7 +145,7 @@ export function toDelivery(item: Record<string, unknown>): WebhookDelivery {
     event_id: typeof webhook.id === "string" ? webhook.id : null,
     attempts: attempts.map((attempt) => {
       const http = (attempt.http ?? {}) as { request?: { url?: unknown }; response?: { status?: unknown } };
-      let host: string | null = null;
+      let host: string | null;
       try {
         host = typeof http.request?.url === "string" ? new URL(http.request.url).host : null;
       } catch {

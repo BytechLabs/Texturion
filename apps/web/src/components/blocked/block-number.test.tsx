@@ -36,7 +36,7 @@ function Probe({ phone }: { phone: string }) {
     <div>
       <span data-testid="blocked">{String(state.blocked !== undefined)}</span>
       <span data-testid="can">{String(state.canManage)}</span>
-      <button type="button" onClick={state.unblock}>unblock</button>
+      <button type="button" onClick={() => state.unblock()}>unblock</button>
     </div>
   );
 }

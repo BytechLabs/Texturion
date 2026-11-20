@@ -237,7 +237,7 @@ function trackedFiles(sources, pattern) {
     .filter(Boolean);
   return listed
     .filter((file) => pattern.test(file) && !TEST_FILE.test(file))
-    .sort()
+    .toSorted()
     .map((file) => ({ file, text: readFileSync(join(REPO_ROOT, file), "utf8") }));
 }
 

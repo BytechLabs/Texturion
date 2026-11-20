@@ -192,6 +192,7 @@ function TagUsageRow({
           <Input
             value={draft}
             maxLength={200}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- The rename button opens this field.
             autoFocus
             placeholder={t("settingsMore.tagDescriptionPlaceholder")}
             onChange={(event) => setDraft(event.target.value)}

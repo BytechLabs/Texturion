@@ -59,14 +59,14 @@ export default function OnboardingDispatchPage() {
 
   const target = portResuming
     ? "/onboarding/port/carrier"
-    : state.snapshot
+    : (state.snapshot
       ? pathForLocation(resolveOnboardingLocation(state.snapshot))
-      : null;
+      : null);
 
   useEffect(() => {
     if (target) router.replace(target);
   }, [target, router]);
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   return <StepLoading />;
 }

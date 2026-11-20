@@ -145,6 +145,56 @@ export default function HistorySettingsPage() {
     }
   }
 
+  let auditEntries;
+  if (log.isError) {
+    auditEntries = <LoadError onRetry={() => void log.refetch()} />;
+  } else if (log.isPending) {
+    auditEntries = (
+      <SettingsCard>
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-1/2" />
+          <Skeleton className="h-5 w-3/5" />
+        </div>
+      </SettingsCard>
+    );
+  } else if (entries.length === 0) {
+    auditEntries = (
+      <SettingsCard>
+        <EmptyState
+          size="panel"
+          icon={<ShieldCheck strokeWidth={1.75} />}
+          title={t("appShell.historyEmptyTitle")}
+          description={t("appShell.historyEmptyBody")}
+        />
+      </SettingsCard>
+    );
+  } else {
+    auditEntries = (
+      <SettingsCard>
+        <ul className="divide-y">
+          {entries.map((entry) => (
+            <HistoryRow key={entry.id} entry={entry} />
+          ))}
+        </ul>
+        {log.hasNextPage && (
+          <div className="border-t p-3 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void log.fetchNextPage()}
+              disabled={log.isFetchingNextPage}
+            >
+              {log.isFetchingNextPage
+                ? t("appShell.historyLoadingMore")
+                : t("appShell.historyShowOlder")}
+            </Button>
+          </div>
+        )}
+      </SettingsCard>
+    );
+  }
+
   return (
     <SettingsPage
       title={t("appShell.historyTitle")}
@@ -239,48 +289,7 @@ export default function HistorySettingsPage() {
         </div>
       </SettingsCard>
 
-      {log.isError ? (
-        <LoadError onRetry={() => void log.refetch()} />
-      ) : log.isPending ? (
-        <SettingsCard>
-          <div className="space-y-3 p-4">
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-5 w-3/5" />
-          </div>
-        </SettingsCard>
-      ) : entries.length === 0 ? (
-        <SettingsCard>
-          <EmptyState
-            size="panel"
-            icon={<ShieldCheck strokeWidth={1.75} />}
-            title={t("appShell.historyEmptyTitle")}
-            description={t("appShell.historyEmptyBody")}
-          />
-        </SettingsCard>
-      ) : (
-        <SettingsCard>
-          <ul className="divide-y">
-            {entries.map((entry) => (
-              <HistoryRow key={entry.id} entry={entry} />
-            ))}
-          </ul>
-          {log.hasNextPage && (
-            <div className="border-t p-3 text-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void log.fetchNextPage()}
-                disabled={log.isFetchingNextPage}
-              >
-                {log.isFetchingNextPage
-                  ? t("appShell.historyLoadingMore")
-                  : t("appShell.historyShowOlder")}
-              </Button>
-            </div>
-          )}
-        </SettingsCard>
-      )}
+      {auditEntries}
     </SettingsPage>
   );
 }

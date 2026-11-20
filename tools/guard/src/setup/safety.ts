@@ -231,8 +231,10 @@ export function assess(
 
   const onProduction = listings.nonprodNumbers.filter(
     (number) =>
-      productionConnections.has(String(number.connection_id ?? "")) ||
-      productionProfiles.has(String(number.messaging_profile_id ?? "")),
+      ((typeof number.connection_id === "string" || typeof number.connection_id === "number") &&
+        productionConnections.has(String(number.connection_id))) ||
+      ((typeof number.messaging_profile_id === "string" || typeof number.messaging_profile_id === "number") &&
+        productionProfiles.has(String(number.messaging_profile_id))),
   ).length;
   if (onProduction > 0) reasons.push(`number_on_production_resource:${onProduction}`);
 

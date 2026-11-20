@@ -58,7 +58,7 @@ function labelsFromMigrations() {
   const labels = new Set();
   const files = readdirSync(MIGRATIONS)
     .filter((name) => name.endsWith(".sql"))
-    .sort();
+    .toSorted();
 
   for (const name of files) {
     // Comments are stripped first. Several migrations discuss the enum in prose
@@ -132,7 +132,7 @@ if (sql.size === 0) {
   );
 }
 
-for (const label of [...ts].sort()) {
+for (const label of [...ts].toSorted((a, b) => a < b ? -1 : Number(a > b))) {
   if (!sql.has(label)) {
     fail(
       `"${label}" is in ConversationEventType but in no migration. Any insert ` +
@@ -143,7 +143,7 @@ for (const label of [...ts].sort()) {
   }
 }
 
-for (const label of [...sql].sort()) {
+for (const label of [...sql].toSorted((a, b) => a < b ? -1 : Number(a > b))) {
   if (!ts.has(label)) {
     fail(
       `"${label}" is in the SQL enum but not in ConversationEventType, so ` +

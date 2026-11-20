@@ -1040,7 +1040,7 @@ teamRoutes.post("/invites/accept", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
 
-  interface InviteRow {
+  interface ExistingInviteRow {
     id: string;
     company_id: string;
     email: string;
@@ -1054,7 +1054,7 @@ teamRoutes.post("/invites/accept", async (c) => {
   const invites = unwrap<unknown>(
     await db.from("invites").select(INVITE_COLUMNS).eq("id", body.invite_id).limit(1),
     "invite lookup",
-  ) as InviteRow[];
+  ) as ExistingInviteRow[];
   const [invite] = invites;
   if (!invite) {
     return errorResponse(c, "not_found", "No such invite.");

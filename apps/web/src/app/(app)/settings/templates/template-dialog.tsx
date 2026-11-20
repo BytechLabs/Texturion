@@ -150,7 +150,7 @@ export function TemplateDialog({
       const category = row.category?.trim();
       if (category) seen.add(category);
     }
-    return [...seen].sort((a, b) => a.localeCompare(b));
+    return [...seen].toSorted((a, b) => a.localeCompare(b));
   }, [templates.data]);
 
   const body = form.watch("body");
@@ -222,7 +222,7 @@ export function TemplateDialog({
         </DialogHeader>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
             className="space-y-4"
             noValidate
           >
@@ -387,9 +387,9 @@ export function TemplateDialog({
               <Button type="submit" disabled={busy}>
                 {busy
                   ? t("common.saving")
-                  : template
+                  : (template
                     ? t("common.save")
-                    : t("appShell.templateCreateAction")}
+                    : t("appShell.templateCreateAction"))}
               </Button>
             </DialogFooter>
           </form>

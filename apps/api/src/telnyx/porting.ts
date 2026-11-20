@@ -704,6 +704,17 @@ async function runPortSagaSteps(
 }
 
 /**
+ * Thrown by {@link submitPortRequest} when the confirm gate fails (LOA and/or
+ * invoice not attached). The route maps it to the §7 `conflict` code.
+ */
+export class PortDocumentsMissingError extends Error {
+  constructor() {
+    super("Upload the signed LOA and a recent bill before submitting the transfer.");
+    this.name = "PortDocumentsMissingError";
+  }
+}
+
+/**
  * §3.5 / §6 — the post-payment completion step: re-PATCH the order (so the
  * now-uploaded LOA + invoice, and messaging enablement, are attached) then
  * `POST /actions/confirm`, moving the order `draft → in-process`. HARD-GATED on
@@ -745,17 +756,6 @@ export async function submitPortRequest(
   } catch (error) {
     if (error instanceof PortDocumentsMissingError) throw error;
     return recordPortFailure(env, db, row, error);
-  }
-}
-
-/**
- * Thrown by {@link submitPortRequest} when the confirm gate fails (LOA and/or
- * invoice not attached). The route maps it to the §7 `conflict` code.
- */
-export class PortDocumentsMissingError extends Error {
-  constructor() {
-    super("Upload the signed LOA and a recent bill before submitting the transfer.");
-    this.name = "PortDocumentsMissingError";
   }
 }
 

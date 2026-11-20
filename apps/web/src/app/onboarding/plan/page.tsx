@@ -109,7 +109,7 @@ function PlanStep() {
     setPlanOverride(next);
   }
 
-  if (state.status === "error") return <StepError onRetry={state.retry} />;
+  if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
   // Wait for the port status too: without it a port-in user briefly sees the
   // non-port checkout copy + an editable number before it swaps (the gate
   // short-circuits on !companyId first, so the query is always enabled here).
@@ -146,9 +146,9 @@ function PlanStep() {
   );
   const timeline = porting
     ? PORT_CHECKOUT_TIMELINE_KEYS.map((key) => t(key))
-    : owes
+    : (owes
       ? HONEST_TIMELINE
-      : HONEST_TIMELINE_CA_ONLY;
+      : HONEST_TIMELINE_CA_ONLY);
 
   async function choose(plan: PlanId) {
     setFormError(null);
@@ -376,7 +376,7 @@ function PlanStep() {
         <Button
           size="lg"
           className="w-full"
-          onClick={() => choose(selectedPlan)}
+          onClick={() => void choose(selectedPlan)}
           disabled={choosing !== null}
         >
           {choosing === null

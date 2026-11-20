@@ -234,6 +234,55 @@ export function NotificationFeed({
     }
   };
 
+  let notifications;
+  if (feed.isPending) {
+    notifications = <ListSkeleton rows={4} avatar lines={2} className="p-3" />;
+  } else if (feed.isError) {
+    notifications = (
+      <LoadError
+        variant="fill"
+        message={t("misc.notifLoadFailed")}
+        onRetry={() => void feed.refetch()}
+        className="py-10"
+      />
+    );
+  } else if (items.length === 0) {
+    notifications = (
+      <div className="px-6 py-10 text-center">
+        <p className="text-sm text-muted-foreground">
+          {t("misc.notifAllCaughtUp")}
+        </p>
+      </div>
+    );
+  } else {
+    notifications = (
+      <ScrollArea className="max-h-[min(24rem,60vh)]">
+        <ul className="divide-y divide-border-subtle">
+          {items.map((item) => (
+            <li key={item.id}>
+              <NotificationRow item={item} onSelect={onSelect} />
+            </li>
+          ))}
+        </ul>
+        {feed.hasNextPage && (
+          <div className="p-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              disabled={feed.isFetchingNextPage}
+              onClick={() => void feed.fetchNextPage()}
+            >
+              {feed.isFetchingNextPage
+                ? t("misc.notifLoadingMore")
+                : t("misc.notifShowOlder")}
+            </Button>
+          </div>
+        )}
+      </ScrollArea>
+    );
+  }
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -256,47 +305,7 @@ export function NotificationFeed({
 
       <PushOffer />
 
-      {feed.isPending ? (
-        <ListSkeleton rows={4} avatar lines={2} className="p-3" />
-      ) : feed.isError ? (
-        <LoadError
-          variant="fill"
-          message={t("misc.notifLoadFailed")}
-          onRetry={() => void feed.refetch()}
-          className="py-10"
-        />
-      ) : items.length === 0 ? (
-        <div className="px-6 py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t("misc.notifAllCaughtUp")}
-          </p>
-        </div>
-      ) : (
-        <ScrollArea className="max-h-[min(24rem,60vh)]">
-          <ul className="divide-y divide-border-subtle">
-            {items.map((item) => (
-              <li key={item.id}>
-                <NotificationRow item={item} onSelect={onSelect} />
-              </li>
-            ))}
-          </ul>
-          {feed.hasNextPage && (
-            <div className="p-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground"
-                disabled={feed.isFetchingNextPage}
-                onClick={() => feed.fetchNextPage()}
-              >
-                {feed.isFetchingNextPage
-                  ? t("misc.notifLoadingMore")
-                  : t("misc.notifShowOlder")}
-              </Button>
-            </div>
-          )}
-        </ScrollArea>
-      )}
+      {notifications}
     </>
   );
 }

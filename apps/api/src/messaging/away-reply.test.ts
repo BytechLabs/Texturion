@@ -11,7 +11,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
-import { completeEnv, stubFetch } from '../test/support';
+import { completeEnv, requireString, stubFetch } from '../test/support';
 import { maybeSendAwayReply } from "./away-reply";
 
 const env: Env = completeEnv();
@@ -368,7 +368,7 @@ describe("#307 a second line replies as itself", () => {
     serve(company, conv, ...gates, claim, telnyx, persist);
 
     await call();
-    return String(claimBody?.p_body ?? "");
+    return requireString(claimBody?.p_body ?? "");
   }
 
   it("AR-1: a number with no overrides sends exactly what it sent before", async () => {

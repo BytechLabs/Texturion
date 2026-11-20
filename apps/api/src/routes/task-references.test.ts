@@ -187,7 +187,7 @@ describe("GET /v1/references/resolve", () => {
 });
 
 describe("customer texts are never read for references (#690)", () => {
-  const src = (file: string) => readFileSync(join(__dirname, file), "utf8");
+  const src = (file: string) => readFileSync(join(import.meta.dirname, file), "utf8");
 
   it("only the internal text routes call the reference writer", () => {
     const users = ["tasks.ts", "task-activity.ts", "conversations.ts", "messages.ts", "compose.ts", "scheduled-messages.ts"].filter(
@@ -204,9 +204,9 @@ describe("customer texts are never read for references (#690)", () => {
 
   it("in conversations.ts the call sits in the note handler and nowhere near a send", () => {
     const text = src("conversations.ts");
-    const call = text.indexOf("syncReferences(c, db");
-    expect(call).toBeGreaterThan(0);
-    const before = text.slice(0, call);
+    const syncCallIndex = text.indexOf("syncReferences(c, db");
+    expect(syncCallIndex).toBeGreaterThan(0);
+    const before = text.slice(0, syncCallIndex);
     const handler = before.lastIndexOf("conversationsRoutes.post(");
     expect(before.slice(handler, handler + 120)).toContain('"/conversations/:id/notes"');
   });

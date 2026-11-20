@@ -62,6 +62,55 @@ export function ScheduledView() {
   const held = rows.filter((row) => row.status === "held");
   const pending = rows.filter((row) => row.status !== "held");
 
+  let scheduledRows;
+  if (scheduled.isPending) {
+    scheduledRows = (
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
+        <ListSkeleton rows={3} lines={2} className="p-3" />
+      </div>
+    );
+  } else if (scheduled.isError) {
+    scheduledRows = (
+      <EmptyState
+        icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
+        title={t("tasks.scheduledLoadFailed")}
+        description={t("tasks.scheduledLoadFailedHint")}
+      />
+    );
+  } else if (rows.length === 0) {
+    scheduledRows = (
+      <EmptyState
+        icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
+        title={t("domain.scheduledEmptyTitle")}
+        description={t(SCHEDULED_SEND_COPY.nothing_scheduled)}
+      />
+    );
+  } else {
+    scheduledRows = (
+      <div className="space-y-6">
+        {/* Held first. These are the only rows that need a person, and
+            chronological order would bury them among the ones going fine.
+            *Applying: Chunking.* */}
+        {held.length > 0 && (
+          <ScheduledGroup
+            title={t("tasks.scheduledNeedsYou")}
+            rows={held}
+            onCancel={(id) => cancel.mutate(id)}
+            cancelling={cancel.isPending ? cancel.variables : null}
+          />
+        )}
+        {pending.length > 0 && (
+          <ScheduledGroup
+            title={t("tasks.scheduledGoingOut")}
+            rows={pending}
+            onCancel={(id) => cancel.mutate(id)}
+            cancelling={cancel.isPending ? cancel.variables : null}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
       <PageHeader
@@ -75,55 +124,7 @@ export function ScheduledView() {
         }
       />
 
-      {scheduled.isPending ? (
-        <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-          <ListSkeleton rows={3} lines={2} className="p-3" />
-        </div>
-      ) : scheduled.isError ? (
-        <EmptyState
-          icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
-          title={t("tasks.scheduledLoadFailed")}
-          description={t("tasks.scheduledLoadFailedHint")}
-        />
-      ) : rows.length === 0 ? (
-        // Reassurance IS the honest empty answer here: the question this page
-        // exists to settle is "is something about to go out that I don't know
-        // about", and "no" is a complete reply.
-        //
-        // #228: the heading used to be made by splitting the shared sentence on
-        // ". " at render time. That works in both languages today and is one
-        // abbreviation away from working in neither, with the second half
-        // coming back undefined. EmptyState wanting two slots is a web
-        // layout fact, so the heading is web copy and the shared sentence the
-        // phones say stays whole underneath it.
-        <EmptyState
-          icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
-          title={t("domain.scheduledEmptyTitle")}
-          description={t(SCHEDULED_SEND_COPY.nothing_scheduled)}
-        />
-      ) : (
-        <div className="space-y-6">
-          {/* Held first. These are the only rows that need a person, and
-              chronological order would bury them among the ones going fine.
-              *Applying: Chunking.* */}
-          {held.length > 0 && (
-            <ScheduledGroup
-              title={t("tasks.scheduledNeedsYou")}
-              rows={held}
-              onCancel={(id) => cancel.mutate(id)}
-              cancelling={cancel.isPending ? cancel.variables : null}
-            />
-          )}
-          {pending.length > 0 && (
-            <ScheduledGroup
-              title={t("tasks.scheduledGoingOut")}
-              rows={pending}
-              onCancel={(id) => cancel.mutate(id)}
-              cancelling={cancel.isPending ? cancel.variables : null}
-            />
-          )}
-        </div>
-      )}
+      {scheduledRows}
     </div>
   );
 }

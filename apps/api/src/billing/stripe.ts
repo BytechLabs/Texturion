@@ -44,9 +44,9 @@ export function getStripe(env: Env): Stripe {
           protocol: override.protocol.replace(":", "") as "http" | "https",
           port: override.port
             ? Number(override.port)
-            : override.protocol === "https:"
+            : (override.protocol === "https:"
               ? 443
-              : 80,
+              : 80),
         }
       : {}),
   });

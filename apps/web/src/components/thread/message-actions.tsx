@@ -165,7 +165,7 @@ export interface MessageActionsInput {
   retrying: boolean;
   deleting: boolean;
   run: {
-    copyText: () => void;
+    copyText: () => void | Promise<void>;
     retry: () => void;
     makeTask: () => void;
     togglePin: (next: boolean) => void;

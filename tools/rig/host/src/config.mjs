@@ -49,7 +49,7 @@ export function contractProblems(contract) {
   for (const [key, value] of [["hostd.port", hostd?.port], ["adb.server_port", adb?.server_port], ["adb.vm_port", adb?.vm_port]]) {
     claim(`port ${value}`, key);
   }
-  devices.forEach((device, index) => {
+  for (const [index, device] of devices.entries()) {
     const at = `devices[${index}]`;
     if (!DEVICE_NAME.test(device?.name ?? "")) problems.push(`${at}.name is not a device name`);
     if (!AVD_NAME.test(device?.avd ?? "")) problems.push(`${at}.avd is not an AVD name`);
@@ -66,7 +66,7 @@ export function contractProblems(contract) {
     claim(`port ${consolePort}`, `${at}.console`);
     claim(`port ${consolePort + 1}`, `${at}.console + 1 (its adb port)`);
     claim(`port ${grpc}`, `${at}.grpc`);
-  });
+  }
   return problems;
 }
 

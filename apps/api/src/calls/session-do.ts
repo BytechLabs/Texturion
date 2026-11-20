@@ -192,10 +192,7 @@ export class CallSessionDO extends DurableObject<Env> {
   // wedges the whole object (each caller still sees its own rejection).
   private enqueue<T>(run: () => Promise<T>): Promise<T> {
     const result = this.queue.then(run);
-    this.queue = result.then(
-      () => undefined,
-      () => undefined,
-    );
+    this.queue = result.then(() => undefined).catch(() => undefined);
     return result;
   }
 
@@ -1276,7 +1273,7 @@ export class CallSessionDO extends DurableObject<Env> {
         if (!machine) return [];
         await this.rt.pushCallEnd({
           companyId: machine.companyId,
-          userIds: this.pushEndAudience(machine),
+          userIds: CallSessionDO.pushEndAudience(machine),
           sessionId: machine.callSessionId,
           reason: effect.reason,
           // The card that replaces the ring says what happened (#265).
@@ -1322,7 +1319,7 @@ export class CallSessionDO extends DurableObject<Env> {
    *  renders (a Web Push that displays nothing burns the browser's
    *  userVisibleOnly budget, #265) sending it would put a card on the screen
    *  of the one person who least needs telling how the call went. */
-  private pushEndAudience(machine: SessionMachine): string[] {
+  private static pushEndAudience(machine: SessionMachine): string[] {
     const users = new Set<string>(machine.pushCapableUserIds);
     for (const leg of machine.legs) users.add(leg.userId);
     if (machine.answeredByUserId !== null) users.delete(machine.answeredByUserId);
@@ -1658,7 +1655,7 @@ export class CallSessionDO extends DurableObject<Env> {
 
     if (eventType === "call.speak.ended" || eventType === "call.playback.ended") {
       const mode = eventType === "call.playback.ended" ? "playback" : "speech";
-      if (this.classifyInboundTag(payload.client_state) !== "vmi"
+      if (CallSessionDO.classifyInboundTag(payload.client_state) !== "vmi"
           || payload.call_control_id !== machine.customerCcid
           || (machine.greetingMode && machine.greetingMode !== mode)
           || payload.overlay === true
@@ -1670,7 +1667,7 @@ export class CallSessionDO extends DurableObject<Env> {
     }
 
     if (eventType === "call.hangup") {
-      const tag = this.classifyInboundTag(payload.client_state);
+      const tag = CallSessionDO.classifyInboundTag(payload.client_state);
       const briAnsweredAtMs = parseBrowserAnsweredAtMs(payload.client_state);
       return {
         event: {
@@ -1686,7 +1683,7 @@ export class CallSessionDO extends DurableObject<Env> {
     return null; // other lifecycle events → acked no-op
   }
 
-  private classifyInboundTag(
+  private static classifyInboundTag(
     clientState: string | null | undefined,
   ): "untagged" | "bri" | "vmi" {
     if (!clientState) return "untagged";
@@ -1708,43 +1705,29 @@ export class CallSessionDO extends DurableObject<Env> {
     if (!sessionId) return null;
     const row = await this.rt.loadAdoptionRow(sessionId);
     if (!row) return null;
-    const machine = this.reconstructMachine(row, raw);
+    const machine = CallSessionDO.reconstructMachine(row, raw);
     await this.save(machine);
     return machine;
   }
 
-  private reconstructMachine(
+  private static reconstructMachine(
     row: AdoptionRow,
     raw?: TelnyxEvent,
   ): SessionMachine {
     const eventType = raw?.data?.event_type;
     const clientState = callPayload(raw ?? ({}))?.client_state;
-    const tag = this.classifyInboundTag(clientState);
+    const tag = CallSessionDO.classifyInboundTag(clientState);
 
     let state: CallState;
-    if (row.direction === "outbound") {
-      // #211 D15: an outbound row reconstructs EXPLICITLY — never the inbound
-      // default below that would arm a false 45s ring deadline and mis-evaluate
-      // decline/ring-me gates. outcome -> ended_*; answered_at -> 'answered';
-      // else 'dialing'. loadAdoptionRow's kind='ring' leg read is empty for
-      // outbound, so there are no legs and no ringDeadline (set below).
-      state = row.outcome
-        ? row.outcome === "answered"
-          ? "ended_answered"
-          : row.outcome === "voicemail"
-            ? "ended_voicemail"
-            : "ended_missed"
-        : (row.answeredAt
-          ? "answered"
-          : "dialing");
+    if (row.outcome === "answered") {
+      state = "ended_answered";
+    } else if (row.outcome === "voicemail") {
+      state = "ended_voicemail";
     } else if (row.outcome) {
-      // §7.5.2: reconstruct the terminal state.
-      state =
-        row.outcome === "answered"
-          ? "ended_answered"
-          : (row.outcome === "voicemail"
-            ? "ended_voicemail"
-            : "ended_missed");
+      state = "ended_missed";
+    } else if (row.direction === "outbound") {
+      // Outbound adoption must never arm an inbound ring deadline.
+      state = row.answeredAt ? "answered" : "dialing";
     } else if (
       eventType === "call.speak.ended" ||
       eventType === "call.playback.ended" ||

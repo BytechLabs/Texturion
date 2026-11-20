@@ -105,5 +105,5 @@ export function rigEndpoints(standing) {
   return [...standing.values()]
     .filter((entry) => entry.role !== "STRANGER-1")
     .map((entry) => entry.e164)
-    .toSorted();
+    .toSorted((a, b) => a < b ? -1 : Number(a > b));
 }

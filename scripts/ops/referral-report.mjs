@@ -85,7 +85,7 @@ function reportSelfReported(companies) {
   );
   // NULL is not printed as a bucket. A skipped question reported alongside the
   // answers would quietly become the largest "source" we have.
-  for (const [source, count] of [...counts].sort((a, b) => b[1] - a[1])) {
+  for (const [source, count] of [...counts].toSorted((a, b) => b[1] - a[1])) {
     console.log(
       `    ${String(count).padStart(3)}  ${source.padEnd(18)}${answered.length >= RATE_FLOOR ? pct(count, answered.length) : ""}`,
     );

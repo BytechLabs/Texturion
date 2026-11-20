@@ -607,8 +607,8 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const directions = stubRoute(restMatch(env, "GET", "messages"), () => []);
     return {
       ...stub,
-      route: async (url, request) =>
-        (await stub.route(url, request)) ?? directions.route(url, request),
+      route: async (url, rpcRequest) =>
+        (await stub.route(url, rpcRequest)) ?? directions.route(url, rpcRequest),
     };
   }
 
@@ -700,30 +700,30 @@ describe("GET /v1/tasks — list filters + derived status", () => {
   });
 
   it("#718: a message source carries its direction, so a note reads as a note", async () => {
-    const MESSAGE_ID = "77777777-0000-4000-8000-0000000000d1";
+    const SOURCE_MESSAGE_ID = "77777777-0000-4000-8000-0000000000d1";
     const tasks = stubRoute(restMatch(env, "GET", "tasks"), () => [
-      taskRow({ id: TASK_ID, message_id: MESSAGE_ID }),
+      taskRow({ id: TASK_ID, message_id: SOURCE_MESSAGE_ID }),
     ]);
     const notes = stubRoute(restMatch(env, "GET", "messages"), () => [
-      { id: MESSAGE_ID, direction: "note" },
+      { id: SOURCE_MESSAGE_ID, direction: "note" },
     ]);
     stubFetch(jwksRoute(auth), membersRoute(), tasks.route, notes.route);
 
     const response = await request("GET", "/v1/tasks");
     const body = await response.json<{ data: { source: unknown }[] }>();
-    expect(body.data[0].source).toEqual({ kind: "message", id: MESSAGE_ID, direction: "note" });
+    expect(body.data[0].source).toEqual({ kind: "message", id: SOURCE_MESSAGE_ID, direction: "note" });
   });
 
   it("lists a call-anchored task with its source and the call", async () => {
-    const CALL_ID = "77777777-0000-4000-8000-0000000000ca";
+    const SOURCE_CALL_ID = "77777777-0000-4000-8000-0000000000ca";
     const list = listStub([
       taskRow({
         id: "77777777-0000-4000-8000-0000000000c9",
         message_id: null,
-        source_call_id: CALL_ID,
+        source_call_id: SOURCE_CALL_ID,
         done_state: "2026-07-02T14:00:00.000Z",
         source_call: {
-          id: CALL_ID,
+          id: SOURCE_CALL_ID,
           call_session_id: "sess-1",
           caller_e164: "+14155550100",
           caller_name: "Pat Plumber",
@@ -747,7 +747,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       message_id: null,
       done: true,
       status: "done",
-      source: { kind: "call", id: CALL_ID },
+      source: { kind: "call", id: SOURCE_CALL_ID },
       call: { caller_name: "Pat Plumber", has_voicemail: true },
     });
     // The storage path never leaves the server.
@@ -1004,7 +1004,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       due_on_after: "2026-11-19",
       due_on_before: "2026-11-19",
     });
-    const response = await request("GET", `/v1/tasks?${range}`);
+    const response = await request("GET", `/v1/tasks?${range.toString()}`);
     expect(response.status).toBe(200);
     const query = map.calls[0].url.searchParams;
     expect(query.get("confirmed_at")).toBe("is.null");
@@ -1357,14 +1357,14 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
   });
 
   it("a task linked to a deleted contact has no contact (#689)", async () => {
-    const CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
+    const MATCHED_CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
     const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
       taskRow({
         message_id: null,
         conversation_id: null,
-        contact_id: CONTACT_ID,
+        contact_id: MATCHED_CONTACT_ID,
         linked_contact: {
-          id: CONTACT_ID,
+          id: MATCHED_CONTACT_ID,
           name: "Pat Plumber",
           deleted_at: "2026-11-01T00:00:00.000Z",
         },
@@ -1390,13 +1390,13 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
   });
 
   it("a standalone task with no conversation: source null, linked contact, full access for a restricted member (#689)", async () => {
-    const CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
+    const MATCHED_CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
     const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
       taskRow({
         message_id: null,
         conversation_id: null,
-        contact_id: CONTACT_ID,
-        linked_contact: { id: CONTACT_ID, name: "Pat Plumber" },
+        contact_id: MATCHED_CONTACT_ID,
+        linked_contact: { id: MATCHED_CONTACT_ID, name: "Pat Plumber" },
         messages: null,
       }),
     ]);
@@ -1428,7 +1428,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       source_call: null,
       conversation_id: null,
       viewer_level: "text",
-      contact: { id: CONTACT_ID, name: "Pat Plumber" },
+      contact: { id: MATCHED_CONTACT_ID, name: "Pat Plumber" },
     });
     expect(body.allowed_actions).toContain("share_photos");
     // Task events are only written on a task's conversation, so one with none
@@ -2171,8 +2171,8 @@ describe("POST /v1/tasks/bulk (#478)", () => {
       { event_type: "task.completed", payload: { data: { task_id: noteTask, message_id: NOTE_ID } } },
       { event_type: "task.completed", payload: { data: { task_id: callTask, message_id: null } } },
     ]);
-    expect(ratingReads.calls.map((call) => call.url.searchParams.get("id")).sort())
-      .toEqual([`eq.${TASK_ID}`, `eq.${callTask}`].sort());
+    expect(ratingReads.calls.map((call) => call.url.searchParams.get("id")).toSorted((a, b) => String(a) < String(b) ? -1 : Number(String(a) > String(b))))
+      .toEqual([`eq.${TASK_ID}`, `eq.${callTask}`].toSorted());
     expect(notifyTaskChangeSafely).toHaveBeenCalledTimes(0);
   });
 

@@ -366,16 +366,10 @@ export function activityLine(
     }
     case "referenced": {
       const kind = item.source?.type;
-      return line(
-        kind === "message"
-          ? t("activity.referencedNote")
-          : kind === "task"
-            ? t("activity.referencedTask")
-            : kind === "task_comment"
-              ? t("activity.referencedComment")
-              : t("activity.referenced"),
-        "link",
-      );
+      if (kind === "message") return line(t("activity.referencedNote"), "link");
+      if (kind === "task") return line(t("activity.referencedTask"), "link");
+      if (kind === "task_comment") return line(t("activity.referencedComment"), "link");
+      return line(t("activity.referenced"), "link");
     }
     case "opted_out": {
       return line(optOutSentence(item, t), "stop");

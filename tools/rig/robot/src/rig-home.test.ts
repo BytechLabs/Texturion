@@ -103,12 +103,18 @@ describe("the secret store", () => {
     expect(store.readOptional("absent")).toBeUndefined();
   });
 
-  it("writes atomically with owner-only permissions where the platform has them", () => {
+  it("writes atomically", () => {
     const dir = join(temp(), "secrets");
     const store = new SecretFiles(dir);
     store.write("control-token-rig", "token-value");
     expect(readFileSync(join(dir, "control-token-rig"), "utf8")).toBe("token-value\n");
-    if (process.platform !== "win32") expect(statSync(join(dir, "control-token-rig")).mode & 0o777).toBe(0o600);
+  });
+
+  it.skipIf(process.platform === "win32")("writes with owner-only permissions", () => {
+    const dir = temp();
+    const store = new SecretFiles(dir);
+    store.write("control-token-rig", "token-value");
+    expect(statSync(join(dir, "control-token-rig")).mode & 0o777).toBe(0o600);
   });
 
   it("makes robotd's loopback token once and keeps it", () => {

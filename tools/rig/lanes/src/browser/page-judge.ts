@@ -132,7 +132,7 @@ export function installPageJudge(config: PageJudgeConfig): void {
       } catch {
         continue;
       }
-      report.forEach((entry: Record<string, unknown>) => {
+      for (const entry of report.values()) {
         const n = (key: string) => (typeof entry[key] === "number" ? (entry[key]) : undefined);
         if (entry.type === "inbound-rtp" && entry.kind === "audio") {
           stats.push({
@@ -157,7 +157,7 @@ export function installPageJudge(config: PageJudgeConfig): void {
             totalSamplesDuration: n("totalSamplesDuration"),
           });
         }
-      });
+      }
     }
     if (stats.length > 2000) stats.splice(0, stats.length - 2000);
   };

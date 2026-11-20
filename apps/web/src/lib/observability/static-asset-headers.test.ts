@@ -48,10 +48,9 @@ describe("public/_headers", () => {
 
   it("names only files and folders that exist, each with one Cache-Control", () => {
     for (const [path, lines] of rules) {
-      if (path !== "/_next/static/*") {
-        expect(existsSync(join(PUBLIC, path.replace(/\/\*$/, ""))), path).toBe(true);
-      }
       expect(lines.filter((line) => /^cache-control:/i.test(line)), path).toHaveLength(1);
+      if (path === "/_next/static/*") continue;
+      expect(existsSync(join(PUBLIC, path.replace(/\/\*$/, ""))), path).toBe(true);
     }
   });
 });

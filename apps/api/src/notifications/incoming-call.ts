@@ -236,7 +236,7 @@ async function deliverIncomingCallPush(
       kind: "call",
       title: transfer ? copy.transfer.title(senderName) : copy.incoming.title,
       body: input.caller ?? (transfer ? copy.transfer.body : copy.incoming.body),
-      url: `/calls?${query}`,
+      url: `/calls?${query.toString()}`,
     });
   };
 

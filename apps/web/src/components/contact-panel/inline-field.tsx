@@ -163,7 +163,7 @@ export function AutoSaveNotes({
       <textarea
         value={notes.draft}
         onChange={(e) => notes.setDraft(e.target.value)}
-        onBlur={notes.onBlur}
+        onBlur={() => notes.onBlur()}
         rows={3}
         placeholder={t("contacts.notesPlaceholder")}
         aria-label={t("contacts.notesLabel")}

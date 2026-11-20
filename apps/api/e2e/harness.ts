@@ -271,7 +271,7 @@ export async function startHarness(): Promise<Harness> {
     const response = await app.fetch(request, env, ctx);
     const text = await response.text();
     await flush();
-    let json: unknown = null;
+    let json: unknown;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
@@ -308,7 +308,7 @@ export async function startHarness(): Promise<Harness> {
     const response = await app.fetch(request, env, ctx);
     const text = await response.text();
     await flush();
-    let json: unknown = null;
+    let json: unknown;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
@@ -337,7 +337,7 @@ export async function startHarness(): Promise<Harness> {
     const response = await app.fetch(request, env, ctx);
     const text = await response.text();
     await flush();
-    let json: unknown = null;
+    let json: unknown;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {

@@ -27,7 +27,7 @@ function oversizedLimits(path: string) {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "limit") {
       const [argument] = node.arguments;
       const limit = argument && ts.isNumericLiteral(argument) ? Number(argument.text)
-        : argument && ts.isIdentifier(argument) ? constants.get(argument.text) : undefined;
+        : (argument && ts.isIdentifier(argument) ? constants.get(argument.text) : undefined);
       if (limit !== undefined && limit > maxRows) {
         const { line } = file.getLineAndCharacterOfPosition(node.getStart(file));
         failures.push(`${relative(src, path)}:${line + 1} requests ${limit} rows`);

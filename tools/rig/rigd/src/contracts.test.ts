@@ -407,8 +407,8 @@ describe("the cron registry's reading of the API's events", () => {
 
 describe("the report of the API's exceptions for rig health", () => {
   const NOW = Date.UTC(2026, 9, 1, 5);
-  const row = (at: number, list: { type: string; value: string }[], extras: { level?: string; fingerprint?: string; cron?: string; job?: string; ops_key?: string } = {}) =>
-    [at / 1000, extras.level ?? "error", extras.fingerprint ?? null, list, "api", null, extras.cron ?? null, extras.job ?? null, extras.ops_key ?? null];
+  const row = (offsetMs: number, list: { type: string; value: string }[], extras: { level?: string; fingerprint?: string; cron?: string; job?: string; ops_key?: string } = {}) =>
+    [offsetMs / 1000, extras.level ?? "error", extras.fingerprint ?? null, list, "api", null, extras.cron ?? null, extras.job ?? null, extras.ops_key ?? null];
   const source = (rows: unknown[][]) => ({ apiExceptions: async () => rows.map((r) => seenException(r)) });
 
   it("lists the API's exceptions from the last day that the cron registry does not explain, and its defects apart", async () => {

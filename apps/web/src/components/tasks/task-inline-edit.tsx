@@ -59,9 +59,9 @@ export function InlineDue({ task }: { task: Task }) {
 
   const label = task.due_on
     ? `${task.due_on} · ${t("tasks.anyTime")}`
-    : task.due_at === null
+    : (task.due_at === null
       ? t("tasks.setDue")
-      : formatTimestamp(task.due_at, { style: "long", t });
+      : formatTimestamp(task.due_at, { style: "long", t }));
 
   const commit = () => {
     const value = draft.current;

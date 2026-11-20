@@ -112,6 +112,29 @@ function OngoingCallRow({
   // (it can only over-count by the ring window, never under-count).
   const since = call.answered_at ?? call.started_at;
 
+  let callControls;
+  if (phase === "ringing") {
+    callControls = <span>{t("shell.ringing")}</span>;
+  } else if (phase === "voicemail") {
+    callControls = <span>{t("shell.goingToVoicemail")}</span>;
+  } else if (phase === "outbound") {
+    callControls = (
+      <span>
+        {t("shell.outgoingCall")} · <LiveOngoingDuration since={since} />
+      </span>
+    );
+  } else {
+    callControls = (
+      <span className="min-w-0 truncate">
+        {t("shell.withMember", {
+          name: memberName ?? t("shell.aTeammate"),
+        })}{" "}
+        ·{" "}
+        <LiveOngoingDuration since={since} />
+      </span>
+    );
+  }
+
   return (
     <div className="flex items-center gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0">
       <span
@@ -145,26 +168,7 @@ function OngoingCallRow({
                 : "bg-warning",
             )}
           />
-          {phase === "ringing" ? (
-            <span>{t("shell.ringing")}</span>
-          ) : phase === "voicemail" ? (
-            <span>{t("shell.goingToVoicemail")}</span>
-          ) : phase === "outbound" ? (
-            <span>
-              {t("shell.outgoingCall")} · <LiveOngoingDuration since={since} />
-            </span>
-          ) : (
-            // #566: the one element here that can be long, so it is the one that
-            // truncates. The duration rides inside it and is short by
-            // construction, so it is never what overflows.
-            <span className="min-w-0 truncate">
-              {t("shell.withMember", {
-                name: memberName ?? t("shell.aTeammate"),
-              })}{" "}
-              ·{" "}
-              <LiveOngoingDuration since={since} />
-            </span>
-          )}
+          {callControls}
           {line && (
             <span className="ml-auto shrink-0 text-[12px] text-app-muted-2">
               {t("shell.onLine", { number: formatPhone(line) })}

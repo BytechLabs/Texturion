@@ -53,15 +53,15 @@ export function DpaPageBody({
           number={clause.number}
           heading={clause.heading}
         >
-          {clause.blocks.map((block, index) =>
-            block.kind === "li" ? null : <p key={index}>{block.text}</p>,
+          {clause.blocks.map((block) =>
+            block.kind === "li" ? null : <p key={block.text}>{block.text}</p>,
           )}
           {clause.blocks.some((block) => block.kind === "li") && (
             <ul>
               {clause.blocks
                 .filter((block) => block.kind === "li")
-                .map((block, index) => (
-                  <li key={index}>{block.text}</li>
+                .map((block) => (
+                  <li key={block.text}>{block.text}</li>
                 ))}
             </ul>
           )}

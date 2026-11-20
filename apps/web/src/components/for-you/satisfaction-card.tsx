@@ -66,11 +66,11 @@ export function satisfactionArc(
 ): string | null {
   const direction = satisfactionArcDirection(report.improved_by);
   if (!direction || report.baseline === null) return null;
-  const then = formatSatisfaction(report.baseline.average);
+  const previous = formatSatisfaction(report.baseline.average);
   const { days } = report.window;
   return direction === "better"
-    ? t("inbox.satisfactionArcUp", { then, days })
-    : t("inbox.satisfactionArcDown", { then, days });
+    ? t("inbox.satisfactionArcUp", { previous, days })
+    : t("inbox.satisfactionArcDown", { previous, days });
 }
 
 /**
@@ -107,6 +107,176 @@ export function SatisfactionCard() {
   const [open, setOpen] = useState(false);
   const report = useSatisfaction(days);
 
+  let reportBody;
+  if (report.isPending) {
+    reportBody = (
+      <div className="space-y-2 px-4 py-4">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+    );
+  } else if (report.isError || !report.data) {
+    reportBody = (
+      <LoadError
+        variant="inline"
+        message={t("inbox.satisfactionLoadFailed")}
+        onRetry={() => void report.refetch()}
+        className="px-4 py-4"
+      />
+    );
+  } else if (report.data.average === null) {
+    reportBody = (
+      <div className="space-y-2 px-4 py-4">
+        <p className="text-[13px] text-app-muted-2">
+          {satisfactionGap(report.data, t)}
+        </p>
+        <PoorJobs report={report.data} t={t} />
+      </div>
+    );
+  } else {
+    reportBody = (
+      <>
+        <div className="px-4 pb-3 pt-4">
+          <div className="flex items-baseline gap-2">
+            {/* #540: the mark, in place of the star. A star beside a score
+                out of 5 was decoration — it said "this is a rating", which
+                the words already say. The ring says how far up the scale
+                this month actually landed, which is the fact somebody wants
+                at a glance and cannot get from "4.2" without knowing the
+                ceiling.
+                *Applying: Meaningful Highlights — an encoding that carries
+                the measure, not an icon that labels it.* */}
+            <ProportionRing
+              value={report.data.average ?? 0}
+              total={5}
+              // 26, not 18. At the smaller size a 4.6-out-of-5 arc and a
+              // closed circle are indistinguishable, so the mark carried
+              // nothing — it read as an icon that happened to be round.
+              size={26}
+              label={t("inbox.satisfactionRingAria", {
+                score: formatSatisfaction(report.data.average),
+                count: report.data.answered,
+              })}
+              className="shrink-0 translate-y-[5px] text-app-olive-deep"
+            />
+            <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
+              {formatSatisfaction(report.data.average)}
+            </span>
+            <span className="text-[13px] text-app-muted-2">
+              {t("inbox.satisfactionOutOfFive", {
+                count: report.data.answered,
+              })}
+            </span>
+          </div>
+
+          {(() => {
+            const sentence = satisfactionArc(report.data, t);
+            const direction = satisfactionArcDirection(
+              report.data.improved_by,
+            );
+            if (!sentence) {
+              return (
+                <p className="pt-1 text-[13px] text-app-muted-2">
+                  {report.data.baseline === null
+                    ? t("inbox.satisfactionNoBaseline", { days })
+                    : t("inbox.satisfactionSame", { days })}
+                </p>
+              );
+            }
+            const Icon = direction === "better" ? TrendingUp : TrendingDown;
+            return (
+              <p
+                className={cn(
+                  "flex items-center gap-1 pt-1 text-[13px] font-medium",
+                  direction === "better"
+                    ? "text-app-olive-deep"
+                    : "text-app-ink",
+                )}
+              >
+                <Icon className="size-3.5" strokeWidth={2} aria-hidden />
+                {sentence}
+              </p>
+            );
+          })()}
+
+          <PoorJobs report={report.data} t={t} />
+        </div>
+
+        <div className="border-t border-app-line">
+          <button
+            type="button"
+            onClick={() => setOpen((prior) => !prior)}
+            aria-expanded={open}
+            className="tap-target flex w-full items-center justify-between px-4 py-2.5 text-[13px] text-app-muted-2 transition-colors hover:bg-app-hover"
+          >
+            {open
+              ? t("inbox.responseHideDetails")
+              : t("inbox.responseDetails")}
+          </button>
+
+          {open ? (
+            <div className="border-t border-app-line px-4 py-2">
+              {[5, 4, 3, 2, 1].map((score) => (
+                <Row
+                  key={score}
+                  label={
+                    score === 1
+                      ? t("inbox.satisfactionStarsOne")
+                      : t("inbox.satisfactionStarsMany", { count: score })
+                  }
+                  value={String(report.data.distribution[String(score)] ?? 0)}
+                />
+              ))}
+              <Row
+                label={t("inbox.satisfactionAsked")}
+                value={t("inbox.satisfactionAskedValue", {
+                  count: report.data.asked,
+                  days,
+                })}
+              />
+
+              {/* Per person, and only when the owner asked for it. The copy
+                  says why it is off rather than leaving a blank that reads
+                  as a missing feature. */}
+              {report.data.by_member === null ? (
+                <p className="border-t border-app-line pt-2 text-[13px] text-app-muted-2">
+                  {t(SATISFACTION_COPY.per_member_off)}
+                </p>
+              ) : (
+                <div className="border-t border-app-line pt-1">
+                  {report.data.by_member.map((member) => (
+                    <Row
+                      key={member.user_id}
+                      label={t("inbox.satisfactionByMember", {
+                        name:
+                          member.name ??
+                          t("inbox.satisfactionMemberFallback"),
+                        count: member.answered,
+                      })}
+                      value={
+                        member.average === null
+                          ? t(SATISFACTION_COPY.too_few)
+                          : formatSatisfaction(member.average)
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+
+              {report.data.truncated ? (
+                <p className="pt-1 text-[12px] text-app-muted-2">
+                  {t("inbox.satisfactionTruncated", {
+                    count: report.data.row_limit,
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </>
+    );
+  }
+
   return (
     <MeasureCard
       title={t("inbox.satisfactionTitle")}
@@ -126,170 +296,7 @@ export function SatisfactionCard() {
         />
       }
     >
-      {report.isPending ? (
-        <div className="space-y-2 px-4 py-4">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-4 w-48" />
-        </div>
-      ) : report.isError || !report.data ? (
-        <LoadError
-          variant="inline"
-          message={t("inbox.satisfactionLoadFailed")}
-          onRetry={() => report.refetch()}
-          className="px-4 py-4"
-        />
-      ) : report.data.average === null ? (
-        // No number, and the reason. Note the poor count still shows if there
-        // is one: two answers is too thin to average but not too thin to act
-        // on, and burying an unhappy customer behind a sample-size rule would
-        // be the panel choosing tidiness over the thing that matters.
-        <div className="space-y-2 px-4 py-4">
-          <p className="text-[13px] text-app-muted-2">
-            {satisfactionGap(report.data, t)}
-          </p>
-          <PoorJobs report={report.data} t={t} />
-        </div>
-      ) : (
-        <>
-          <div className="px-4 pb-3 pt-4">
-            <div className="flex items-baseline gap-2">
-              {/* #540: the mark, in place of the star. A star beside a score
-                  out of 5 was decoration — it said "this is a rating", which
-                  the words already say. The ring says how far up the scale
-                  this month actually landed, which is the fact somebody wants
-                  at a glance and cannot get from "4.2" without knowing the
-                  ceiling.
-                  *Applying: Meaningful Highlights — an encoding that carries
-                  the measure, not an icon that labels it.* */}
-              <ProportionRing
-                value={report.data.average ?? 0}
-                total={5}
-                // 26, not 18. At the smaller size a 4.6-out-of-5 arc and a
-                // closed circle are indistinguishable, so the mark carried
-                // nothing — it read as an icon that happened to be round.
-                size={26}
-                label={t("inbox.satisfactionRingAria", {
-                  score: formatSatisfaction(report.data.average),
-                  count: report.data.answered,
-                })}
-                className="shrink-0 translate-y-[5px] text-app-olive-deep"
-              />
-              <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
-                {formatSatisfaction(report.data.average)}
-              </span>
-              <span className="text-[13px] text-app-muted-2">
-                {t("inbox.satisfactionOutOfFive", {
-                  count: report.data.answered,
-                })}
-              </span>
-            </div>
-
-            {(() => {
-              const sentence = satisfactionArc(report.data, t);
-              const direction = satisfactionArcDirection(
-                report.data.improved_by,
-              );
-              if (!sentence) {
-                return (
-                  <p className="pt-1 text-[13px] text-app-muted-2">
-                    {report.data.baseline === null
-                      ? t("inbox.satisfactionNoBaseline", { days })
-                      : t("inbox.satisfactionSame", { days })}
-                  </p>
-                );
-              }
-              const Icon = direction === "better" ? TrendingUp : TrendingDown;
-              return (
-                <p
-                  className={cn(
-                    "flex items-center gap-1 pt-1 text-[13px] font-medium",
-                    direction === "better"
-                      ? "text-app-olive-deep"
-                      : "text-app-ink",
-                  )}
-                >
-                  <Icon className="size-3.5" strokeWidth={2} aria-hidden />
-                  {sentence}
-                </p>
-              );
-            })()}
-
-            <PoorJobs report={report.data} t={t} />
-          </div>
-
-          <div className="border-t border-app-line">
-            <button
-              type="button"
-              onClick={() => setOpen((prior) => !prior)}
-              aria-expanded={open}
-              className="tap-target flex w-full items-center justify-between px-4 py-2.5 text-[13px] text-app-muted-2 transition-colors hover:bg-app-hover"
-            >
-              {open
-                ? t("inbox.responseHideDetails")
-                : t("inbox.responseDetails")}
-            </button>
-
-            {open ? (
-              <div className="border-t border-app-line px-4 py-2">
-                {[5, 4, 3, 2, 1].map((score) => (
-                  <Row
-                    key={score}
-                    label={
-                      score === 1
-                        ? t("inbox.satisfactionStarsOne")
-                        : t("inbox.satisfactionStarsMany", { count: score })
-                    }
-                    value={String(report.data.distribution[String(score)] ?? 0)}
-                  />
-                ))}
-                <Row
-                  label={t("inbox.satisfactionAsked")}
-                  value={t("inbox.satisfactionAskedValue", {
-                    count: report.data.asked,
-                    days,
-                  })}
-                />
-
-                {/* Per person, and only when the owner asked for it. The copy
-                    says why it is off rather than leaving a blank that reads
-                    as a missing feature. */}
-                {report.data.by_member === null ? (
-                  <p className="border-t border-app-line pt-2 text-[13px] text-app-muted-2">
-                    {t(SATISFACTION_COPY.per_member_off)}
-                  </p>
-                ) : (
-                  <div className="border-t border-app-line pt-1">
-                    {report.data.by_member.map((member) => (
-                      <Row
-                        key={member.user_id}
-                        label={t("inbox.satisfactionByMember", {
-                          name:
-                            member.name ??
-                            t("inbox.satisfactionMemberFallback"),
-                          count: member.answered,
-                        })}
-                        value={
-                          member.average === null
-                            ? t(SATISFACTION_COPY.too_few)
-                            : formatSatisfaction(member.average)
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {report.data.truncated ? (
-                  <p className="pt-1 text-[12px] text-app-muted-2">
-                    {t("inbox.satisfactionTruncated", {
-                      count: report.data.row_limit,
-                    })}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </>
-      )}
+      {reportBody}
     </MeasureCard>
   );
 }

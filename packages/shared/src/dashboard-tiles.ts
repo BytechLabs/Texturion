@@ -157,7 +157,7 @@ export function dashboardTiles(input: DashboardTileInput): DashboardTile[] {
   // one that never moves.
   return tiles
     .map((tile, index) => ({ tile, index }))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const rankA = rank(a.tile);
       const byRank = rankA - rank(b.tile);
       if (byRank !== 0) return byRank;

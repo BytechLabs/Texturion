@@ -87,6 +87,7 @@ export interface TradeFaq {
 
 /** One §5.4 Truth Strip line: mono fact, green tick when the news is good. */
 export interface TradeTruthLine {
+  id: string;
   text: ReactNode;
   /** Adds the Answered-Green tick (green whitelist: good news only). */
   good?: boolean;
@@ -184,7 +185,7 @@ const FINAL_MICROCOPY = (
 /* tick where the news is good. The one learnable shape for candor.            */
 /* -------------------------------------------------------------------------- */
 
-function TruthStrip({ line }: { line: TradeTruthLine }) {
+function TruthStrip({ line }: { line: Omit<TradeTruthLine, "id"> }) {
   return (
     <div className="flex items-start gap-2.5 rounded-r-[6px] border-l-[3px] border-[color:var(--fr-olive)] bg-[color:var(--fr-frost)] px-4 py-3">
       {line.good ? (
@@ -403,8 +404,8 @@ export function TradePage({
                 }}
               />
             </CountryOnly>
-            {(content.truthLines ?? []).map((line, i) => (
-              <TruthStrip key={i} line={line} />
+            {(content.truthLines ?? []).map((line) => (
+              <TruthStrip key={line.id} line={line} />
             ))}
           </div>
           {/* #121: trade pages carry no allowance or per-text figures; the

@@ -141,7 +141,7 @@ export async function middleware(request: NextRequest) {
   // isolate), returning an error or throwing, which must NOT be read as
   // "signed out".
   let signedIn = false;
-  let authErrored = false;
+  let authErrored: boolean;
   try {
     const result = await supabase.auth.getClaims();
     signedIn = result.data?.claims != null;

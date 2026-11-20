@@ -417,11 +417,12 @@ export function usePrefetchConversation() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useCallback(
-    (conversationId: string) =>
-      queryClient.prefetchQuery({
+    async (conversationId: string) => {
+      await queryClient.query({
         ...conversationDetailOptions(queryClient, companyId, conversationId),
         staleTime: PREFETCH_STALE_MS,
-      }),
+      }).catch(() => undefined);
+    },
     [queryClient, companyId],
   );
 }
@@ -621,11 +622,16 @@ export function useConversationPatch() {
         { id, patch }: { id: string; patch: ConversationPatch },
         callbacks: ConversationPatchCallbacks = {},
       ) => {
-        void queryClient
+        const mutation = queryClient
           .getMutationCache()
           .build(queryClient, conversationPatchOptions(queryClient, companyId, userId, id))
-          .execute(patch)
-          .then(callbacks.onSuccess, (error: unknown) => callbacks.onError?.(error));
+          .execute(patch);
+        void mutation.catch((error: unknown) => {
+          callbacks.onError?.(error);
+          return undefined;
+        }).then((updated) => {
+          if (updated) callbacks.onSuccess?.(updated);
+        });
       },
     }),
     [queryClient, companyId, userId],

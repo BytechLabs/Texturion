@@ -233,7 +233,8 @@ function resolvedParams(id: string): Promise<{ id: string }> {
   return {
     status: "fulfilled",
     value: { id },
-    then: () => {},
+      // oxlint-disable-next-line unicorn/no-thenable -- This fixture never resolves its queued request.
+      then: () => {},
   } as unknown as Promise<{ id: string }>;
 }
 
@@ -460,7 +461,8 @@ describe("/contacts/[id] sections (#740)", () => {
         expect(html, `${tab} hides ${other}`).not.toContain(marks[other]);
       }
       // The timeline is the only list with its own filter row.
-      if (tab !== "activity") expect(html).not.toContain("Changes");
+      if (tab === "activity") continue;
+      expect(html).not.toContain("Changes");
     }
   });
 

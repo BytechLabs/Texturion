@@ -112,7 +112,9 @@ describe(useDebouncedAutosave, () => {
     await wait(1000);
     expect(patches()).toEqual([{ notes: "a" }]);
 
-    await act(async () => inFlight.forEach((finish) => finish()));
+    await act(async () => {
+      for (const finish of inFlight) finish();
+    });
     await wait(0);
     expect(result.current.state).toBe("saved");
     rerender({ value: "a" });

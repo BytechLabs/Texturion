@@ -228,9 +228,9 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
   const provenance =
     contact.timezone_source === "contact"
       ? t("appShell.contactClockSetByCrew")
-      : contact.timezone_source === "area_code"
+      : (contact.timezone_source === "area_code"
         ? t("appShell.contactClockFromAreaCode")
-        : t("appShell.contactClockUnknown");
+        : t("appShell.contactClockUnknown"));
 
   function save(next: string | null) {
     update.mutate({ timezone: next }, {
@@ -587,7 +587,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                   maxLength={200}
                   placeholder={t("appShell.contactNamePlaceholder")}
                   onChange={(event) => name.onChange(event.target.value)}
-                  onBlur={name.onBlur}
+                  onBlur={() => name.onBlur()}
                 />
                 <SaveStatus state={name.state} error={name.error} />
               </div>
@@ -610,7 +610,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     onChange={(event) =>
                       businessName.onChange(event.target.value)
                     }
-                    onBlur={businessName.onBlur}
+                    onBlur={() => businessName.onBlur()}
                   />
                   <SaveStatus
                     state={businessName.state}
@@ -630,7 +630,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     placeholder={t("appShell.contactAddressPlaceholder")}
                     autoComplete="off"
                     onChange={(event) => address.onChange(event.target.value)}
-                    onBlur={address.onBlur}
+                    onBlur={() => address.onBlur()}
                   />
                   <SaveStatus state={address.state} error={address.error} />
                   {/* #291: the OTHER addresses, absent until there are any. The
@@ -656,7 +656,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     placeholder={t("appShell.contactEmailPlaceholder")}
                     autoComplete="off"
                     onChange={(event) => email.onChange(event.target.value)}
-                    onBlur={email.onBlur}
+                    onBlur={() => email.onBlur()}
                   />
                   <SaveStatus state={email.state} error={email.error} />
                 </div>
@@ -673,7 +673,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     rows={4}
                     placeholder={t("appShell.contactNotesPlaceholder")}
                     onChange={(event) => notes.onChange(event.target.value)}
-                    onBlur={notes.onBlur}
+                    onBlur={() => notes.onBlur()}
                   />
                   <SaveStatus state={notes.state} error={notes.error} />
                 </div>
@@ -920,6 +920,33 @@ export default function ContactDetailPage({
   // The timeline's default (All) read, started beside the contact's own.
   useRecordActivity("contact", id, null);
 
+  let contactBody;
+  if (receipt) {
+    contactBody = <CustomerErasureReceipt status={receipt} />;
+  } else if (contact.isPending || redirecting) {
+    contactBody = (
+      <div className="space-y-4" aria-label={t("appShell.contactLoading")}>
+        <Skeleton className="h-8 w-52" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    );
+  } else if (contact.isError) {
+    contactBody = notFound ? (
+        <p className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
+          {t("appShell.contactNotFound")}
+        </p>
+    ) : <LoadError onRetry={() => void contact.refetch()} />;
+  } else {
+    contactBody = (
+      <>
+        <h1 className="sr-only">
+          {contact.data.name ?? formatPhone(contact.data.phone_e164)}
+        </h1>
+        <ContactBody contact={contact.data} />
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 md:px-6">
       <Link
@@ -930,27 +957,7 @@ export default function ContactDetailPage({
         {t("appShell.contactsTitle")}
       </Link>
 
-      {receipt ? <CustomerErasureReceipt status={receipt} /> : contact.isPending || redirecting ? (
-        <div className="space-y-4" aria-label={t("appShell.contactLoading")}>
-          <Skeleton className="h-8 w-52" />
-          <Skeleton className="h-64 w-full rounded-lg" />
-        </div>
-      ) : contact.isError ? (
-        notFound ? (
-          <p className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
-            {t("appShell.contactNotFound")}
-          </p>
-        ) : (
-          <LoadError onRetry={() => contact.refetch()} />
-        )
-      ) : (
-        <>
-          <h1 className="sr-only">
-            {contact.data.name ?? formatPhone(contact.data.phone_e164)}
-          </h1>
-          <ContactBody contact={contact.data} />
-        </>
-      )}
+      {contactBody}
     </div>
   );
 }

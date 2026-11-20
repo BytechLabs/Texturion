@@ -320,7 +320,7 @@ export function usePrefetchTask(): (taskId: string) => void {
   const queryClient = useQueryClient();
   return useCallback(
     (taskId: string) => {
-      void queryClient.prefetchQuery(taskDetailQueryOptions(companyId, taskId));
+      void queryClient.query(taskDetailQueryOptions(companyId, taskId)).catch(() => undefined);
     },
     [queryClient, companyId],
   );

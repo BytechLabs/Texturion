@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { SECTION_LABEL_CLASS } from "./section-label";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 
 /** Marketing and the public pages have their own type scale (`fr-*`). */
 const OUT_OF_SCOPE = ["components/marketing/", "app/(marketing)/", "components/public/"];

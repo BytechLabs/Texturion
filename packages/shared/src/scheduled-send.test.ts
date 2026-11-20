@@ -192,7 +192,7 @@ describe("#233 whose clock it was", () => {
     if (typeof value !== "string") throw new TypeError(`no English for ${key}`);
     return value;
   };
-  const sayFr = (key: string): string => {
+  const formatFrench = (key: string): string => {
     const [section, name] = key.split(".");
     const value = (WEB_FR as Record<string, Record<string, string>>)[section]?.[name];
     if (typeof value !== "string") throw new TypeError(`no French for ${key}`);
@@ -225,7 +225,7 @@ describe("#233 whose clock it was", () => {
     // clause a translator smooths away. "nous ne connaissons pas" has to
     // survive, or the French app claims a precision the English one refuses.
     const three = (["contact", "area_code", "company"] as const).map((source) =>
-      sayFr(scheduledClockProvenance(source)),
+      formatFrench(scheduledClockProvenance(source)),
     );
     for (const line of three) expect(line.length).toBeGreaterThan(8);
     // All three distinct: a catalogue that answered one sentence for every rung

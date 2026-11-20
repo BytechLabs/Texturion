@@ -14,6 +14,7 @@
  *    survive the redesign, worded per COPY-DECK v2.
  */
 
+import { requireString } from "../../../lib/api/test-support";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -573,7 +574,7 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
     (_value1, [meta, path]) => {
       expect(meta.alternates?.canonical).toBe(`https://loonext.com${path}`);
       const strings = [
-        String(meta.title ?? ""),
+        requireString(meta.title ?? ""),
         (meta.description ?? ""),
       ].join(" ");
       expect(strings).not.toContain("—");

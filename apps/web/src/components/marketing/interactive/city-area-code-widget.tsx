@@ -72,7 +72,7 @@ export function CityAreaCodeWidget({ locale = "en" }: { locale?: MarketingLocale
 
   const listboxId = useId();
   const optionId = (i: number) => `${listboxId}-opt-${i}`;
-  const listRef = useRef<HTMLUListElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const results = useMemo(() => resolveQuery(query, 6), [query]);
 
@@ -194,7 +194,7 @@ export function CityAreaCodeWidget({ locale = "en" }: { locale?: MarketingLocale
           className="w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-[color:var(--fr-card)] px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         />
         {open && results.length > 0 && (
-          <ul
+          <div
             id={listboxId}
             ref={listRef}
             role="listbox"
@@ -204,10 +204,11 @@ export function CityAreaCodeWidget({ locale = "en" }: { locale?: MarketingLocale
             {results.map((r, i) => {
               const active = i === activeIndex;
               return (
-                <li
+                <div
                   key={`${r.city}-${r.areaCode}`}
                   id={optionId(i)}
                   role="option"
+                  tabIndex={-1}
                   aria-selected={active}
                   onMouseDown={(e) => {
                     // Commit before the input's onBlur closes the list.
@@ -226,10 +227,10 @@ export function CityAreaCodeWidget({ locale = "en" }: { locale?: MarketingLocale
                   <span className="fr-mono-data shrink-0 text-[0.75rem] text-[color:var(--fr-ink-55)]">
                     ({r.areaCode}) · {r.country}
                   </span>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </div>
 

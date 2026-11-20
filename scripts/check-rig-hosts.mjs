@@ -202,15 +202,15 @@ export function boxFindings(path, text) {
   const findings = newFindings();
   const dnsmasq = /\/dnsmasq\//.test(path);
   const nft = path.endsWith(".nft");
-  text.split(/\r?\n/).forEach((raw, index) => {
+  for (const [index, raw] of text.split(/\r?\n/).entries()) {
     let line = raw.trim();
     const where = `${path}:${index + 1}`;
-    if (line === "" || line.startsWith("#") || line.startsWith("//")) return;
+    if (line === "" || line.startsWith("#") || line.startsWith("//")) continue;
     if (dnsmasq) {
       const refused = dnsmasqRefusal(line);
       if (refused) {
         findings.refused += refused.length;
-        return;
+        continue;
       }
     }
     if (nft) {
@@ -218,26 +218,26 @@ export function boxFindings(path, text) {
       if (gateway) {
         findings.judged += 1;
         if (gateway[1] !== GATEWAY) findings.problems.push(`${where}  defines the gateway as ${gateway[1]}, not VMnet8's ${GATEWAY}`);
-        return;
+        continue;
       }
       line = line.replaceAll(IPV4_BLOCK, " ");
     }
     judgeHosts(where, hostsInText(line), findings);
-  });
+  }
   return findings;
 }
 
 /** The API's settings template: literal values, and the literal part of a host built around a placeholder. */
 export function templateFindings(path, text) {
   const findings = newFindings();
-  text.split(/\r?\n/).forEach((raw, index) => {
+  for (const [index, raw] of text.split(/\r?\n/).entries()) {
     const line = raw.trim();
-    if (line === "" || line.startsWith("#")) return;
+    if (line === "" || line.startsWith("#")) continue;
     const hosts = hostsInText(line.replaceAll(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
       .filter((host) => host !== STAND_IN)
       .map((host) => host.split(STAND_IN).join("{{...}}"));
     judgeHosts(`${path}:${index + 1}`, hosts, findings);
-  });
+  }
   return findings;
 }
 
@@ -299,9 +299,9 @@ export function tomlStrings(line) {
 /** A derived config.toml: every host its string values name. */
 export function tomlFindings(where, text) {
   const findings = newFindings();
-  text.split(/\r?\n/).forEach((line, index) => {
+  for (const [index, line] of text.split(/\r?\n/).entries()) {
     for (const value of tomlStrings(line)) judgeHosts(`${where}:${index + 1}`, hostsInString(value), findings);
-  });
+  }
   return findings;
 }
 
@@ -439,10 +439,10 @@ async function main() {
   );
   surface("supabase").files += 1;
   try {
-    for (const [label, text, options] of [
-      ["", committed, withRigUrl],
-      [" on the CLI's own address", committed, auth],
-      [" with production auth URLs", withProductionAuth, withRigUrl],
+    for (const { label, text, options } of [
+      { label: "", text: committed, options: withRigUrl },
+      { label: " on the CLI's own address", text: committed, options: auth },
+      { label: " with production auth URLs", text: withProductionAuth, options: withRigUrl },
     ]) {
       merge(
         surface("supabase"),

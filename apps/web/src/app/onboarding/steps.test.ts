@@ -572,15 +572,13 @@ it("only resolves to steps that the guard allows", () => {
         for (const campaign of [null, {}, { data: COMPLETE_CAMPAIGN_DATA }]) {
           const state = snapshot({ company, draft, brand, campaign });
           const location = resolveOnboardingLocation(state);
-          if (location.kind === "step") {
-            expect(stepAllowed(location.step, state), JSON.stringify({ company, draft, brand, campaign, location })).toBe(true);
-          }
+          const allowed = location.kind !== "step" || stepAllowed(location.step, state);
+          expect(allowed, JSON.stringify({ company, draft, brand, campaign, location })).toBe(true);
           const steps = applicableSteps(state);
           for (const step of steps) {
             const back = previousStepHref(step, state);
-            if (back) {
-              expect(steps.some((candidate) => back === `/onboarding/${candidate}` && stepAllowed(candidate, state))).toBe(true);
-            }
+            if (!back) continue;
+            expect(steps.some((candidate) => back === `/onboarding/${candidate}` && stepAllowed(candidate, state))).toBe(true);
           }
         }
       }

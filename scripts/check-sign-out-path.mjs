@@ -150,7 +150,7 @@ for (const file of sources(WEB_ROOT)) {
 }
 
 for (const { file, needs, marker } of NATIVE) {
-  let source = null;
+  let source;
   try {
     source = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
   } catch {

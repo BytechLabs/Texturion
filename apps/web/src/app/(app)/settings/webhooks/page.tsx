@@ -528,10 +528,11 @@ function EndpointCard({ endpoint }: { endpoint: WebhookEndpoint }) {
         description={t("webhooks.rotateBody")}
         cancelLabel={t("webhooks.cancelAction")}
         confirmLabel={t("webhooks.rotateConfirm")}
-        onConfirm={async () => {
+        onConfirm={() => {
           setConfirmRotate(false);
-          const result = await rotate.mutateAsync(endpoint.id);
-          setRotated(result.secret_once);
+          rotate.mutate(endpoint.id, {
+            onSuccess: (result) => setRotated(result.secret_once),
+          });
         }}
       />
     </SettingsCard>
@@ -555,7 +556,7 @@ export default function WebhooksPage() {
           message={t("webhooks.loadFailed")}
           onRetry={() => void refetch()}
         />
-      ) : isPending ? (
+      ) : (isPending ? (
         <Skeleton className="h-40 w-full rounded-lg" />
       ) : (
         <div className="space-y-4">
@@ -616,7 +617,7 @@ export default function WebhooksPage() {
             {t("webhooks.developerNote")}
           </p>
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

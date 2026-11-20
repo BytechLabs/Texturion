@@ -184,7 +184,7 @@ function conditionStarts(code) {
       starts.push({ at: match.index + keyword.length, keyword });
     }
   }
-  return starts.sort((a, b) => a.at - b.at);
+  return starts.toSorted((a, b) => a.at - b.at);
 }
 
 /**

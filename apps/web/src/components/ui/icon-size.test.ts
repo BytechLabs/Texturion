@@ -13,7 +13,7 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..", "..");
+const SRC = join(import.meta.dirname, "..", "..");
 const OUT_OF_SCOPE = ["components/marketing/", "app/(marketing)/", "components/public/"];
 const ARBITRARY_PX = /\bsize-\[[0-9.]+px\]/;
 

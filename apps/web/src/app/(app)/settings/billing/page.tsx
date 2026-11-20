@@ -328,8 +328,8 @@ export default function BillingSettingsPage() {
           <Skeleton className="h-40 w-full rounded-lg" />
           <Skeleton className="h-20 w-full rounded-lg" />
         </div>
-      ) : company.isError ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : (company.isError ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
           <StatusNotices company={company.data} />
@@ -379,7 +379,7 @@ export default function BillingSettingsPage() {
                 )}
               </div>
             </SettingsCard>
-          ) : company.data.plan === null ? (
+          ) : (company.data.plan === null ? (
             <SettingsCard id="plan" title={t("appShell.billingPlan")}>
               <p className="text-sm text-muted-foreground">
                 {t("appShell.billingNoPlanYet")}
@@ -491,7 +491,7 @@ export default function BillingSettingsPage() {
                   )}
               </div>
             </SettingsCard>
-          )}
+          ))}
 
           {/* #523: numbers held back because the plan they resubscribed onto
               covers fewer than they hold. DIRECTLY UNDER the plan card, because
@@ -575,7 +575,7 @@ export default function BillingSettingsPage() {
             </p>
           )}
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

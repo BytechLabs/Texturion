@@ -175,10 +175,10 @@ exportsRoutes.post("/exports", requireCapability("contacts.bulk"), async (c) => 
  * is the side that writes the bytes.
  */
 const historySchema = z.object({
-  contact_id: z.string().uuid(),
+  contact_id: z.uuid(),
   /** ISO instants. Absent means from the beginning / until now. */
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
 });
 
 exportsRoutes.post(
@@ -260,8 +260,8 @@ exportsRoutes.post(
  */
 const usageExportSchema = z.object({
   /** ISO instants. `to` absent means the period is still running. */
-  from: z.string().datetime(),
-  to: z.string().datetime().optional(),
+  from: z.iso.datetime(),
+  to: z.iso.datetime().optional(),
 });
 
 exportsRoutes.post(
@@ -391,7 +391,7 @@ async function signFiles(
 
   const bucket = db.storage.from(EXPORTS_BUCKET);
   const files = row.stored_files
-    ? Object.entries(row.stored_files).sort(([left], [right]) => left.localeCompare(right))
+    ? Object.entries(row.stored_files).toSorted(([left], [right]) => left.localeCompare(right))
     : (await listExportFileNames(db, prefix)).map((name) => [name, name] as const);
   const links: { name: string; url: string }[] = [];
   for (let start = 0; start < files.length; start += FILE_SIGNING_BATCH) {

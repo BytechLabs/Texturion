@@ -262,7 +262,7 @@ describe("#558 the prefix list cannot go stale", () => {
    * payment, calendar feed), so the next one has to fail here rather than in
    * a vendor's dashboard.
    */
-  const APP_DIR = join(__dirname, "../../app");
+  const APP_DIR = join(import.meta.dirname, "../../app");
 
   /** Every route whose URL contains a `[token]` segment, as URL path prefixes. */
   function tokenRoutePrefixes(dir: string, urlPath: string[] = []): string[] {
@@ -310,7 +310,7 @@ describe("#558 the prefix list cannot go stale", () => {
     // documented as "known" — a comment, which is why it drifted. The Worker
     // answers GET /photos/:token itself, so its list is not optional.
     const worker = readFileSync(
-      join(__dirname, "../../../../api/src/observability/scrub.ts"),
+      join(import.meta.dirname, "../../../../api/src/observability/scrub.ts"),
       "utf8",
     );
     const declared = /TOKEN_PATH_PREFIXES = \[([^\]]*)\]/.exec(worker);
@@ -344,13 +344,13 @@ describe("#558 the prefix list cannot go stale", () => {
      * thought to write down.
      */
     const worker = readFileSync(
-      join(__dirname, "../../../../api/src/observability/scrub.ts"),
+      join(import.meta.dirname, "../../../../api/src/observability/scrub.ts"),
       "utf8",
     );
     // Both sides read as SOURCE TEXT rather than one side imported: it keeps the
     // comparison symmetric, and it does not require exporting an internal from
     // either file just so a test can see it.
-    const browser = readFileSync(join(__dirname, "./scrub.ts"), "utf8");
+    const browser = readFileSync(join(import.meta.dirname, "./scrub.ts"), "utf8");
     for (const name of [
       "URL_KEY_PATTERN",
       "PHONE_PATTERN",

@@ -9,6 +9,7 @@
  * Mocks the browser session module rather than the client, so the URL under
  * test is the one `fetchContactsPage` actually builds.
  */
+import { fetchInputUrl } from "./test-support";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.local");
@@ -28,7 +29,7 @@ let seenUrl = "";
 vi.stubGlobal(
   "fetch",
   vi.fn(async (input: RequestInfo | URL) => {
-    seenUrl = typeof input === "string" ? input : input.toString();
+    seenUrl = fetchInputUrl(input);
     return Response.json({ data: [], next_cursor: null }, {
       status: 200,
       headers: { "content-type": "application/json" },

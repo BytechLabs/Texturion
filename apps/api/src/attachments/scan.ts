@@ -285,7 +285,6 @@ function scanPdf(bytes: Uint8Array): ScanResult {
   // An embedded file is legitimate (attachments panel); an embedded PROGRAM is
   // not. The name appears near the specification, so look for the pairing.
   if (contains(bytes, "/EmbeddedFile")) {
-    let name = "";
     // /F (filename) entries in the file specification dictionary.
     for (let i = 0; i < bytes.length - 3; i++) {
       if (bytes[i] === 0x2F && bytes[i + 1] === 0x46 && bytes[i + 2] === 0x20) {
@@ -293,7 +292,7 @@ function scanPdf(bytes: Uint8Array): ScanResult {
         let j = i + 3;
         while (j < bytes.length && bytes[j] !== 0x28 && bytes[j] !== 0x0A) j += 1;
         if (bytes[j] === 0x28) {
-          name = "";
+          let name = "";
           for (j++; j < bytes.length && bytes[j] !== 0x29 && name.length < 260; j++) {
             name += String.fromCharCode(bytes[j]);
           }

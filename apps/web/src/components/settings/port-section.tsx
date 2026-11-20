@@ -57,7 +57,7 @@ export function PortSection({
   if (ports.isError) {
     return (
       <SettingsCard id="number-transfers" title={t("settingsMore.portSectionTitle")}>
-        <LoadError onRetry={() => ports.refetch()} />
+        <LoadError onRetry={() => void ports.refetch()} />
       </SettingsCard>
     );
   }

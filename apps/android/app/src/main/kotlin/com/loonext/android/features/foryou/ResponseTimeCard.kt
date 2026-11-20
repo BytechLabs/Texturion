@@ -89,7 +89,7 @@ fun responseArcSentence(report: ResponseTimeReport, locale: String): String? {
     return AppStrings.translate(
         locale,
         if (direction == "faster") "inbox.responseArcDown" else "inbox.responseArcUp",
-        mapOf("then" to label),
+        mapOf("previous" to label),
     )
 }
 

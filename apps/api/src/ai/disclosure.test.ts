@@ -66,8 +66,8 @@ describe("every AI feature is publicly disclosed", () => {
     // Both directions. A feature with no disclosure is the #389 bug happening
     // again; a disclosure with no feature tells customers we process something
     // we do not, which is its own kind of untrue.
-    expect(AI_DISCLOSURES.map((row) => row.key).sort()).toEqual(
-      Object.keys(AI_UNIT_COST_CENTS).sort(),
+    expect(AI_DISCLOSURES.map((row) => row.key).toSorted()).toEqual(
+      Object.keys(AI_UNIT_COST_CENTS).toSorted(),
     );
   });
 

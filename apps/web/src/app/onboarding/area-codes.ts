@@ -82,7 +82,7 @@ export function areaCodesForCountry(
         pair[1].geographic && pair[1].country === country,
     )
     .map(([code, entry]) => toHint(code, entry, locale))
-    .sort((a, b) => a.code.localeCompare(b.code));
+    .toSorted((a, b) => a.code.localeCompare(b.code));
 }
 
 /**

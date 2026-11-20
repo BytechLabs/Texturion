@@ -27,15 +27,15 @@ export function codeSamples(surface: Surface, options: CodeOptions): Float32Arra
   const ramp = Math.max(1, Math.round((sampleRate * rampMs) / 1000));
   const out = new Float32Array(slotSamples * PATTERN.length * cycles);
   for (let cycle = 0; cycle < cycles; cycle++) {
-    PATTERN.forEach((on, slot) => {
-      if (!on) return;
+    for (const [slot, on] of PATTERN.entries()) {
+      if (!on) continue;
       const start = (cycle * PATTERN.length + slot) * slotSamples;
       for (let n = 0; n < slotSamples; n++) {
         const edge = Math.min(n, slotSamples - 1 - n);
         const envelope = edge < ramp ? 0.5 - 0.5 * Math.cos((Math.PI * edge) / ramp) : 1;
         out[start + n] = amplitude * envelope * Math.sin(omega * (start + n));
       }
-    });
+    }
   }
   return out;
 }

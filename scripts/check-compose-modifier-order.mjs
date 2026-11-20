@@ -44,10 +44,10 @@ let scanned = 0;
 for (const path of walk(ROOT)) {
   scanned += 1;
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
-  lines.forEach((line, index) => {
+  for (const [index, line] of lines.entries()) {
     // Comments are where this rule is EXPLAINED, so a line that merely quotes
     // the bad shape is not the bad shape.
-    if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+    if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;
     if (/\.size\(\s*[\d.]+\.dp\s*\)\s*\.padding\(/.test(line)) {
       problems.push(
         `${path}:${index + 1} — \`.size(n.dp).padding(...)\` gives the content ` +
@@ -56,7 +56,7 @@ for (const path of walk(ROOT)) {
           `\`.padding(...).size(n.dp)\`.`,
       );
     }
-  });
+  }
 }
 
 if (problems.length > 0) {

@@ -72,6 +72,7 @@ export function CalendarFeedCard() {
     return () => {
       current = false;
     };
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- recheck runs against the same URL.
   }, [url, checkRun]);
 
   function recheck() {
@@ -93,170 +94,174 @@ export function CalendarFeedCard() {
     }
   }
 
-  return (
-    <div id="calendar-read-only-feed">
-      {status.isLoading ? (
-        <Skeleton className="h-9 w-48" />
-      ) : url ? (
-        /*
-         * The one irreversible moment. Amber rather than red: nothing has gone
-         * wrong, but this is the only time the URL exists and closing the panel
-         * without copying it means rotating to get another.
-         */
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle
-              className="mt-0.5 size-4 shrink-0 text-amber-600"
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">
-                  {t("calendarFeed.shownOnceTitle")}
-                </p>
-                <p className="text-[13px] leading-relaxed text-app-muted">
-                  {t("calendarFeed.shownOnceDetail")}
-                </p>
-              </div>
-              {/* Selectable, so a clipboard refusal still leaves a way through. */}
-              <code className="block overflow-x-auto break-all rounded border bg-background px-3 py-2 font-mono text-xs">
-                {url}
-              </code>
-              {/* #744: the product proves the link answers before the person
-                  pastes it somewhere that would only say "could not subscribe". */}
-              <div role="status" className="flex flex-wrap items-center gap-2 text-[13px]">
-                {linkCheck === null ? (
-                  <span className="text-app-muted">
-                    {t("calendarFeed.linkChecking")}
+  let calendarStatus;
+  if (status.isLoading) {
+    calendarStatus = <Skeleton className="h-9 w-48" />;
+  } else if (url) {
+    calendarStatus = (
+      <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0 text-amber-600"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                {t("calendarFeed.shownOnceTitle")}
+              </p>
+              <p className="text-[13px] leading-relaxed text-app-muted">
+                {t("calendarFeed.shownOnceDetail")}
+              </p>
+            </div>
+            {/* Selectable, so a clipboard refusal still leaves a way through. */}
+            <code className="block overflow-x-auto break-all rounded border bg-background px-3 py-2 font-mono text-xs">
+              {url}
+            </code>
+            {/* #744: the product proves the link answers before the person
+                pastes it somewhere that would only say "could not subscribe". */}
+            <div role="status" className="flex flex-wrap items-center gap-2 text-[13px]">
+              {linkCheck === null ? (
+                <span className="text-app-muted">
+                  {t("calendarFeed.linkChecking")}
+                </span>
+              ) : (linkCheck.state === "working" ? (
+                <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                  <Check className="size-4" aria-hidden />
+                  {t("calendarFeed.linkWorking")}
+                </span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1.5 font-medium text-destructive">
+                    <AlertTriangle className="size-4" aria-hidden />
+                    {linkCheck.state === "error"
+                      ? t("calendarFeed.linkBroken", {
+                          status: String(linkCheck.status),
+                        })
+                      : t("calendarFeed.linkUnreachable")}
                   </span>
-                ) : (linkCheck.state === "working" ? (
-                  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-                    <Check className="size-4" aria-hidden />
-                    {t("calendarFeed.linkWorking")}
-                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={recheck}
+                  >
+                    {t("calendarFeed.linkCheckAgain")}
+                  </Button>
+                </>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => { void copy(); }}>
+                {copied ? (
+                  <Check className="size-4" aria-hidden />
                 ) : (
-                  <>
-                    <span className="flex items-center gap-1.5 font-medium text-destructive">
-                      <AlertTriangle className="size-4" aria-hidden />
-                      {linkCheck.state === "error"
-                        ? t("calendarFeed.linkBroken", {
-                            status: String(linkCheck.status),
-                          })
-                        : t("calendarFeed.linkUnreachable")}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={recheck}
-                    >
-                      {t("calendarFeed.linkCheckAgain")}
-                    </Button>
-                  </>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={copy}>
-                  {copied ? (
-                    <Check className="size-4" aria-hidden />
-                  ) : (
-                    <Copy className="size-4" aria-hidden />
-                  )}
-                  {copied ? t("calendarFeed.copied") : t("calendarFeed.copy")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setUrl(null);
-                    setLinkCheck(null);
-                    setCopied(false);
-                  }}
-                >
-                  {t("calendarFeed.done")}
-                </Button>
-              </div>
+                  <Copy className="size-4" aria-hidden />
+                )}
+                {copied ? t("calendarFeed.copied") : t("calendarFeed.copy")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setUrl(null);
+                  setLinkCheck(null);
+                  setCopied(false);
+                }}
+              >
+                {t("calendarFeed.done")}
+              </Button>
             </div>
           </div>
         </div>
-      ) : active ? (
-        <div className="space-y-3">
-          <p className="flex items-center gap-2 text-[13px] text-app-muted">
-            <CalendarClock className="size-4 shrink-0" aria-hidden />
-            {/*
-              The fact that answers "did this work?". A feed nothing has polled
-              looks identical to a working one without it — and the commonest
-              way this fails is somebody copying the URL and never finishing in
-              their calendar app.
-            */}
-            {status.data?.last_read_at
-              ? t("calendarFeed.lastRead", {
-                  when: formatTimestamp(status.data.last_read_at, {
-                    style: "long",
-                    t,
-                  }),
-                })
-              : t("calendarFeed.neverRead")}
-          </p>
-          <div className="flex flex-wrap gap-2">
+      </div>
+    );
+  } else if (active) {
+    calendarStatus = (
+      <div className="space-y-3">
+        <p className="flex items-center gap-2 text-[13px] text-app-muted">
+          <CalendarClock className="size-4 shrink-0" aria-hidden />
+          {/*
+            The fact that answers "did this work?". A feed nothing has polled
+            looks identical to a working one without it — and the commonest
+            way this fails is somebody copying the URL and never finishing in
+            their calendar app.
+          */}
+          {status.data?.last_read_at
+            ? t("calendarFeed.lastRead", {
+                when: formatTimestamp(status.data.last_read_at, {
+                  style: "long",
+                  t,
+                }),
+              })
+            : t("calendarFeed.neverRead")}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={create.isPending}
+            onClick={() =>
+              create.mutate(undefined, {
+                onSuccess: (data) => setUrl(data.url),
+                onError: () => toast.error(t("calendarFeed.failed")),
+              })
+            }
+          >
+            {t("calendarFeed.rotate")}
+          </Button>
+          {confirmingRevoke ? (
             <Button
               type="button"
-              variant="outline"
+              variant="destructive"
               size="sm"
-              disabled={create.isPending}
+              disabled={revoke.isPending}
               onClick={() =>
-                create.mutate(undefined, {
-                  onSuccess: (data) => setUrl(data.url),
+                revoke.mutate(undefined, {
+                  onSuccess: () => setConfirmingRevoke(false),
                   onError: () => toast.error(t("calendarFeed.failed")),
                 })
               }
             >
-              {t("calendarFeed.rotate")}
+              {/* The second press says WHAT BREAKS rather than "are you sure". */}
+              {t("calendarFeed.revokeConfirm")}
             </Button>
-            {confirmingRevoke ? (
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={revoke.isPending}
-                onClick={() =>
-                  revoke.mutate(undefined, {
-                    onSuccess: () => setConfirmingRevoke(false),
-                    onError: () => toast.error(t("calendarFeed.failed")),
-                  })
-                }
-              >
-                {/* The second press says WHAT BREAKS rather than "are you sure". */}
-                {t("calendarFeed.revokeConfirm")}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmingRevoke(true)}
-              >
-                {t("calendarFeed.revoke")}
-              </Button>
-            )}
-          </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmingRevoke(true)}
+            >
+              {t("calendarFeed.revoke")}
+            </Button>
+          )}
         </div>
-      ) : (
-        <Button
-          type="button"
-          size="sm"
-          disabled={create.isPending}
-          onClick={() =>
-            create.mutate(undefined, {
-              onSuccess: (data) => setUrl(data.url),
-              onError: () => toast.error(t("calendarFeed.failed")),
-            })
-          }
-        >
-          <CalendarClock className="size-4" aria-hidden />
-          {t("calendarFeed.create")}
-        </Button>
-      )}
+      </div>
+    );
+  } else {
+    calendarStatus = (
+      <Button
+        type="button"
+        size="sm"
+        disabled={create.isPending}
+        onClick={() =>
+          create.mutate(undefined, {
+            onSuccess: (data) => setUrl(data.url),
+            onError: () => toast.error(t("calendarFeed.failed")),
+          })
+        }
+      >
+        <CalendarClock className="size-4" aria-hidden />
+        {t("calendarFeed.create")}
+      </Button>
+    );
+  }
+
+  return (
+    <div id="calendar-read-only-feed">
+      {calendarStatus}
     </div>
   );
 }

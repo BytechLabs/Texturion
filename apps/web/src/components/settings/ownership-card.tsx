@@ -71,7 +71,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
         setConfirming(null);
         // The gate cannot see a mutation succeed, so it is told. Without this a
         // confirmed handover is left sitting behind its own code prompt.
-        gate.dismiss();
+        gate.handleDismiss();
         toast.success(done);
       },
       onError: (error) => {
@@ -98,7 +98,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
         ) {
           return;
         }
-        gate.dismiss();
+        gate.handleDismiss();
         toast.error(
           error instanceof ApiError
             ? error.message
@@ -357,9 +357,9 @@ export function OwnershipCard({ members }: { members: Member[] }) {
         kind={gate.kind}
         pending={act.isPending || gate.requesting}
         rejected={gate.rejected}
-        onConfirm={gate.confirm}
-        onResend={gate.resend}
-        onCancel={gate.dismiss}
+        onConfirm={gate.handleConfirm}
+        onResend={gate.handleResend}
+        onCancel={gate.handleDismiss}
       />
     </SettingsCard>
   );

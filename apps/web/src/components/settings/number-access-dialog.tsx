@@ -78,7 +78,7 @@ export function NumberAccessDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useT();
-  const access = useNumberAccess(numberId, open);
+  const { data, isPending } = useNumberAccess(numberId, open);
   const save = useSetNumberAccess(numberId);
   const members = useMembers();
 
@@ -88,8 +88,7 @@ export function NumberAccessDialog({
 
   // Seed the form from the server shape whenever the dialog (re)opens.
   useEffect(() => {
-    if (!open || !access.data) return;
-    const {data} = access;
+    if (!open || !data) return;
     if (data.access === "everyone") {
       setMode("everyone");
     } else if (data.access === "role") {
@@ -99,7 +98,7 @@ export function NumberAccessDialog({
       setLevel(data.level);
       setUserIds(new Set(data.user_ids));
     }
-  }, [open, access.data]);
+  }, [open, data]);
 
   const activeMembers = useMemo(
     () =>
@@ -222,7 +221,7 @@ export function NumberAccessDialog({
           >
             {t("common.cancel")}
           </Button>
-          <Button onClick={submit} disabled={save.isPending || access.isPending}>
+          <Button onClick={submit} disabled={save.isPending || isPending}>
             {save.isPending ? t("common.saving") : t("common.save")}
           </Button>
         </DialogFooter>

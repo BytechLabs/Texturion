@@ -29,7 +29,7 @@ import { liveCallsRoutes } from "../routes/live-calls";
 import { webrtcRoutes } from "../routes/webrtc";
 import { captured, resetCaptures } from "../test/capture-mock";
 import { apiRequest, buildTestApp } from "../test/routes-harness";
-import { completeEnv, createTestAuth } from '../test/support';
+import { completeEnv, createTestAuth, postgrestScalarText } from '../test/support';
 import type { TestAuth } from '../test/support';
 import { drainCallEvents } from '../../e2e/call-budget';
 import { createCallSessions } from '../../e2e/call-sessions';
@@ -70,7 +70,7 @@ function holds(value: unknown, condition: string): boolean {
   const dot = test.indexOf(".");
   const operator = test.slice(0, dot);
   const operand = test.slice(dot + 1);
-  const text = value === null || value === undefined ? null : String(value);
+  const text = postgrestScalarText(value);
   let result: boolean;
   if (operator === "is" && operand === "null") {
     result = text === null;
@@ -117,9 +117,9 @@ function ordered(rows: Row[], order: string | null): Row[] {
   if (!order) return rows;
   const [column, direction] = order.split(",")[0].split(".");
   const sign = direction === "desc" ? -1 : 1;
-  return [...rows].toSorted((a, b) => {
-    const left = String(a[column] ?? "");
-    const right = String(b[column] ?? "");
+  return rows.toSorted((a, b) => {
+    const left = postgrestScalarText(a[column]) ?? "";
+    const right = postgrestScalarText(b[column]) ?? "";
     return left < right ? -sign : (left > right ? sign : 0);
   });
 }
@@ -253,7 +253,7 @@ function lineBusy(phoneNumberId: unknown, since: string, exceptSession?: unknown
     (row) =>
       row.phone_number_id === phoneNumberId &&
       row.outcome === null &&
-      !String(row.state ?? "").startsWith("ended_") &&
+      !(postgrestScalarText(row.state) ?? "").startsWith("ended_") &&
       row.call_session_id !== exceptSession &&
       String(row.created_at) >= since,
   );
@@ -493,7 +493,7 @@ async function seedCrew(journey: string, size: number): Promise<SeededCrew> {
     created_at: createdAt,
   });
   const userIds = Array.from({ length: size }, () => randomUUID());
-  userIds.forEach((userId, index) => {
+  for (const [index, userId] of userIds.entries()) {
     tables.company_members.push({
       id: randomUUID(),
       company_id: companyId,
@@ -502,7 +502,7 @@ async function seedCrew(journey: string, size: number): Promise<SeededCrew> {
       deactivated_at: null,
       created_at: new Date(Date.parse(createdAt) + index).toISOString(),
     });
-  });
+  }
 
   const crew: SeededCrew = {
     businessE164: LINES[journey],
@@ -585,7 +585,10 @@ describe("hermetic call journeys (session layer)", () => {
 
   it("minted one softphone credential per member through the route, on the WebRTC connection", () => {
     const members = [...crews.values()].flatMap((crew) => crew.members);
-    expect(tables.member_telephony_credentials.map((row) => row.sip_username).toSorted()).toEqual(
+    expect(tables.member_telephony_credentials.map((row) => row.sip_username).toSorted((a, b) => {
+      if (typeof a !== "string" || typeof b !== "string") throw new TypeError("Expected text in the test fixture");
+      return a < b ? -1 : Number(a > b);
+    })).toEqual(
       members.map((member) => member.sipUsername).toSorted(),
     );
     for (const member of members) {
@@ -792,11 +795,10 @@ describe("hermetic call journeys (session layer)", () => {
     expect(created.status, await created.clone().text()).toBe(202);
     await settle();
     const senderLeg = dialedTo(owner);
-    let targetLeg = dialedTo(technician);
-    fake.voice.answer(senderLeg.callControlId);
-    if (wake) {
-      const consultId = atob(targetLeg.clientState!).split("|").at(-1);
-      fake.voice.hangup(targetLeg.callControlId, "user_not_registered");
+    const firstTargetLeg = dialedTo(technician);
+    async function ringWokenTarget() {
+      const consultId = atob(firstTargetLeg.clientState!).split("|").at(-1);
+      fake.voice.hangup(firstTargetLeg.callControlId, "user_not_registered");
       await settle();
       const ringPath = `/v1/calls/live/${sessionId}/transfer/ring-me`;
       const ring = () => as(technician, crew, ringPath, { transfer_id: consultId, no_local_leg: true });
@@ -804,21 +806,26 @@ describe("hermetic call journeys (session layer)", () => {
       await expect((await ring()).json()).resolves.toMatchObject({ rang: false, reason: "live_leg" });
       await settle();
       const secondLeg = dialedTo(technician);
-      expect(secondLeg.callControlId).not.toBe(targetLeg.callControlId);
-      targetLeg = secondLeg;
+      expect(secondLeg.callControlId).not.toBe(firstTargetLeg.callControlId);
       expect(dialedTo(owner).callControlId).toBe(senderLeg.callControlId);
+      return secondLeg;
     }
+    fake.voice.answer(senderLeg.callControlId);
+    const targetLeg = wake ? await ringWokenTarget() : firstTargetLeg;
     fake.voice.answer(targetLeg.callControlId);
     await settle();
     expect(senderLeg.callControlId).not.toBe(original.callControlId);
     expect(fake.voice.leg(senderLeg.callControlId)?.bridgedWith).toBe(targetLeg.callControlId);
     expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(original.callControlId);
 
-    if (action === "sender-hangup") {
+    async function hangUpSender() {
       fake.voice.hangup(original.callControlId);
       await settle();
       expect(fake.voice.live()).toEqual([]);
       expectQuietSession(sessionId);
+    }
+    if (action === "sender-hangup") {
+      await hangUpSender();
       return;
     }
 
@@ -829,7 +836,7 @@ describe("hermetic call journeys (session layer)", () => {
     const peer = action === "complete" ? targetLeg : original;
     expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(peer.callControlId);
     await expect(client.answeredBy(sessionId)).resolves.toBe(newOwner.userId);
-    expect(fake.voice.live().map((leg) => leg.callControlId).sort()).toEqual([customer.callControlId, peer.callControlId].sort());
+    expect(fake.voice.live().map((leg) => leg.callControlId).toSorted()).toEqual([customer.callControlId, peer.callControlId].toSorted());
     fake.voice.hangup(customer.callControlId);
     await settle();
     expectQuietSession(sessionId);

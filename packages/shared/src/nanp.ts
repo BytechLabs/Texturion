@@ -627,7 +627,7 @@ export const NANP_TIMEZONES: readonly string[] = [
       .map((entry) => (entry.geographic ? entry.timezone : null))
       .filter((zone): zone is string => zone !== null),
   ),
-].sort();
+].toSorted();
 
 /**
  * Local hour (0–23) in an IANA zone at the instant `atUtc`. Offset

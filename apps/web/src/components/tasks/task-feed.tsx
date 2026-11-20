@@ -321,7 +321,7 @@ export function TaskCommentComposer({ taskId }: { taskId: string }) {
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
-      <StagedFileChips files={stage.files} onRemove={stage.remove} className="pb-2" />
+      <StagedFileChips files={stage.files} onRemove={(id) => stage.remove(id)} className="pb-2" />
       <div className="flex items-end gap-2">
         <Button
           type="button"
@@ -347,7 +347,7 @@ export function TaskCommentComposer({ taskId }: { taskId: string }) {
             e.target.value = "";
           }}
         />
-        <ReferencePicker open={refs.open} onOpenChange={refs.setOpen} onPick={refs.onPick}>
+        <ReferencePicker open={refs.open} onOpenChange={(value) => refs.setOpen(value)} onPick={(text) => refs.onPick(text)}>
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
         </ReferencePicker>
         <Textarea

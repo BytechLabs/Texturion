@@ -52,7 +52,7 @@ function days(from, to) {
 }
 
 function median(values) {
-  const sorted = values.filter((v) => v !== null).sort((a, b) => a - b);
+  const sorted = values.filter((v) => v !== null).toSorted((a, b) => a - b);
   if (sorted.length === 0) return null;
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
@@ -101,13 +101,13 @@ await runScript("cancellation-report", async ({ args, db }) => {
 
   console.log("  reason            gone   stayed   median tenure   plans");
   console.log(`  ${"-".repeat(62)}`);
-  const ordered = [...byReason.entries()].sort(
+  const ordered = [...byReason.entries()].toSorted(
     (a, b) => b[1].confirmed + b[1].open - (a[1].confirmed + a[1].open),
   );
   for (const [reason, entry] of ordered) {
     const tenure = median(entry.tenures);
     const plans = [...entry.plans.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .map(([plan, count]) => `${plan}:${count}`)
       .join(" ");
     console.log(

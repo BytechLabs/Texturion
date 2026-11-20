@@ -401,7 +401,7 @@ export function RegistrationFixForm({
         // method="post" so a pre-hydration native submit keeps sensitive
         // registration data in the body, never the URL.
         method="post"
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
         className="space-y-4"
         noValidate
       >
@@ -646,7 +646,7 @@ export function RegistrationFixForm({
                     <FormControl>
                       <SimpleSelect
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(value) => field.onChange(value)}
                         options={TCR_VERTICALS.map((vertical) => ({
                           value: vertical,
                           label: t(VERTICAL_LABELS[vertical]),

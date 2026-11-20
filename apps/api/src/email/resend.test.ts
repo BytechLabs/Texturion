@@ -339,7 +339,7 @@ describe("suppression (#386)", () => {
  * is one secret away, and until it is set nothing changes at all.
  */
 describe("#252 the critical stream", () => {
-  function sender(env: Env, critical?: boolean) {
+  function sender(senderEnv: Env, critical?: boolean) {
     const sent: Record<string, unknown>[] = [];
     stubFetch(async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
@@ -354,22 +354,22 @@ describe("#252 the critical stream", () => {
     // branches resolve to the same address and the test cannot tell a working
     // split from one that routes everything through the critical stream —
     // which is exactly what the break sweep showed.
-    const env = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
-    const w = sender(env);
-    await sendEmail(env, {
+    const senderEnv = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
+    const w = sender(senderEnv);
+    await sendEmail(senderEnv, {
       to: ["owner@example.com"],
       subject: "A customer texted you",
       text: "Open Loonext to reply.",
       html: "<p>Open Loonext to reply.</p>",
     });
-    expect(w.sent[0].from).toBe(env.RESEND_FROM);
+    expect(w.sent[0].from).toBe(senderEnv.RESEND_FROM);
     expect(w.sent[0].from).not.toBe("billing@send2.loonext.com");
   });
 
   it("SS-2: critical mail uses the separate sender when one exists", async () => {
-    const env = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
-    const w = sender(env);
-    await sendEmail(env, {
+    const senderEnv = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
+    const w = sender(senderEnv);
+    await sendEmail(senderEnv, {
       to: ["owner@example.com"],
       subject: "Your number is released in 3 days",
       text: "Resubscribe to keep it.",
@@ -383,17 +383,17 @@ describe("#252 the critical stream", () => {
     // The seam ships before the DNS. An environment without the second
     // authenticated subdomain must behave exactly as it did — otherwise this
     // change is a a silent outage waiting for the first critical send.
-    const env = completeEnv();
-    expect(env.RESEND_FROM_CRITICAL).toBeUndefined();
-    const w = sender(env);
-    await sendEmail(env, {
+    const senderEnv = completeEnv();
+    expect(senderEnv.RESEND_FROM_CRITICAL).toBeUndefined();
+    const w = sender(senderEnv);
+    await sendEmail(senderEnv, {
       to: ["owner@example.com"],
       subject: "Your number is released in 3 days",
       text: "Resubscribe to keep it.",
       html: "<p>Resubscribe to keep it.</p>",
       critical: true,
     });
-    expect(w.sent[0].from).toBe(env.RESEND_FROM);
+    expect(w.sent[0].from).toBe(senderEnv.RESEND_FROM);
   });
 });
 

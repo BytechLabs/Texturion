@@ -10,7 +10,7 @@
  */
 import { readFileSync } from "node:fs";
 import { createServer } from 'node:http';
-import type { IncomingMessage, Server } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { join } from "node:path";
 
 import { chromium } from 'playwright';
@@ -113,7 +113,7 @@ beforeAll(async () => {
   const widgetKey = h.sql(`select widget_key from public.companies where id = '${COMPANY_ID}';`).trim();
 
   // Loonext's side: the script the web app serves, and the Worker behind it.
-  loonext = createServer(async (req, res) => {
+  async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     if (req.url === "/widget.js" || req.url === "/widget-challenge.js") {
       res.writeHead(200, { "content-type": "application/javascript" });
       res.end(req.url === "/widget.js" ? WIDGET_JS : CHALLENGE_JS);
@@ -135,7 +135,8 @@ beforeAll(async () => {
     );
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(await response.arrayBuffer()));
-  });
+  }
+  loonext = createServer((req, res) => { void handleRequest(req, res); });
   loonextOrigin = await listen(loonext);
 
   // The customer's website, a different origin, with the snippet pasted in.

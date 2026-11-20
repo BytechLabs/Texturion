@@ -16,7 +16,7 @@
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 import { hostedRealtimeLevels } from './hosted-realtime-budget.ts';
@@ -745,10 +745,8 @@ async function settlementBefore(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const attempt = Promise.resolve()
     .then(operation)
-    .then(
-      () => "fulfilled" as const,
-      () => "rejected" as const,
-    );
+    .then(() => "fulfilled" as const)
+    .catch(() => "rejected" as const);
   try {
     return await Promise.race([
       attempt,
@@ -768,10 +766,8 @@ async function valueSettlementBefore<T>(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const attempt = Promise.resolve()
     .then(operation)
-    .then(
-      (value) => ({ state: "fulfilled" as const, value }),
-      () => ({ state: "rejected" as const }),
-    );
+    .then((value) => ({ state: "fulfilled" as const, value }))
+    .catch(() => ({ state: "rejected" as const }));
   try {
     return await Promise.race([
       attempt,
@@ -810,10 +806,8 @@ async function openBefore(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const attempt = Promise.resolve()
     .then(() => openRealtime(input))
-    .then(
-      (connection) => ({ ok: true as const, connection }),
-      (error: unknown) => ({ ok: false as const, cause: error }),
-    );
+    .then((connection) => ({ ok: true as const, connection }))
+    .catch((error: unknown) => ({ ok: false as const, cause: error }));
   try {
     const result = await Promise.race([
       attempt,
@@ -859,14 +853,7 @@ export function transitionRealtimeState(
   if (status === "SUBSCRIBED") {
     return { ...previous, current: "subscribed", subscribedOnce: true };
   }
-  const terminal: RealtimeTerminalState | undefined =
-    status === "CHANNEL_ERROR"
-      ? "channel_error"
-      : status === "TIMED_OUT"
-        ? "timed_out"
-        : status === "CLOSED"
-          ? "closed"
-          : undefined;
+  const terminal = realtimeTerminalStatus(status);
   if (!terminal) return previous;
   return {
     ...previous,
@@ -877,6 +864,13 @@ export function transitionRealtimeState(
         previous.postJoinTerminalEvents[terminal] + (previous.subscribedOnce ? 1 : 0),
     },
   };
+}
+
+function realtimeTerminalStatus(status: string): RealtimeTerminalState | undefined {
+  if (status === "CHANNEL_ERROR") return "channel_error";
+  if (status === "TIMED_OUT") return "timed_out";
+  if (status === "CLOSED") return "closed";
+  return undefined;
 }
 
 export async function openSupabaseRealtimeConnection(
@@ -938,10 +932,9 @@ export async function openSupabaseRealtimeConnection(
     let authSet: "set" | "failed" | "deadline";
     try {
       authSet = await Promise.race([
-        client.realtime.setAuth(input.accessToken).then(
-          () => "set" as const,
-          () => "failed" as const,
-        ),
+        client.realtime.setAuth(input.accessToken)
+          .then(() => "set" as const)
+          .catch(() => "failed" as const),
         new Promise<"deadline">((resolve) => {
           authTimer = setTimeout(() => resolve("deadline"), joinBudgetMs);
         }),
@@ -980,7 +973,7 @@ export async function openSupabaseRealtimeConnection(
 
       channel?.subscribe((status) => {
         transition = transitionRealtimeState(transition, status);
-        if (status === "SUBSCRIBED") {
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
           if (!settled) {
             settled = true;
             clearTimeout(deadline);
@@ -997,14 +990,7 @@ export async function openSupabaseRealtimeConnection(
           return;
         }
 
-        const next: RealtimeTerminalState | undefined =
-          status === "CHANNEL_ERROR"
-            ? "channel_error"
-            : status === "TIMED_OUT"
-              ? "timed_out"
-              : status === "CLOSED"
-                ? "closed"
-                : undefined;
+        const next = realtimeTerminalStatus(status);
         if (!next) return;
         if (!settled) {
           settled = true;
@@ -1197,7 +1183,7 @@ async function openRealtimeBatch(
   return {
     opened: handles,
     failures,
-    joinTimes: handles.map((connection) => connection.joinedMs).sort((a, b) => a - b),
+    joinTimes: handles.map((connection) => connection.joinedMs).toSorted((a, b) => a - b),
   };
 }
 
@@ -1210,7 +1196,7 @@ function cumulativeRealtimeBatch(
     failures: newest.failures,
     joinTimes: active
       .map((connection) => connection.joinedMs)
-      .sort((a, b) => a - b),
+      .toSorted((a, b) => a - b),
   };
 }
 
@@ -1271,9 +1257,9 @@ export async function runHostedCapacity(
 ): Promise<CapacityEvidence[]> {
   const realtimeRamp = config.scenario === "api"
     ? []
-    : config.targetKind === "rig"
+    : (config.targetKind === "rig"
       ? config.realtimeRamp
-      : await hostedRealtimeLevels(config.supabaseOrigin, config.realtimeRamp, (level) => level);
+      : await hostedRealtimeLevels(config.supabaseOrigin, config.realtimeRamp, (level) => level));
   if (config.scenario === "realtime" && realtimeRamp.length === 0) {
     throw new CapacityRunError("no hosted Realtime levels fit the connection budget");
   }
@@ -1364,9 +1350,9 @@ export async function runHostedCapacity(
         initialConfirmable && apiHasConfirmableLimitSignal(confirmation);
       const classification = confirmed
         ? "confirmed_capacity_ceiling"
-        : apiAllSuccessful(confirmation)
+        : (apiAllSuccessful(confirmation)
           ? "transient_candidate_not_reproduced"
-          : "inconclusive_network_candidate";
+          : "inconclusive_network_candidate");
       emit(
         safeEvidence(config, {
           scenario: "hosted-api-pooler-ramp",
@@ -1527,9 +1513,9 @@ export async function runHostedCapacity(
         const confirmed = confirmationUnstable && repeatedSignalKinds.length > 0;
         const classification = confirmed
           ? "confirmed_join_or_stability_limit"
-          : confirmationUnstable
+          : (confirmationUnstable
             ? "inconclusive_join_candidate"
-            : "join_burst_candidate_not_reproduced";
+            : "join_burst_candidate_not_reproduced");
         pendingRealtimeEvidence.push(
           safeEvidence(config, {
             scenario: "hosted-realtime-connection-ramp",

@@ -113,7 +113,7 @@ describe("the two catalogues", () => {
   it("carry the same keys, which the type already guarantees at build time", () => {
     // Belt and braces on the one thing tsc cannot see: a build where the two
     // halves were edited in separate deploys.
-    expect(Object.keys(footerFr).sort()).toEqual(Object.keys(footerEn).sort());
+    expect(Object.keys(footerFr).toSorted()).toEqual(Object.keys(footerEn).toSorted());
   });
 
   it("actually differ, so a copied English half cannot pass", () => {
@@ -122,8 +122,8 @@ describe("the two catalogues", () => {
     );
     // The names above are the legitimate exceptions, and naming them here means
     // a NEW identical pair fails rather than joining a silent list.
-    expect(identical.sort()).toEqual(
-      ["compareHeymarket", "compareQuo", "contacts", "hvac", "salons"].sort(),
+    expect(identical.toSorted()).toEqual(
+      ["compareHeymarket", "compareQuo", "contacts", "hvac", "salons"].toSorted(),
     );
   });
 });

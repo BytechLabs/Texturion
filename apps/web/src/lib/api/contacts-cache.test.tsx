@@ -90,7 +90,7 @@ describe("a contact row's prefetch", () => {
     apiFetch.mockResolvedValue({ id: "ct-1", name: "Dana" });
     const client = makeClient();
     expect(contactDetailOptions(C, "ct-1").queryKey).toEqual(keys.contacts.detail(C, "ct-1"));
-    await client.prefetchQuery(contactDetailOptions(C, "ct-1"));
+    await client.query(contactDetailOptions(C, "ct-1")).catch(() => undefined);
     const { result } = mount(client, () => useContact("ct-1"));
     expect(result.current.data).toMatchObject({ name: "Dana" });
     expect(apiFetch).toHaveBeenCalledOnce();

@@ -101,7 +101,7 @@ export interface CallActionsInput {
   run: {
     callBack: () => void;
     text: () => void;
-    copyNumber: () => void;
+    copyNumber: () => void | Promise<void>;
     openContact?: () => void;
     addContact?: () => void;
     makeTask?: () => void;

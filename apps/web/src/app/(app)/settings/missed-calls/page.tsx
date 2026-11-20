@@ -193,9 +193,9 @@ function TextBackCard({
                 >
                   {messageField.state === "saving"
                     ? t("common.saving")
-                    : messageField.state === "saved"
+                    : (messageField.state === "saved"
                       ? t("common.saved")
-                      : ""}
+                      : "")}
                 </p>
               </div>
               <Textarea
@@ -206,7 +206,7 @@ function TextBackCard({
                 rows={4}
                 placeholder={DEFAULT_MCTB_MESSAGE}
                 onChange={(e) => messageField.setDraft(e.target.value)}
-                onBlur={messageField.onBlur}
+                onBlur={() => messageField.onBlur()}
               />
               <p className="text-xs text-muted-foreground">
                 {t("appShell.mctbMergeHintBefore")}{" "}
@@ -725,7 +725,7 @@ export default function CallingSettingsPage() {
       <p className="text-sm text-muted-foreground">{t("appShell.emergencyCallingDisclosure")}</p>
       {company.isPending ? (
         <CallingSkeleton />
-      ) : company.isError ? (
+      ) : (company.isError ? (
         <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
@@ -764,7 +764,7 @@ export default function CallingSettingsPage() {
             </p>
           )}
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

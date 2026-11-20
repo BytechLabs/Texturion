@@ -44,6 +44,44 @@ export function PermissionCard() {
     : t("misc.pushTurningOn");
   const checking = push.phase === "initializing";
 
+  let permissionStatus;
+  if (checking) {
+    permissionStatus = (
+      <div className="space-y-2 pt-1" aria-label={t("misc.pushCheckingAria")}>
+        <Skeleton className="h-4 w-56" />
+      </div>
+    );
+  } else if (push.supported) {
+    if (blocked) {
+      permissionStatus = (
+        <p className="text-sm text-muted-foreground">
+          {t("misc.pushBlockedInBrowser")}{" "}
+          {environment.recovery}
+        </p>
+      );
+    } else if (push.subscribed) {
+      permissionStatus = (
+        <p className="text-sm text-muted-foreground">
+          {t("misc.pushSubscribedBody")}
+        </p>
+      );
+    } else {
+      permissionStatus = (
+        <p className="text-sm text-muted-foreground">
+          {t("misc.pushOfferBody")}
+        </p>
+      );
+    }
+  } else {
+    permissionStatus = (
+      <p className="text-sm text-muted-foreground">
+        {environment.iosTab
+          ? t("misc.pushIosInstall")
+          : t("misc.pushUnsupported")}
+      </p>
+    );
+  }
+
   return (
     <div className="rounded-lg border bg-card p-4">
       <div className="flex items-start gap-3">
@@ -56,30 +94,7 @@ export function PermissionCard() {
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium">{t("misc.pushOnThisDevice")}</p>
-          {checking ? (
-            <div className="space-y-2 pt-1" aria-label={t("misc.pushCheckingAria")}>
-              <Skeleton className="h-4 w-56" />
-            </div>
-          ) : push.supported ? blocked ? (
-            <p className="text-sm text-muted-foreground">
-              {t("misc.pushBlockedInBrowser")}{" "}
-              {environment.recovery}
-            </p>
-          ) : push.subscribed ? (
-            <p className="text-sm text-muted-foreground">
-              {t("misc.pushSubscribedBody")}
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t("misc.pushOfferBody")}
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {environment.iosTab
-                ? t("misc.pushIosInstall")
-                : t("misc.pushUnsupported")}
-            </p>
-          )}
+          {permissionStatus}
           {push.error && (
             <p role="alert" className="text-sm text-destructive">
               {push.error}

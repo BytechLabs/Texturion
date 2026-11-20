@@ -50,7 +50,9 @@ function stubAppPage(
     },
   });
   return {
-    fireLoad: () => loadListeners.splice(0).forEach((cb) => cb()),
+    fireLoad() {
+      for (const listener of loadListeners.splice(0)) listener();
+    },
     idleCallbacks,
     timeouts,
   };

@@ -9,6 +9,7 @@
  * anything it does not understand.
  */
 import { schemaViolationResponse } from "../test/schema-columns";
+import { postgrestScalarText } from "../test/support";
 import type { FetchRoute } from "../test/support";
 import type { Env } from "../env";
 
@@ -83,8 +84,8 @@ function applyOrderAndLimit(rows: Row[], url: URL): Row[] {
     const [column, direction] = order.split(".");
     const sign = direction === "desc" ? -1 : 1;
     result.sort((a, b) => {
-      const left = String(a[column] ?? "");
-      const right = String(b[column] ?? "");
+      const left = postgrestScalarText(a[column]) ?? "";
+      const right = postgrestScalarText(b[column]) ?? "";
       return left < right ? -sign : (left > right ? sign : 0);
     });
   }
@@ -123,16 +124,20 @@ export class FakeRest {
   }
 
   /** Insert a row directly (test seeding and the RPC simulators). */
-  insert(name: string, row: Row): Row {
+  insert(name: string, row: Row): Row & { id: string } {
     const spec = this.tables.get(name);
     if (!spec) throw new Error(`FakeRest: table ${name} not registered`);
     const now = new Date().toISOString();
-    const full: Row = {
-      id: crypto.randomUUID(),
-      created_at: now,
-      updated_at: now,
+    const { id = crypto.randomUUID(), ...columns } = {
       ...structuredClone(spec.defaults),
       ...structuredClone(row),
+    };
+    if (typeof id !== "string") throw new TypeError(`FakeRest: ${name} id must be a string`);
+    const full = {
+      id,
+      created_at: now,
+      updated_at: now,
+      ...columns,
     };
     spec.rows.push(full);
     return full;

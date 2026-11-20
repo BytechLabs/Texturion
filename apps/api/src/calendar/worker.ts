@@ -1381,7 +1381,7 @@ async function processPull(
     ? undefined
     : (connection.sync_cursor ?? undefined);
   let pageToken: string | undefined;
-  let finalCursor: string | null = connection.sync_cursor;
+  let finalCursor: string | null;
   let restarted = connection.pull_full_sync;
   const seenInstanceIds = new Set<string>();
 
@@ -1416,7 +1416,6 @@ async function processPull(
       ) {
         cursor = undefined;
         pageToken = undefined;
-        finalCursor = null;
         restarted = true;
         // Rows observed before the expired cursor was rejected are not part of
         // the replacement full-window proof. Keeping them here could make an
@@ -2400,8 +2399,8 @@ export async function sendCalendarAttentionNotices(env: Env, db: SupabaseClient)
           url: `${env.APP_ORIGIN}/for-you#schedule-decisions`,
         }),
       });
-    } catch (error) {
-      failures.push(error);
+    } catch (subscriptionError) {
+      failures.push(subscriptionError);
     }
     if (failures.length > 0) {
       await reportHandledFailure(env, "calendar-attention-push", failures[0]);

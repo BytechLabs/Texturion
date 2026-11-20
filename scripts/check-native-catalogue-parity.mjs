@@ -86,7 +86,7 @@ function catalogue(directory, extension) {
 
 function argumentsIn(text) {
   return [...new Set(Array.from(text.matchAll(/\{(\w+)\}/g), ([, argument]) => argument))]
-    .sort().join(",");
+    .toSorted((a, b) => a < b ? -1 : Number(a > b)).join(",");
 }
 
 const androidKeys = catalogue(android, ".kt");

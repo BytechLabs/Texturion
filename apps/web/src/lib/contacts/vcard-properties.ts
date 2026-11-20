@@ -220,11 +220,11 @@ export function readVCardProperties(text: string): VCardFile {
   const record = (token: string, value: string | null): void => {
     seenOnThisCard.add(token);
     const seen = values.get(token) ?? new Map<string, string>();
-    const text = (value ?? "").trim();
+    const trimmedValue = (value ?? "").trim();
     // Blank values are dropped for the same reason the CSV sampler drops empty
     // cells: printing them would fill the answer's evidence with silence.
-    if (text !== "" && !seen.has(text.toLowerCase())) {
-      seen.set(text.toLowerCase(), text);
+    if (trimmedValue !== "" && !seen.has(trimmedValue.toLowerCase())) {
+      seen.set(trimmedValue.toLowerCase(), trimmedValue);
     }
     values.set(token, seen);
   };

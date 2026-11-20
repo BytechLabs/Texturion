@@ -218,7 +218,9 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
 
 function capture(samples: Float32Array, marks: PageCapture["marks"], stats: PageCapture["stats"] = []): PageCapture {
   const bytes = Buffer.alloc(samples.length * 2);
-  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2));
+  for (const [i, x] of samples.entries()) {
+    bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2);
+  }
   return { sampleRate: 16_000, startedAt: 1_000_000, pcm_b64: bytes.toString("base64"), marks, stats, remoteStreams: 1 };
 }
 

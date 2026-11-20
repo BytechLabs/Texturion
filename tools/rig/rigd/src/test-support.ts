@@ -67,11 +67,14 @@ export type Route = (request: Recorded) => Response | Promise<Response>;
 export function fakeFetch(routes: Record<string, Route>): { fetch: typeof fetch; requests: Recorded[] } {
   const requests: Recorded[] = [];
   const doFetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+    let url: string;
+    if (input instanceof URL) url = input.href;
+    else if (input instanceof Request) ({ url } = input);
+    else url = input;
     const headers: Record<string, string> = {};
-    new Headers(init?.headers).forEach((value, name) => {
+    for (const [name, value] of new Headers(init?.headers)) {
       headers[name] = value;
-    });
+    }
     const body = init?.body === undefined || init.body === null ? undefined : (typeof init.body === "string" ? init.body : Buffer.from(init.body as Uint8Array).toString("utf8"));
     const request = { method: init?.method ?? "GET", url, headers, body };
     requests.push(request);

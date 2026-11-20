@@ -143,7 +143,7 @@ function accessPhrase(after: Record<string, unknown>, t: Translate): string {
   if (after.access === "everyone") return t("appShell.auditAccessEveryone");
   if (after.access === "role") {
     return t("appShell.auditAccessRole", {
-      role: String(after.role ?? t("appShell.auditAccessRoleFallback")),
+      role: typeof after.role === "string" ? after.role : t("appShell.auditAccessRoleFallback"),
     });
   }
   const people = Number(after.people ?? 0);
@@ -153,6 +153,12 @@ function accessPhrase(after: Record<string, unknown>, t: Translate): string {
   return people === 1
     ? t("appShell.auditAccessOnePerson")
     : t("appShell.auditAccessPeople", { count: people });
+}
+
+function auditCount(value: unknown, t: Translate): string {
+  return typeof value === "string" || typeof value === "number"
+    ? String(value)
+    : t("appShell.auditCountFallback");
 }
 
 /** What a #691 deletion row was about: its kind, never its content. */
@@ -197,7 +203,7 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
     case "member.invited": {
       return t("appShell.auditInvited", {
         who,
-        email: String(after.email ?? t("appShell.auditEmailFallback")),
+        email: typeof after.email === "string" ? after.email : t("appShell.auditEmailFallback"),
         role: roleWord(after.role, t),
       });
     }
@@ -207,7 +213,7 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
     case "member.invite_resent": {
       return t("appShell.auditInviteResent", {
         who,
-        email: String(after.email ?? t("appShell.auditEmailFallback")),
+        email: typeof after.email === "string" ? after.email : t("appShell.auditEmailFallback"),
       });
     }
     case "member.joined": {
@@ -241,7 +247,7 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
     case "billing.plan_changed": {
       return t("appShell.auditPlanChanged", {
         who,
-        plan: String(after.plan ?? t("appShell.auditPlanFallback")),
+        plan: typeof after.plan === "string" ? after.plan : t("appShell.auditPlanFallback"),
       });
     }
     case "billing.module_changed": {
@@ -250,19 +256,19 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
     case "contacts.imported": {
       return t("appShell.auditContactsImported", {
         who,
-        count: String(after.count ?? t("appShell.auditCountFallback")),
+        count: auditCount(after.count, t),
       });
     }
     case "contacts.exported": {
       return t("appShell.auditContactsExported", {
         who,
-        count: String(after.count ?? t("appShell.auditCountFallback")),
+        count: auditCount(after.count, t),
       });
     }
     case "contacts.bulk_deleted": {
       return t("appShell.auditContactsDeleted", {
         who,
-        count: String(after.count ?? t("appShell.auditCountFallback")),
+        count: auditCount(after.count, t),
       });
     }
     case "record.deleted": {

@@ -143,14 +143,16 @@ async function deliver(
     // matters. Falls back to the id, which is still enough to act on.
     const actor = actorResult.data?.user?.email ?? alarm.actorUserId;
 
-    const what =
-      alarm.event === "workspace_exported"
-        ? "requested a full export of this workspace"
-        : alarm.event === "history_exported"
-          ? "exported one customer's message history"
-          : alarm.event === "exported"
-            ? `downloaded ${alarm.count} contacts`
-            : `deleted ${alarm.count} contacts`;
+    let what;
+    if (alarm.event === "workspace_exported") {
+      what = "requested a full export of this workspace";
+    } else if (alarm.event === "history_exported") {
+      what = "exported one customer's message history";
+    } else if (alarm.event === "exported") {
+      what = `downloaded ${alarm.count} contacts`;
+    } else {
+      what = `deleted ${alarm.count} contacts`;
+    }
     const text =
       `${actor} just ${what} in ${company.name}.\n\n` +
       `If that was expected, nothing needs doing. If it was not, the full ` +

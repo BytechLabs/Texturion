@@ -60,6 +60,65 @@ export function MemberAccessDialog({
   const access = useMemberNumberAccess(userId, open);
   const rows = sortNumberAccessExplanations(access.data?.numbers ?? []);
 
+  let accessRows;
+  if (access.isPending) {
+    accessRows = (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        {t("settings.memberAccessChecking")}
+      </p>
+    );
+  } else if (access.isError) {
+    accessRows = (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        {t("settings.memberAccessLoadFailed")}
+      </p>
+    );
+  } else if (rows.length === 0) {
+    accessRows = (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        {t("settings.memberAccessNoNumbers")}
+      </p>
+    );
+  } else {
+    accessRows = (
+      <ul className="divide-y">
+        {rows.map((row) => (
+          <li
+            key={row.phone_number_id}
+            className="flex items-start justify-between gap-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium tabular-nums">
+                {row.number_e164
+                  ? <CopyablePhoneNumber number={row.number_e164} />
+                  : t("settings.memberAccessUnnamedNumber")}
+              </p>
+              {/* The reason, quiet and directly under the number it
+                  explains — a strong relationship gets tight spacing. */}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {numberAccessReason(row.decided_by, row.principal, say)}
+              </p>
+            </div>
+            {/* The level is the answer, so it is the one emphasized thing on
+                the row. Restricted is muted rather than red: this is a
+                settings readout, not an alarm, and most restrictions are
+                somebody's deliberate choice. */}
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                numberAccessIsRestricted(row.level)
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-primary/10 text-primary",
+              )}
+            >
+              {numberAccessLevelLabel(row.level, say)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -70,55 +129,7 @@ export function MemberAccessDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {access.isPending ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("settings.memberAccessChecking")}
-          </p>
-        ) : access.isError ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("settings.memberAccessLoadFailed")}
-          </p>
-        ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {t("settings.memberAccessNoNumbers")}
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {rows.map((row) => (
-              <li
-                key={row.phone_number_id}
-                className="flex items-start justify-between gap-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium tabular-nums">
-                    {row.number_e164
-                      ? <CopyablePhoneNumber number={row.number_e164} />
-                      : t("settings.memberAccessUnnamedNumber")}
-                  </p>
-                  {/* The reason, quiet and directly under the number it
-                      explains — a strong relationship gets tight spacing. */}
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {numberAccessReason(row.decided_by, row.principal, say)}
-                  </p>
-                </div>
-                {/* The level is the answer, so it is the one emphasized thing on
-                    the row. Restricted is muted rather than red: this is a
-                    settings readout, not an alarm, and most restrictions are
-                    somebody's deliberate choice. */}
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                    numberAccessIsRestricted(row.level)
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-primary/10 text-primary",
-                  )}
-                >
-                  {numberAccessLevelLabel(row.level, say)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {accessRows}
       </DialogContent>
     </Dialog>
   );

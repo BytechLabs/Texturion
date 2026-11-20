@@ -39,15 +39,20 @@ type Answer = { kind: "accepted" } | { kind: "refused"; signature: string; code:
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function errorCode(value: unknown): string | null {
+  return typeof value === "string" || typeof value === "number" ? String(value) : null;
+}
+
 /** The first error Telnyx names on an answer: its code and field. The words go to the Worker's log only. */
 function firstError(body: unknown): { code: string | null; pointer: string | null; detail: string } {
   const errors = (body as { errors?: unknown } | undefined)?.errors;
   const error = (Array.isArray(errors) ? errors[0] : undefined) as Item | undefined;
   const pointer = (error?.source as Item | undefined)?.pointer;
+  const detail = typeof error?.detail === "string" ? error.detail : error?.title;
   return {
-    code: error?.code === undefined ? null : String(error.code),
+    code: errorCode(error?.code),
     pointer: typeof pointer === "string" ? pointer : null,
-    detail: String(error?.detail ?? error?.title ?? "").slice(0, 200),
+    detail: typeof detail === "string" ? detail.slice(0, 200) : "",
   };
 }
 
@@ -57,10 +62,11 @@ function identifiedRefusal(status: number, body: unknown): { signature: string; 
   const errors = (body as { errors?: unknown } | undefined)?.errors;
   if (!Array.isArray(errors)) return null;
   for (const error of errors as Item[]) {
-    const pointer = String((error?.source as Item | undefined)?.pointer ?? "");
-    const detail = String(error?.detail ?? "");
+    const rawPointer = (error?.source as Item | undefined)?.pointer;
+    const pointer = typeof rawPointer === "string" ? rawPointer : "";
+    const detail = typeof error?.detail === "string" ? error.detail : "";
     if (pointer.includes("concurrent_call_limit") || detail.includes("concurrent_call_limit")) {
-      const code = error?.code === undefined ? null : String(error.code);
+      const code = errorCode(error.code);
       return { signature: `${code ?? ""}|${pointer}`, code };
     }
   }

@@ -79,7 +79,7 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
     runners: { S02: runner("S02"), S20: runner("S20"), S29: runner("S29") },
     verdicts,
     leases,
-    localLease: (scenario) => leases.acquireLocal(scenario),
+    localLease: (selectedScenario) => leases.acquireLocal(selectedScenario),
     lanes: () => fakeLanes(time),
     posthog: new PostHogErrors({ projectKey: "phc_rig_test_key", fetch }),
     sha: () => SHA,
@@ -836,11 +836,11 @@ describe("a device scenario's start", () => {
       [id]: {
         id,
         async prepare() {
-          order.push(`prepare after [${lanes.devices.pixelDevice.actions}]`);
+        order.push(`prepare after [${lanes.devices.pixelDevice.actions.join(",")}]`);
           return undefined;
         },
         async run() {
-          order.push(`run after [${lanes.devices.pixelDevice.actions}]`);
+        order.push(`run after [${lanes.devices.pixelDevice.actions.join(",")}]`);
           return { outcome: "pass" };
         },
       },

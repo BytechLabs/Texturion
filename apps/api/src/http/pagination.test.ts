@@ -34,11 +34,7 @@ describe("cursor encode/decode (SPEC §7: opaque base64url over (timestamptz, id
     const tampered =
       encoded.slice(0, -1) + (encoded.endsWith("A") ? "B" : "A");
     expect(() => decodeCursor(tampered)).toThrow(ApiError);
-    try {
-      decodeCursor(tampered);
-    } catch (error) {
-      expect((error as ApiError).code).toBe("validation_failed");
-    }
+    expect(() => decodeCursor(tampered)).toThrow(expect.objectContaining({ code: "validation_failed" }));
   });
 
   it("rejects non-base64 garbage", () => {

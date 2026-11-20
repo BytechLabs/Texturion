@@ -116,7 +116,7 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
   const internal = args.internal === true;
   // Three-valued: null means "no global statement", which is different from
   // off — it falls through to the code default.
-  const enabled = on ? true : off ? false : null;
+  const enabled = on ? true : (off ? false : null);
 
   if (KILL_SWITCHES.includes(key) && enabled === false && !args.note) {
     fail(

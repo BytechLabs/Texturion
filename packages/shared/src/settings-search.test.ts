@@ -76,7 +76,7 @@ describe("#719 settings search", () => {
     const firstSynonym = results.findIndex((r) => r.rank === 1);
     const lastLabel = results.map((r) => r.rank).lastIndexOf(0);
     expect(results[0]?.rank).toBe(0);
-    if (firstSynonym !== -1) expect(lastLabel).toBeLessThan(firstSynonym);
+    expect(lastLabel).toBeLessThan(firstSynonym === -1 ? results.length : firstSynonym);
   });
 
   it("SS-8: an empty or blank query matches nothing", () => {

@@ -78,7 +78,7 @@ export function QuietHoursRow({
           checked={on}
           disabled={saving}
           onCheckedChange={(next) =>
-            save(
+            void save(
               next
                 ? {
                     quiet_from: QUIET_HOURS_DEFAULT.from,
@@ -102,7 +102,7 @@ export function QuietHoursRow({
             aria-label={t("settingsMore.quietFromAria")}
             value={prefs.quiet_from ?? ""}
             disabled={saving}
-            onChange={(event) => save({ quiet_from: event.target.value })}
+            onChange={(event) => void save({ quiet_from: event.target.value })}
             className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
           />
           <span className="text-[13px] text-app-muted-2">
@@ -113,7 +113,7 @@ export function QuietHoursRow({
             aria-label={t("settingsMore.quietUntilAria")}
             value={prefs.quiet_to ?? ""}
             disabled={saving}
-            onChange={(event) => save({ quiet_to: event.target.value })}
+            onChange={(event) => void save({ quiet_to: event.target.value })}
             className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
           />
           <span className="text-[12px] text-app-muted-2">

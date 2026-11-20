@@ -1,3 +1,4 @@
+import { fetchInputUrl, requireString } from "./test-support";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./core";
@@ -40,7 +41,7 @@ function makeClient(
 ) {
   const fetchSpy = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) =>
-      handler(String(input), init),
+      handler(fetchInputUrl(input), init),
   );
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
@@ -64,11 +65,11 @@ describe("create — POST /v1/text-enablements", () => {
 
     expect(created).toEqual(ROW);
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe("https://api.loonext.test/v1/text-enablements");
+    expect(fetchInputUrl(url)).toBe("https://api.loonext.test/v1/text-enablements");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Company-Id"]).toBe("company-1");
     expect(headers["Idempotency-Key"]).toBe(idempotencyKey);
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(JSON.parse(requireString(init?.body))).toEqual({
       phone_e164: "+16135550100",
     });
   });
@@ -121,7 +122,7 @@ describe("documents — PUT /v1/text-enablements/:id/documents", () => {
     expect(updated.has_loa).toBe(true);
     expect(updated.has_bill).toBe(true);
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe(
+    expect(fetchInputUrl(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/documents`,
     );
     expect(init?.method).toBe("PUT");
@@ -153,11 +154,11 @@ describe("verification — the number-ownership code POSTs", () => {
 
     expect(result).toEqual({ requested: true, verification_method: "call" });
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe(
+    expect(fetchInputUrl(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes`,
     );
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(JSON.parse(requireString(init?.body))).toEqual({
       verification_method: "call",
     });
   });
@@ -199,10 +200,10 @@ describe("verification — the number-ownership code POSTs", () => {
 
     expect(result).toEqual({ verified: true });
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe(
+    expect(fetchInputUrl(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/verification-codes/verify`,
     );
-    expect(JSON.parse(String(init?.body))).toEqual({ code: "482913" });
+    expect(JSON.parse(requireString(init?.body))).toEqual({ code: "482913" });
   });
 
   it("a rejected code surfaces the plain retry sentence", async () => {
@@ -238,7 +239,7 @@ describe("resubmit / cancel — the action POSTs", () => {
 
     expect(reset.status).toBe("pending");
     const [[url, init]] = fetchSpy.mock.calls;
-    expect(String(url)).toBe(
+    expect(fetchInputUrl(url)).toBe(
       `https://api.loonext.test/v1/text-enablements/${ROW.id}/resubmit`,
     );
     expect(init?.method).toBe("POST");

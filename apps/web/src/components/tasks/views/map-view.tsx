@@ -253,7 +253,7 @@ function UnmappedTasks({ count }: { count?: number }) {
 function partitionLocated(tasks: Task[]): { located: LocatedTask[]; missing: number } {
   const located: LocatedTask[] = [];
   let missing = 0;
-  for (const task of [...tasks].sort(compareMapStops)) {
+  for (const task of tasks.toSorted(compareMapStops)) {
     const coords = taskCoords(task);
     if (coords) located.push({ ...task, lat: coords.lat, lng: coords.lng, contactName: coords.name, stop: located.length + 1 });
     else missing += 1;

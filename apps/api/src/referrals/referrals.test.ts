@@ -431,7 +431,8 @@ describe("#399 rewardQualifiedReferral", () => {
           filters.push([`is:${column}`, value]);
           return referrals;
         },
-        then: (resolve: (r: unknown) => void) =>
+    // oxlint-disable-next-line unicorn/no-thenable -- The Supabase query double has to be awaitable.
+    then: (resolve: (r: unknown) => void) =>
           resolve(answer ?? { data: rows, error: null }),
       };
       return {

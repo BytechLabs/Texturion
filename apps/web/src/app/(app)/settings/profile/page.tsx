@@ -137,7 +137,7 @@ export default function ProfileSettingsPage() {
         >
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit(onSubmit)}
+              onSubmit={(event) => { void form.handleSubmit(onSubmit)(event); }}
               className="flex flex-col gap-2 sm:flex-row sm:items-start"
               noValidate
             >

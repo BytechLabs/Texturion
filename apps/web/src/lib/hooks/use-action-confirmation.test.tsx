@@ -154,7 +154,7 @@ describe("retrying with the digits", () => {
     act(() => {
       result.current.demanded(refusal("confirmation_code_required"), "offer", retry);
     });
-    act(() => result.current.confirm("123456"));
+    act(() => result.current.handleConfirm("123456"));
     expect(retry).toHaveBeenCalledWith("123456");
   });
 
@@ -198,7 +198,7 @@ describe("retrying with the digits", () => {
     expect(result.current.rejected).toBe(true);
     expect(requestCode).toHaveBeenCalledOnce();
 
-    act(() => result.current.resend());
+    act(() => result.current.handleResend());
     expect(requestCode).toHaveBeenCalledTimes(2);
     // For the action being confirmed, not merely one more of something. Counting
     // the calls and not reading them left the argument free: a code minted against
@@ -244,10 +244,10 @@ describe("retrying with the digits", () => {
     });
     expect(requestCode).toHaveBeenCalledOnce();
 
-    act(() => result.current.resend());
+    act(() => result.current.handleResend());
     expect(requestCode).toHaveBeenLastCalledWith("release_number");
 
-    act(() => result.current.confirm("123456"));
+    act(() => result.current.handleConfirm("123456"));
     expect(releasing.mock.calls).toEqual([["123456"]]);
     expect(closing).not.toHaveBeenCalled();
   });
@@ -268,8 +268,8 @@ describe("retrying with the digits", () => {
     });
     expect(requestCode).toHaveBeenCalledOnce();
 
-    act(() => result.current.dismiss());
-    act(() => result.current.resend());
+    act(() => result.current.handleDismiss());
+    act(() => result.current.handleResend());
     expect(requestCode).toHaveBeenCalledOnce();
   });
 
@@ -317,11 +317,11 @@ describe("retrying with the digits", () => {
     });
     expect(result.current.rejected).toBe(true);
 
-    act(() => result.current.dismiss());
+    act(() => result.current.handleDismiss());
     expect(result.current.kind).toBeNull();
     expect(result.current.rejected).toBe(false);
     // Nothing to retry into: a dismissed prompt must not still be able to fire.
-    act(() => result.current.confirm("123456"));
+    act(() => result.current.handleConfirm("123456"));
     expect(retry).not.toHaveBeenCalled();
   });
 });
@@ -373,7 +373,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
 
     // Challenged and verified against the account's own TOTP factor, in this
@@ -402,7 +402,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
 
     expect(retry.mock.calls).toEqual([["123456"]]);
@@ -425,7 +425,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
 
     expect(challengeAndVerify).toHaveBeenCalledWith({
@@ -462,7 +462,7 @@ describe("proving a factor again, in the browser", () => {
       });
 
       await act(async () => {
-        result.current.confirm("123456");
+        result.current.handleConfirm("123456");
       });
 
       expect(challengeAndVerify).toHaveBeenCalledWith({
@@ -505,7 +505,7 @@ describe("proving a factor again, in the browser", () => {
     expect(result.current.kind).toBe("reprove");
 
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
 
     // Followed all the way to the destination, not just in the copy: the digits
@@ -529,7 +529,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("000000");
+      result.current.handleConfirm("000000");
     });
 
     // Same complaint, same place, wherever the code was typed.
@@ -555,13 +555,13 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("000000");
+      result.current.handleConfirm("000000");
     });
     expect(result.current.rejected).toBe(true);
 
     // They read the next code off the app and press Confirm again.
     await act(async () => {
-      result.current.confirm("111111");
+      result.current.handleConfirm("111111");
     });
     expect(pending).toHaveLength(1);
     expect(result.current.rejected).toBe(false);
@@ -585,7 +585,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
 
     expect(result.current.rejected).toBe(true);
@@ -607,7 +607,7 @@ describe("proving a factor again, in the browser", () => {
     });
 
     act(() => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
     // Every caller ORs this into the dialog's `pending`, so the Confirm button is
     // already disabled by the time the click handler returns.
@@ -621,7 +621,7 @@ describe("proving a factor again, in the browser", () => {
     // outright and this still passed.
     await act(async () => {});
     await act(async () => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
     // A second challenge would burn the same code against a new one and tell
     // somebody their correct digits were wrong.
@@ -664,8 +664,8 @@ describe("proving a factor again, in the browser", () => {
     // re-rendered between the two handlers, so neither can see the other's state.
     const gate = result.current;
     await act(async () => {
-      gate.confirm("123456");
-      gate.confirm("123456");
+      gate.handleConfirm("123456");
+      gate.handleConfirm("123456");
     });
 
     // Refused before it reached Supabase at all — not merely deduplicated after.
@@ -695,11 +695,11 @@ describe("proving a factor again, in the browser", () => {
       );
     });
     act(() => {
-      result.current.confirm("123456");
+      result.current.handleConfirm("123456");
     });
     await act(async () => {});
 
-    act(() => result.current.dismiss());
+    act(() => result.current.handleDismiss());
     await act(async () => settle({ data: {}, error: null }));
 
     // The existing invariant — a dismissed prompt cannot still fire — and an await
@@ -735,10 +735,10 @@ describe("proving a factor again, in the browser", () => {
       );
     });
     act(() => {
-      result.current.confirm("111111");
+      result.current.handleConfirm("111111");
     });
     await act(async () => {});
-    act(() => result.current.dismiss());
+    act(() => result.current.handleDismiss());
     return { hook, first, second };
   }
 
@@ -785,7 +785,7 @@ describe("proving a factor again, in the browser", () => {
       );
     });
     await act(async () => {
-      result.current.confirm("222222");
+      result.current.handleConfirm("222222");
     });
     expect(pending).toHaveLength(2);
     expect(result.current.requesting).toBe(true);
@@ -802,7 +802,7 @@ describe("proving a factor again, in the browser", () => {
     expect(result.current.requesting).toBe(true);
     const gate = result.current;
     await act(async () => {
-      gate.confirm("222222");
+      gate.handleConfirm("222222");
     });
     expect(challengeAndVerify).toHaveBeenCalledTimes(2);
 
@@ -832,7 +832,7 @@ describe("a code pasted with the whitespace still on it", () => {
     });
 
     await act(async () => {
-      result.current.confirm("  123456  ");
+      result.current.handleConfirm("  123456  ");
     });
 
     // Supabase compares the string it is handed against the generated digits, so
@@ -863,7 +863,7 @@ describe("a code pasted with the whitespace still on it", () => {
     });
 
     await act(async () => {
-      result.current.confirm(" 123456\n");
+      result.current.handleConfirm(" 123456\n");
     });
 
     expect(retry.mock.calls).toEqual([["123456"]]);

@@ -50,8 +50,8 @@ export default function HelpPage() {
         <div className="space-y-4">
           <Skeleton className="h-52 w-full rounded-lg" />
         </div>
-      ) : company.isError || !company.data ? (
-        <LoadError onRetry={() => company.refetch()} />
+      ) : (company.isError || !company.data ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
           <SettingsCard id="help-email"
@@ -180,7 +180,7 @@ export default function HelpPage() {
             </p>
           </SettingsCard>
         </div>
-      )}
+      ))}
     </SettingsPage>
   );
 }

@@ -177,20 +177,10 @@ describe("both bundlers know what a .md module is", () => {
 
     expect(named.size, "no turbopack loader names were found to check").toBeGreaterThan(0);
     for (const loader of named) {
-      if (loader.startsWith(".")) {
-        // A path into this repo — the loader is ours, so the check is that the
-        // file is still where the config says. Renaming it is silent until a
-        // Turbopack build runs, and the thing that breaks is the legal pages.
-        expect(
-          existsSync(join(APP, "..", "..", loader)),
-          `next.config.ts points at ${loader} and no such file exists`,
-        ).toBe(true);
-        continue;
-      }
-      expect(
-        Object.hasOwn(declared, loader),
-        `next.config.ts names the ${loader} loader and package.json does not depend on it`,
-      ).toBe(true);
+      const found = loader.startsWith(".")
+        ? existsSync(join(APP, "..", "..", loader))
+        : Object.hasOwn(declared, loader);
+      expect(found, `next.config.ts names a missing loader: ${loader}`).toBe(true);
     }
   });
 });

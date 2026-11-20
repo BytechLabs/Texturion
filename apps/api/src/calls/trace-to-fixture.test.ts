@@ -8,6 +8,7 @@
  * real is published. They are still assembled from parts at run time, because
  * check-rig-no-e164 reads this file and passes only 555-0100..0199.
  */
+import { requireString } from "../test/support";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -172,7 +173,7 @@ describe("trace-to-fixture: what it keeps joined up", () => {
       caller: initiated.from,
       inboundCcid: initiated.call_control_id,
     });
-    expect(decode(saved.client_state)).toBe(`vmi|${initiated.from}`);
+    expect(decode(saved.client_state)).toBe(`vmi|${requireString(initiated.from)}`);
     // The ring leg and the customer leg still land on one session object.
     const [customerEvent, ringEvent] = fixture.events as unknown as TelnyxEvent[];
     expect(sessionKeyFor(ringEvent)).toBe(sessionKeyFor(customerEvent));
@@ -281,15 +282,15 @@ describe("trace-to-fixture: edges", () => {
     ]) as { fixture: { events: Envelope[] } };
     const [first, second, third] = payloads(fixture);
     expect(decodeClientState(first.client_state)).toEqual({
-      text: `vmi|${first.from}|déjà`,
+      text: `vmi|${requireString(first.from)}|déjà`,
       encoding: "utf8",
     });
     expect(decodeClientState(second.client_state)).toEqual({
-      text: `vmi|${first.from}|déjà`,
+      text: `vmi|${requireString(first.from)}|déjà`,
       encoding: "latin1",
     });
     expect(third.client_state).not.toMatch(/[=]$/);
-    expect(decodeClientState(third.client_state)?.text).toBe(`vmi|${first.from}|`);
+    expect(decodeClientState(third.client_state)?.text).toBe(`vmi|${requireString(first.from)}|`);
   });
 });
 

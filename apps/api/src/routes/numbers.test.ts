@@ -1334,7 +1334,7 @@ describe("DELETE /v1/numbers/:id", () => {
       country: "US",
       number_e164: "+12125550009",
     });
-    const res = await harness.request(`/v1/numbers/${foreign.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${foreign.id}`, {
       method: "DELETE",
     });
     expect(res.status).toBe(404);
@@ -1350,7 +1350,7 @@ describe("DELETE /v1/numbers/:id", () => {
       country: "US",
       released_at: "2026-06-01T00:00:00.000Z",
     });
-    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${row.id}`, {
       method: "DELETE",
     });
     expect(res.status).toBe(409);
@@ -1373,7 +1373,7 @@ describe("DELETE /v1/numbers/:id", () => {
         /^\/v2\/phone_numbers\/pn-gate$/,
         () => new Response(null, { status: 204 }),
       );
-      return row.id as string;
+      return row.id;
     }
 
     it("will not give a number up on a role check alone", async () => {
@@ -1439,7 +1439,7 @@ describe("DELETE /v1/numbers/:id", () => {
         country: "US",
         released_at: "2026-06-01T00:00:00.000Z",
       });
-      const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+      const res = await harness.request(`/v1/numbers/${row.id}`, {
         method: "DELETE",
       });
       expect(res.status).toBe(409);
@@ -1487,7 +1487,7 @@ describe("DELETE /v1/numbers/:id", () => {
       () => new Response(null, { status: 204 }),
     );
 
-    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${row.id}`, {
       method: "DELETE",
       ...withCode(),
     });
@@ -1518,7 +1518,7 @@ describe("DELETE /v1/numbers/:id", () => {
       () => new Response(null, { status: 204 }),
     );
 
-    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${row.id}`, {
       method: "DELETE",
       ...withCode(),
     });
@@ -1547,7 +1547,7 @@ describe("DELETE /v1/numbers/:id", () => {
     harness.telnyx.on("DELETE", /^\/v2\/phone_numbers\/pn-1$/, () =>
       telnyxError(500, "10000"),
     );
-    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${row.id}`, {
       method: "DELETE",
       ...withCode(),
     });
@@ -1578,7 +1578,7 @@ describe("DELETE /v1/numbers/:id", () => {
       () => new Response(null, { status: 204 }),
     );
 
-    const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+    const res = await harness.request(`/v1/numbers/${row.id}`, {
       method: "DELETE",
       ...withCode(),
     });
@@ -1628,7 +1628,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     const before = harness.rest.rows("phone_numbers").length;
 
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ chosen_number_e164: "+12125550188" }),
     );
     expect(res.status).toBe(200);
@@ -1655,7 +1655,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     const row = insertFailed(harness, { country: "CA" });
 
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ chosen_number_e164: "+16475550100" }),
     );
     expect(res.status).toBe(200);
@@ -1668,7 +1668,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     const harness = buildHarness(); // US company
     const row = insertFailed(harness);
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ chosen_number_e164: "+14165550100" }), // 416 is CA
     );
     expect(res.status).toBe(422);
@@ -1678,7 +1678,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     const harness = buildHarness();
     const row = insertFailed(harness, { telnyx_order_id: "order-inflight" });
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ chosen_number_e164: "+12125550188" }),
     );
     expect(res.status).toBe(409);
@@ -1694,7 +1694,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
       number_e164: "+12125550111",
     });
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ requested_area_code: "646" }),
     );
     expect(res.status).toBe(409);
@@ -1705,7 +1705,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     harness.state.role = "member";
     const row = insertFailed(harness);
     const res = await harness.request(
-      `/v1/numbers/${row.id as string}/remediate`,
+      `/v1/numbers/${row.id}/remediate`,
       remediateInit({ requested_area_code: "646" }),
     );
     expect(res.status).toBe(403);
@@ -1796,7 +1796,7 @@ describe("GET /v1/numbers/access/me (#286)", () => {
     ]);
     const res = await harness.request("/v1/numbers/access/me");
     const [row] = (await res.json<{ numbers: Record<string, unknown>[] }>()).numbers;
-    expect(Object.keys(row).sort()).toEqual(
+    expect(Object.keys(row).toSorted()).toEqual(
       ["decided_by", "level", "number_e164", "phone_number_id", "principal"],
     );
   });
@@ -2062,7 +2062,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     expect(res.status).toBe(200);
     const body = await res.json<Record<string, unknown>>();
 
-    for (const field of Object.keys(identityBodySchema._def.shape)) {
+    for (const field of Object.keys(identityBodySchema.def.shape)) {
       expect(body, `PATCH accepts ${field} and GET never returns it`).toHaveProperty(
         field,
       );

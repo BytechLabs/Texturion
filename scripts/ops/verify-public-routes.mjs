@@ -81,7 +81,7 @@ function routes(dir, prefix = "", out = []) {
   return out;
 }
 
-const all = routes(MARKETING).sort();
+const all = routes(MARKETING).toSorted((a, b) => a < b ? -1 : Number(a > b));
 
 /**
  * Dynamic segments are skipped and SAID OUT LOUD.

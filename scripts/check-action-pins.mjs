@@ -220,21 +220,21 @@ function checkRefs(file, source, strict) {
   const problems = [];
   let refs = 0;
 
-  source.split(/\r?\n/).forEach((line, index) => {
+  for (const [index, line] of source.split(/\r?\n/).entries()) {
     // `- uses: owner/repo@ref # comment` or `uses: owner/repo@ref`, at any indent.
     const match = /^\s*(?:-\s+)?uses:\s*(\S+)\s*(?:#\s*(.*))?$/.exec(line);
-    if (!match) return;
+    if (!match) continue;
     const [, ref, comment] = match;
     const where = `${file}:${index + 1}`;
 
     // Local actions and workflows are pinned by this repository's commit.
-    if (ref.startsWith("./")) return;
+    if (ref.startsWith("./")) continue;
     refs += 1;
 
     const at = ref.lastIndexOf("@");
     if (at === -1) {
       problems.push(`${where}: \`${ref}\` has no ref at all — it floats freely.`);
-      return;
+      continue;
     }
     const version = ref.slice(at + 1);
 
@@ -247,7 +247,7 @@ function checkRefs(file, source, strict) {
             "`# v4.4.0`.",
         );
       }
-      return;
+      continue;
     }
 
     if (strict) {
@@ -258,7 +258,7 @@ function checkRefs(file, source, strict) {
           "repository. Resolve it:\n" +
           "        node scripts/ops/bump-action-pins.mjs",
       );
-      return;
+      continue;
     }
 
     if (!VERSION_SHAPED.test(version)) {
@@ -269,7 +269,7 @@ function checkRefs(file, source, strict) {
           "target with no version in its name is not.",
       );
     }
-  });
+  }
 
   return { problems, refs };
 }
@@ -303,7 +303,7 @@ const files = only
   ? [only]
   : readdirSync(WORKFLOW_DIR)
       .filter((name) => /\.ya?ml$/.test(name))
-      .sort()
+      .toSorted()
       .map((name) => join(WORKFLOW_DIR, name));
 
 const problems = [];

@@ -1246,7 +1246,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     },
 
     async pushFanout(input) {
-      const report: IncomingCallPushReport = await notifyIncomingCall(
+      const pushReport: IncomingCallPushReport = await notifyIncomingCall(
         env,
         db,
         {
@@ -1256,7 +1256,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           callSessionId: input.sessionId,
         },
       );
-      return { unreachableUserIds: report.unreachableUserIds };
+      return { unreachableUserIds: pushReport.unreachableUserIds };
     },
 
     async pushCallEnd(input) {
@@ -1405,24 +1405,26 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     },
     recordCallSteps(sessionId, companyId, steps) {
       if (steps.length === 0) return;
-      const write = Promise.resolve(
-        db.rpc("record_call_steps", {
-          p_company_id: companyId,
-          p_call_session_id: sessionId,
-          p_steps: steps.map((s) => ({
-            kind: s.kind,
-            at: new Date(s.atMs).toISOString(),
-            actor_user_id: s.actorUserId,
-            actor_type: s.actorType,
-            payload: s.payload,
-          })),
-        }),
-      ).then(
-        ({ error }) => {
+      const record = db.rpc("record_call_steps", {
+        p_company_id: companyId,
+        p_call_session_id: sessionId,
+        p_steps: steps.map((s) => ({
+          kind: s.kind,
+          at: new Date(s.atMs).toISOString(),
+          actor_user_id: s.actorUserId,
+          actor_type: s.actorType,
+          payload: s.payload,
+        })),
+      });
+      const reportWrite = async () => {
+        try {
+          const { error } = await record;
           if (error) report(new Error(`record_call_steps failed: ${error.code ?? "unknown"}`), "warning");
-        },
-        (error: unknown) => report(error, "warning"),
-      );
+        } catch (error) {
+          report(error, "warning");
+        }
+      };
+      const write = reportWrite();
       // Runs inside the transition, so it must never throw into it: a host
       // with no waitUntil still lets the write finish on its own.
       try {
@@ -1466,17 +1468,17 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
 
     async greetingAudioUrl(machine) {
       if (!machine.phoneNumberId) return null;
-      const db = getDb(env);
+      const greetingsDb = getDb(env);
 
       // One read: the line's selection and the workspace's, together. #307's
       // rule — null on the number means INHERIT, never "no greeting".
       const [numberRes, companyRes] = await Promise.all([
-        db
+        greetingsDb
           .from("phone_numbers")
           .select("voicemail_greeting_id,after_hours_greeting_id")
           .eq("id", machine.phoneNumberId)
           .limit(1),
-        db
+        greetingsDb
           .from("companies")
           .select("voicemail_greeting_id,after_hours_greeting_id")
           .eq("id", machine.companyId)
@@ -1509,7 +1511,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             companySel?.voicemail_greeting_id)) ?? null;
       if (!selected) return null;
 
-      const { data: rows } = await db
+      const { data: rows } = await greetingsDb
         .from("voicemail_greetings")
         .select("storage_path")
         .eq("id", selected)

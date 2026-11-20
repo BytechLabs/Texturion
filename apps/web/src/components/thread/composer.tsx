@@ -109,7 +109,7 @@ import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
-import { cn } from "@/lib/utils";
+import { cn, withOccurrenceKeys } from "@/lib/utils";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { CatchUpHint } from "./catch-up-hint";
@@ -157,11 +157,11 @@ export function mentionAwareMessage(message: string, t: Translate): string {
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => {
+    reader.addEventListener("error", () => reject(new Error("read failed")));
+    reader.addEventListener("load", () => {
       const result = reader.result as string;
       resolve(result.slice(result.indexOf(",") + 1));
-    };
+    });
     reader.readAsDataURL(file);
   });
 }
@@ -324,8 +324,8 @@ export function MediaErrors({ errors }: { errors: string[] }) {
   if (errors.length === 0) return null;
   return (
     <div className="mx-auto max-w-[42rem] space-y-0.5 px-1 pb-2" role="alert">
-      {errors.map((error, index) => (
-        <p key={index} className="text-xs text-destructive">
+      {withOccurrenceKeys(errors, (error) => error).map(({ item: error, key }) => (
+        <p key={key} className="text-xs text-destructive">
           {error}
         </p>
       ))}
@@ -549,6 +549,7 @@ export function useAutoGrow(value: string) {
     const lineHeight = 24;
     const max = lineHeight * 6;
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- measure after React updates the textarea value.
   }, [value]);
   return ref;
 }
@@ -714,6 +715,7 @@ export function Composer({
     // outcome for THIS thread's note about words spoken into another one.
     wrapUpInsert.current = null;
     setWrapUpError(null);
+  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the draft belongs to its original conversation.
   }, [conversationId]);
   const textareaRef = useAutoGrow(text);
   // #694: the r shortcut on the inbox list asks for the reply box. It may fire
@@ -1513,7 +1515,7 @@ export function Composer({
       {isNote && (
         <StagedFileChips
           files={noteStage.files}
-          onRemove={noteStage.remove}
+          onRemove={(id) => noteStage.remove(id)}
           onMarkUp={setMarkingUp}
           className="mx-auto max-w-[42rem] px-1 pb-2"
         />
@@ -1536,8 +1538,8 @@ export function Composer({
       )}
       {catchUpHinted && catchUp && (
         <CatchUpHint
-          onRecap={catchUp.onRecap}
-          onNotNow={catchUp.onNotNow}
+          onRecap={() => catchUp.onRecap()}
+          onNotNow={() => catchUp.onNotNow()}
           returnFocus={() => textareaRef.current?.focus()}
         />
       )}
@@ -1761,7 +1763,7 @@ export function Composer({
                 recording={recorder.recording}
                 transcribing={wrapUp.isPending}
                 onStart={startDictation}
-                onStop={recorder.stop}
+                onStop={() => recorder.stop()}
               />
             </div>
             <input
@@ -1916,8 +1918,8 @@ export function Composer({
       {isNote && (
         <ReferencePicker
           open={noteRefs.open}
-          onOpenChange={noteRefs.setOpen}
-          onPick={noteRefs.onPick}
+          onOpenChange={(value) => noteRefs.setOpen(value)}
+          onPick={(nextText) => noteRefs.onPick(nextText)}
         >
           <span
             aria-hidden

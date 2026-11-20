@@ -42,7 +42,7 @@ export function useCompany() {
     queryFn: async () => {
       if (queryClient.getQueryData(keys.company(companyId)) === undefined) {
         try {
-          const me = await queryClient.fetchQuery(
+          const me = await queryClient.query(
             meCompanyQueryOptions(queryClient, companyId),
           );
           if (me.company) return me.company;

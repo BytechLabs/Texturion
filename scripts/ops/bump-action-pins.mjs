@@ -104,7 +104,7 @@ async function versionAt(repo, sha) {
       .filter((tag) => tag.commit.sha === sha)
       .map((tag) => tag.name)
       .filter((name) => /\d+\.\d+/.test(name));
-    if (exact.length > 0) return exact.sort((a, b) => b.length - a.length)[0];
+    if (exact.length > 0) return exact.toSorted((a, b) => b.length - a.length)[0];
   }
   return null;
 }

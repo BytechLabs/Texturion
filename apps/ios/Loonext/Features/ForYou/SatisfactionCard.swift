@@ -30,7 +30,7 @@ func satisfactionArcSentence(
           let baseline = report.baseline
     else { return nil }
     let then = SatisfactionFormat.format(baseline.average)
-    let values = ["then": then, "days": String(report.window.days)]
+    let values = ["previous": then, "days": String(report.window.days)]
     return direction == "better"
         ? AppStrings.translate(locale, "inbox.satisfactionArcUp", values)
         : AppStrings.translate(locale, "inbox.satisfactionArcDown", values)

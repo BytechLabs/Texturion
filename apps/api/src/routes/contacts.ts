@@ -427,7 +427,7 @@ function declaredColumns(
       contactImportUndeclaredColumnsReference(undeclared, total),
     );
   }
-  return [...byIndex.values()].sort((a, b) => a.index - b.index);
+  return [...byIndex.values()].toSorted((a, b) => a.index - b.index);
 }
 
 /**
@@ -499,7 +499,7 @@ function declaredVCardProperties(
     answered.push(declaration);
   }
   if (present.size > 0) {
-    const undeclared = [...present].sort();
+    const undeclared = [...present].toSorted();
     throw new ApiError(
       "validation_failed",
       contactImportUndeclaredPropertiesMessage(undeclared),
@@ -923,7 +923,7 @@ async function announceImportOptOuts(
 function groupByKeySet<Row extends Record<string, unknown>>(rows: Row[]): Row[][] {
   const groups = new Map<string, Row[]>();
   for (const row of rows) {
-    const signature = Object.keys(row).sort().join(",");
+    const signature = Object.keys(row).toSorted().join(",");
     const group = groups.get(signature);
     if (group) group.push(row);
     else groups.set(signature, [row]);
@@ -1017,7 +1017,7 @@ async function mergeImportedContactDetails(
     const results = unwrap<{ contact_id: string; kept: boolean; refused_phones: string[]; refused_tags: string[] }[]>(
       await db.rpc("api_merge_import_contact_details", {
         p_company: companyId,
-        p_rows: batch.map(({ row: _row, ...details }) => details),
+        p_rows: batch.map(({ row: _row, ...contactDetails }) => contactDetails),
         p_replace: options.replace,
         p_may_create_tags: options.mayCreateTags,
       }),
@@ -1451,7 +1451,7 @@ async function listLegacyContacts(
       .filter((row) => !seen.has(row.id))
       .map(({ contact_phones: _join, contact_tags: _tagJoin, ...row }) => row);
     if (extra.length > 0) {
-      merged = [...rows, ...extra].sort((a, b) =>
+      merged = [...rows, ...extra].toSorted((a, b) =>
         a.created_at === b.created_at
           ? b.id.localeCompare(a.id)
           : b.created_at.localeCompare(a.created_at),
@@ -1798,7 +1798,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       csvSafeText(row.business_name ?? null),
       csvSafeText(row.address ?? null),
       csvSafeText(row.notes ?? null),
-      csvSafeText((row.contact_phones ?? []).map(({ phone_e164 }) => phone_e164).sort().join(";")),
+      csvSafeText((row.contact_phones ?? []).map(({ phone_e164 }) => phone_e164).toSorted().join(";")),
       optedOut.has(row.phone_e164) ? "true" : null,
       row.custom_fields && Object.keys(row.custom_fields).length > 0 ? csvSafeText(JSON.stringify(row.custom_fields)) : null,
     ]),
@@ -2650,7 +2650,7 @@ contactsRoutes.post(
     const byPhone = new Map<string, ImportRow>();
     const optedOutNumbers = new Set<string>();
 
-    dataRows.forEach(({ line, cells }) => {
+    for (const { line, cells } of dataRows) {
       // The row's TRUE line in the uploaded file. Numbering by position instead
       // shifted every row after a blank one, and the wizard joins these numbers
       // back against its own preview to build the skipped-rows file, so each
@@ -2663,7 +2663,7 @@ contactsRoutes.post(
           row: rowNumber,
           reason: `invalid phone: ${rawPhone === "" ? "(empty)" : rawPhone}`,
         });
-        return;
+        continue;
       }
       // Read BEFORE the duplicate check, because the duplicate check used to
       // `return` above this line and take the restriction with it. A file that
@@ -2709,10 +2709,10 @@ contactsRoutes.post(
           row: rowNumber,
           reason: `duplicate phone in file: ${phone}`,
         });
-        return;
+        continue;
       }
       byPhone.set(phone, { row: rowNumber, phone, cells, otherPhones: [...otherPhones] });
-    });
+    }
 
     const entries = [...byPhone.values()];
     const phones = entries.map((entry) => entry.phone);
@@ -2864,8 +2864,8 @@ contactsRoutes.post(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
 
-    let writtenPhones = phones;
-    let kept = 0;
+    let writtenPhones: typeof phones;
+    let kept: number;
     try {
       // ===================================================================
       // RESTRICTIONS FIRST (#248).
@@ -3105,7 +3105,7 @@ contactsRoutes.post(
     const byPhone = new Map<string, ImportContactDetails>();
     const optedOutNumbers = new Set<string>();
 
-    cards.forEach((card, index) => {
+    for (const [index, card] of cards.entries()) {
       const cardNumber = index + 1;
       const optedOut = card.properties.some((property) =>
         blockingProperties.has(property),
@@ -3126,14 +3126,14 @@ contactsRoutes.post(
       const [phone, ...otherPhones] = valid;
       if (!phone) {
         errors.push(invalid[0] ?? { row: cardNumber, reason: "no phone number" });
-        return;
+        continue;
       }
       if (optedOut) {
         for (const number of valid) optedOutNumbers.add(number);
       }
       if (byPhone.has(phone)) {
         errors.push({ row: cardNumber, reason: `duplicate phone in file: ${phone}` });
-        return;
+        continue;
       }
       warnings.push(...invalid);
       const profile: Record<string, unknown> = {};
@@ -3146,7 +3146,7 @@ contactsRoutes.post(
       if (card.address && profileProperties.has("ADR")) profile.address = card.address;
       if (card.notes && profileProperties.has("NOTE")) profile.notes = card.notes;
       byPhone.set(phone, { row: cardNumber, profile, other_phones: otherPhones, tags: [] });
-    });
+    }
 
     const entries = [...byPhone.entries()];
     const phones = entries.map(([phone]) => phone);
@@ -3223,8 +3223,8 @@ contactsRoutes.post(
     const newlyOptedOut = optedOutPhones.filter(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
-    let writtenPhones = phones;
-    let kept = 0;
+    let writtenPhones: typeof phones;
+    let kept: number;
     try {
       // RESTRICTIONS FIRST, the same order and for the same reason as the CSV
       // route: there is no transaction around any of this, so whichever prefix

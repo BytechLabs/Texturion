@@ -397,15 +397,9 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
 
   it.each(roleCases)("%s", async (_name, actual, minimum, allowed) => {
     const res = await gateApp(actual, minimum).request("/action", {}, env);
-    if (allowed) {
-      expect(res.status).toBe(200);
-      await expect(res.json()).resolves.toEqual({ ok: true });
-    } else {
-      expect(res.status).toBe(403);
-      await expect(res.json()).resolves.toEqual({
-        error: { code: "forbidden", message: expect.any(String) },
-      });
-    }
+    const deniedBody = { error: { code: "forbidden", message: expect.any(String) } };
+    expect(res.status).toBe(allowed ? 200 : 403);
+    await expect(res.json()).resolves.toEqual(allowed ? { ok: true } : deniedBody);
   });
 
   it("refuses when no role is attached at all (gate used without company context)", async () => {

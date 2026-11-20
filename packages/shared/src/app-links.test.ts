@@ -58,10 +58,8 @@ describe("#613 app links: one list, three files", () => {
   it("never claims a bare prefix that would swallow a neighbouring path", () => {
     // pathPrefix="/calls" also matches "/callsomething". Every prefix here ends
     // in a slash; anything exact is declared as a path.
-    for (const entry of ANDROID_APP_LINK_PATHS) {
-      if (entry.kind === "pathPrefix") {
-        expect(entry.value.endsWith("/")).toBe(true);
-      }
+    for (const entry of ANDROID_APP_LINK_PATHS.filter((path) => path.kind === "pathPrefix")) {
+      expect(entry.value.endsWith("/")).toBe(true);
     }
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import { AiOrb } from "@/components/ui/ai-orb";
 import { useT } from "@/i18n/provider";
@@ -39,15 +39,15 @@ export function CatchUpHint({
     act();
     if (keyboard) returnFocus();
   };
+  function handleEscape(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    answer(onNotNow, true);
+  }
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
       <div
         role="status"
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.stopPropagation();
-          answer(onNotNow, true);
-        }}
         className="inline-flex max-w-full items-center gap-1.5 rounded-app-card border border-app-line bg-app-paper py-1 pl-2.5 pr-1"
       >
         <AiOrb size={14} />
@@ -59,6 +59,7 @@ export function CatchUpHint({
           // Says what pressing it does, because pressing it is what costs.
           title={t("thread.louReadsRecent")}
           onClick={(event) => answer(onRecap, fromKeyboard(event))}
+          onKeyDown={handleEscape}
           className="tap-target shrink-0 rounded-md px-1.5 py-0.5 text-[12px] font-semibold text-app-olive-deep transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {t("thread.catchUpRecap")}
@@ -66,6 +67,7 @@ export function CatchUpHint({
         <button
           type="button"
           onClick={(event) => answer(onNotNow, fromKeyboard(event))}
+          onKeyDown={handleEscape}
           className="tap-target shrink-0 rounded-md px-1.5 py-0.5 text-[12px] text-app-muted transition-colors duration-150 ease-out hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {t("thread.notNow")}

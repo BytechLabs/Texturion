@@ -38,7 +38,7 @@ export function appRoutes() {
     }
   }
   walk(APP_ROOT);
-  return { routes: routes.sort(), skipped: skipped.sort() };
+  return { routes: routes.toSorted((a, b) => a < b ? -1 : Number(a > b)), skipped: skipped.toSorted((a, b) => a < b ? -1 : Number(a > b)) };
 }
 
 const fixedSurfaces = [

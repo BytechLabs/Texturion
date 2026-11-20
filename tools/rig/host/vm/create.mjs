@@ -13,7 +13,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
@@ -272,8 +272,8 @@ async function createVm({ contract, root, paths, ref }) {
     writeFileSync(join(paths.host, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
     if (status.code === 1) throw new Error("cloud-init reported an error; see the status above and /var/log/cloud-init-output.log in the VM");
   } catch (error) {
-    await powerOffAndScrub(vm, paths, userdata).catch((/** @type {unknown} */ error) => {
-      console.error(`create.mjs: ${error instanceof Error ? error.message : String(error)}`);
+    await powerOffAndScrub(vm, paths, userdata).catch((/** @type {unknown} */ scrubError) => {
+      console.error(`create.mjs: ${scrubError instanceof Error ? scrubError.message : String(scrubError)}`);
     });
     throw error;
   }
@@ -371,9 +371,11 @@ async function main(argv) {
   console.log("\ncreate.mjs: done. Measure VM2 (start with nobody logged on) and VM3 (`hostd doctor` with a device booted) next.");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main(process.argv.slice(2)).catch((/** @type {unknown} */ error) => {
+if (process.argv[1] && resolvePath(process.argv[1]) === import.meta.filename) {
+  try {
+    await main(process.argv.slice(2));
+  } catch (error) {
     console.error(`create.mjs: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
-  });
+  }
 }

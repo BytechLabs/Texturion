@@ -27,7 +27,9 @@ vi.mock("sonner", () => ({ toast: toastApi }));
 beforeEach(() => {
   mutate.mockReset();
   announce.mockReset();
-  Object.values(toastApi).forEach((fn) => fn.mockReset());
+  for (const fn of Object.values(toastApi)) {
+    fn.mockReset();
+  }
 });
 
 function renderDialog(ids: string[], onDeleted = vi.fn()) {

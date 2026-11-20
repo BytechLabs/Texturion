@@ -237,7 +237,7 @@ export class Guard {
   }
 
   /** A LegRegistration on one of the partition's connections, with `via` naming that connection. */
-  private async nonprodLeg(request: Request, view: PartitionView): Promise<LegRegistration> {
+  private static async nonprodLeg(request: Request, view: PartitionView): Promise<LegRegistration> {
     const leg = (await bodyOf(request)) as Partial<LegRegistration>;
     if (typeof leg.call_control_id !== "string" || !leg.call_control_id || typeof leg.connection_id !== "string") {
       throw new Refusal("request.body_invalid");
@@ -252,7 +252,7 @@ export class Guard {
   private async legs(request: Request): Promise<Response> {
     if (request.method !== "POST") throw new Refusal("route.unknown");
     const view = await this.edgeView();
-    const entry = await registerLeg(this.ctx, await this.nonprodLeg(request, view));
+    const entry = await registerLeg(this.ctx, await Guard.nonprodLeg(request, view));
     return json({ registered: true, expires_at: new Date(entry.expires_at).toISOString() });
   }
 
@@ -263,7 +263,7 @@ export class Guard {
   private async reject(request: Request): Promise<Response> {
     if (request.method !== "POST") throw new Refusal("route.unknown");
     const view = await this.edgeView();
-    const leg = await this.nonprodLeg(request, view);
+    const leg = await Guard.nonprodLeg(request, view);
     const reply = await this.ctx.telnyx!.send(
       "POST",
       `/v2/calls/${encodeURIComponent(leg.call_control_id)}/actions/reject`,
@@ -446,10 +446,8 @@ export class Guard {
     let left = 0;
     for (const leg of await candidateLiveLegs(this.ctx)) {
       const path = `/v2/calls/${encodeURIComponent(leg.call_control_id)}/actions/hangup`;
-      const status = await telnyx.send("POST", path, {}).then(
-        (reply) => reply.status,
-        () => 0,
-      );
+      const reply = await telnyx.send("POST", path, {}).catch(() => undefined);
+      const status = reply?.status ?? 0;
       // 404 and 422 are how Telnyx answers a command on a call that has already ended.
       if ((status >= 200 && status <= 299) || status === 404 || status === 422) {
         await markEnded(this.ctx, leg.call_control_id);

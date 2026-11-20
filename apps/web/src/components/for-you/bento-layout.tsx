@@ -141,25 +141,20 @@ export function BentoLayout({
         const span = positioned
           ? (place?.span ?? 1)
           : Math.min(PANEL_SPAN[cell.size], columns);
-        const style: React.CSSProperties | undefined =
-          width === 0
-            ? undefined
-            : positioned
-              ? place
-                ? {
-                    position: "absolute",
-                    top: place.top,
-                    left: `calc((100% + ${BENTO_GAP}px) * ${place.column} / ${columns})`,
-                    width: spanWidth(span, columns),
-                  }
-                : {
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: spanWidth(span, columns),
-                    visibility: "hidden",
-                  }
-              : { width: spanWidth(span, columns) };
+        let style: React.CSSProperties | undefined;
+        if (width === 0) {
+          style = undefined;
+        } else if (positioned) {
+          style = {
+            position: "absolute",
+            top: place?.top ?? 0,
+            left: place ? `calc((100% + ${BENTO_GAP}px) * ${place.column} / ${columns})` : 0,
+            width: spanWidth(span, columns),
+            visibility: place ? undefined : "hidden",
+          };
+        } else {
+          style = { width: spanWidth(span, columns) };
+        }
         return (
           <PanelFrame
             key={cell.id}
@@ -241,6 +236,7 @@ function PanelFrame({
     >
       {editing && (
         <div className="mb-2 flex items-center gap-1">
+          {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- The panel also has move controls. */}
           <span
             draggable
             onDragStart={(event) => {

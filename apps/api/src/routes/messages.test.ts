@@ -1913,7 +1913,7 @@ describe("GET /v1/conversations/:id/messages — anchored (#718)", () => {
     const limits = listCalls
       .map((u) => u.searchParams.get("limit"))
       .filter((l) => l !== "1")
-      .toSorted();
+      .toSorted((a, b) => String(a) < String(b) ? -1 : Number(String(a) > String(b)));
     expect(limits).toEqual(["3", "3"]);
   });
 

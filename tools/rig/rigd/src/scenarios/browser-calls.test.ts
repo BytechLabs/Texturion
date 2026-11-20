@@ -922,8 +922,8 @@ describe("the budget in tools/rig/scenarios.json", () => {
     for (const [id, runner, make] of runs) {
       const world = make();
       expect((await runner.run(world.ctx)).outcome, `${id} ${world.ctx.slot.label ?? ""}`).toBe("pass");
-      const row = SCENARIOS.scenarios.find((s) => s.id === id)!;
-      expect(world.robot.plans.length, id).toBeLessThanOrEqual(row.far_end_legs);
+      const scenarioRow = SCENARIOS.scenarios.find((s) => s.id === id)!;
+      expect(world.robot.plans.length, id).toBeLessThanOrEqual(scenarioRow.far_end_legs);
       expect(holdsPhoneNumber(JSON.stringify(world.ctx.evidence)), id).toBe(false);
     }
   });

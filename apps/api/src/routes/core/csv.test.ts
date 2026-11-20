@@ -60,12 +60,7 @@ describe("parseCsv (RFC 4180 subset)", () => {
     expect(() => parseCsv(text)).toThrow(CsvUnterminatedQuoteError);
     // The line the quote OPENED on. By EOF the position is the one place in the
     // file that looks fine, and the mangling shows up nowhere near it.
-    try {
-      parseCsv(text);
-      throw new Error("expected the parse to be refused");
-    } catch (error) {
-      expect((error as CsvUnterminatedQuoteError).line).toBe(3);
-    }
+    expect(() => parseCsv(text)).toThrow(expect.objectContaining({ line: 3 }));
   });
 
   it("#248 H5: a properly closed quote at EOF is still a file", () => {

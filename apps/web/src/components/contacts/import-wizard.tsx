@@ -365,6 +365,12 @@ export function ImportWizard({
     decision.mapping.phone !== undefined &&
     unreadableFlag === null;
 
+  function gateMessage() {
+    if (decision.unanswered.length > 0) return t("contacts.gateAnswerEvery");
+    if (decision.conflicts.length > 0) return t("contacts.gateConflict");
+    return t(unreadableFlag === null ? "contacts.gatePhone" : "contacts.gateUnreadable");
+  }
+
   function reset() {
     setStep("upload");
     setFile(null);
@@ -748,15 +754,7 @@ export function ImportWizard({
                 at once reads as a wall and none of them gets acted on. */}
             {!ready && (
               <p className="text-xs text-muted-foreground">
-                {t(
-                  decision.unanswered.length > 0
-                    ? "contacts.gateAnswerEvery"
-                    : decision.conflicts.length > 0
-                      ? "contacts.gateConflict"
-                      : unreadableFlag === null
-                        ? "contacts.gatePhone"
-                        : "contacts.gateUnreadable",
-                )}
+                {gateMessage()}
               </p>
             )}
           </>

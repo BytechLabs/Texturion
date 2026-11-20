@@ -115,6 +115,7 @@ export function HandoverConfirmDialog({
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- The confirmation dialog opens in response to an action.
             autoFocus
             maxLength={7}
             value={code}

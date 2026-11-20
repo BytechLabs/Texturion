@@ -263,7 +263,7 @@ function ImageAttachmentRow({
         <LoadError
           variant="inline"
           message={t("misc.attachmentFileLoadFailed", { name: label })}
-          onRetry={() => url.refetch()}
+          onRetry={() => void url.refetch()}
           className="min-w-0 flex-1 justify-between"
         />
       </div>
@@ -359,7 +359,7 @@ function FileAttachmentRow({
         <LoadError
           variant="inline"
           message={t("misc.attachmentFileLoadFailed", { name: label })}
-          onRetry={() => url.refetch()}
+          onRetry={() => void url.refetch()}
           className="min-w-0 flex-1 justify-between"
         />
       </div>

@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
 import type { CompanyView } from "@/lib/api/types";
 import type { HoursException } from "@loonext/shared";
+import { withOccurrenceKeys } from "@/lib/utils";
 
 /**
  * #402 — the dates the weekly schedule cannot know about.
@@ -147,9 +148,9 @@ export function ClosedDatesCard({
           </p>
         ) : (
           <ul className="space-y-2">
-            {existing.map((entry, index) => (
+            {withOccurrenceKeys(existing, (entry) => `${entry.from}/${entry.to}`).map(({ item: entry, key }, index) => (
               <li
-                key={`${entry.from}-${entry.to}-${index}`}
+                key={key}
                 className="flex items-start justify-between gap-3 border-b border-border-subtle pb-2 last:border-b-0 last:pb-0"
               >
                 <div className="min-w-0">

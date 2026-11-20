@@ -21,6 +21,7 @@ import { join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
 
+// oxlint-disable-next-line eslint/no-control-regex -- Terminal colors start with the Escape character.
 const ANSI = /\u001B\[[0-9;]*m/g;
 const UPLOAD_LINE = /Total Upload:\s*([\d.]+)\s*KiB\s*\/\s*gzip:\s*([\d.]+)\s*KiB/;
 

@@ -125,7 +125,7 @@ export function partition(paths, durations, shardCount) {
     target.files.push(file);
     target.weight += weight(file);
   }
-  for (const shard of shards) shard.files.sort();
+  for (const shard of shards) shard.files.sort((a, b) => a < b ? -1 : Number(a > b));
   return { timing, shards };
 }
 

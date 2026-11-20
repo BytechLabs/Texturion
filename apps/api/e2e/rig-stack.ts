@@ -366,7 +366,7 @@ export async function startRigStack(): Promise<RigStack> {
       }
       throw error;
     }
-    let json: unknown = null;
+    let json: unknown;
     try {
       json = text ? JSON.parse(text) : null;
     } catch {

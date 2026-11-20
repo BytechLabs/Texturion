@@ -184,76 +184,6 @@ export interface CheckoutRun {
   invalid?: string[];
 }
 
-export class BrowserLane {
-  readonly #o: BrowserLaneOptions;
-  readonly #open = new Map<string, MemberPage>();
-  readonly #public = new Set<PublicPage>();
-
-  constructor(options: BrowserLaneOptions) {
-    this.#o = options;
-  }
-
-  /** The member's page, launched once and reused for the run. */
-  async open(member: string, surface: Surface, path = "/", options: OpenOptions = {}): Promise<MemberPage> {
-    if (!/^[a-z0-9-]+$/.test(member)) throw new Error(`browser lane: "${member}" is not a member key`);
-    const chrome = options.push ? this.#o.chrome : undefined;
-    const name = profileName(member, chrome !== undefined);
-    const existing = this.#open.get(name);
-    if (existing) return existing;
-    const profile = join(this.#o.profilesDir, name);
-    mkdirSync(profile, { recursive: true });
-    const context = await (this.#o.browserType ?? chromium).launchPersistentContext(profile, {
-      headless: this.#o.headless ?? true,
-      executablePath: chrome?.executablePath ?? this.#o.executablePath,
-      args: chromiumArgs({ fakeMicWav: join(this.#o.fakeMicDir, `${surface}.wav`) }),
-      permissions: ["microphone", "notifications"],
-      locale: "en-CA",
-      timezoneId: "America/Toronto",
-    });
-    await context.addInitScript(installPageJudge, JUDGE_CONFIG);
-    const page = context.pages()[0] ?? (await context.newPage());
-    const target = new URL(path, this.#o.appOrigin).toString();
-    try {
-      await page.goto(target);
-      if (onLoginPage(page.url())) {
-        await signIn(page, member, this.#o.credentials?.(member));
-        if (new URL(page.url()).pathname !== new URL(target).pathname) await page.goto(target);
-      }
-    } catch (error) {
-      await context.close().catch(() => undefined);
-      throw error;
-    }
-    const opened = new MemberPage(member, surface, context, page, this.#o.numbers, this.#o.appOrigin);
-    this.#open.set(name, opened);
-    return opened;
-  }
-
-  /**
-   * A fresh browser with no profile and nobody signed in, closed with the run.
-   * Google Chrome when the lane has it: the page goes on to Stripe's hosted
-   * Checkout, which challenges Chromium's headless shell more often.
-   */
-  async openPublic(path: string): Promise<PublicPage> {
-    const browser = await (this.#o.browserType ?? chromium).launch({
-      headless: this.#o.headless ?? true,
-      executablePath: this.#o.chrome?.executablePath ?? this.#o.executablePath,
-      args: [`--host-resolver-rules=${hostResolverRules()}`],
-    });
-    const context = await browser.newContext({ locale: "en-CA", timezoneId: "America/Toronto" });
-    const page = await context.newPage();
-    const opened = new PublicPage(page, this.#o.appOrigin, () => browser.close(), this.#o.authOrigin);
-    this.#public.add(opened);
-    await opened.goto(path);
-    return opened;
-  }
-
-  async closeAll(): Promise<void> {
-    await Promise.allSettled([...this.#open.values(), ...this.#public].map((page) => page.close()));
-    this.#open.clear();
-    this.#public.clear();
-  }
-}
-
 /**
  * A visitor's page: the public sign-up, then the new owner's app. Steps find
  * controls by role and English name; a step that never offers its control
@@ -311,8 +241,8 @@ export class PublicPage {
     await this.page.evaluate(({ src, widgetKey }) => new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
       script.dataset.key = widgetKey;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("The widget script could not load"));
+      script.addEventListener("load", () => resolve());
+      script.addEventListener("error", () => reject(new Error("The widget script could not load")));
       script.src = src;
       document.body.append(script);
     }), { src: new URL("/widget.js", this.#origin).href, widgetKey: args.widgetKey });
@@ -429,7 +359,10 @@ export class PublicPage {
     if (new URL(this.page.url()).hostname !== "checkout.stripe.com") throw new Error("browser lane: Checkout is not open");
     const filled = await fillCheckout(this.page, args);
     if (!filled.submitted) return { returned: false, ...filled };
-    const back = (timeout: number) => this.page.waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout }).then(() => true, () => false);
+      const back = (timeout: number) => this.page
+        .waitForURL((url) => url.origin === new URL(this.#origin).origin, { timeout })
+        .then(() => true)
+        .catch(() => false);
     if (await back(CHECKOUT_PAY_WAIT_MS)) return { returned: true, ...filled };
     // A press Checkout swallowed leaves Pay enabled and no error; one more press is what a customer does.
     const pay = this.page.locator(SELECTORS.checkout.submit).first();
@@ -768,6 +701,76 @@ export class MemberPage {
 
   async close(): Promise<void> {
     await this.context.close();
+  }
+}
+
+export class BrowserLane {
+  readonly #o: BrowserLaneOptions;
+  readonly #open = new Map<string, MemberPage>();
+  readonly #public = new Set<PublicPage>();
+
+  constructor(options: BrowserLaneOptions) {
+    this.#o = options;
+  }
+
+  /** The member's page, launched once and reused for the run. */
+  async open(member: string, surface: Surface, path = "/", options: OpenOptions = {}): Promise<MemberPage> {
+    if (!/^[a-z0-9-]+$/.test(member)) throw new Error(`browser lane: "${member}" is not a member key`);
+    const chrome = options.push ? this.#o.chrome : undefined;
+    const name = profileName(member, chrome !== undefined);
+    const existing = this.#open.get(name);
+    if (existing) return existing;
+    const profile = join(this.#o.profilesDir, name);
+    mkdirSync(profile, { recursive: true });
+    const context = await (this.#o.browserType ?? chromium).launchPersistentContext(profile, {
+      headless: this.#o.headless ?? true,
+      executablePath: chrome?.executablePath ?? this.#o.executablePath,
+      args: chromiumArgs({ fakeMicWav: join(this.#o.fakeMicDir, `${surface}.wav`) }),
+      permissions: ["microphone", "notifications"],
+      locale: "en-CA",
+      timezoneId: "America/Toronto",
+    });
+    await context.addInitScript(installPageJudge, JUDGE_CONFIG);
+    const page = context.pages()[0] ?? (await context.newPage());
+    const target = new URL(path, this.#o.appOrigin).toString();
+    try {
+      await page.goto(target);
+      if (onLoginPage(page.url())) {
+        await signIn(page, member, this.#o.credentials?.(member));
+        if (new URL(page.url()).pathname !== new URL(target).pathname) await page.goto(target);
+      }
+    } catch (error) {
+      await context.close().catch(() => undefined);
+      throw error;
+    }
+    const opened = new MemberPage(member, surface, context, page, this.#o.numbers, this.#o.appOrigin);
+    this.#open.set(name, opened);
+    return opened;
+  }
+
+  /**
+   * A fresh browser with no profile and nobody signed in, closed with the run.
+   * Google Chrome when the lane has it: the page goes on to Stripe's hosted
+   * Checkout, which challenges Chromium's headless shell more often.
+   */
+  async openPublic(path: string): Promise<PublicPage> {
+    const browser = await (this.#o.browserType ?? chromium).launch({
+      headless: this.#o.headless ?? true,
+      executablePath: this.#o.chrome?.executablePath ?? this.#o.executablePath,
+      args: [`--host-resolver-rules=${hostResolverRules()}`],
+    });
+    const context = await browser.newContext({ locale: "en-CA", timezoneId: "America/Toronto" });
+    const page = await context.newPage();
+    const opened = new PublicPage(page, this.#o.appOrigin, () => browser.close(), this.#o.authOrigin);
+    this.#public.add(opened);
+    await opened.goto(path);
+    return opened;
+  }
+
+  async closeAll(): Promise<void> {
+    await Promise.allSettled([...this.#open.values(), ...this.#public].map((page) => page.close()));
+    this.#open.clear();
+    this.#public.clear();
   }
 }
 

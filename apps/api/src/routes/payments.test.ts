@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest } from "../telnyx/test-support";
-import { completeEnv, stubFetch } from '../test/support';
+import { completeEnv, requireString, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
 import { paymentAccountRoutes, paymentRequestRoutes, publicPaymentRoutes } from "./payments";
 
@@ -182,7 +182,7 @@ function buildHarness(options: {
       conversation_id: CONVERSATION_ID,
       direction: "outbound",
       status: "queued",
-      body: String(args.p_body ?? ""),
+      body: requireString(args.p_body ?? ""),
       segments: 1,
     });
     return { outcome: "queued", message };

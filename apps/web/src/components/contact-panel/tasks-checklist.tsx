@@ -159,31 +159,28 @@ function TaskRow({
 
   return (
     // #123: the WHOLE row opens the task, not just the title. The row is the
-    // click surface (hover feedback + a comfortable tap target); the checkbox
-    // and the inline assignee/due controls stopPropagation so they still act
-    // in place. A keyboard user gets there via the title button below.
+    // click surface (hover feedback + a comfortable tap target). The checkbox
+    // and quick edits act in place.
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- The title button opens the task from the keyboard.
     <li
-      onClick={() => openTask(task.id)}
+      onClick={(event) => {
+        const {target} = event;
+        if (!(target instanceof Element) || !event.currentTarget.contains(target)) return;
+        if (target.closest("button, [data-task-quick-edits]")) return;
+        openTask(task.id);
+      }}
       className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-app-hover"
     >
-      <span onClick={(e) => e.stopPropagation()} className="contents">
-        <Checkbox
-          checked={done}
-          onCheckedChange={(value) => runToggle(value === true)}
-          aria-label={t(done ? "contacts.markNotDone" : "contacts.markDone")}
-          // tap-target: ≥44px mobile hit area (G11 / §7). The Radix Checkbox is
-          // a button and hosts the utility's centered ::after with no layout
-          // shift.
-          className="tap-target mt-0.5"
-        />
-      </span>
+      <Checkbox
+        checked={done}
+        onCheckedChange={(value) => runToggle(value === true)}
+        aria-label={t(done ? "contacts.markNotDone" : "contacts.markDone")}
+        className="tap-target mt-0.5"
+      />
       <div className="min-w-0 flex-1">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            openTask(task.id);
-          }}
+          onClick={() => openTask(task.id)}
           className={cn(
             // line-clamp-2, not truncate: at the drawer's narrow width a
             // single-line cut turns titles into "Order 50-gal Rheem + expan…".
@@ -199,9 +196,8 @@ function TaskRow({
             union (source-message MMS + note files + legacy rows) — a quiet
             indicator, not an upload door; the task title opens the drawer,
             which lists the files and hosts the discussion composer. */}
-        {/* The inline controls act in place — stop the row's open-task click. */}
         <div
-          onClick={(e) => e.stopPropagation()}
+          data-task-quick-edits=""
           className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5"
         >
           <InlineAssignee task={task} />

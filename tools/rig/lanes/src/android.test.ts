@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer as createHttpServer } from 'node:http';
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { connect, createServer } from 'node:net';
 import type { AddressInfo, Server } from 'node:net';
 import grpc from "@grpc/grpc-js";
@@ -180,14 +180,14 @@ describe("adb through hostd's tunnel", () => {
   });
 
   it("counts only adb's OKAY as an answer, not a tunnel end that accepts and closes", async () => {
-    const listen = async (server: ReturnType<typeof createServer>) => {
+    const listenForTest = async (server: ReturnType<typeof createServer>) => {
       await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
       return (server.address() as AddressInfo).port;
     };
     const adb = createServer((socket) => socket.once("data", () => socket.end("OKAY00040029")));
     const tunnelOnly = createServer((socket) => socket.destroy());
-    const adbPort = await listen(adb);
-    const tunnelPort = await listen(tunnelOnly);
+    const adbPort = await listenForTest(adb);
+    const tunnelPort = await listenForTest(tunnelOnly);
     await expect(adbAnswers("127.0.0.1", adbPort, 2000)).resolves.toBe(true);
     await expect(adbAnswers("127.0.0.1", tunnelPort, 2000)).resolves.toBe(false);
     await new Promise((resolve) => { adb.close(resolve); });
@@ -734,11 +734,11 @@ describe("the emulator's gRPC audio", () => {
     await link.playCode("pixel");
     await done;
     const started = writes[0]!.at;
-    writes.forEach(({ at, packet }, n) => {
+    for (const [n, { at, packet }] of writes.entries()) {
       expect(at - started, `packet ${n}`).toBe(n * 20);
       expect(packet.timestamp - writes[0]!.packet.timestamp).toBe(n * 20_000);
       expect(packet.audio).toHaveLength(1920);
-    });
+    }
     expect(sleeps.slice(0, 49).every((ms) => ms === 17)).toBe(true);
   });
 
@@ -802,7 +802,7 @@ const HOSTD_TOKEN = "h0stdT0ken";
 
 async function fakeHostd(answers: Record<string, { status?: number; body?: unknown }>) {
   const requests: { method: string; url: string; auth: string; body: string }[] = [];
-  const server = createHttpServer(async (request: IncomingMessage, response) => {
+  async function handleRequest(request: IncomingMessage, response: ServerResponse) {
     let body = "";
     for await (const chunk of request) body += chunk;
     requests.push({ method: request.method!, url: request.url!, auth: String(request.headers.authorization), body });
@@ -810,7 +810,8 @@ async function fakeHostd(answers: Record<string, { status?: number; body?: unkno
     if (request.headers.authorization !== `Bearer ${HOSTD_TOKEN}`) return response.writeHead(401).end();
     response.writeHead(answer?.status ?? (answer ? 200 : 404), { "content-type": "application/json" });
     response.end(answer?.body === undefined ? "" : JSON.stringify(answer.body));
-  });
+  }
+  const server = createHttpServer((request, response) => { void handleRequest(request, response); });
   await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   cleanups.push(() => new Promise<void>((resolve) => { server.close(() => resolve()); }));
   const { port } = server.address() as AddressInfo;

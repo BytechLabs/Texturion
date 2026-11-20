@@ -53,7 +53,7 @@ export function RequireTwoFactorCard({
         : { required: false, code },
       {
         onSuccess: (result) => {
-          gate.dismiss();
+          gate.handleDismiss();
           setConfirming(false);
           toast.success(
             nextRequired
@@ -73,7 +73,7 @@ export function RequireTwoFactorCard({
           ) {
             return;
           }
-          gate.dismiss();
+          gate.handleDismiss();
           toast.error(
             error instanceof ApiError
               ? error.message
@@ -180,9 +180,9 @@ export function RequireTwoFactorCard({
         kind={gate.kind}
         pending={setMfa.isPending || gate.requesting}
         rejected={gate.rejected}
-        onConfirm={gate.confirm}
-        onResend={gate.resend}
-        onCancel={gate.dismiss}
+        onConfirm={gate.handleConfirm}
+        onResend={gate.handleResend}
+        onCancel={gate.handleDismiss}
       />
     </SettingsCard>
   );

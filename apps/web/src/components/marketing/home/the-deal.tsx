@@ -206,11 +206,11 @@ function PlanCard({ plan, locale }: { plan: HomePlan; locale: MarketingLocale })
               aria-hidden
             />
             <span>
-              {item.map((seg, i) =>
+              {item.map((seg) =>
                 typeof seg === "string" ? (
                   seg
                 ) : (
-                  <span key={i} className="fr-mono-data text-[color:var(--fr-ink)]">
+                  <span key={seg.m} className="fr-mono-data text-[color:var(--fr-ink)]">
                     {seg.m}
                   </span>
                 ),

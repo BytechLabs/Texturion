@@ -26,6 +26,48 @@ export function ExportDataFiles({ exportId }: { exportId: string }) {
   const download = useSignWorkspaceExportMedia(exportId);
   const data = files.data?.pages.flatMap((page) => page.data) ?? [];
 
+  function renderFiles() {
+    if (files.isPending) {
+      return (
+        <p role="status" className="text-sm text-muted-foreground">{t("settings.exportMediaLoading")}</p>
+      );
+    }
+    if (files.isError) {
+      return (
+        <Button variant="outline" size="sm" onClick={() => void files.refetch()}>
+          {t("settings.exportMediaRetry")}
+        </Button>
+      );
+    }
+    if (data.length === 0) {
+      return (
+        <p className="text-sm text-muted-foreground">{t("settings.exportMediaEmpty")}</p>
+      );
+    }
+    return (
+      <ul className="space-y-1">
+        {data.map((file) => (
+          <li key={file.id}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={download.isPending}
+              onClick={() => download.mutate({ kind, id: file.id }, {
+                onSuccess: ({ url }) => window.location.assign(url),
+                onError: (error) => toast.error(
+                  error instanceof ApiError ? error.message : t("settings.exportMediaDownloadFailed"),
+                ),
+              })}
+            >
+              <Download aria-hidden />
+              {file.file_name ?? file.content_type ?? t(kindLabels[kind])}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <details onToggle={(event) => setOpen(event.currentTarget.open)} className="space-y-2">
       <summary className="cursor-pointer text-sm font-medium">
@@ -47,36 +89,7 @@ export function ExportDataFiles({ exportId }: { exportId: string }) {
               options={fileKinds.map((value) => ({ value, label: t(kindLabels[value]) }))}
             />
           </div>
-          {files.isPending ? (
-            <p role="status" className="text-sm text-muted-foreground">{t("settings.exportMediaLoading")}</p>
-          ) : files.isError ? (
-            <Button variant="outline" size="sm" onClick={() => void files.refetch()}>
-              {t("settings.exportMediaRetry")}
-            </Button>
-          ) : data.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("settings.exportMediaEmpty")}</p>
-          ) : (
-            <ul className="space-y-1">
-              {data.map((file) => (
-                <li key={file.id}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={download.isPending}
-                    onClick={() => download.mutate({ kind, id: file.id }, {
-                      onSuccess: ({ url }) => window.location.assign(url),
-                      onError: (error) => toast.error(
-                        error instanceof ApiError ? error.message : t("settings.exportMediaDownloadFailed"),
-                      ),
-                    })}
-                  >
-                    <Download aria-hidden />
-                    {file.file_name ?? file.content_type ?? t(kindLabels[kind])}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {renderFiles()}
           {files.hasNextPage && (
             <Button
               variant="outline"

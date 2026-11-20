@@ -286,12 +286,7 @@ describe(parseVCards, () => {
       expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
       // The line is the whole point of the message: the character at fault is
       // invisible, so "look at line 5" is the only actionable part.
-      try {
-        parseVCards(vcf);
-      } catch (error) {
-        expect((error as VCardMalformedError).kind).toBe("merged-card");
-        expect((error as VCardMalformedError).line).toBe(5);
-      }
+      expect(() => parseVCards(vcf)).toThrow(expect.objectContaining({ kind: "merged-card", line: 5 }));
     });
 
     it("does NOT refuse an ordinary fold, which is most of what folding is for", () => {
@@ -340,12 +335,7 @@ describe(parseVCards, () => {
       ].join("\r\n");
 
       expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
-      try {
-        parseVCards(vcf);
-      } catch (error) {
-        expect((error as VCardMalformedError).kind).toBe("nameless-property");
-        expect((error as VCardMalformedError).line).toBe(3);
-      }
+      expect(() => parseVCards(vcf)).toThrow(expect.objectContaining({ kind: "nameless-property", line: 3 }));
     });
 
     it("refuses a bare-colon line too", () => {

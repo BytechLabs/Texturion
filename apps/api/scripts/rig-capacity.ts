@@ -236,7 +236,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+await main().catch((error: unknown) => {
   if (
     error instanceof CapacityConfigError ||
     error instanceof CapacityRunError ||

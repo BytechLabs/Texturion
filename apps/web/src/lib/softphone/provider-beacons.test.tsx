@@ -41,7 +41,7 @@ vi.mock("@telnyx/webrtc", () => ({
     connect() {
       this.handlers.get("telnyx.ready")?.();
     }
-    disconnect() {}
+    disconnect = vi.fn();
   },
 }));
 

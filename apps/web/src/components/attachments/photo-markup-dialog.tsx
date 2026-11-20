@@ -94,7 +94,7 @@ export function PhotoMarkupDialog({
     }
     const url = URL.createObjectURL(file);
     const next = new Image();
-    next.onload = () => setImage(next);
+    next.addEventListener("load", () => setImage(next));
     next.src = url;
     return () => URL.revokeObjectURL(url);
   }, [file]);

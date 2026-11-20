@@ -96,11 +96,12 @@ function membersIn(record: CallRecord, name: string): Surface[] | undefined {
   return record.judgement?.segments?.find((s) => s.name === name)?.heard.filter((surface) => surface !== "robot");
 }
 
-function settle(promise: Promise<unknown>): Promise<Error | undefined> {
-  return promise.then(
-    () => undefined,
-    (error: unknown) => (error instanceof Error ? error : new Error(String(error))),
-  );
+async function settle(promise: Promise<unknown>): Promise<Error | undefined> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
 }
 
 async function until(ctx: ScenarioContext, at: number): Promise<void> {
