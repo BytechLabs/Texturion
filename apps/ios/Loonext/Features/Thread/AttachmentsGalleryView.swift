@@ -64,6 +64,7 @@ struct AttachmentsGalleryView: View {
     let onBack: @MainActor () -> Void
 
     @State private var view: GalleryViewMode = .images
+    @State private var viewing: GalleryItem?
     @State private var state: LoadState<[GalleryItem]> = .loading
     @State private var nextCursor: String?
     @State private var loadingMore = false
@@ -110,6 +111,19 @@ struct AttachmentsGalleryView: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        .fullScreenCover(isPresented: Binding(
+            get: { viewing != nil }, set: { if !$0 { viewing = nil } }
+        )) {
+            if let item = viewing {
+                AttachmentViewer(
+                    label: mediaLabel(item),
+                    contentType: item.content_type ?? "image/jpeg",
+                    fileName: item.file_name,
+                    preview: isGalleryImage(item) ? URL(string: item.url) : nil,
+                    mintOriginal: { try await mintOriginal(item) }
+                )
+            }
+        }
         // #317 — reporting affects EVERYONE, so it asks first.
         //
         // One beat, not a form. An accidental long-press that pulls a
@@ -259,31 +273,40 @@ struct AttachmentsGalleryView: View {
     private func filesList(_ items: [GalleryItem]) -> some View {
         List {
             ForEach(items, id: \.id) { item in
-                Button {
-                    open(item)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "doc")
-                            .foregroundStyle(BrandColor.muted500)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(galleryFileName(item))
-                                .font(.golos(13.5, weight: .semibold))
-                                .foregroundStyle(BrandColor.ink)
-                                .lineLimit(1)
-                            let meta = timedText(locale: appLocale) { time in
-                                [gallerySizeLabel(item.size_bytes), time(item.created_at)]
-                                    .compactMap { $0 }
-                                    .filter { !$0.isEmpty }
-                                    .joined(separator: " · ")
+                HStack(spacing: 0) {
+                    Button {
+                        open(item)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: isVideo(item) ? "play" : "doc")
+                                .foregroundStyle(BrandColor.muted500)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(mediaLabel(item))
+                                    .font(.golos(13.5, weight: .semibold))
+                                    .foregroundStyle(BrandColor.ink)
+                                    .lineLimit(1)
+                                let meta = timedText(locale: appLocale) { time in
+                                    [gallerySizeLabel(item.size_bytes), time(item.created_at)]
+                                        .compactMap { $0 }
+                                        .filter { !$0.isEmpty }
+                                        .joined(separator: " · ")
+                                }
+                                Text(meta.visible)
+                                .spokenAs(meta)
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted500)
                             }
-                            Text(meta.visible)
-                            .spokenAs(meta)
-                            .font(.golos(11))
-                            .foregroundStyle(BrandColor.muted500)
                         }
                     }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    if !isVideo(item) {
+                        AttachmentSaveButton(
+                            fileName: item.file_name ?? attachmentFileName(item.content_type ?? ""),
+                            mintOriginal: { try await mintOriginal(item) }
+                        )
+                    }
                 }
-                .buttonStyle(.plain)
                 .listRowBackground(BrandColor.canvas)
                 .contextMenu { reportButton(item) }
             }
@@ -379,7 +402,26 @@ struct AttachmentsGalleryView: View {
         }
     }
 
+    private func isVideo(_ item: GalleryItem) -> Bool {
+        MediaKind.of(item.content_type) == .video
+    }
+
+    private func mediaLabel(_ item: GalleryItem) -> String {
+        if let name = item.file_name, !name.isBlank { return name }
+        if isGalleryImage(item) { return AppStrings.translate(appLocale, "thread.photo") }
+        if isVideo(item) { return AppStrings.translate(appLocale, "thread.videoAttachment") }
+        return galleryFileName(item)
+    }
+
+    private func mintOriginal(_ item: GalleryItem) async throws -> String {
+        try await repo.attachmentUrl(companyId: companyId, attachmentId: item.id, variant: "original").url
+    }
+
     private func open(_ item: GalleryItem) {
+        if isGalleryImage(item) || isVideo(item) {
+            viewing = item
+            return
+        }
         guard let url = URL(string: item.url) else {
             notify(AppStrings.translate(appLocale, "thread.fileCantOpen"))
             return

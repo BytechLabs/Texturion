@@ -31,6 +31,7 @@ func audioRowCaption(failed: Bool, locale: String? = nil) -> String {
 struct SignedAudioAttachment: View {
     let attachmentId: String
     let sizeBytes: Int?
+    let contentType: String
     /// #240: (attachmentId, variant). "preview" for anything rendered in
     /// the timeline; "original" when the bytes leave for another app.
     let mintUrl: @MainActor (String, String) async throws -> String
@@ -78,6 +79,11 @@ struct SignedAudioAttachment: View {
                         .foregroundStyle(BrandColor.muted500)
                 }
             }
+            Spacer(minLength: 0)
+            AttachmentSaveButton(
+                fileName: attachmentFileName(contentType),
+                mintOriginal: { try await mintUrl(attachmentId, "original") }
+            )
         }
         .frame(maxWidth: 240, alignment: .leading)
         .padding(.bottom, 4)
@@ -195,34 +201,67 @@ struct AttachmentFileChip: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.appLocale) private var appLocale
     @State private var opening = false
+    @State private var failed = false
+    @State private var openVideo = false
 
     private var kind: MediaKind { MediaKind.of(attachment.content_type) }
+    private var label: String {
+        kind == .video
+            ? AppStrings.translate(appLocale, "thread.videoAttachment")
+            : attachmentLabel(kind: kind, count: 1)
+    }
 
     var body: some View {
+        HStack(spacing: 0) {
+            openButton
+            if kind != .video {
+                AttachmentSaveButton(
+                    fileName: attachmentFileName(attachment.content_type),
+                    mintOriginal: mintOriginal
+                )
+            }
+        }
+        .frame(maxWidth: 240, alignment: .leading)
+        .background(BrandColor.cream, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.bottom, 4)
+        .fullScreenCover(isPresented: $openVideo) {
+            AttachmentViewer(label: label, contentType: attachment.content_type, mintOriginal: mintOriginal)
+        }
+    }
+
+    private var openButton: some View {
         Button {
+            if kind == .video {
+                openVideo = true
+                return
+            }
             guard !opening else { return }
+            failed = false
             opening = true
             Task {
                 defer { opening = false }
-                // Opening a chip hands the file to another app — that is
-                // the FILE, not a picture of it.
-                if let minted = try? await mintUrl(attachment.id, "original"),
-                   let url = URL(string: minted) {
-                    openURL(url)
+                if let minted = try? await mintOriginal(), let url = URL(string: minted) {
+                    openURL(url) { accepted in
+                        if !accepted { failed = true }
+                    }
+                } else {
+                    failed = true
                 }
             }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: kind.symbolName)
+                Image(systemName: kind == .video ? "play" : kind.symbolName)
                     .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(attachmentLabel(kind: kind, count: 1))
+                    Text(label)
                         .font(.golos(12.5, weight: .medium))
                         .foregroundStyle(BrandColor.ink)
-                    let size = formatBytes(attachment.size_bytes)
-                    if !size.isEmpty {
-                        Text(size)
+                    let detail = failed
+                        ? AppStrings.translate(appLocale, "thread.fileCantOpen")
+                        : formatBytes(attachment.size_bytes)
+                    if !detail.isEmpty {
+                        Text(detail)
                             .font(.golos(10.5))
                             .foregroundStyle(BrandColor.muted500)
                     }
@@ -231,18 +270,13 @@ struct AttachmentFileChip: View {
                 if opening {
                     ProgressView().controlSize(.small)
                 } else {
-                    Image(systemName: "arrow.down.circle")
+                    Image(systemName: kind == .video ? "chevron.right" : "arrow.up.right")
                         .font(.scaled(IconSize.small))
                         .foregroundStyle(BrandColor.muted500)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .frame(maxWidth: 240, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(BrandColor.cream)
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -250,9 +284,14 @@ struct AttachmentFileChip: View {
             AppStrings.translate(
                 appLocale,
                 "thread.openAttachment",
-                ["kind": attachmentLabel(kind: kind, count: 1).lowercased()]
+                ["kind": label.lowercased()]
             )
         )
-        .padding(.bottom, 4)
+        .accessibilityHint(failed ? AppStrings.translate(appLocale, "thread.fileCantOpen") : "")
+        .disabled(opening)
+    }
+
+    private func mintOriginal() async throws -> String {
+        try await mintUrl(attachment.id, "original")
     }
 }

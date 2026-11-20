@@ -1022,6 +1022,9 @@ private fun ThreadLoaded(
                                     mintAttachmentUrl = { id ->
                                         repo.attachmentUrl(companyId, id).url
                                     },
+                                    mintOriginalAttachmentUrl = { id ->
+                                        repo.attachmentUrl(companyId, id, "original").url
+                                    },
                                     onOpenFile = onOpenFile,
                                     onOpenAttachment = onOpenAttachment,
                                     onOpenTask = onOpenTask,

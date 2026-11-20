@@ -208,6 +208,7 @@ export {
   isMmsMediaType,
   mmsMediaTypeForFile,
   mmsMediaKind,
+  mmsFileExtension,
   type MmsMediaType,
   type MmsMediaKind,
 } from "./mms";

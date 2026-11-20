@@ -3,15 +3,13 @@
 import { ImageOff } from "lucide-react";
 import { useState } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { attachmentFileName } from "@/lib/attachments/download";
 import { useT } from "@/i18n/provider";
 import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+
+import { AttachmentViewer } from "./attachment-viewer";
 
 /** Thumbnail URLs that have finished loading in this tab, oldest first. */
 const loadedUrls = new Set<string>();
@@ -91,17 +89,6 @@ export function AttachmentImage({
     url.data?.url,
   );
   const [open, setOpen] = useState(false);
-  // A row with no preview (every MMS) already served its original; an older Worker that does not say still mints it.
-  const fullSize = useAttachmentUrl(
-    attachment.id,
-    open && url.data?.variant !== "original",
-    "original",
-  );
-  const [fullSizeLoaded, setFullSizeLoaded] = useState(false);
-  // The lightbox's full-size <img> can also fail to render (expired signed URL,
-  // network blip) — without this the dialog is a blank frame.
-  const [lightboxFailed, setLightboxFailed] = useState(false);
-
   if (url.isError || failed) {
     return (
       <div className="flex size-44 items-center justify-center rounded-lg border border-border bg-muted">
@@ -151,64 +138,17 @@ export function AttachmentImage({
           />
         )}
       </button>
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (next) {
-            setLightboxFailed(false); // fresh attempt each open
-            setFullSizeLoaded(false); // …and the reveal starts again
-          }
-        }}
-      >
-        <DialogContent
-          className="max-w-[92vw] border-none bg-transparent p-0 shadow-none sm:max-w-3xl"
-          showCloseButton
-        >
-          <DialogTitle className="sr-only">{t("thread.photo")}</DialogTitle>
-          {url.data && !lightboxFailed && (
-            <div className="relative">
-              {/* The preview, already decoded and cached from the thumbnail.
-                  Underneath, so the photo is there the instant the dialog is,
-                  and it sharpens when the original lands. */}
-              {!fullSizeLoaded && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={url.data.url}
-                  alt={alt}
-                  aria-hidden={fullSize.data !== undefined}
-                  className="max-h-[85vh] w-full rounded-lg object-contain"
-                />
-              )}
-              {fullSize.data && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={fullSize.data.url}
-                  alt={alt}
-                  onLoad={() => setFullSizeLoaded(true)}
-                  // A failed ORIGINAL is not a failed photo: the preview above
-                  // is still on screen and still shows what happened on the
-                  // job. Falling back to it beats an error over a picture the
-                  // reader can already see.
-                  onError={() => setFullSizeLoaded(false)}
-                  className={cn(
-                    "max-h-[85vh] w-full rounded-lg object-contain",
-                    fullSizeLoaded ? "relative" : "absolute inset-0 opacity-0",
-                  )}
-                />
-              )}
-            </div>
-          )}
-          {url.data && lightboxFailed && (
-            <div className="flex items-center justify-center rounded-lg bg-muted p-12">
-              <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                <ImageOff className="size-6" strokeWidth={1.75} aria-hidden />
-                <span className="text-sm">{t("thread.photoLoadFailed")}</span>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {open && (
+        <AttachmentViewer
+          id={attachment.id}
+          kind="image"
+          label={alt}
+          fileName={attachmentFileName(attachment.content_type)}
+          preview={url.data?.url}
+          original={url.data?.variant === "original" ? url.data.url : undefined}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
