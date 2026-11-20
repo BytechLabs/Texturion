@@ -196,13 +196,16 @@ final class DeviceChecklists: XCTestCase {
             if notifications {
                 let permission = springboard.buttons["Allow"].firstMatch
                 for _ in 0..<2 where allow.exists && !permission.exists {
-                    allow.tap()
+                    allow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
                     if permission.waitForExistence(timeout: 3) { break }
                 }
                 try waitFor(permission).tap()
             } else {
-                try waitFor(app.buttons["Not now"].firstMatch).tap()
+                try waitFor(app.buttons["Not now"].firstMatch)
+                    .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             }
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: allow)
+            XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
         }
         try waitFor(shell, timeout: 30)
         if savePassword.exists { savePassword.tap() }
