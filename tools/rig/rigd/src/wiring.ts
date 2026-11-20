@@ -162,7 +162,7 @@ export function buildRig(config: RigdConfig): Rig {
           waitForCallCleared: (ms) => page.waitForCallCleared(ms),
           answer: () => page.answer(),
           hangUp: () => page.hangUp(),
-          dial: (role) => page.dial(role),
+          dial: (role, fromRole) => page.dial(role, fromRole),
           decline: () => page.decline(),
           hold: (on) => page.hold(on),
           mute: (on) => page.mute(on),

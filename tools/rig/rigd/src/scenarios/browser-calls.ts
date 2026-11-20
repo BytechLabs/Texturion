@@ -405,17 +405,29 @@ export const S06: ScenarioRunner = {
 
 export const S07_VARIANTS = ["blind", "decline", "timeout"] as const;
 export type TransferVariant = (typeof S07_VARIANTS)[number];
-export const TRANSFER_AT_MS = 8000;
+const TRANSFER_AUDIO_START_MS = 2000;
+const TRANSFER_AUDIO_MS = 10_000;
+export const TRANSFER_AT_MS = TRANSFER_AUDIO_START_MS + TRANSFER_AUDIO_MS + MARGIN_MS;
 const TARGET_RING_MS = 10_000;
 /** Match the target leg timeout in apps/api/src/messaging/live-call.ts. */
 export const TRANSFER_RING_SECS = 25;
 
 export function transferTimeline(variant: TransferVariant) {
   const targetBy = TRANSFER_AT_MS + TARGET_RING_MS;
-  const ringing = segment("ringing_target", targetBy + MARGIN_MS, targetBy + MARGIN_MS + 4000);
+  const ringing = segment("ringing_target", targetBy + MARGIN_MS, targetBy + MARGIN_MS + TRANSFER_AUDIO_MS);
   const settledBy = variant === "timeout" ? targetBy + TRANSFER_RING_SECS * 1000 : ringing.end_ms;
-  const after = segment("after", settledBy + RETURN_MS + MARGIN_MS, settledBy + RETURN_MS + MARGIN_MS + 8000);
+  const settledAt = settledBy + RETURN_MS + MARGIN_MS;
+  const after = segment("after", settledAt, settledAt + TRANSFER_AUDIO_MS);
   return { targetBy, ringing, after, hangup: after.end_ms + 4000 };
+}
+
+async function openTransferPages(ctx: ScenarioContext) {
+  const started = ctx.now();
+  const owner = await ctx.browser.open(OWNER, OWNER, "/calls");
+  const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN, "/calls");
+  await Promise.all([owner.waitForPhoneReady(), technician.waitForPhoneReady()]);
+  ctx.evidence.phones_ready_ms = ctx.now() - started;
+  return { owner, technician };
 }
 
 export const S07: ScenarioRunner = {
@@ -428,8 +440,7 @@ export const S07: ScenarioRunner = {
     // Keep the technician out of the initial ring so its audio belongs to the transfer leg.
     const unset = await changeCompany(ctx, "QA-W", { ring_strategy: "in_turn" });
     if (unset) return unset;
-    const owner = await ctx.browser.open(OWNER, OWNER);
-    const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN);
+    const {owner, technician} = await openTransferPages(ctx);
     const since = ctx.now();
     const dialed = await ctx.robot.dial({
       scenario: ctx.scenario,
@@ -438,7 +449,7 @@ export const S07: ScenarioRunner = {
       role: "ROBOT-1",
       to: "DEV-W2",
       expect: OWNER,
-      window: { start_ms: 2000, end_ms: TRANSFER_AT_MS - MARGIN_MS },
+      window: { start_ms: TRANSFER_AUDIO_START_MS, end_ms: TRANSFER_AT_MS - MARGIN_MS },
       segments: [timeline.ringing, timeline.after],
       hangup_after_ms: timeline.hangup,
     });
@@ -499,11 +510,12 @@ export const S07: ScenarioRunner = {
   },
 };
 
-export const CONSULT_AT_MS = 7000;
+export const CONSULT_AT_MS = TRANSFER_AT_MS;
 /** The target must have answered 2 s before this opens, so the consult is up throughout. */
-export const CONSULT_SEGMENT = segment("consult", 20_000, 27_000);
-export const COMPLETE_AT_MS = 28_000;
-export const AFTER_COMPLETE_SEGMENT = segment("after", 31_000, 39_000);
+export const CONSULT_SEGMENT = segment("consult", 26_000, 37_000);
+export const COMPLETE_AT_MS = CONSULT_SEGMENT.end_ms + MARGIN_MS;
+const AFTER_COMPLETE_MS = COMPLETE_AT_MS + RETURN_MS + MARGIN_MS;
+export const AFTER_COMPLETE_SEGMENT = segment("after", AFTER_COMPLETE_MS, AFTER_COMPLETE_MS + TRANSFER_AUDIO_MS);
 const WEEK_MS = 7 * 86_400_000;
 
 /** Which way S08 runs: the slot's label when it names one, else alternating by week. */
@@ -529,15 +541,14 @@ export const S08: ScenarioRunner = {
       const unset = await changeCompany(ctx, "QA-W", { ring_strategy: "in_turn" });
       if (unset) return unset;
     }
-    const owner = await ctx.browser.open(OWNER, OWNER, "/calls");
-    const technician = await ctx.browser.open(TECHNICIAN, TECHNICIAN);
+    const {owner, technician} = await openTransferPages(ctx);
     const since = ctx.now();
     const plan: Omit<CallPlan, "direction"> = {
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,
       role: "ROBOT-1",
       expect: OWNER,
-      window: { start_ms: 2000, end_ms: CONSULT_AT_MS - MARGIN_MS },
+      window: { start_ms: TRANSFER_AUDIO_START_MS, end_ms: CONSULT_AT_MS - MARGIN_MS },
       segments: [CONSULT_SEGMENT, AFTER_COMPLETE_SEGMENT],
       hangup_after_ms: AFTER_COMPLETE_SEGMENT.end_ms + 4000,
     };
@@ -555,7 +566,7 @@ export const S08: ScenarioRunner = {
     } else {
       started = await ctx.robot.expect({ ...plan, direction: "inbound", answer_after_ms: 3000, expect_within_ms: 60_000 });
       if (started.state === "failed") return dialFailure(started);
-      await owner.dial("ROBOT-1");
+      await owner.dial("ROBOT-1", "DEV-W2");
     }
     // The robot answers the outbound case itself, so its record is the only clock for when.
     const answeredAt = await answerMoment(ctx, started.plan_id, 30_000);

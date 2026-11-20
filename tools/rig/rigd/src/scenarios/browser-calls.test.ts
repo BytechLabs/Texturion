@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { HearOptions } from "@loonext/rig-lanes";
+import { CYCLE_MS, MIN_CYCLES } from "@loonext/rig-robot";
 import type { CallPlan, CallRecord, SegmentJudgement, Surface } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { TENANTS } from "../../../../../scripts/rig/tenants.mjs";
@@ -84,8 +85,8 @@ function withPages(world: World, scripts: Record<string, PageScript>): Pages {
         const after = rings.shift();
         return after !== undefined && after <= timeoutMs ? after : undefined;
       },
-      async dial(role) {
-        await page.dial(role);
+      async dial(role, fromRole) {
+        await page.dial(role, fromRole);
         script.onDial?.(role);
       },
       async hear(options) {
@@ -482,8 +483,10 @@ describe("S07, blind transfer and its variants", () => {
     expect(world.did(OWNER, "transfer").map((entry) => entry.args)).toEqual([[{ to: TECHNICIAN_NAME, mode: "blind" }]]);
     expect(world.did(OWNER, "transfer")[0]!.at - ROBOT_ANSWERED).toBe(TRANSFER_AT_MS);
     expect(world.did(TECH, "answer")).toHaveLength(1);
-    // Both pages are open before the robot dials.
-    expect(world.browser.opened.map((page) => page.member)).toEqual([OWNER, TECH]);
+    expect(world.browser.opened).toEqual([
+      { member: OWNER, surface: OWNER, path: "/calls" },
+      { member: TECH, surface: TECH, path: "/calls" },
+    ]);
   });
 
   it("rings the owner alone under an undo registered first", async () => {
@@ -569,6 +572,21 @@ describe("S07, blind transfer and its variants", () => {
     const timeout = transferTimeline("timeout");
     expect(timeout.after.start_ms).toBeGreaterThanOrEqual(timeout.targetBy + TRANSFER_RING_SECS * 1000);
   });
+
+  it("has room for the detector's full cycles regardless of code phase", async () => {
+    const minimumMs = (MIN_CYCLES + 1) * CYCLE_MS;
+    const blind = s07World("blind");
+    const consult = s08World("inbound");
+    await S07.run(blind.ctx);
+    await S08.run(consult.ctx);
+    for (const world of [blind, consult]) {
+      const [plan] = world.robot.plans;
+      expect(plan!.window!.end_ms - plan!.window!.start_ms).toBeGreaterThanOrEqual(minimumMs);
+      for (const window of plan!.segments!) {
+        expect(window.end_ms - window.start_ms).toBeGreaterThanOrEqual(minimumMs);
+      }
+    }
+  });
 });
 
 function s08World(direction: "inbound" | "outbound") {
@@ -586,6 +604,7 @@ describe("S08, consult transfer", () => {
   it("passes inbound: the robot hears nobody while the pages talk, then the technician, and the owner's leg is gone", async () => {
     const world = s08World("inbound");
     await expect(S08.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
+    expect(world.browser.opened.map((page) => page.path)).toEqual(["/calls", "/calls"]);
     expect(world.robot.plans[0]).toMatchObject({ direction: "outbound", to: "DEV-W2", segments: [CONSULT_SEGMENT, AFTER_COMPLETE_SEGMENT] });
     expect(world.app.companies.get("QA-W")).toEqual({ ring_strategy: "in_turn" });
     expect(world.did(OWNER, "transfer").map((entry) => [entry.args, entry.at - ROBOT_ANSWERED])).toEqual([
@@ -603,8 +622,24 @@ describe("S08, consult transfer", () => {
     const world = s08World("outbound");
     await expect(S08.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", answer_after_ms: 3000 });
-    expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-1"]]);
+    expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-1", "DEV-W2"]]);
     expect(world.undo).toEqual([]);
+  });
+
+  it("does not dial while the target phone is unable to register", async () => {
+    const world = s08World("inbound");
+    const open = world.browser.open.bind(world.browser);
+    world.browser.open = async (member, surface, path) => {
+      const page = await open(member, surface, path);
+      if (member !== TECH) return page;
+      return {
+        ...page,
+        async waitForPhoneReady() { throw new Error("target phone did not register"); },
+      };
+    };
+
+    await expect(S08.run(world.ctx)).rejects.toThrow("target phone did not register");
+    expect(world.robot.plans).toEqual([]);
   });
 
   it("alternates direction week by week unless the slot names one", () => {
