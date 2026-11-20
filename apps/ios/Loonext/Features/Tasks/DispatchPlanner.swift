@@ -242,7 +242,7 @@ struct DispatchPlanner: View {
                     onSelect: { pane = $0 }
                 )
                 DatePicker(text("contactsTasks.dispatchDate"), selection: Binding(
-                    get: { date }, set: selectDate
+                    get: { date }, set: { selectDate($0) }
                 ), displayedComponents: .date)
                     .disabled(busy)
                 if let failure {
