@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.1](https://github.com/BytechLabs/Texturion/compare/api-v0.31.0...api-v0.31.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **db:** remove pg_net from production ([#1027](https://github.com/BytechLabs/Texturion/issues/1027)) ([387b05b](https://github.com/BytechLabs/Texturion/commit/387b05b55caea902e0597aa5278e38ad4b32a5ac))
+* **onboarding:** complete US texting registration after payment ([#1026](https://github.com/BytechLabs/Texturion/issues/1026)) ([9011b25](https://github.com/BytechLabs/Texturion/commit/9011b25dcece440d410ea5538fa96eaa1cb6cdb6))
+
 ## [0.31.0](https://github.com/BytechLabs/Texturion/compare/api-v0.30.1...api-v0.31.0) (2026-11-20)
 
 

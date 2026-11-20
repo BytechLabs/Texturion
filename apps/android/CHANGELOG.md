@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.1](https://github.com/BytechLabs/Texturion/compare/android-v0.27.0...android-v0.27.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **onboarding:** complete US texting registration after payment ([#1026](https://github.com/BytechLabs/Texturion/issues/1026)) ([9011b25](https://github.com/BytechLabs/Texturion/commit/9011b25dcece440d410ea5538fa96eaa1cb6cdb6))
+* **release:** add bilingual what's new entries ([#1028](https://github.com/BytechLabs/Texturion/issues/1028)) ([71e378c](https://github.com/BytechLabs/Texturion/commit/71e378cd4cd0e39394bf03696b4970d3c9efb8aa))
+
 ## [0.27.0](https://github.com/BytechLabs/Texturion/compare/android-v0.26.4...android-v0.27.0) (2026-11-20)
 
 

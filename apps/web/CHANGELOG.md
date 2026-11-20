@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.1](https://github.com/BytechLabs/Texturion/compare/web-v0.31.0...web-v0.31.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **onboarding:** complete US texting registration after payment ([#1026](https://github.com/BytechLabs/Texturion/issues/1026)) ([9011b25](https://github.com/BytechLabs/Texturion/commit/9011b25dcece440d410ea5538fa96eaa1cb6cdb6))
+* **release:** add bilingual what's new entries ([#1028](https://github.com/BytechLabs/Texturion/issues/1028)) ([71e378c](https://github.com/BytechLabs/Texturion/commit/71e378cd4cd0e39394bf03696b4970d3c9efb8aa))
+
 ## [0.31.0](https://github.com/BytechLabs/Texturion/compare/web-v0.30.2...web-v0.31.0) (2026-11-20)
 
 
