@@ -114,7 +114,27 @@ Drive the AVD from a second terminal while recording. `screenrecord` captures pi
 | Offline | `dev shell cmd connectivity airplane-mode enable`, `dev shell svc wifi disable` and `dev shell svc data disable`. Confirm the API is unreachable **from the app**. | Disable airplane mode and restore Wi-Fi and mobile data to their previous values. |
 | Slow link | Use [EmulatorConsole.shape](../tools/rig/lanes/src/android/emulator-console.ts) from the VM for speed and latency. Record the settings used. | Reset the shape and Wi-Fi. |
 
-Use `rig run D02p` for the real, guarded ring FCM path without a dial. For a real message push, use a guarded inbound text from the robot, for example `S21`, or reproduce it with [RobotClient.sms](../tools/rig/robot/src/client.ts) and the rig's standing roles. Check FCM acceptance and then the notification shade or Telecom, since accepting a push and showing it are separate observations. Run foreground suppression with the exact target thread open, then send to a different thread as a positive control. For shade actions, verify one reply in the receiver's inbox, test refusal paths, then verify the notification is removed when the same thread is read locally and from another session. Keep notification-revoked and force-stop tests on the rotation AVDs.
+Use `rig run D02p` for the guarded ring FCM path without a dial. For a message push to QA-A, run this on the VM with the technician signed in to Android. The robot chooses its owned numbers by role.
+
+```sh
+ROBOT_ROLE=ROBOT-1 node --input-type=module <<'JS'
+import { readFileSync } from "node:fs";
+const token = readFileSync(process.env.RIG_HOME + "/secrets/robot-local-token", "utf8").trim();
+const response = await fetch("http://127.0.0.1:7311/sms", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-robot-token": token },
+  body: JSON.stringify({
+    from_role: process.env.ROBOT_ROLE,
+    to_role: "DEV-A1",
+    text: `Rig QA ${Date.now()}`,
+    scenario: "S21",
+  }),
+});
+if (!response.ok) throw new Error(`Robot SMS failed with HTTP ${response.status}`);
+JS
+```
+
+Check FCM acceptance and then the notification shade or Telecom, since accepting a push and showing it are separate observations. Run foreground suppression with that robot's thread open, then repeat with `ROBOT_ROLE=ROBOT-2` as a positive control. Use unique markers and account for the inbound alert cooldown. For shade actions, verify one reply in the receiver's inbox, test refusal paths, then verify the notification is removed when the same thread is read locally and from another session. Keep notification-revoked and force-stop tests on the rotation AVDs.
 
 ### TalkBack and Google Phone
 
