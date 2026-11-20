@@ -361,32 +361,14 @@ struct TasksTab: View {
         }
     }
 
-    /// Big display heading + the paper-circle view switcher (spec 24). Four
-    /// views now (#184/#186): List, Board, Calendar, Map — icon-only pills with
-    /// spoken labels, ink-filled when selected.
     private var plannerHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                ScreenTitle(text: AppStrings.translate(appLocale, "shell.navPlanner"))
-                Spacer()
-                Button(AppStrings.translate(appLocale, "shell.navTasks")) {
-                    planner = false
-                    view = .list
-                }
-            }
-            SegmentedControl(
-                options: [
-                    SegmentedOption(.calendar, title: AppStrings.translate(appLocale, "shell.plannerSchedule")),
-                    SegmentedOption(.board, title: AppStrings.translate(appLocale, "shell.plannerWorkload")),
-                    SegmentedOption(.map, title: AppStrings.translate(appLocale, "shell.plannerRoutes")),
-                ],
-                selected: view
-            ) { next in
-                view = next
-                if next == .board { groupChoice = TaskGroup.assignee }
-            }
+        TaskPlannerHeader(selected: view, onBack: {
+            planner = false
+            view = .list
+        }) { next in
+            view = next
+            if next == .board { groupChoice = TaskGroup.assignee }
         }
-        .padding(.horizontal, 18)
     }
 
     private var headerRow: some View {

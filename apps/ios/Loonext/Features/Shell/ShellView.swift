@@ -1181,7 +1181,7 @@ private struct LouActivity: View {
                 LoadError(message: failure) { retry += 1 }
             } else if calls.isEmpty {
                 if loading {
-                    CenteredLoading()
+                    ListSkeleton(rows: 4, inset: 0)
                 } else {
                     Text(AppStrings.translate(appLocale, "shell.louActivityEmpty"))
                         .font(.golos(13))
