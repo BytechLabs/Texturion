@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Match Xcode 26 to an installed iPhone runtime
+      - name: Select Xcode 26 and an installed iPhone runtime
         run: |
           choice=$(xcrun simctl list devices available -j | python3 -c '
           import json, os, re, sys
@@ -61,16 +61,19 @@ jobs:
               match = re.search(r"\.iOS-(26-\d+(?:-\d+)*)$", runtime)
               if not match:
                   continue
-              if requested and match.group(1).replace("-", ".") != requested:
-                  continue
               version = tuple(map(int, match.group(1).split("-")))
               xcode = Path(f"/Applications/Xcode_{version[0]}.{version[1]}.app")
               if xcode.is_dir():
                   devices += [(version, d["name"] == "iPhone 17 Pro", d["name"], d["udid"], xcode)
                               for d in rows if d["name"].startswith("iPhone")]
           if not devices:
-              sys.exit(f"No iPhone Simulator with matching Xcode for iOS {requested or 26}")
-          _, _, _, udid, xcode = max(devices)
+              sys.exit("No iPhone Simulator with a matching Xcode 26 SDK")
+          xcode = max(devices)[3]
+          if requested:
+              devices = [device for device in devices if ".".join(map(str, device[0])) == requested]
+              if not devices:
+                  sys.exit(f"iOS Simulator runtime {requested} is unavailable")
+          _, _, _, udid, _ = max(devices)
           print(xcode, udid)
           ')
           read -r XCODE UDID <<< "$choice"
