@@ -424,7 +424,7 @@ function TaskRowView({
                 onTouchStart={() => onPrefetch(task.id)}
                 className={cn(
                   "block min-h-11 min-w-11 max-w-full truncate rounded-sm text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:min-h-0 md:min-w-0",
-                  task.done && "text-muted-foreground line-through opacity-70",
+                  task.done && "text-muted-foreground line-through",
                 )}
               >
                 {task.title}

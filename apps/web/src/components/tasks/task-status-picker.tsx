@@ -70,7 +70,7 @@ export function TaskStatusPicker({ task }: { task: Task }) {
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 transition-colors duration-150 ease-out",
               task.done
-                ? "bg-success/10 text-emerald-700 group-hover/status:bg-success/20 dark:bg-success/15 dark:text-success"
+                ? "bg-success/10 text-foreground group-hover/status:bg-success/20 dark:bg-success/15"
                 : "bg-secondary text-stone-600 group-hover/status:bg-secondary/70 dark:text-muted-foreground",
             )}
           >

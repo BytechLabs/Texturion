@@ -420,7 +420,6 @@ export const tasksEn = {
   setDue: "Set due",
   changeDueAria: "Change due date",
   changeDueOverdueAria: "Change due date (overdue)",
-  setDueAria: "Set due date",
   dueDateTimeAria: "Due date and time",
   clearDueDate: "Clear due date",
 
@@ -1132,7 +1131,6 @@ export const tasksFr: Translated<typeof tasksEn> = {
   setDue: "Définir l'échéance",
   changeDueAria: "Modifier la date d'échéance",
   changeDueOverdueAria: "Modifier la date d'échéance (en retard)",
-  setDueAria: "Définir la date d'échéance",
   dueDateTimeAria: "Date et heure d'échéance",
   clearDueDate: "Effacer la date d'échéance",
 

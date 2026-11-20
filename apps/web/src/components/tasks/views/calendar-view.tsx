@@ -595,7 +595,7 @@ function DayChip({ task }: { task: Task }) {
         className={cn(
           "block min-w-0 flex-1 cursor-grab truncate rounded-md px-1.5 py-1 text-[12px] font-medium active:cursor-grabbing",
           task.done
-            ? "bg-success/10 text-emerald-700 line-through opacity-70 dark:text-success"
+            ? "bg-success/10 text-foreground line-through"
             : "bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary",
         )}
       >

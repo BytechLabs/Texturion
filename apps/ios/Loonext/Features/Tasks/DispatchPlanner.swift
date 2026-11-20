@@ -521,11 +521,15 @@ struct DispatchPlanner: View {
             .sorted { dispatchInstant($0.starts_at) < dispatchInstant($1.starts_at) }
         let stops = schedule.filter { $0.visit && $0.address_confirmed }
         let flexible = stops.filter { !$0.locked }
-        Picker(text("contactsTasks.dispatchAssignee"), selection: Binding(get: { worker ?? "" }, set: {
+        let label = text("contactsTasks.dispatchAssignee")
+        SelectField(
+            options: plan.members.map { SelectOption($0.id, title: $0.name ?? label) },
+            selected: worker ?? "",
+            label: label,
+            enabled: !busy
+        ) {
             person = $0
             route = nil
-        })) {
-            ForEach(plan.members) { Text($0.name ?? text("contactsTasks.dispatchAssignee")).tag($0.id) }
         }
         if editable {
             Button(text("contactsTasks.dispatchOptimize")) { optimize(worker) }
@@ -720,13 +724,19 @@ private struct DispatchEditor: View {
         let valid = (estimate.isEmpty || estimated != nil) && windows.allSatisfy { $0.start < $0.end }
         let minDate = dispatchInstant(plan.days.first?.start ?? day.start)
         let maxDate = dispatchInstant(plan.days.last?.end ?? day.end).addingTimeInterval(-1)
+        let label = text("contactsTasks.dispatchAssignee")
+        let crew = plan.members.map { SelectOption($0.id, title: $0.name ?? label) }
         PaperCard {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(text(booking == nil ? "contactsTasks.dispatchNewBlock" : "contactsTasks.dispatchEditBlock"))
                 Text(job.title).font(.headline)
-                Picker(text("contactsTasks.dispatchAssignee"), selection: $who) {
-                    Text(text("contactsTasks.unassigned")).tag("")
-                    ForEach(plan.members) { Text($0.name ?? text("contactsTasks.dispatchAssignee")).tag($0.id) }
+                SelectField(
+                    options: [SelectOption("", title: text("contactsTasks.unassigned"))] + crew,
+                    selected: who,
+                    label: label,
+                    enabled: !busy
+                ) {
+                    who = $0
                 }
                 DatePicker(text("contactsTasks.dispatchStart"), selection: $start, in: minDate...maxDate)
                 TextField(text("contactsTasks.dispatchDuration"), text: $duration).keyboardType(.numberPad)

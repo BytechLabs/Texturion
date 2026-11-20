@@ -70,7 +70,12 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
         </ul>
         {plan.queue_truncated && <p className={cn(note, "border-t p-4")}>{t("tasks.dispatchQueueLimit")}</p>}
       </section>
-      <section className={cn(panel, "overflow-x-auto")} aria-label={t("tasks.schedule")}>
+      <section
+        className={cn(panel, "overflow-x-auto")}
+        aria-label={t("tasks.schedule")}
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The timeline needs keyboard scrolling.
+        tabIndex={0}
+      >
         <div style={{ minWidth: 128 + Math.ceil(hours.length / labelStep) * 57 }}>
           <div className="flex border-b">
             <h2 className="w-32 shrink-0 px-3 py-3 text-sm font-semibold">{t("tasks.schedule")}</h2>
@@ -105,8 +110,7 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
                   const right = Math.min(100, percent(Date.parse(item.ends_at)));
                   return <button key={item.id} type="button"
                     className="absolute z-1 min-h-9 min-w-28 overflow-hidden rounded-md border bg-secondary px-1.5 text-left text-xs text-secondary-foreground hover:bg-accent hover:text-accent-foreground focus-visible:z-2 focus-visible:outline-2 focus-visible:outline-ring"
-                    aria-label={`${task.title} · ${timeSpan(plan, item, t.locale)}${item.locked ? ` · ${t("tasks.dispatchLocked")}` : ""}`}
-                    title={`${task.title} · ${timeSpan(plan, item, t.locale)}`}
+                    title={`${timeSpan(plan, item, t.locale)}${item.locked ? ` · ${t("tasks.dispatchLocked")}` : ""}`}
                     style={{ left: `min(${left}%, calc(100% - 7rem))`, width: `${right - left}%`, top: index % 2 ? 49 : 8 }}
                     onClick={() => editable ? onSelect(task, item) : openTask(task.id)}>
                     <span className="flex items-center gap-1 truncate">{item.locked && <Lock className="size-3 shrink-0" aria-hidden />}{task.title}</span>

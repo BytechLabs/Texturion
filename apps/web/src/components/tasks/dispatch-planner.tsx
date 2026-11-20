@@ -74,12 +74,12 @@ export function DispatchPlanner() {
   const search = useSearchParams();
   const job = search.get("job") ?? undefined;
   return (
-    <main className="mx-auto w-full max-w-[1400px] space-y-4 px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto w-full max-w-[1400px] space-y-4 px-4 py-6 md:px-6 md:py-8">
       <Button asChild variant="ghost" size="sm"><Link href="/tasks"><ChevronLeft aria-hidden />{t("tasks.pageTitle")}</Link></Button>
       {company.isPending
         ? <ListSkeleton rows={5} />
         : <DispatchWorkspace key={companyId} job={job} timezone={company.data?.timezone ?? "UTC"} />}
-    </main>
+    </div>
   );
 }
 
