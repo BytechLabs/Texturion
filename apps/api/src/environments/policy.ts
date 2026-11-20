@@ -164,6 +164,11 @@ export function rigResendBudgetRefused(env: Env, response: Response): boolean {
     response.status === 429 && response.headers.get("x-rig-refused-by") === "budget.resend_day";
 }
 
+/** The rig VM fences FCM in DNS. Native FCM has a separate route through the guard. */
+export function webPushTransportRestricted(env: Env, host: string): boolean {
+  return deployEnv(env) === "rig" && host === "fcm.googleapis.com";
+}
+
 /**
  * How an FCM send authenticates.
  *

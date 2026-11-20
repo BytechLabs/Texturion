@@ -256,6 +256,7 @@ async function deliverIncomingCallPush(
           },
           () => sendWebPush(env, sub, payload(sub), CALL_PUSH_TTL_SECS, "high"),
         );
+        if (result.transportRestricted) return;
         if (result.gone) {
           await db.from("push_subscriptions").delete().eq("id", sub.id);
           bump(channels, sub.user_id, "gone");

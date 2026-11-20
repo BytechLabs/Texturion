@@ -80,7 +80,7 @@ export const S20: ScenarioRunner = {
   },
 };
 
-/** Inbound text: threaded once within 15 s, realtime in the page, a push-attempt row. */
+/** Inbound text: threaded once within 15 s, realtime in the page, and shown by Web Push. */
 export const S21: ScenarioRunner = {
   id: "S21",
   async run(ctx) {
@@ -116,12 +116,23 @@ export const S21: ScenarioRunner = {
     if (!(await shown)) return fail("no_realtime_update", "the owner's page did not show the text within 15 s");
 
     const push = await poll(ctx, async () => {
-      const attempts = await ctx.app.pushAttempts({ tenant: "QA-W", since });
+      const attempts = (await ctx.app.pushAttempts({ tenant: "QA-W", since }))
+        .filter((attempt) => attempt.platform === "web" && attempt.purpose === "alert");
       return attempts.length > 0 ? attempts : undefined;
     }, 30_000 + EVENT_INGEST_MS, EVENT_POLL_MS);
-    if (!push) return fail("no_push_attempt", "no push attempt was recorded for the inbound text");
+    if (!push) return fail("no_push_attempt", "no Web Push attempt was recorded for the inbound text");
     ctx.evidence.push = push.map((p) => ({ purpose: p.purpose, platform: p.platform, response: p.response_class }));
-    return pass();
+    if (!push.some((attempt) => attempt.response_class === "accepted")) {
+      const unavailable = push.every(({ response_class }) =>
+        response_class === "transport_error" || response_class === "transport_restricted");
+      if (unavailable) {
+        return infra("web-push-transport", "the rig could not reach a browser push provider");
+      }
+      return fail("web_push_not_accepted", "the browser's push provider accepted no alert");
+    }
+    const displayed = await poll(ctx, async () =>
+      (await page.notifications()).find((item) => item.body === body), 20_000, EVENT_POLL_MS);
+    return displayed ? pass() : fail("web_push_not_shown", "Chrome did not display the inbound alert");
   },
 };
 

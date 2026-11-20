@@ -13,6 +13,7 @@
  * private scalar, and a base64url 16-byte auth secret.
  */
 import type { Env } from "../env";
+import { webPushTransportRestricted } from "../environments/policy";
 import { fetchWithDeadline } from "../http/deadline";
 
 /**
@@ -91,6 +92,8 @@ export interface PushResult {
    * (browser unsubscribed / expired) — the caller deletes the row.
    */
   gone: boolean;
+  /** This deployment cannot reach the push service. Keep the subscription. */
+  transportRestricted?: true;
   /**
    * A bounded snippet of the push service's error body on a NON-OK response
    * (#147): FCM/Mozilla explain the rejection here (e.g. a VAPID key mismatch),
@@ -366,6 +369,9 @@ export async function sendWebPush(
       gone: true,
       errorBody: "endpoint host is not a known push service",
     };
+  }
+  if (webPushTransportRestricted(env, new URL(target.endpoint).hostname)) {
+    return { ok: false, status: 0, gone: false, transportRestricted: true, errorBody: "" };
   }
   const [authorization, body, topic] = await Promise.all([
     vapidAuthorization(env, target.endpoint),
