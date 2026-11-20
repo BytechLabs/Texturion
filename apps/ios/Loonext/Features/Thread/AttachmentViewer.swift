@@ -145,51 +145,33 @@ private struct ZoomableAttachmentPhoto: View {
     @Binding var zoom: CGFloat
     let onFailure: () -> Void
 
-    @State private var pan = CGSize.zero
     @GestureState private var magnification: CGFloat = 1
-    @GestureState private var drag = CGSize.zero
 
     var body: some View {
         GeometryReader { geometry in
-            let size = geometry.size
-            let liveZoom = clampedZoom(zoom * magnification)
-            AsyncImage(url: original) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFit()
-                case .failure:
-                    fallback.onAppear(perform: onFailure)
-                default:
-                    fallback
+            let scale = clampedZoom(zoom * magnification)
+            ScrollView([.horizontal, .vertical]) {
+                AsyncImage(url: original) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFit()
+                    case .failure:
+                        fallback.onAppear(perform: onFailure)
+                    default:
+                        fallback
+                    }
                 }
+                .frame(width: geometry.size.width * scale, height: geometry.size.height * scale)
+                .accessibilityLabel(label)
             }
-            .frame(width: size.width, height: size.height)
-            .accessibilityLabel(label)
-            .scaleEffect(liveZoom)
-            .offset(bounded(
-                CGSize(width: pan.width + drag.width, height: pan.height + drag.height),
-                in: size,
-                at: liveZoom
-            ))
-            .contentShape(Rectangle())
-            .gesture(
+            .defaultScrollAnchor(.center)
+            .scrollDisabled(scale <= 1)
+            .simultaneousGesture(
                 MagnifyGesture()
                     .updating($magnification) { value, state, _ in state = value.magnification }
                     .onEnded { value in zoom = clampedZoom(zoom * value.magnification) }
             )
-            .simultaneousGesture(
-                DragGesture()
-                    .updating($drag) { value, state, _ in state = value.translation }
-                    .onEnded { value in
-                        pan = bounded(CGSize(
-                            width: pan.width + value.translation.width,
-                            height: pan.height + value.translation.height
-                        ), in: size, at: zoom)
-                    }
-            )
-            .onChange(of: zoom) { _, newZoom in pan = bounded(pan, in: size, at: newZoom) }
         }
-        .clipped()
     }
 
     @ViewBuilder
@@ -209,15 +191,6 @@ private struct ZoomableAttachmentPhoto: View {
 
     private func clampedZoom(_ value: CGFloat) -> CGFloat {
         min(maximumZoom, max(1, value))
-    }
-
-    private func bounded(_ offset: CGSize, in size: CGSize, at zoom: CGFloat) -> CGSize {
-        let limitX = size.width * (zoom - 1) / 2
-        let limitY = size.height * (zoom - 1) / 2
-        return CGSize(
-            width: min(limitX, max(-limitX, offset.width)),
-            height: min(limitY, max(-limitY, offset.height))
-        )
     }
 }
 

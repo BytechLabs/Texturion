@@ -656,9 +656,7 @@ struct DayDividerLine: View {
 /// never cached). One automatic re-mint on load failure covers expiry races;
 /// after that, an honest tap-to-retry chip.
 struct SignedAttachmentImage: View {
-    let attachment.id: String
-    /// #240: (attachment.id, variant) — audio is streamed whole, so
-    /// this one always asks for the original.
+    let attachment: AttachmentSummary
     let mintUrl: @MainActor (String, String) async throws -> String
 
     @State private var url: URL?
