@@ -13,6 +13,7 @@ import { deploy, resolveSha, STACK_EXCLUDES } from "./deploy.mjs";
 import { fetchPartition, recordStanding, rigEndpoints, standingNumbers } from "./guard.mjs";
 import { runHealth } from "./health.mjs";
 import { rigLayout, rigSettings, TOOLING_ROOT } from "./layout.mjs";
+import { qaAndroid } from "./qa.mjs";
 import { runCommand } from "./run.mjs";
 import { secretStore } from "./secrets.mjs";
 import { serve } from "./serve.mjs";
@@ -45,6 +46,10 @@ The rig runs nothing on a timer. Every command below is something you ask for.
   apk --ref <ref> | --worktree <path> [--debuggable]
                                   build the nonprod APK; refuse any other package;
                                   place a release-style build as work/apk/current.apk
+  qa install <device> [--apk <path>]
+  qa screenshot <device> <file.png>
+  qa record <device> <file.mp4> [--seconds <1-180>]
+                                  install or capture evidence through the VM's adb tunnel
   serve api|web|stripe            run a service in the foreground (what the units run)
   stack up                        start the stack from the derived config; bootstrap if unready
   stack wait                      wait until the stack unit is up (what the API and web units run first)
@@ -151,6 +156,8 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
   }
 
   const layout = rigLayout(env);
+  if (command === "qa") return qaAndroid(rest, flags, { layout, env, log });
+
   const settings = rigSettings(layout);
   const store = secretStore(layout.secrets);
 

@@ -6,6 +6,8 @@ is how to stand one up and run it. Nothing here runs on a timer: the rig is a
 dev and QA environment you use on demand, to reproduce, diagnose and verify. Sections 3.2 and 3.3 there are what these
 files implement.
 
+For a QA run, start with [docs/QA.md](../../docs/QA.md).
+
 ## A fresh VM, as commands
 
 The rig is a VMware Workstation VM on the founder's workstation, made only for
@@ -61,8 +63,8 @@ node $RIG_HOME/tooling/tools/rig/bin/rig.mjs deploy --ref main
 node $RIG_HOME/tooling/tools/rig/bin/rig.mjs health
 ```
 
-The JDK and Android SDK in the VM are only for `rig apk`, which builds the
-nonprod APK; the emulators run from the Windows SDK. `bootstrap.sh` runs
+The JDK and Android SDK in the VM build and install the nonprod APK. The
+emulators run from the Windows SDK. `bootstrap.sh` runs
 `box/android-toolchain.sh`, which installs the Temurin JDK under `~/jdk` and
 the command-line tools and packages under `~/android-sdk`, each at the
 version and checksum pinned in `box/android-toolchain.json` (moving a pin
