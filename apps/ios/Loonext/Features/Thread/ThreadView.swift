@@ -763,7 +763,7 @@ private struct ThreadBody: View {
                             detailSheet = nil
                             AppRouter.shared.openContactId = contactId
                         },
-                        onCall: controller.threadOptedOut == true ? nil : {
+                        onCall: {
                             detailSheet = nil
                             startCall(detail: detail, contactName: contactName)
                         },
