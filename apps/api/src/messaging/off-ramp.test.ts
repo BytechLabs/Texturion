@@ -56,7 +56,7 @@ describe("#481 the off-ramp exemption is unreachable from anywhere else", () => 
       gate.indexOf("async function checkSendAvailability("),
     );
     const afterExemption = gate.slice(gate.indexOf("offRampAllowed(env, companyId)"));
-    expect(preSend).toMatch(/await checkSendAvailability\([^;]+offRamp[^;]+\);[\s\S]*\.from\("opt_outs"\)/);
+    expect(preSend).toMatch(/await checkSendAvailability\([^;]+offRamp[^;]+\);[\s\S]*await isRecipientOptedOut\(getDb\(env\), companyId, destinationE164\)/);
     expect(afterExemption).toContain("registration_pending");
     expect(afterExemption).toContain("!isUsCaDestination(destinationE164)");
   });
