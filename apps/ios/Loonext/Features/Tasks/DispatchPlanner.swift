@@ -391,13 +391,13 @@ struct DispatchPlanner: View {
                 .id(selection.id + today)
             }
             let pending = plan.tasks.filter { !$0.done && $0.scheduled_count == 0 }
-            SectionLabel(label: text("contactsTasks.dispatchQueue"))
+            SectionLabel(text("contactsTasks.dispatchQueue"))
             if pending.isEmpty { Text(text("contactsTasks.dispatchQueueEmpty")) }
             ForEach(pending.prefix(200)) { task in
                 taskRow(task, nil, allowEdit: editable)
             }
             ForEach(plan.members.sorted { $0.id == worker && $1.id != worker }) { member in
-                SectionLabel(label: member.name ?? text("contactsTasks.dispatchAssignee"))
+                SectionLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
                 let bookings = blocks.filter { $0.assignee_id == member.id }
                 if bookings.isEmpty { Text(text("contactsTasks.dispatchNoBookings")) }
                 ForEach(bookings) { block in
@@ -412,7 +412,7 @@ struct DispatchPlanner: View {
             routes(plan, blocks: blocks, worker: worker)
         case .myDay:
             let schedule = base.plan.tasksFor(today).filter { $0.assignee_id == me.user_id }
-            SectionLabel(label: text("contactsTasks.myDay"))
+            SectionLabel(text("contactsTasks.myDay"))
             if schedule.isEmpty { Text(text("contactsTasks.dispatchNoBookings")) }
             ForEach(schedule) { block in
                 if let task = base.plan.tasks.first(where: { $0.id == block.task_id }) { taskRow(task, block) }
@@ -467,7 +467,7 @@ struct DispatchPlanner: View {
 
     @ViewBuilder
     private func workload(_ payload: DispatchPayload) -> some View {
-        SectionLabel(label: text("contactsTasks.dispatchBooked"))
+        SectionLabel(text("contactsTasks.dispatchBooked"))
         ForEach(payload.plan.members) { member in
             PaperCard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -501,7 +501,7 @@ struct DispatchPlanner: View {
                 .padding(12)
             }
         }
-        SectionLabel(label: text("contactsTasks.unassigned"))
+        SectionLabel(text("contactsTasks.unassigned"))
         let first = payload.plan.days.first
         let last = payload.plan.days.last
         let unassigned = payload.plan.tasks.filter { task in
@@ -548,7 +548,7 @@ struct DispatchPlanner: View {
                 .disabled(busy)
             }
         }
-        SectionLabel(label: text("contactsTasks.routes"))
+        SectionLabel(text("contactsTasks.routes"))
         if stops.isEmpty { Text(text("contactsTasks.dispatchStopsEmpty")) }
         let pins = stops.compactMap { block -> DispatchPin? in
             guard let task = plan.tasks.first(where: { $0.id == block.task_id }), let lat = task.lat, let lng = task.lng else { return nil }
@@ -572,7 +572,7 @@ struct DispatchPlanner: View {
             }
         }
         let commitments = schedule.filter { !$0.visit || !$0.address_confirmed }
-        if !commitments.isEmpty { SectionLabel(label: text("contactsTasks.dispatchOtherWork")) }
+        if !commitments.isEmpty { SectionLabel(text("contactsTasks.dispatchOtherWork")) }
         ForEach(commitments) { block in
             if let task = plan.tasks.first(where: { $0.id == block.task_id }) { taskRow(task, block) }
         }
@@ -722,7 +722,7 @@ private struct DispatchEditor: View {
         let maxDate = dispatchInstant(plan.days.last?.end ?? day.end).addingTimeInterval(-1)
         PaperCard {
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(label: text(booking == nil ? "contactsTasks.dispatchNewBlock" : "contactsTasks.dispatchEditBlock"))
+                SectionLabel(text(booking == nil ? "contactsTasks.dispatchNewBlock" : "contactsTasks.dispatchEditBlock"))
                 Text(job.title).font(.headline)
                 Picker(text("contactsTasks.dispatchAssignee"), selection: $who) {
                     Text(text("contactsTasks.unassigned")).tag("")
@@ -741,7 +741,7 @@ private struct DispatchEditor: View {
                     }
                 }
                 Toggle(text("contactsTasks.dispatchLock"), isOn: $locked)
-                SectionLabel(label: text("contactsTasks.dispatchWindows"))
+                SectionLabel(text("contactsTasks.dispatchWindows"))
                 ForEach($windows) { $window in
                     DatePicker(text("contactsTasks.dispatchWindowStart"), selection: $window.start)
                     DatePicker(text("contactsTasks.dispatchWindowEnd"), selection: $window.end)
