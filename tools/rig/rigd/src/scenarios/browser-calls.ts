@@ -562,7 +562,7 @@ export const S08: ScenarioRunner = {
     } else {
       started = await ctx.robot.expect({ ...plan, direction: "inbound", answer_after_ms: 3000, expect_within_ms: 60_000 });
       if (started.state === "failed") return dialFailure(started);
-      await owner.dial("ROBOT-1");
+      await owner.dial("ROBOT-1", "DEV-W2");
     }
     // The robot answers the outbound case itself, so its record is the only clock for when.
     const answeredAt = await answerMoment(ctx, started.plan_id, 30_000);

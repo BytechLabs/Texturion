@@ -669,7 +669,7 @@ export class MemberPage {
   }
 
   /** Opens the dialer, enters a role's number on its keypad and presses Call. */
-  async dial(role: string): Promise<void> {
+  async dial(role: string, fromRole?: string): Promise<void> {
     const number = this.#numbers.number(role);
     if (!number) throw new Error(`browser lane: no number for ${role}`);
     const dialog = this.page.getByRole(SELECTORS.dialerTitle.role, { name: SELECTORS.dialerTitle.name });
@@ -677,6 +677,13 @@ export class MemberPage {
       await this.page.getByRole(SELECTORS.openDialer.role, { name: SELECTORS.openDialer.name, exact: true }).first().click();
     }
     await dialog.waitFor({ timeout: 10_000 });
+    if (fromRole) {
+      const from = this.#numbers.number(fromRole);
+      if (!from) throw new Error(`browser lane: no number for ${fromRole}`);
+      const displayed = from.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
+      await dialog.getByRole("combobox", { name: "Call from", exact: true }).click();
+      await this.page.getByRole("option", { name: `From ${displayed}`, exact: true }).click();
+    }
     for (const digit of number.replace(/^\+1/, "")) {
       await dialog.getByRole("button", { name: digit, exact: true }).click();
     }

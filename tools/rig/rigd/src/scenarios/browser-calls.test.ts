@@ -84,8 +84,8 @@ function withPages(world: World, scripts: Record<string, PageScript>): Pages {
         const after = rings.shift();
         return after !== undefined && after <= timeoutMs ? after : undefined;
       },
-      async dial(role) {
-        await page.dial(role);
+      async dial(role, fromRole) {
+        await page.dial(role, fromRole);
         script.onDial?.(role);
       },
       async hear(options) {
@@ -606,7 +606,7 @@ describe("S08, consult transfer", () => {
     const world = s08World("outbound");
     await expect(S08.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", answer_after_ms: 3000 });
-    expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-1"]]);
+    expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-1", "DEV-W2"]]);
     expect(world.undo).toEqual([]);
   });
 

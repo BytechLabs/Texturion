@@ -55,7 +55,7 @@ export interface MemberPageApi {
   decline(): Promise<void>;
   hangUp(): Promise<void>;
   /** Opens the dialer, enters the role's number and presses Call. */
-  dial(role: StandingRole): Promise<void>;
+  dial(role: StandingRole, fromRole?: StandingRole): Promise<void>;
   /** The in-call controls, as a member uses them. */
   hold(on: boolean): Promise<void>;
   mute(on: boolean): Promise<void>;
