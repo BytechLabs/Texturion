@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.1...shared-v0.24.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **compliance:** answer help keywords and honor call opt-outs ([#1041](https://github.com/BytechLabs/Texturion/issues/1041)) ([2f8982a](https://github.com/BytechLabs/Texturion/commit/2f8982afacd4cbfe2b9760bb1802399742cfe03c))
+
 ## [0.24.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.0...shared-v0.24.1) (2026-11-20)
 
 
