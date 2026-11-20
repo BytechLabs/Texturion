@@ -66,7 +66,7 @@ struct CaptchaSheet: View {
 /// challenges.cloudflare.com SUBFRAME, which must stay allowed), and receives
 /// the token via the `loonextCaptcha` script message handler.
 private struct CaptchaWebView: UIViewRepresentable {
-    static let pageURL = URL(string: "https://app.loonext.com/native-captcha")!
+    static let pageURL = AppConfig.appOrigin.appending(path: "native-captcha")
     static let messageHandlerName = "loonextCaptcha"
 
     let onToken: @MainActor (String) -> Void

@@ -14,7 +14,7 @@ import Foundation
 
 /// Deep-link constants — the only origin push deep links may target.
 enum PushLink {
-    static let appOrigin = "https://app.loonext.com"
+    static let appOrigin = AppConfig.appOrigin.absoluteString
     /// Default deep link when a push carries no usable url.
     static let fallbackDeepLink = appOrigin + "/inbox"
 }
@@ -190,8 +190,9 @@ func normalizeDeepLink(_ raw: String?) -> String? {
     guard !trimmed.isEmpty, !trimmed.hasPrefix("//") else { return nil }
     let absolute = trimmed.hasPrefix("/") ? PushLink.appOrigin + trimmed : trimmed
     guard let components = URLComponents(string: absolute),
-          components.scheme == "https",
-          components.host == "app.loonext.com",
+          components.scheme == AppConfig.appOrigin.scheme,
+          components.host == AppConfig.appOrigin.host,
+          components.port == AppConfig.appOrigin.port,
           !components.percentEncodedPath.isEmpty
     else { return nil }
 

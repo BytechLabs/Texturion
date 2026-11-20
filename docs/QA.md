@@ -157,3 +157,25 @@ The rig can verify app UI, Google Phone's emulated modem and contacts behavior, 
 | Ordinary SIM-carrier calls | The Play image can inject an incoming GSM event into Google Phone and exercise lookup and call history. Actual carrier signaling needs a radio and subscription. |
 | iPhone silent switch and Face ID hardware | The Simulator can exercise app audio policy and simulated biometric outcomes. The switch, the audio route on a physical phone and the Face ID sensor are hardware checks. |
 | Physical screen-reader interaction | Use TalkBack and VoiceOver in the respective lanes where available and record what spoke. Device acoustics and physical interaction remain outside the lab. |
+
+## iOS Simulator
+
+Open **Actions → iOS QA → Run workflow** and choose a scenario or `all`. The CLI equivalent is `gh workflow run ios-qa.yml --ref main -f scenario=all`. The workflow also runs on pull requests that change the workflow or its test harness. It installs `com.loonext.ios.qa` on an iPhone Simulator and uses synthetic data on the runner. It needs no Apple account, Firebase configuration, customer credentials, carrier traffic, or founder's phone.
+
+Each scenario records a video, a final screenshot, XCUITest screenshots and results, and its fixture server log. Network scenarios also capture the synthetic request bodies and any injected `.apns` payloads. Open the `ios-qa-*` artifact on the run page. The run summary lists each scenario's result.
+
+| Scenario | Issue | Simulator evidence |
+| --- | --- | --- |
+| `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
+| `notification-actions` | #777 | Injected message and missed-call alerts exercise the Notification Center, reply through the app outbox, and removal on thread open and on a read broadcast for the same user. The fixture records accepted sends and their idempotency keys. |
+| `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover VoIP payloads, caller privacy and wake policy. |
+| `offline` | #778 | The fixture closes API and Realtime connections while Simulator networking stays active. The app reopens cached data after termination, flushes a queued send once after reconnect and returns to sign-in when refresh is refused. This exercises app behavior on transport failure. The iOS reachability strip and real radio transitions need a separate network-loss pass. |
+| `autosave` | #780 | UI tests edit contact notes and leave the screen, then edit Calling settings and immediately press Home. The fixture checks one PATCH with the latest value and the tests reopen the UI to confirm it. A debounce regression drives the sub-800 ms window independently of Simulator gesture timing. |
+| `copy-and-media` | #805 | UI tests check rendered settings labels, the task-list delete confirmation, and playback progress on synthetic audio. Unit tests check English and Canadian French permission strings, including Face ID, and playback session setup. |
+| `accessibility` | #238 | Apple's `performAccessibilityAudit` checks the app's primary flows using the same audit target as Gate / iOS. It reports properties such as labels, contrast, hit regions and large-text clipping. |
+
+`LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
+
+### Physical iPhone checks
+
+Real APNs delivery, alert sound with the phone locked or unlocked, and ring/silent-switch behavior need a signed build and a physical iPhone. `simctl push` injects ordinary alert payloads directly and bypasses FCM and APNs. PushKit wake and CallKit answer or decline on a locked or terminated phone need the Apple VoIP entitlement, a valid APNs VoIP credential on the nonproduction Telnyx connection, and a provisioned phone. Real call audio, receiver proximity, and voicemail audio immediately after a call depend on the device's audio session and hardware. Use an iPhone for App Lock's actual Face ID prompt and for listening to VoiceOver, including focus order, announcement timing, French pronunciation and large text.

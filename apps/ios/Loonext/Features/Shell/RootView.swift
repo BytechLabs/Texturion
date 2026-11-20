@@ -153,8 +153,8 @@ struct RegistrationSetupView: View {
 @MainActor
 struct ExternalStepView: View {
     // Static hand-off targets — the web owns onboarding + checkout.
-    static let onboardingURL = URL(string: "https://app.loonext.com/onboarding")!
-    static let planURL = URL(string: "https://app.loonext.com/onboarding/plan")!
+    static let onboardingURL = AppConfig.appOrigin.appending(path: "onboarding")
+    static let planURL = AppConfig.appOrigin.appending(path: "onboarding/plan")
 
     let headline: String
     let message: String
