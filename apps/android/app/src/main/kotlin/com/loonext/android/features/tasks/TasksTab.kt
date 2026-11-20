@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.AddTask
@@ -86,6 +87,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
@@ -189,7 +192,6 @@ private fun TaskListScreen(
     // death identically (founder mandate); an unknown saved name falls back
     // to List rather than crashing a downgrade.
     var viewName by rememberSaveable(companyId) { mutableStateOf(TaskViewKind.List.name) }
-    var planner by rememberSaveable(companyId) { mutableStateOf(false) }
     val view = TaskViewKind.entries.firstOrNull { it.name == viewName } ?: TaskViewKind.List
     var assigneeChip by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var unassignedChip by rememberSaveable(companyId) { mutableStateOf(false) }
@@ -216,6 +218,7 @@ private fun TaskListScreen(
     var filtersSheetOpen by remember { mutableStateOf(false) }
     var saveViewOpen by remember { mutableStateOf(false) }
     var quickAddOpen by remember { mutableStateOf(false) }
+    var plannerOpen by remember { mutableStateOf(false) }
     var sortSheetOpen by remember { mutableStateOf(false) }
     val extra = TaskExtraFilters(
         priorities = priorityCsv.split(',').filter { it.isNotEmpty() }.toSet(),
@@ -367,7 +370,6 @@ private fun TaskListScreen(
 
     fun applyView(view: SavedView) {
         val state = taskViewToState(view.filters, me.user_id)
-        planner = false
         state.layout?.let { viewName = it.name }
         applyState(state, null, null)
     }
@@ -457,6 +459,24 @@ private fun TaskListScreen(
         )
     }
 
+    if (plannerOpen) Dialog(
+        onDismissRequest = { plannerOpen = false },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        DispatchPlanner(
+            api = graph.api,
+            companyId = companyId,
+            userId = me.user_id,
+            timezone = me.company?.timezone,
+            editable = MemberRole.has(me.memberships.firstOrNull { it.company_id == companyId }?.role, Capability.CONVERSATIONS_NOTE),
+            onClose = { plannerOpen = false },
+            onTask = {
+                plannerOpen = false
+                onOpenTask(it)
+            },
+        )
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             // ScreenTitle row with the paper search circle (spec 24).
@@ -466,13 +486,12 @@ private fun TaskListScreen(
                     .padding(start = 18.dp, end = 18.dp, top = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                ScreenTitle(t(if (planner) "shell.navPlanner" else "contactsTasks.tasksTitle"), Modifier.weight(1f))
-                TextButton(onClick = {
-                    planner = !planner
-                    viewName = if (planner) TaskViewKind.Calendar.name else TaskViewKind.List.name
-                }) {
-                    Text(t(if (planner) "shell.navTasks" else "shell.navPlanner"))
-                }
+                ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
+                PaperIconButton(
+                    icon = Icons.Outlined.EditCalendar,
+                    contentDescription = t("contactsTasks.planner"),
+                    onClick = { plannerOpen = true },
+                )
                 if (view != TaskViewKind.Map) {
                     PaperIconButton(
                         icon = Icons.Outlined.Search,
@@ -499,22 +518,15 @@ private fun TaskListScreen(
             // Four views now (#184), so the pills go icon-only with spoken
             // labels rather than crowding the rail.
             SegmentedControl(
-                segments = if (planner) listOf(
-                    Segment(TaskViewKind.Calendar, t("shell.plannerSchedule")),
-                    Segment(TaskViewKind.Board, t("shell.plannerWorkload")),
-                    Segment(TaskViewKind.Map, t("shell.plannerRoutes")),
-                ) else listOf(
+                segments = listOf(
                     Segment(TaskViewKind.List, t("contactsTasks.viewList"), Icons.AutoMirrored.Outlined.ViewList),
                     Segment(TaskViewKind.Board, t("contactsTasks.viewBoard"), Icons.Outlined.ViewKanban),
                     Segment(TaskViewKind.Calendar, t("contactsTasks.viewCalendar"), Icons.Outlined.CalendarMonth),
                     Segment(TaskViewKind.Map, t("contactsTasks.viewMap"), Icons.Outlined.Map),
                 ),
                 selected = view,
-                onSelect = {
-                    viewName = it.name
-                    if (planner && it == TaskViewKind.Board) groupName = TaskGroup.Assignee.name
-                },
-                iconOnly = !planner,
+                onSelect = { viewName = it.name },
+                iconOnly = true,
                 modifier = Modifier.padding(horizontal = 18.dp),
             )
 
@@ -551,50 +563,46 @@ private fun TaskListScreen(
                 filterCount = filterCount,
                 onFilter = { filtersSheetOpen = true },
                 modifier = Modifier.padding(horizontal = 18.dp),
-                views = if (!planner) {
-                    ListViews(
-                        entries = savedViews.map {
-                            ViewsMenuEntry(
-                                id = it.id,
-                                name = it.name,
-                                shared = it.shared,
-                                isDefault = it.id == defaultViewId,
-                            )
-                        },
-                        activeId = matchingView?.id,
-                        canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open || view != TaskViewKind.List) &&
-                            matchingView == null,
-                        canShare = canShareViews,
-                        onApply = { id -> savedViews.firstOrNull { it.id == id }?.let { applyView(it) } },
-                        onSaveCurrent = { saveViewOpen = true },
-                        onDefault = { id ->
-                            scope.launch {
-                                runCatching { viewsRepo.setDefaultSavedView(companyId, id, TASKS_SURFACE) }
-                                    .onSuccess { defaultViewId = id }
-                            }
-                        },
-                        onRename = { id, name ->
-                            scope.launch {
-                                runCatching { viewsRepo.renameSavedView(companyId, id, name.trim()) }
-                                    .onSuccess { loadViews() }
-                            }
-                        },
-                        onShare = { id, shared ->
-                            scope.launch {
-                                runCatching { viewsRepo.shareSavedView(companyId, id, shared) }
-                                    .onSuccess { loadViews() }
-                            }
-                        },
-                        onDelete = { id ->
-                            scope.launch {
-                                runCatching { viewsRepo.deleteSavedView(companyId, id) }
-                                    .onSuccess { loadViews() }
-                            }
-                        },
-                    )
-                } else {
-                    null
-                },
+                views = ListViews(
+                    entries = savedViews.map {
+                        ViewsMenuEntry(
+                            id = it.id,
+                            name = it.name,
+                            shared = it.shared,
+                            isDefault = it.id == defaultViewId,
+                        )
+                    },
+                    activeId = matchingView?.id,
+                    canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open || view != TaskViewKind.List) &&
+                        matchingView == null,
+                    canShare = canShareViews,
+                    onApply = { id -> savedViews.firstOrNull { it.id == id }?.let { applyView(it) } },
+                    onSaveCurrent = { saveViewOpen = true },
+                    onDefault = { id ->
+                        scope.launch {
+                            runCatching { viewsRepo.setDefaultSavedView(companyId, id, TASKS_SURFACE) }
+                                .onSuccess { defaultViewId = id }
+                        }
+                    },
+                    onRename = { id, name ->
+                        scope.launch {
+                            runCatching { viewsRepo.renameSavedView(companyId, id, name.trim()) }
+                                .onSuccess { loadViews() }
+                        }
+                    },
+                    onShare = { id, shared ->
+                        scope.launch {
+                            runCatching { viewsRepo.shareSavedView(companyId, id, shared) }
+                                .onSuccess { loadViews() }
+                        }
+                    },
+                    onDelete = { id ->
+                        scope.launch {
+                            runCatching { viewsRepo.deleteSavedView(companyId, id) }
+                                .onSuccess { loadViews() }
+                        }
+                    },
+                ),
             ) {
                 // Which tabs actually DO something per view (#113, the web's
                 // tabsForView): Board's columns ARE the status dimension, so

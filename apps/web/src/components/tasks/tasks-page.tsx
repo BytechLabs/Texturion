@@ -1,9 +1,9 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
-import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { CalendarClock, CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
@@ -18,7 +18,7 @@ import { replaceSearch } from "@/lib/url/search-state";
 import { NewTaskButton } from "./new-task";
 import { TaskFilterBar } from "./task-filter-bar";
 import { ExportTasks } from "./export-tasks";
-import { coerceTabForView, parseTaskSearchParams, serializeTaskState, TASK_VIEWS, toTaskFilters } from './task-view-url';
+import { parseTaskSearchParams, serializeTaskState, TASK_VIEWS, toTaskFilters } from './task-view-url';
 import type { TaskPageState, TaskView } from './task-view-url';
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
@@ -31,12 +31,6 @@ const VIEW_ICONS: Record<TaskView, typeof List> = {
   calendar: CalendarDays,
   map: MapPin,
 };
-
-const PLANNER_VIEWS = [
-  { id: "calendar", label: "shell.plannerSchedule" },
-  { id: "board", label: "shell.plannerWorkload" },
-  { id: "map", label: "shell.plannerRoutes" },
-] as const;
 
 function writeTaskState(next: TaskPageState): void {
   replaceSearch(serializeTaskState(next));
@@ -60,7 +54,7 @@ export function SavedTasksPage({ viewId }: { viewId: string }) {
   return <TasksPage saved={saved} />;
 }
 
-export function TasksPage({ planner = false, saved }: { planner?: boolean; saved?: SavedView }) {
+export function TasksPage({ saved }: { saved?: SavedView } = {}) {
   const t = useT();
   const searchParams = useSearchParams();
 
@@ -69,9 +63,8 @@ export function TasksPage({ planner = false, saved }: { planner?: boolean; saved
     const query = new URLSearchParams(searchParams.toString());
     const parsed = parseTaskSearchParams(query);
     if (saved && !query.has("edited")) return viewToTaskState(saved.filters, userId, parsed);
-    if (planner && parsed.view === "list") return { ...parsed, view: "calendar" } as const;
     return parsed;
-  }, [planner, saved, searchParams, userId]);
+  }, [saved, searchParams, userId]);
 
   function changeState(next: TaskPageState) {
     if (saved) {
@@ -83,37 +76,23 @@ export function TasksPage({ planner = false, saved }: { planner?: boolean; saved
     }
   }
 
-  function changeView(view: TaskView) {
-    changeState({
-      ...state,
-      view,
-      tab: coerceTabForView(state.tab, view),
-      ...(planner && view === "board" ? { group: "assignee" } : {}),
-    });
-  }
-
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <PageHeader
-          title={saved?.name ?? t(planner ? "shell.navPlanner" : "tasks.pageTitle")}
-          secondary={planner ? (
-            <SegmentedControl<TaskView>
-              ariaLabel={t("tasks.viewAria")}
-              value={state.view}
-              onChange={changeView}
-              options={PLANNER_VIEWS.map(({ id, label }) => ({ value: id, label: t(label) }))}
-            />
-          ) : (
+          title={saved?.name ?? t("tasks.pageTitle")}
+          secondary={
             <div className="flex flex-wrap items-center gap-2">
-              <ViewSwitcher view={state.view} onChange={changeView} />
-              <Button asChild variant="ghost" size="sm"><Link href="/tasks/planner">{t("shell.navPlanner")}</Link></Button>
+              <ViewSwitcher view={state.view} onChange={(view) => changeState({ ...state, view })} />
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/tasks/planner"><CalendarClock aria-hidden />{t("tasks.planner")}</Link>
+              </Button>
             </div>
-          )}
+          }
           primary={<NewTaskButton variant="default" size="sm" />}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TaskFilterBar state={state} onChange={changeState} showSavedViews={!planner} />
+          <TaskFilterBar state={state} onChange={changeState} />
           {/* #304: quiet, beside the filters that already say what it covers.
               Absent for anybody without `contacts.bulk` — every task names a
               customer. Downloads the current view at once (#745). */}

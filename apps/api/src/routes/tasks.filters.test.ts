@@ -210,6 +210,20 @@ describe("GET /v1/tasks: the #690 filters", () => {
     expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBeNull();
   });
 
+  it("all assignees includes open and done work unless status is requested", async () => {
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => []);
+    stubFetch(jwksRoute(auth), members(), noRules(), list.route, ...tail());
+    const all = await request("GET", "/v1/tasks?assigned_user_id=all");
+    const done = await request("GET", "/v1/tasks?assigned_user_id=all&status=done");
+    expect(all.status).toBe(200);
+    expect(done.status).toBe(200);
+    expect(list.calls[0].url.searchParams.get("task_done_at")).toBeNull();
+    expect(list.calls[1].url.searchParams.get("task_done_at")).toBe("not.is.null");
+    for (const { url } of list.calls) {
+      expect(url.searchParams.get("task_assignees.user_id")).toBeNull();
+    }
+  });
+
   it("refuses invalid filter values and map file filters before reading", async () => {
     for (const q of [
       "contact_id=nope",

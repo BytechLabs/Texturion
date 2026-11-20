@@ -4,23 +4,6 @@ import { taskListKeyFilters, taskSearchParams } from "./task-params";
 import { toTaskFilters } from "@/components/tasks/task-view-url";
 import type { TaskPageState } from "@/components/tasks/task-view-url";
 
-/**
- * Locks in the "All"-tab sentinel plumbing (D25 / TASKS.md T6.1) against the
- * FROZEN /v1/tasks contract (routes/tasks.ts). The /tasks page's All tab, and
- * every whole-set view built on it, must (a) NOT pin an assignee (so the route
- * returns every assignee's rows) and (b) send at least one explicit param so
- * the route does NOT re-apply its Open·Mine default — a bare `/v1/tasks`
- * re-applies status=open + assignee=me and would show only the caller's open
- * tasks. The route keys its "any explicit filter" opt-out off TRUTHY params, so
- * the sentinel must be a real, non-assignee filter. The agreed sentinel is
- * `status=open` (every assignee's open tasks — Done is its own tab).
- *
- * Regression guard: a prior version tried `overdue=false` as the sentinel, but
- * the frozen route reads `overdue` by truthiness (`=== "true"`), so
- * `overdue=false` is NOT an opt-out and All/List fell back to the caller's open
- * tasks only. This asserts the sentinel is a param the route actually honors.
- */
-
 /** The request query the client would send for a given page state (+ merge). */
 function query(
   state: TaskPageState,
@@ -37,20 +20,15 @@ function query(
   return out;
 }
 
-describe("taskSearchParams — the All-tab default opt-out sentinel", () => {
-  it("List All sends status=open (opts out of Open·Mine) and no assignee", () => {
+describe("taskSearchParams task scope", () => {
+  it("All tasks includes both statuses across assignees", () => {
     const q = query({ view: "list", tab: "all" });
-    // status=open is a param the frozen route honors as an explicit filter, so
-    // it bypasses the Open·Mine default while returning every assignee's rows.
-    expect(q.get("status")).toBe("open");
-    expect(q.get("assigned_user_id")).toBeNull();
-    // The sentinel is NOT the (ignored) overdue=false.
+    expect(q.get("status")).toBeNull();
+    expect(q.get("assigned_user_id")).toBe("all");
     expect(q.get("overdue")).toBeNull();
   });
 
-  it("All + a due chip needs no sentinel (due_after/before is the opt-out)", () => {
-    // The due-range params are themselves explicit, non-assignee filters, so
-    // they opt out on their own — no status sentinel is injected.
+  it("keeps both statuses when narrowing by due date", () => {
     const q = query(
       { view: "list", tab: "all" },
       {
@@ -59,38 +37,34 @@ describe("taskSearchParams — the All-tab default opt-out sentinel", () => {
         due_before: "2026-07-08T00:00:00.000Z",
       },
     );
-    expect(q.get("assigned_user_id")).toBeNull();
+    expect(q.get("assigned_user_id")).toBe("all");
     expect(q.get("due_after")).toBe("2026-07-01T00:00:00.000Z");
-    // No spurious status filter forced on top of the due range.
     expect(q.get("status")).toBeNull();
   });
 
-  it("Map All uses has_location (its own explicit param) — no redundant sentinel", () => {
+  it("keeps both statuses when requesting map locations", () => {
     const q = query(
       { view: "map", tab: "all" },
       { status: undefined, has_location: true },
     );
     expect(q.get("has_location")).toBe("true");
-    expect(q.get("assigned_user_id")).toBeNull();
-    // has_location is already an explicit non-defaulting param, so the sentinel
-    // isn't needed (and must not force a spurious status=open predicate).
+    expect(q.get("assigned_user_id")).toBe("all");
     expect(q.get("status")).toBeNull();
   });
 
-  it("a real status filter is preserved (the sentinel never clobbers it)", () => {
+  it("honors an explicit status across all assignees", () => {
     const q = query({ view: "list", tab: "all" }, { status: "done" });
     expect(q.get("status")).toBe("done");
-    expect(q.get("assigned_user_id")).toBeNull();
+    expect(q.get("assigned_user_id")).toBe("all");
   });
 
-  it("All + a specific overdue filter opts out via overdue (no status sentinel)", () => {
+  it("sends the overdue selection without an extra status filter", () => {
     const q = query({ view: "list", tab: "all" }, { overdue: true });
     expect(q.get("overdue")).toBe("true");
-    // overdue=true is the explicit opt-out; no redundant status=open injected.
     expect(q.get("status")).toBeNull();
   });
 
-  it("Open / Mine / Done keep their own explicit params (no sentinel needed)", () => {
+  it("keeps the scope of old Open, Mine and Done links", () => {
     const open = query({ view: "list", tab: "open" });
     expect(open.get("status")).toBe("open");
     expect(open.get("assigned_user_id")).toBe("me");
@@ -159,6 +133,7 @@ describe("taskListKeyFilters: equal requests share one cache entry", () => {
       status: "done" as const,
       priority: ["urgent" as const],
       has_location: true,
+      scheduled: false,
       limit: 1,
     };
     expect(taskListKeyFilters(request)).toEqual(request);

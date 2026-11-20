@@ -142,6 +142,9 @@ import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.Capability
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskAttachmentItem
@@ -482,6 +485,25 @@ private fun TaskDetailBody(
     }
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
+    var plannerOpen by remember(detail.id) { mutableStateOf(false) }
+    fun closePlanner() {
+        plannerOpen = false
+        onChanged()
+    }
+    if (plannerOpen) Dialog(
+        onDismissRequest = ::closePlanner,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        DispatchPlanner(
+            api = graph.api, companyId = companyId, userId = me.user_id, timezone = me.company?.timezone,
+            editable = MemberRole.has(role, Capability.CONVERSATIONS_NOTE),
+            initialTask = detail.id, onClose = ::closePlanner,
+            onTask = {
+                closePlanner()
+                if (it != detail.id) onOpenTask?.invoke(it)
+            },
+        )
+    }
     val canDelete = canDeleteRecords(role)
     val hasNotes = detail.activity.any { it.kind == "note" }
     val hasContent = hasNotes || detail.attachments.isNotEmpty()
@@ -1004,6 +1026,13 @@ private fun TaskDetailBody(
                     }
 
                     val reminder = detail.reminders
+                    if (!noAccess) {
+                        RowDivider()
+                        TextButton(onClick = { plannerOpen = true }, modifier = Modifier.padding(horizontal = 12.dp)) {
+                            Text(listOfNotNull(t("contactsTasks.dispatchAddBlock"),
+                                detail.scheduled_at?.let { dueRowLabel(it, locale) }).joinToString(" · "))
+                        }
+                    }
                     val canRemind = detail.conversation_id != null && reminder?.state != "no_customer_thread"
                     if (!noAccess && detail.message_id == null && detail.source_call == null && detail.source?.kind != "call") {
                         RowDivider()

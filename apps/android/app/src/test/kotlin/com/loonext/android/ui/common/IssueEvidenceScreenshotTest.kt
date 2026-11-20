@@ -118,6 +118,7 @@ import com.loonext.android.features.inbox.InboxAuditBody
 import com.loonext.android.features.settings.SettingsIndex
 import com.loonext.android.features.settings.TrashScreen
 import com.loonext.android.features.shell.AccountSheetContent
+import com.loonext.android.features.tasks.DispatchPlanner
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskListLoader
 import com.loonext.android.features.tasks.TaskListSnapshot
@@ -194,6 +195,7 @@ class IssueEvidenceScreenshotTest {
                     path == "/v1/voicemail-greetings" -> MockResponse(body = """{"data":[],"next_cursor":null}""")
                     path == "/v1/on-call" -> MockResponse(body = """{"data":[]}""")
                     path == "/v1/calendar/feed" -> MockResponse(body = """{"active":false}""")
+                    path == "/v1/dispatch" -> MockResponse(body = dispatchScreenshotData())
                     else -> MockResponse(code = 404, body = """{"error":"not in this test"}""")
                 }
             }
@@ -619,6 +621,34 @@ class IssueEvidenceScreenshotTest {
 
     @Test fun `tasks light`() = shoot("tasks", dark = false, settle = true) { tasks() }
     @Test fun `tasks dark`() = shoot("tasks", dark = true, settle = true) { tasks() }
+
+    @Test fun `planner light`() = planner(false)
+    @Test fun `planner dark`() = planner(true)
+
+    private fun planner(dark: Boolean) = shoot("dispatch-planner", dark = dark, afterShow = {
+        compose.waitUntil(10_000) { compose.onAllNodes(hasText("Replace kitchen shutoff valve")).fetchSemanticsNodes().isNotEmpty() }
+    }) {
+        DispatchPlanner(api = graph.api, companyId = "co_1", userId = "usr_1", timezone = "UTC",
+            editable = true, onClose = {}, onTask = {})
+    }
+
+    private fun dispatchScreenshotData(): String {
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+        return """
+            {"plan":{"revision":2,"timezone":"UTC",
+              "members":[{"id":"usr_1","name":"Dana Brightside"},{"id":"usr_2","name":"Sam Rivera"}],
+              "days":[{"date":"$today","start":"${today}T00:00:00Z","end":"${today.plusDays(1)}T00:00:00Z","opens_at":"${today}T08:00:00Z"}],
+              "tasks":[
+                {"id":"t1","title":"Replace kitchen shutoff valve","updated_at":"${today}T08:00:00Z","dispatch_estimate":40},
+                {"id":"t2","title":"Inspect sink leak","updated_at":"${today}T08:00:00Z","scheduled_count":1,"address":"14 Alder Street"},
+                {"id":"t3","title":"Call back about the permit","updated_at":"${today}T08:00:00Z","scheduled_count":1}
+              ],
+              "blocks":[
+                {"id":"b1","task_id":"t2","assignee_id":"usr_1","starts_at":"${today}T10:00:00Z","ends_at":"${today}T10:40:00Z","visit":true,"locked":true,"address_confirmed":true},
+                {"id":"b2","task_id":"t3","assignee_id":"usr_2","starts_at":"${today}T13:00:00Z","ends_at":"${today}T13:25:00Z","visit":false,"locked":false,"address_confirmed":false}
+              ]},"workload":[]}
+        """.trimIndent()
+    }
 
     @Composable
     private fun tasks() {

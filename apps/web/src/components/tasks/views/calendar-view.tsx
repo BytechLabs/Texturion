@@ -110,8 +110,9 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   // Fetch every task due within the window (+ the tab/chip scope). The
   // due-range makes this a due-sorted query.
   const range = windowInstants(gridStart, gridEnd, timeZone);
+  const selection = toTaskFilters(state);
   const filters = {
-    ...toTaskFilters(state),
+    ...selection,
     status: undefined,
     overdue: undefined,
     due_after: range.after,
@@ -136,8 +137,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     if (task.calendar_hold || !day || !visibleKeys.has(day)) {
       return false;
     }
-    if (state.tab === "open") return !task.done;
-    if (state.tab === "done") return task.done;
+    if (selection.overdue && (!task.due_at || task.done || Date.parse(task.due_at) >= Date.now())) return false;
+    if (selection.due_after && (!task.due_at || Date.parse(task.due_at) < Date.parse(selection.due_after))) return false;
+    if (selection.due_before && (!task.due_at || Date.parse(task.due_at) >= Date.parse(selection.due_before))) return false;
+    if (selection.status === "open") return !task.done;
+    if (selection.status === "done") return task.done;
     return true;
   });
 
@@ -155,7 +159,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `tasks` is rebuilt each render; its inputs are the deps
-  }, [query.data, state.tab, mode, timeZone, visibleKeys]);
+  }, [query.data, state, mode, timeZone, visibleKeys]);
 
   const step = (dir: 1 | -1) =>
     setPicked(mode === "week" ? addWeeks(cursor, dir) : addMonths(cursor, dir));
@@ -591,7 +595,7 @@ function DayChip({ task }: { task: Task }) {
         className={cn(
           "block min-w-0 flex-1 cursor-grab truncate rounded-md px-1.5 py-1 text-[12px] font-medium active:cursor-grabbing",
           task.done
-            ? "bg-success/10 text-emerald-700 line-through opacity-70 dark:text-success"
+            ? "bg-success/10 text-foreground line-through"
             : "bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary",
         )}
       >

@@ -9,6 +9,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import type { Task } from "@/lib/api/types";
 import { InlineDue } from "./task-inline-edit";
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
@@ -27,10 +28,10 @@ const task = {
   message_id: "m1",
   conversation_id: "c1",
   due_at: null,
-} as never;
+} as Task;
 
 function openPicker(): HTMLInputElement {
-  fireEvent.click(screen.getByRole("button", { name: EN.tasks.setDueAria }));
+  fireEvent.click(screen.getByRole("button", { name: EN.tasks.setDue }));
   return screen.getByLabelText<HTMLInputElement>(EN.tasks.dueDateTimeAria);
 }
 
@@ -40,6 +41,13 @@ function type(input: HTMLInputElement, value: string) {
 
 beforeEach(() => mutate.mockReset());
 afterEach(cleanup);
+
+it("includes the displayed due date in the edit button name", () => {
+  const date = "2026-11-27";
+  render(<InlineDue task={{ ...task, due_on: date }} />);
+  const label = `${date} · ${EN.tasks.anyTime}`;
+  expect(screen.getByRole("button", { name: `${label}, ${EN.tasks.changeDueAria}` }).textContent).toBe(label);
+});
 
 describe("InlineDue sends one PATCH", () => {
   it("not while the date is typed, once when the field is left", () => {

@@ -10735,3 +10735,24 @@ harder to predict. International outbound service is a future option that
 requires per-destination caps and clear per-destination pricing before launch.
 When a number is refused, web, Android and iOS explain which destinations are
 supported in English and French.
+
+## D172 - work blocks have their own schedule (#876)
+
+Planner belongs in Tasks. A task can have several work blocks, including
+remote blocks. A deadline and task completion remain on the task. Dispatch
+keeps the block's crew member, start and end, lock, and confirmed address
+fingerprint separately. An address edit asks the crew to confirm it again
+before the visit can appear on a route.
+
+Schedule, Workload, and Routes read the same local draft. My day reads the
+published schedule. Publish checks the workspace's revision and the versions
+of touched tasks in one transaction. It rejects overlapping bookings, changes
+that violate the customer's windows, and implicit moves of locked visits.
+Published changes notify the affected crew through Tasks preferences. The
+dispatcher opens the task's source conversation to contact the customer.
+
+Capacity uses the workspace's business hours and exceptions. Where a visit has
+coordinates, route previews estimate travel from the distance between pins and
+leave room for the work already scheduled between them. The preview uses a
+consistent speed and road-distance factor. It keeps confirmed appointments at
+their booked times.

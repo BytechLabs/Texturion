@@ -232,6 +232,7 @@ interface TaskFilters {
   dueOnAfter?: string;
   overdue: boolean;
   confirmed?: boolean;
+  scheduled?: boolean;
   search?: string;
   /** #693: any of these priorities. */
   priorities?: string[];
@@ -302,6 +303,8 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   }
   if (filters.confirmed === true) q = q.not("confirmed_at", "is", null);
   if (filters.confirmed === false) q = q.is("confirmed_at", null);
+  if (filters.scheduled === true) q = q.not("task_scheduled_start", "is", null);
+  if (filters.scheduled === false) q = q.is("task_scheduled_start", null);
   if (filters.priorities && filters.priorities.length > 0) {
     q = q.in("priority", filters.priorities);
   }
@@ -1358,7 +1361,7 @@ const taskDueFilter = z.iso.datetime({ offset: true });
 
 const taskSelectionSchema = z.strictObject({
   status: z.enum(STATUS_VALUES).optional(),
-  assigned_user_id: taskMemberFilter.optional(),
+  assigned_user_id: taskMemberFilter.or(z.literal("all")).optional(),
   unassigned: z.boolean().optional(),
   conversation_id: z.uuid().optional(),
   due_before: taskDueFilter.optional(),
@@ -1367,6 +1370,7 @@ const taskSelectionSchema = z.strictObject({
   due_on_after: z.iso.date().optional(),
   overdue: z.boolean().optional(),
   confirmed: z.boolean().optional(),
+  scheduled: z.boolean().optional(),
   has_location: z.boolean().optional(),
   q: z.string().trim().max(200).optional(),
   priority: z.array(prioritySchema).min(1).optional(),
@@ -1395,6 +1399,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     due_on_after: query.due_on_after,
     overdue: query.overdue === "true" || undefined,
     confirmed: query.confirmed === "true" ? true : (query.confirmed === "false" ? false : query.confirmed),
+    scheduled: query.scheduled === "true" || query.scheduled === "false" ? query.scheduled === "true" : query.scheduled,
     has_location: query.has_location === "true" || undefined,
     q: query.q,
     priority: query.priority
@@ -1418,9 +1423,7 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
   }
 
   const anyFilter = Object.values(filters).some((value) => value !== undefined);
-  const assignee = filters.assigned_user_id === "me"
-    ? userId
-    : filters.assigned_user_id ?? (anyFilter ? undefined : userId);
+  const assignee = taskFilterAssignee(filters.assigned_user_id, userId) ?? (anyFilter ? undefined : userId);
   return {
     overdue: filters.overdue === true,
     hasLocation: filters.has_location === true,
@@ -1436,6 +1439,11 @@ function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
     effectiveStatus: filters.status ?? (anyFilter ? undefined : "open"),
     assignee,
   };
+}
+
+function taskFilterAssignee(assignee: string | undefined, userId: string): string | undefined {
+  if (assignee === "all") return undefined;
+  return assignee === "me" ? userId : assignee;
 }
 
 /**
@@ -1510,7 +1518,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     ? db
         .from("task_map_rows")
         .select(
-          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
+          `${TASK_COLUMNS},scheduled_at:task_scheduled_start,done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null)
@@ -1519,7 +1527,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${THREAD_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}${referenceEmbed}`,
+          `${TASK_COLUMNS},scheduled_at:task_scheduled_start,${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${THREAD_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}${referenceEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1536,6 +1544,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueAfter,
     overdue,
     confirmed: extraInput.confirmed,
+    scheduled: extraInput.scheduled,
     dueOnBefore: extraInput.due_on_before,
     dueOnAfter: extraInput.due_on_after,
     search,
@@ -1743,6 +1752,7 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         dueAfter: q.dueAfter,
         overdue: q.overdue,
         confirmed: q.extraInput.confirmed,
+        scheduled: q.extraInput.scheduled,
         dueOnBefore: q.extraInput.due_on_before,
         dueOnAfter: q.extraInput.due_on_after,
         search: q.search,
@@ -1898,7 +1908,7 @@ tasksRoutes.post(
       // what was on screen.
       const filter = body.filter ?? {};
       const extra = await resolveExtraTaskFilters(c, db, filter);
-      const assignee = filter.assigned_user_id === "me" ? userId : filter.assigned_user_id;
+      const assignee = taskFilterAssignee(filter.assigned_user_id, userId);
       let taskQuery = db
         .from(filter.has_location ? "task_map_rows" : "tasks")
         .select(
@@ -1930,6 +1940,7 @@ tasksRoutes.post(
           dueAfter: filter.due_after,
           overdue: filter.overdue === true,
           confirmed: filter.confirmed,
+          scheduled: filter.scheduled,
           dueOnBefore: filter.due_on_before,
           dueOnAfter: filter.due_on_after,
           search: filter.q,
@@ -2313,7 +2324,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   const query = db
     .from("tasks")
     .select(
-      `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,reminders:task_reminder_state,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
+      `${TASK_COLUMNS},scheduled_at:task_scheduled_start,${TASK_DONE_SELECT},done_by:task_done_by,reminders:task_reminder_state,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
         `${CALENDAR_HOLD_EMBED},messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)`,
     )
     .eq("company_id", companyId)

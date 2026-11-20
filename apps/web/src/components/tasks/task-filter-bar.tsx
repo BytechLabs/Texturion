@@ -15,6 +15,7 @@ import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
 import { usePhoneLine } from "@/components/shell/phone-line";
 import { FilterButton } from "@/components/ui/filter-button";
 import { Input } from "@/components/ui/input";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import {
   Popover,
   PopoverContent,
@@ -29,10 +30,9 @@ import { useMembers } from "@/lib/api/team";
 import type { TaskPriority } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { SearchField } from "@/components/ui/search-field";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
-import { DUE_LABEL_KEYS, tabsForView, TASK_TABS } from './task-view-url';
+import { DUE_LABEL_KEYS, TASK_COLUMNS } from './task-view-url';
 import type { DueFilter, TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view-url';
 
 import {
@@ -43,64 +43,79 @@ import {
 } from "./task-saved-views";
 
 type OptionalTaskField = Exclude<keyof TaskPageState, "tab" | "view">;
+const COLUMN_LABELS = {
+  assignee: "tasks.assignee",
+  due: "tasks.due",
+  scheduled: "tasks.scheduledTime",
+  status: "tasks.columnStatus",
+} as const;
 
-/**
- * The /tasks page filter bar (T6.1 / D25) — one-glance, NO fly-out drawer,
- * shared across all four views. Three layers, exactly the inbox model:
- *
- *  1. a debounced title search (→ `q`);
- *  2. the segmented tabs Open | Mine | All | Done (quiet stone active pill —
- *     never petrol; the shared T6.3 contract); and
- *  3. always-visible removable chips (assignee / unassigned / due) + a compact
- *     `+ Filter` cmdk popover that adds a chip.
- *
- * URL is the state — this only calls `onChange` with the next page state; the
- * page writes it to the URL.
- */
 export function TaskFilterBar({
-  state,
+  state: input,
   onChange,
-  showSavedViews = true,
 }: {
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
-  showSavedViews?: boolean;
 }) {
   const t = useT();
   const { userId } = useActiveCompany();
-  // #113: only the tabs the active view actually applies (Board/Map organize
-  // by status themselves, so Open/Done are a no-op there — show Mine | All).
-  const visibleTabs = tabsForView(state.view);
-  const shownTabs = TASK_TABS.filter(({ id }) => visibleTabs.includes(id));
+  const state: TaskPageState = {
+    ...input,
+    tab: "all",
+    assignee: input.assignee ?? (input.unassigned || input.tab === "all" ? undefined : "me"),
+    status: input.status ?? (input.tab === "open" || input.tab === "done" ? input.tab : undefined),
+  };
+  const count = taskFilterCount(state);
+  let selected = "custom";
+  if (count === 0) selected = "all";
+  if (count === 1 && state.assignee === "me") selected = "mine";
+  if (count === 1 && state.unassigned) selected = "unassigned";
   return (
     <div className="space-y-2.5">
       <TaskSearch state={state} onChange={onChange} />
       <div className="flex flex-wrap items-center gap-1.5">
-        {/* A phone gives the tabs the whole row, so Filter and Views wrap
-            below them instead of squeezing them. */}
-        <div className="flex w-full max-w-md sm:w-auto sm:min-w-80">
-          <SegmentedControl
-            fill
-            ariaLabel={t("tasks.statusTabsAria")}
-            value={state.tab}
-            onChange={(tab) => onChange({ ...state, tab })}
-            options={shownTabs.map(({ id, labelKey }) => ({
-              value: id,
-              label: t(labelKey),
-            }))}
-          />
-        </div>
+        <SimpleSelect ariaLabel={t("tasks.taskPresets")} value={selected} className="w-auto"
+          onValueChange={(value) => {
+            const base = { view: state.view, tab: "all" as const };
+            onChange({ ...base, ...(value === "mine" && { assignee: "me" }), ...(value === "unassigned" && { unassigned: true }) });
+          }}
+          options={[
+            { value: "all", label: t("tasks.allTasks") },
+            { value: "mine", label: t("tasks.myWork") },
+            { value: "unassigned", label: t("tasks.unassigned") },
+            ...(selected === "custom" ? [{ value: "custom", label: t("tasks.customTasks"), disabled: true }] : []),
+          ]}
+        />
         <FilterPopover state={state} onChange={onChange} />
-        {showSavedViews && <SavedViewsMenu
+        {state.view === "list" && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="min-h-10 rounded-md border border-input bg-background px-3 text-sm">{t("tasks.columns")}</button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-56">
+              {TASK_COLUMNS.map((column) => {
+                const selectedColumns = state.columns ?? TASK_COLUMNS;
+                return <label key={column} className="flex min-h-10 items-center gap-2 text-sm">
+                  <input type="checkbox" checked={selectedColumns.includes(column)} onChange={(event) => {
+                    const { checked } = event.target;
+                    onChange({ ...state, columns: TASK_COLUMNS.filter((value) =>
+                      value === column ? checked : selectedColumns.includes(value)) });
+                  }} />{t(COLUMN_LABELS[column])}
+                </label>;
+              })}
+            </PopoverContent>
+          </Popover>
+        )}
+        <SavedViewsMenu
           surface="tasks"
           isCurrent={(view) => taskViewMatches(view, state, userId)}
           onApply={(view) => onChange(viewToTaskState(view, userId, state))}
           currentFilters={() => taskStateToView(state, userId)}
           suggestName={() => suggestTaskViewName(state, t)}
-          hasFilters={taskFilterCount(state) > 0 || state.tab !== "open" || state.view !== "list"}
+          hasFilters={count > 0 || state.view !== "list" || state.columns !== undefined}
           saveDescription={t("tasks.viewSaveDescription")}
           shareNote={t("tasks.viewShareNote")}
-        />}
+        />
       </div>
       {/* #711: only while something is applied. */}
       {taskFilterCount(state) > 0 && <ChipRow state={state} onChange={onChange} />}
@@ -111,6 +126,8 @@ export function TaskFilterBar({
 /** #711: the chips the row shows, which is also the Filter button's count. */
 export function taskFilterCount(state: TaskPageState): number {
   return [
+    state.status,
+    state.scheduled !== undefined,
     state.assignee,
     state.unassigned,
     state.notConfirmed,
@@ -141,8 +158,8 @@ function withoutTaskFields(state: TaskPageState, keys: readonly OptionalTaskFiel
 /** Every filter off; the tab, view and search stay. */
 function clearTaskFilters(state: TaskPageState): TaskPageState {
   return withoutTaskFields(state, [
-    "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
-    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort", "notConfirmed",
+    "status", "scheduled", "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
+    "source", "sourceLine", "files", "refs", "dueFrom", "dueTo", "group", "sort", "notConfirmed",
   ]);
 }
 
@@ -215,13 +232,15 @@ function ChipRow({
     ? (tags.data?.data.find((tag) => tag.id === state.tag)?.name ??
       t("tasks.label"))
     : null;
-  const assigneeName = state.assignee
-    ? members.data?.data.find((m) => m.user_id === state.assignee)
-        ?.display_name || t("tasks.assigneeChipFallback")
-    : null;
+  const assigneeName = state.assignee === "me" ? t("tasks.myWork")
+    : members.data?.data.find((m) => m.user_id === state.assignee)?.display_name;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {state.status && <Chip label={t(state.status === "open" ? "tasks.statusOpen" : "tasks.statusDone")}
+        onRemove={() => onChange(withoutTaskFields(state, ["status"]))} />}
+      {state.scheduled !== undefined && <Chip label={t(state.scheduled ? "tasks.dispatchAdded" : "tasks.dispatchRemoved")}
+        onRemove={() => onChange(withoutTaskFields(state, ["scheduled"]))} />}
       {state.notConfirmed && (
         <Chip label={t("tasks.notConfirmed")} onRemove={() => onChange(withoutTaskFields(state, ["notConfirmed"]))} />
       )}
@@ -231,9 +250,9 @@ function ChipRow({
           onRemove={() => onChange(withoutTaskFields(state, ["sourceLine"]))}
         />
       )}
-      {assigneeName && (
+      {state.assignee && (
         <Chip
-          label={assigneeName}
+          label={assigneeName || t("tasks.assigneeChipFallback")}
           onRemove={() => {
             const next = { ...state };
             delete next.assignee;
@@ -584,7 +603,25 @@ function FilterPopover({
           />
           <CommandList>
             <CommandEmpty>{t("tasks.noFilters")}</CommandEmpty>
+            <CommandGroup heading={t("tasks.statusTabsAria")}>
+              {(["open", "done"] as const).map((status) => (
+                <CommandItem key={status} onSelect={() => {
+                  onChange({ ...state, status });
+                  setOpen(false);
+                }}>
+                  {t(status === "open" ? "tasks.statusOpen" : "tasks.statusDone")}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandGroup heading={t("tasks.scheduledTime")}>
+              {[true, false].map((scheduled) => (
+                <CommandItem key={String(scheduled)} onSelect={() => patch({ scheduled })}>
+                  {t(scheduled ? "tasks.dispatchAdded" : "tasks.dispatchRemoved")}
+                </CommandItem>
+              ))}
+            </CommandGroup>
             <CommandGroup heading={t("tasks.assignee")}>
+              <CommandItem onSelect={() => setAssignee("me")}>{t("tasks.myWork")}</CommandItem>
               <CommandItem
                 value="unassigned"
                 keywords={[t("tasks.unassigned"), t("tasks.keywordNobody")]}

@@ -214,6 +214,7 @@ const SUITES = [
   "task_priority_labels_repeats",
   // #689 C: more than one person on a task.
   "task_assignees",
+  "task_dispatch",
   // #690: task numbers, references and relations.
   "task_references",
   // #714: one activity model for every record.

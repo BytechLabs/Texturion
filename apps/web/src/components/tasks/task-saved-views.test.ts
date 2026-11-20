@@ -11,6 +11,7 @@ import type { TaskPageState } from './task-view-url';
 const ME = "11111111-1111-4111-8111-111111111111";
 const SAM = "22222222-2222-4222-8222-222222222222";
 const CONTACT = "33333333-3333-4333-8333-333333333333";
+const SOURCE_LINE = "44444444-4444-4444-8444-444444444444";
 
 const state = (over: Partial<TaskPageState> = {}): TaskPageState => ({
   view: "list",
@@ -19,19 +20,19 @@ const state = (over: Partial<TaskPageState> = {}): TaskPageState => ({
 });
 
 describe("a task view holds the query", () => {
-  it("stores Open as my open tasks, Mine as me, Done as my done, All as everyone's open", () => {
+  it("stores legacy tab scopes and leaves All unfiltered", () => {
     expect(taskStateToView(state({ tab: "open" }), ME)).toEqual({
       layout: "list",
       status: "open",
       assigned_user_id: ME,
     });
-    expect(taskStateToView(state({ tab: "mine" }), ME)).toEqual({ layout: "list", assigned_user_id: ME });
+    expect(taskStateToView(state({ tab: "mine" }), ME)).toEqual({ assigned_user_id: ME, layout: "list" });
     expect(taskStateToView(state({ tab: "done" }), ME)).toEqual({
       layout: "list",
       status: "done",
       assigned_user_id: ME,
     });
-    expect(taskStateToView(state({ tab: "all" }), ME)).toEqual({ layout: "list", status: "open" });
+    expect(taskStateToView(state({ tab: "all" }), ME)).toEqual({ layout: "list" });
   });
 
   it("stores the new filters, the sort and the grouping", () => {
@@ -51,7 +52,6 @@ describe("a task view holds the query", () => {
     );
     expect(view).toEqual({
       layout: "list",
-      status: "open",
       contact_id: CONTACT,
       created_by: "me",
       source: "call",
@@ -63,10 +63,9 @@ describe("a task view holds the query", () => {
     });
   });
 
-  it("stores the layout and leaves out search text and the relative today chip", () => {
+  it("stores the layout and rolling due date without storing search", () => {
     const view = taskStateToView(state({ tab: "all", q: "furnace", view: "board", due: "today" }), ME);
-    expect(view).toEqual({ layout: "board", status: "open" });
-    expect(viewToTaskState(view, ME, state()).view).toBe("board");
+    expect(view).toEqual({ layout: "board", due_relative: "today" });
   });
 
   it("stores overdue, and a due range as instants", () => {
@@ -85,6 +84,8 @@ describe("a task view holds the query", () => {
       state({ tab: "all", assignee: SAM }),
       state({ tab: "all", unassigned: true }),
       state({ tab: "all", due: "overdue" }),
+      state({ tab: "all", view: "map", assignee: "me", status: "done", due: "week", scheduled: false,
+        columns: ["due"], sourceLine: SOURCE_LINE }),
       state({ tab: "open", dueFrom: "2026-11-02", dueTo: "2026-11-08" }),
       state({ tab: "all", contact: CONTACT, createdBy: SAM, source: "none", files: true, refs: true }),
       state({ tab: "mine", sort: "priority", group: "priority", priority: ["urgent"] }),
@@ -100,6 +101,7 @@ describe("a task view holds the query", () => {
     expect(next.view).toBe("board");
     expect(next.q).toBe("boiler");
     expect(next.tab).toBe("all");
+    expect(next.status).toBe("open");
   });
 
   it("drops what the allow-list does not know", () => {
@@ -139,7 +141,7 @@ describe("the URL carries the new filters", () => {
     const parsed = parseTaskSearchParams(
       new URLSearchParams("contact=nope&by=nope&source=fax&from=tomorrow&group=planet&sort=random"),
     );
-    expect(parsed).toEqual({ view: "list", tab: "open" });
+    expect(parsed).toEqual({ view: "list", tab: "all" });
   });
 
   it("maps to the list request", () => {

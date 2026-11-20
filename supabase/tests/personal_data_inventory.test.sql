@@ -58,7 +58,7 @@ declare
     -- #689 D: which member follows which task, and when a push last went out.
     'task_subscribers', 'task_notify_windows',
     -- #689 C: which members are on a task. References only.
-    'task_assignees',
+    'task_assignees', 'task_schedule_blocks',
     -- #690: what a note, a task or a comment points at, which tasks block
     -- which, and the per-workspace task counter. References and numbers only.
     'record_references', 'task_links', 'task_counters',

@@ -145,6 +145,7 @@ export const COMPANY_COLUMNS_NOT_SETTINGS = {
   purge_receipt_email: "workspace closure",
   purge_receipt_email_id: "workspace closure",
   response_baseline: "derived from customer response activity",
+  dispatch_revision: "the published schedule's concurrency version",
   legal_hold_at: "staff only",
   legal_hold_reason: "staff only",
   legal_hold_by: "staff only",

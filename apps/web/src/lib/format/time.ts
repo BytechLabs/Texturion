@@ -426,3 +426,15 @@ export function formatWallHour(hour: number, locale: string): string {
     new Date(Date.UTC(2000, 0, 1, hour)),
   );
 }
+
+export function formatScheduledTime(iso: string, locale: string, timeZone?: string, withDay = false): string {
+  return getFormatter(locale, timeZone, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...(withDay && { month: "short", day: "numeric" }),
+  }).format(new Date(iso));
+}
+
+export function formatScheduleDay(date: string, locale: string): string {
+  return getFormatter(locale, "UTC", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date));
+}

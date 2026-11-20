@@ -73,6 +73,10 @@ const DRAG_SURFACES: Record<
     pointerAlternative: ["onClick={onMove}"],
     why: "A visible 'Move to To do / Move to Done' button on every card.",
   },
+  "components/tasks/dispatch-views.tsx": {
+    pointerAlternative: ["onClick={() => onSelect(task)}"],
+    why: "Schedule work opens the assignee, date and time form for each queued task.",
+  },
   "components/tasks/views/calendar-view.tsx": {
     // #712: the chip's menu is the task's one action list (task-actions.tsx,
     // whose "Move due date" submenu is built from RESCHEDULE_MOVES), so the
