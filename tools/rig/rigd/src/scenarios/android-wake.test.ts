@@ -45,7 +45,7 @@ const LANES: Record<string, { tenant: string; member: string }> = {
  */
 function wakeWorld(scenario: string) {
   const world = fakeContext(scenario);
-  const { app, robot, time } = world;
+  const { app, ctx, robot, time } = world;
   const script = {
     /** Whether a ring reaches the API at all. */
     pushes: true,
@@ -77,6 +77,11 @@ function wakeWorld(scenario: string) {
       wake(lane.tenant, lane.member, `call-${sessions}`, script.callStages);
     }
     return dial(plan);
+  };
+  const wait = robot.wait.bind(robot);
+  ctx.robot.wait = async (planId, timeoutMs) => {
+    const record = await wait(planId);
+    return timeoutMs === 0 && record.answered_at ? { ...record, state: "answered" } : record;
   };
   app.simulateIncoming = async (args?: unknown) => {
     simulated.push(args);
@@ -189,6 +194,27 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     await expect(D02.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(unproven.robot.plans).toHaveLength(1);
+  });
+
+  it("starts playback capture only once the robot answers", async () => {
+    const { ctx, audio } = wakeWorld("D02");
+    const { wait } = ctx.robot;
+    let checks = 0;
+    ctx.robot.wait = async (planId, timeoutMs) => {
+      const record = await wait(planId, timeoutMs);
+      if (timeoutMs === 0) {
+        checks += 1;
+        if (checks === 1) return { ...record, state: "ringing", answered_at: undefined };
+      }
+      return record;
+    };
+    const hear = audio.hear.bind(audio);
+    audio.hear = async () => {
+      expect(checks).toBe(2);
+      return hear();
+    };
+
+    await expect(D02.run(ctx)).resolves.toEqual(PASSED);
   });
 
   it("turns audio refused mid-call into infra, never a pass", async () => {

@@ -23,7 +23,7 @@ const RING_WITHIN_MS = 12_000;
 /** How long a ring that must not come is watched for; ROBOT-1 hangs up a little after. */
 const NO_RING_WAIT_MS = 15_000;
 const TALK_MS = 25_000;
-/** The device records this long from the answer, the span the robot judges as well (2-12 s). */
+const ANSWER_WITHIN_MS = 15_000;
 const HEAR_MS = 12_000;
 /** Push attempts and beacons are sent in the background; this is how long they get, PostHog's ingestion on top. */
 const EVIDENCE_WAIT_MS = 30_000 + EVENT_INGEST_MS;
@@ -300,7 +300,13 @@ function callEvidence(record: CallRecord, hearing?: Detection): Record<string, u
     robot_frames: record.judgement?.frames,
     recording_deleted: record.recording_deleted,
     errors: record.errors,
-    device_heard: hearing ? { verdict: hearing.verdict, answered: hearing.answered, heard: hearing.heard, echo: hearing.echo } : undefined,
+    device_heard: hearing ? {
+      verdict: hearing.verdict,
+      answered: hearing.answered,
+      heard: hearing.heard,
+      echo: hearing.echo,
+      robot: hearing.scores.robot,
+    } : undefined,
   };
 }
 
@@ -363,7 +369,15 @@ export async function callWake(
   let unheard: ScenarioResult | undefined;
   if (answered && options.audio) {
     try {
-      hearing = await options.audio.hear({ stream: "call", ms: HEAR_MS, own: lane.surface });
+      const connected = await poll(ctx, async () => {
+        const record = await ctx.robot.wait(dialed.plan_id, 0);
+        return record.answered_at || record.state === "done" || record.state === "failed" ? record : undefined;
+      }, ANSWER_WITHIN_MS, 250);
+      if (connected?.state === "answered") {
+        hearing = await options.audio.hear({ stream: "call", ms: HEAR_MS, own: lane.surface });
+      } else {
+        unheard = fail("audio_window_missed", "the robot did not connect in time for device capture");
+      }
     } catch (error) {
       unheard = audioFault(error);
     }

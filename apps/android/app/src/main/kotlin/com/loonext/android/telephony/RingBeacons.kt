@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
@@ -25,8 +26,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.TimeUnit
 
 /**
  * Ring beacons (D142): what this phone says happened to one ring. Only the
@@ -39,11 +42,9 @@ import java.time.temporal.ChronoUnit
  * or anything else from the call.
  *
  * Fire and forget, on its own scope and HTTP path: nothing on the ring path
- * waits for it, every failure is dropped, and an undeliverable beacon never
- * reaches the recent-errors list a support report shares. Each stage is sent
- * at most once per session, because several callbacks converge on the same
- * moment (an answer from the notification, the lock screen and a headset all
- * end in the same accept).
+ * waits for it, and an undeliverable beacon never reaches the recent-errors
+ * list a support report shares. Several callbacks can report the same moment,
+ * so each stage is queued once per session.
  */
 enum class RingBeaconStage(val wire: String) {
     PUSH_RECEIVED("push_received"),
@@ -133,7 +134,7 @@ class RingBeaconLedger(private val capacity: Int = 64) {
     }
 }
 
-/** One beacon POST. Returns whether the server took it; never throws. */
+/** Sends a beacon and retries temporary failures while the device wakes. */
 class RingBeaconSender(
     private val http: OkHttpClient,
     private val baseUrl: String,
@@ -151,9 +152,21 @@ class RingBeaconSender(
                 .header("X-Company-Id", companyId)
                 .post(body.toRequestBody(JSON_MEDIA))
                 .build()
-            withContext(Dispatchers.IO) {
-                http.newCall(request).execute().use { it.isSuccessful }
+            for (waitMs in RETRY_DELAYS_MS) {
+                delay(waitMs)
+                val status = try {
+                    withContext(Dispatchers.IO) {
+                        val call = http.newCall(request)
+                        call.timeout().timeout(5, TimeUnit.SECONDS)
+                        call.execute().use { it.code }
+                    }
+                } catch (_: IOException) {
+                    continue
+                }
+                if (status in 200..299) return true
+                if (status !in 500..599) return false
             }
+            false
         } catch (cause: CancellationException) {
             throw cause
         } catch (_: Exception) {
@@ -163,6 +176,7 @@ class RingBeaconSender(
 
     private companion object {
         val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+        val RETRY_DELAYS_MS = listOf(0L, 2_000L, 6_000L, 12_000L)
     }
 }
 
