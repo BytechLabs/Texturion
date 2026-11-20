@@ -23,9 +23,9 @@ import type { Context } from "hono";
 
 import type { AppEnv } from "../context";
 import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
+import { RigResendBudgetError, sendEmail } from "../email/resend";
 import type { Env } from "../env";
-import { reportHandledFailure } from "../observability/capture";
+import { captureEvent, reportHandledFailure, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { requestClient, requestGeo } from "./request-origin";
 import type { ClientKind } from "./request-origin";
 
@@ -79,9 +79,14 @@ export function announceNewDevice(
 ): void {
   const client = requestClient(c);
   const geo = requestGeo(c);
-  const work = deliver(env, db, userId, sessionId, client, geo).catch((error: unknown) =>
-    reportHandledFailure(env, "new-device-notice", error)
-  );
+  const work = deliver(env, db, userId, sessionId, client, geo).catch((error: unknown) => {
+    if (error instanceof RigResendBudgetError) {
+      return captureEvent(env, "rig_resend_budget_refused", SYSTEM_DISTINCT_ID, {
+        operation: "new-device-notice",
+      });
+    }
+    return reportHandledFailure(env, "new-device-notice", error);
+  });
   try {
     c.executionCtx.waitUntil(work);
   } catch {
