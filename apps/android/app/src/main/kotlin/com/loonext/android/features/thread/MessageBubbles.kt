@@ -247,12 +247,13 @@ fun MessageBubble(
 
                 // Inline MMS images — signed URL minted per view, never cached.
                 message.attachments
-                    .filter { it.content_type.startsWith("image/") }
+                    .filter { mmsKindOf(it.content_type) == MmsKind.Image }
                     .forEach { attachment ->
                         SignedAttachmentImage(
                             attachment = attachment,
                             mintUrl = mintAttachmentUrl,
                             mintOriginal = { mintOriginalAttachmentUrl(attachment.id) },
+                            onLongPress = onLongPress,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                     }
@@ -760,6 +761,7 @@ fun SignedAttachmentImage(
     mintUrl: suspend (String) -> String,
     mintOriginal: suspend () -> String,
     modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
 ) {
     var url by remember(attachment.id) { mutableStateOf<String?>(null) }
     var mintKey by remember(attachment.id) { mutableStateOf(0) }
@@ -817,7 +819,12 @@ fun SignedAttachmentImage(
                 .widthIn(max = 240.dp)
                 .height(180.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .clickable(role = Role.Button, onClickLabel = t("thread.openPhoto")) { open = true },
+                .combinedClickable(
+                    role = Role.Button,
+                    onClickLabel = t("thread.openPhoto"),
+                    onClick = { open = true },
+                    onLongClick = onLongPress,
+                ),
         )
     }
     if (open) {

@@ -126,7 +126,7 @@ struct AttachmentViewer: View {
     private func iconButton(_ icon: String, key: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.scaled(17, weight: .medium))
+                .font(.scaled(IconSize.standard, weight: .medium))
                 .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
@@ -272,7 +272,7 @@ struct AttachmentSaveButton: View {
                         .font(.golos(13, weight: .semibold))
                 } else {
                     Image(systemName: "square.and.arrow.down")
-                        .font(.scaled(17, weight: .medium))
+                        .font(.scaled(IconSize.standard, weight: .medium))
                         .accessibilityLabel(label)
                 }
             }

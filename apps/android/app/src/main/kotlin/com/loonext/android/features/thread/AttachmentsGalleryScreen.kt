@@ -67,6 +67,8 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.GalleryItem
+import com.loonext.android.features.compose.MmsKind
+import com.loonext.android.features.compose.mmsKindOf
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
@@ -161,7 +163,7 @@ internal fun AttachmentsGalleryScreen(
     }
 
     fun openAttachment(item: GalleryItem) {
-        if (isGalleryImage(item) || item.content_type.orEmpty().startsWith("video/")) {
+        if (isGalleryImage(item) || mmsKindOf(item.content_type) == MmsKind.Video) {
             viewing = item
             return
         }
@@ -387,7 +389,7 @@ private fun FilesList(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val video = item.content_type.orEmpty().startsWith("video/")
+                val video = mmsKindOf(item.content_type) == MmsKind.Video
                 Icon(
                     if (video) Icons.Outlined.PlayArrow else Icons.AutoMirrored.Filled.InsertDriveFile,
                     contentDescription = null,

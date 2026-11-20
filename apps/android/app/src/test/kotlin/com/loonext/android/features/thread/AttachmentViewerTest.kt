@@ -11,10 +11,12 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
@@ -43,6 +45,7 @@ class AttachmentViewerTest {
     private fun openAndZoom(dark: Boolean) {
         val source = photoFixture()
         val originalMints = AtomicInteger()
+        val longPresses = AtomicInteger()
         compose.setContent {
             LoonextTheme(darkTheme = dark) {
                 Surface {
@@ -53,6 +56,7 @@ class AttachmentViewerTest {
                             originalMints.incrementAndGet()
                             source
                         },
+                        onLongPress = { longPresses.incrementAndGet() },
                     )
                 }
             }
@@ -76,6 +80,8 @@ class AttachmentViewerTest {
         compose.onNodeWithText("100%").assertIsDisplayed()
         compose.onNodeWithContentDescription("Close").performClick()
         compose.onNode(isDialog()).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Photo").performTouchInput { longClick() }
+        assertEquals(1, longPresses.get())
     }
 
     private fun photoFixture(): String {

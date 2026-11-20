@@ -60,6 +60,9 @@ import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.loonext.android.core.i18n.t
+import com.loonext.android.features.compose.MmsKind
+import com.loonext.android.features.compose.mmsKindOf
+import com.loonext.android.ui.common.IconSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -91,7 +94,7 @@ internal fun AttachmentViewer(
     mintOriginal: suspend () -> String,
     onClose: () -> Unit,
 ) {
-    val video = contentType.startsWith("video/", ignoreCase = true)
+    val video = mmsKindOf(contentType) == MmsKind.Video
     var attempt by remember { mutableIntStateOf(0) }
     var original by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
@@ -121,7 +124,11 @@ internal fun AttachmentViewer(
                 ) {
                     Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Outlined.Close, contentDescription = t("common.close"))
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = t("common.close"),
+                            modifier = Modifier.size(IconSize.Default),
+                        )
                     }
                 }
                 Box(
@@ -159,7 +166,11 @@ internal fun AttachmentViewer(
                 ) {
                     if (!video) {
                         IconButton(enabled = zoom > 1f, onClick = { zoom = (zoom - ZOOM_STEP).coerceAtLeast(1f) }) {
-                            Icon(Icons.Outlined.ZoomOut, contentDescription = t("thread.zoomOut"))
+                            Icon(
+                                Icons.Outlined.ZoomOut,
+                                contentDescription = t("thread.zoomOut"),
+                                modifier = Modifier.size(IconSize.Default),
+                            )
                         }
                         val reset = t("thread.resetZoom")
                         TextButton(
@@ -173,7 +184,11 @@ internal fun AttachmentViewer(
                             enabled = (preview != null || (original != null && !failed)) && zoom < MAX_ZOOM,
                             onClick = { zoom = (zoom + ZOOM_STEP).coerceAtMost(MAX_ZOOM) },
                         ) {
-                            Icon(Icons.Outlined.ZoomIn, contentDescription = t("thread.zoomIn"))
+                            Icon(
+                                Icons.Outlined.ZoomIn,
+                                contentDescription = t("thread.zoomIn"),
+                                modifier = Modifier.size(IconSize.Default),
+                            )
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -297,7 +312,7 @@ internal fun AttachmentSaveButton(
         }
     } else {
         IconButton(onClick = onSave, enabled = !saving) {
-            Icon(Icons.Outlined.FileDownload, contentDescription = label, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.FileDownload, contentDescription = label, modifier = Modifier.size(IconSize.Large))
         }
     }
 }
