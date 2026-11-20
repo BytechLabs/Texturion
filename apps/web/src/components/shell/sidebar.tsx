@@ -520,6 +520,7 @@ function TaskNavigation({
   const [open, setOpen] = useState(true);
   const shortcutsId = useId();
   const views = data?.data ?? [];
+  const activeShortcut = pathname === PLANNER.href || pathname.startsWith("/tasks/views/");
 
   if (collapsed) {
     return (
@@ -528,7 +529,16 @@ function TaskNavigation({
         <DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger className="absolute -right-1 top-0 grid size-5 place-items-center rounded border border-app-line bg-app-paper text-app-ink opacity-0 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100 group-hover/tasks:opacity-100 group-focus-within/tasks:opacity-100" aria-label={t("shell.taskShortcuts")}>
+              <DropdownMenuTrigger
+                aria-label={t("shell.taskShortcuts")}
+                aria-current={activeShortcut ? "page" : undefined}
+                className={cn(
+                  "absolute -right-1 top-0 grid size-5 place-items-center rounded border border-app-line focus-visible:ring-2 focus-visible:ring-ring",
+                  activeShortcut
+                    ? "bg-app-tint text-app-olive-deep"
+                    : "bg-app-paper text-app-ink opacity-0 focus:opacity-100 data-[state=open]:opacity-100 group-hover/tasks:opacity-100 group-focus-within/tasks:opacity-100",
+                )}
+              >
                 <Ellipsis className="size-3.5" aria-hidden />
               </DropdownMenuTrigger>
             </TooltipTrigger>

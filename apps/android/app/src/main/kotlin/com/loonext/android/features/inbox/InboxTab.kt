@@ -902,6 +902,7 @@ private class InboxController(
      * schedule it again — so it confirms rather than asking.
      */
     fun cancelScheduled(id: String) {
+        val line = shellLineId
         val before = scheduled
         scheduled = before.filterNot { it.id == id }
         scope.launch {
@@ -909,10 +910,7 @@ private class InboxController(
                 repo.cancelScheduledMessage(companyId, id)
                 notify(ScheduledSend.copy("canceled_confirmation"))
             } catch (cause: Exception) {
-                // It is still queued. Putting it back is the only honest state:
-                // a row that vanished while still being due to send is the
-                // silent disappearance DECISIONS.md rules out.
-                scheduled = before
+                if (line == shellLineId) scheduled = before
                 notify(cause.userMessage(locale))
             }
         }

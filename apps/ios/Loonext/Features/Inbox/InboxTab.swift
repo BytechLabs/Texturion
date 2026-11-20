@@ -634,6 +634,7 @@ final class InboxController {
     /// that has not gone is reversible in the only sense that matters — you can
     /// schedule it again — so it confirms rather than asking.
     func cancelScheduled(_ id: String) {
+        let line = shellLineId
         let before = scheduled
         scheduled = before.filter { $0.id != id }
         Task {
@@ -645,10 +646,7 @@ final class InboxController {
                     )
                 )
             } catch {
-                // It is still queued. Putting it back is the only honest state:
-                // a row that vanished while still being due to send is the
-                // silent disappearance DECISIONS.md rules out.
-                scheduled = before
+                if line == shellLineId { scheduled = before }
                 notify(error.userMessage)
             }
         }
