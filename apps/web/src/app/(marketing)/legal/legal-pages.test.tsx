@@ -275,6 +275,17 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
   });
 });
 
+describe("privacy: calendar connections", () => {
+  it.each([
+    ["en", "your account's default calendar", "identifier, name and time zone of your primary Google Calendar"],
+    ["fr-CA", "le calendrier par défaut de votre compte", "l’identifiant, le nom et le fuseau horaire de votre agenda Google principal"],
+  ] as const)("%s describes the destination and the Google metadata read", (locale, destination, metadata) => {
+    const calendar = visibleText(section(PRIVACY[locale], "your-calendar"));
+    expect(calendar).toContain(destination);
+    expect(calendar).toContain(metadata);
+  });
+});
+
 describe("privacy: the AI and sharing sections match the ledgers they summarize", () => {
   const counted = {
     en: `${AI_DISCLOSURES.length} features send content to an AI model`,

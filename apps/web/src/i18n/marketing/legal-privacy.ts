@@ -8,7 +8,7 @@ export const legalPrivacyEn = {
     "How Loonext handles your data under PIPEDA and Quebec Law 25: US data processing named plainly, and a firm commitment that mobile numbers and SMS consent data are never sold or shared for third-party marketing.",
   title: "Privacy policy",
   breadcrumbLabel: "Privacy policy",
-  lastUpdated: "November 19, 2026",
+  lastUpdated: "November 20, 2026",
   summary:
     "We collect only what the service needs to run your inbox, including account details, the contacts and messages your business handles, and billing through Stripe. We store account and inbox data in the United States. AI and map services can process data outside the United States. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time.",
 
@@ -81,9 +81,9 @@ export const legalPrivacyEn = {
   phoneAddressBook:
     "**Your phone's address book is never uploaded.** If you give the app permission, it shows your own contacts beside the crew's so you do not have to retype a number. That search happens on the phone, and none of it is sent to us.",
   calendarIntro:
-    "A crew member can connect their own Google Calendar or Microsoft 365 calendar in Settings. It is off until you do it, and each person decides for themselves. Once connected, Loonext writes an event into the calendar you choose for each scheduled job assigned to you, and reads back only those events to see whether you moved, renamed or removed one. It does not read the content of your other events, and it never invites a customer.",
+    "A crew member can connect their own Google Calendar or Microsoft 365 calendar in Settings. It is off until you do it, and each person decides for themselves. Once connected, Loonext writes an event to your account's default calendar for each scheduled job assigned to you, and reads back only those events to see whether you moved, renamed or removed one. It does not read the content of your other events, and it never invites a customer.",
   calendarAsk:
-    "**What we ask the provider for:** permission to manage events on the calendars you own and to read your calendar list so you can pick one. On Google that is the Calendar events (owned calendars) and Calendar list (read only) permissions; on Microsoft it is Calendars.ReadWrite.",
+    "**What we ask the provider for.** The Google calendar events permission covers calendars you own. We use it for the events Loonext creates in your primary calendar. When you connect, we use the read-only calendar permission to read the identifier, name and time zone of your primary Google Calendar. Microsoft’s Calendars.ReadWrite permission lets us find your default calendar and manage the events we create there.",
   calendarWrite:
     "**What we write to an event:** the job's title, notes, start and end time. Whatever your crew types into a job's title or notes therefore appears in the calendar, so keep a customer's phone number out of them if you do not want it there.",
   calendarKeep:
@@ -132,7 +132,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
     "Comment Loonext traite vos données en vertu de la LPRPDE et de la Loi 25 du Québec : le traitement aux États-Unis annoncé clairement, et l'engagement ferme que les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des fins de marketing par des tiers.",
   title: "Politique de confidentialité",
   breadcrumbLabel: "Politique de confidentialité",
-  lastUpdated: "19 novembre 2026",
+  lastUpdated: "20 novembre 2026",
   summary:
     "Nous recueillons les données nécessaires au fonctionnement de votre boîte de réception, dont les renseignements du compte, les contacts et les messages que traite votre entreprise, ainsi que les données de facturation par Stripe. Nous stockons les données du compte et de la boîte de réception aux États-Unis. Les services d’IA et de cartographie peuvent traiter des données à l’extérieur des États-Unis. Les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des tiers pour leur propre marketing. Vous pouvez demander en tout temps à voir, à corriger ou à supprimer vos renseignements.",
 
@@ -205,9 +205,9 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   phoneAddressBook:
     "**Le carnet d'adresses de votre téléphone n'est jamais téléversé.** Si vous en donnez la permission à l'application, elle affiche vos propres contacts à côté de ceux de l'équipe pour que vous n'ayez pas à ressaisir un numéro. Cette recherche se fait sur le téléphone, et rien ne nous en est transmis.",
   calendarIntro:
-    "Un membre de l'équipe peut connecter son propre Google Agenda ou son propre calendrier Microsoft 365 dans les paramètres. Cette fonction est désactivée tant que vous ne l'activez pas, et chaque personne décide pour elle-même. Une fois la connexion établie, Loonext inscrit un événement dans le calendrier que vous choisissez pour chaque travail planifié qui vous est attribué, et ne relit que ces événements pour voir si vous en avez déplacé, renommé ou supprimé un. Il ne lit pas le contenu de vos autres événements, et il n'invite jamais un client.",
+    "Un membre de l'équipe peut connecter son propre Google Agenda ou son propre calendrier Microsoft 365 dans les paramètres. Cette fonction est désactivée tant que vous ne l'activez pas, et chaque personne décide pour elle-même. Une fois la connexion établie, Loonext inscrit un événement dans le calendrier par défaut de votre compte pour chaque travail planifié qui vous est attribué, et ne relit que ces événements pour voir si vous en avez déplacé, renommé ou supprimé un. Il ne lit pas le contenu de vos autres événements, et il n'invite jamais un client.",
   calendarAsk:
-    "**Ce que nous demandons au fournisseur :** la permission de gérer les événements des calendriers qui vous appartiennent et de lire la liste de vos calendriers pour que vous puissiez en choisir un. Chez Google, il s'agit des permissions Événements de l'agenda (agendas dont vous êtes propriétaire) et Liste des agendas (lecture seule); chez Microsoft, il s'agit de Calendars.ReadWrite.",
+    "**Ce que nous demandons au fournisseur.** L’autorisation de Google couvre les événements des agendas qui vous appartiennent. Nous l’utilisons pour les événements que Loonext crée dans votre agenda principal. Lors de la connexion, nous utilisons l’autorisation de lecture pour obtenir l’identifiant, le nom et le fuseau horaire de votre agenda Google principal. L’autorisation Calendars.ReadWrite de Microsoft nous permet de trouver votre calendrier par défaut et de gérer les événements que nous y créons.",
   calendarWrite:
     "**Ce que nous inscrivons dans un événement :** le titre du travail, les notes, l'heure de début et l'heure de fin. Tout ce que votre équipe saisit dans le titre ou les notes d'un travail apparaît donc dans le calendrier; n'y mettez pas le numéro de téléphone d'un client si vous ne voulez pas qu'il s'y trouve.",
   calendarKeep:
