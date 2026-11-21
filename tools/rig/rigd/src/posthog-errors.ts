@@ -19,7 +19,6 @@ export { type Explanation, type SeenEvent } from "./cron-events.ts";
 
 export const POSTHOG_CAPTURE_URL = "https://us.i.posthog.com/capture/";
 const APP_HOST = "https://us.posthog.com";
-const DAY_MS = 24 * 60 * 60 * 1000;
 const QUERY_LIMIT = 1000;
 
 /** The environment rigd's own events carry, and the one the local API's do. */
@@ -195,29 +194,33 @@ export function exceptionKey(event: SeenEvent): string {
   return outer ? `${outer.type}: ${outer.value}` : (event.message ?? "(no message)");
 }
 
-/** R00's sorting of the last day's API exceptions (api-exceptions.ts). */
+/** R00's sorting of API exceptions since the deployed rig version. */
 export interface ApiExceptionsReport {
   at: string;
+  /** Deployment timestamp used as the query's lower bound, when available. */
+  since?: string;
   /** Set when the read failed; the other lists are then empty and mean nothing. */
   error?: string;
-  unexplained_24h: string[];
+  unexplained_since_deploy: string[];
   /** Exceptions the cron registry names as a defect of the rig's seed or setup, with its cause. */
-  defects_24h: { key: string; means: string }[];
-  expected_probes_24h?: { key: string; probe: string; evidence: string }[];
+  defects_since_deploy: { key: string; means: string }[];
+  expected_probes_since_deploy?: { key: string; probe: string; evidence: string }[];
 }
 
-/** The last day's API exceptions, sorted into expected, defect and unexplained. */
+/** API exceptions since deployment, sorted into expected, defect and unexplained. */
 export async function reportApiExceptions(
   source: Pick<PostHogErrors, "apiExceptions">,
   explain: (event: SeenEvent) => Explanation | undefined,
   now: number,
+  since: number,
 ): Promise<ApiExceptionsReport> {
   const at = new Date(now).toISOString();
+  const sinceAt = new Date(since).toISOString();
   let events: SeenEvent[];
   try {
-    events = await source.apiExceptions(now - DAY_MS);
+    events = await source.apiExceptions(since);
   } catch (error) {
-    return { at, error: error instanceof Error ? error.message : String(error), unexplained_24h: [], defects_24h: [] };
+    return { at, since: sinceAt, error: error instanceof Error ? error.message : String(error), unexplained_since_deploy: [], defects_since_deploy: [] };
   }
   const unexplained = new Set<string>();
   const defects = new Map<string, string>();
@@ -233,8 +236,9 @@ export async function reportApiExceptions(
   }
   return {
     at,
-    unexplained_24h: [...unexplained].toSorted(),
-    defects_24h: [...defects].map(([key, means]) => ({ key, means })).toSorted((a, b) => a.key.localeCompare(b.key)),
-    ...(probes.size > 0 ? { expected_probes_24h: [...probes.values()] } : {}),
+    since: sinceAt,
+    unexplained_since_deploy: [...unexplained].toSorted(),
+    defects_since_deploy: [...defects].map(([key, means]) => ({ key, means })).toSorted((a, b) => a.key.localeCompare(b.key)),
+    ...(probes.size > 0 ? { expected_probes_since_deploy: [...probes.values()] } : {}),
   };
 }

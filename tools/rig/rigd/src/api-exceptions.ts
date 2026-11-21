@@ -1,8 +1,4 @@
-/**
- * R00's exceptions half, read when `rig health` asks (tools/rig/src/health.mjs)
- * and on no timer: the local API's last day of `rig` exceptions in PostHog,
- * explained by the cron registry, a G01 attempt, or recorded probe evidence.
- */
+/** R00 checks local API exceptions in PostHog since this rig's deployment. */
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { SecretFiles } from "@loonext/rig-robot";
@@ -48,15 +44,25 @@ function registryExplainer(): CronExplainer | undefined {
   }
 }
 
-/** The report of the last day's exceptions, from the rig's `state/` and its store. */
+/** The report of exceptions since deployment, from the rig's `state/` and its store. */
 export async function apiExceptionsNow(
   sources: { stateDir: string; store: Pick<SecretFiles, "readOptional"> },
   now = Date.now(),
 ): Promise<ApiExceptionsReport> {
   const rigd = join(sources.stateDir, "rigd");
+  let deployedAt: number;
+  try {
+    const deployed = JSON.parse(readFileSync(join(sources.stateDir, "deployed.json"), "utf8")) as { at?: unknown };
+    deployedAt = typeof deployed.at === "string" ? Date.parse(deployed.at) : Number.NaN;
+  } catch {
+    deployedAt = Number.NaN;
+  }
+  if (!Number.isFinite(deployedAt)) {
+    return { at: new Date(now).toISOString(), error: "state/deployed.json has no valid deployment time; run rig deploy first", unexplained_since_deploy: [], defects_since_deploy: [] };
+  }
   const verdicts = new VerdictStore(join(rigd, "verdicts"));
   const leases = { open: () => openJournals(join(rigd, "leases")) };
   const explain = exceptionExplain(registryExplainer(), verdicts, leases, now);
   const probes = readProbes(join(rigd, "expected-probe-exceptions.json"));
-  return reportApiExceptions(posthogFromStore(sources.store), (event) => explain(event) ?? expectedProbe(event, probes), now);
+  return reportApiExceptions(posthogFromStore(sources.store), (event) => explain(event) ?? expectedProbe(event, probes), now, deployedAt);
 }

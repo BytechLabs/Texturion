@@ -407,7 +407,7 @@ describe("the report of the API's exceptions for rig health", () => {
     [offsetMs / 1000, extras.level ?? "error", extras.fingerprint ?? null, list, "api", null, extras.cron ?? null, extras.job ?? null, extras.ops_key ?? null];
   const source = (rows: unknown[][]) => ({ apiExceptions: async () => rows.map((r) => seenException(r)) });
 
-  it("lists the API's exceptions from the last day that the cron registry does not explain, and its defects apart", async () => {
+  it("lists API exceptions since deployment that the cron registry does not explain, and its defects apart", async () => {
     const { explain } = cronExplainer(JSON.stringify(CRONS));
     const report = await reportApiExceptions(
       source([
@@ -417,10 +417,12 @@ describe("the report of the API's exceptions for rig health", () => {
       ]),
       explain,
       NOW,
+      NOW - 60_000,
     );
     expect(report.error).toBeUndefined();
-    expect(report.unexplained_24h).toEqual(["TypeError: x is undefined"]);
-    expect(report.defects_24h).toEqual([
+    expect(report.since).toBe(new Date(NOW - 60_000).toISOString());
+    expect(report.unexplained_since_deploy).toEqual(["TypeError: x is undefined"]);
+    expect(report.defects_since_deploy).toEqual([
       { key: "Error: reconcile: a Telnyx number is unknown to phone_numbers", means: "A number in the rig's group has no phone_numbers row." },
     ]);
   });
@@ -430,8 +432,23 @@ describe("the report of the API's exceptions for rig health", () => {
       { apiExceptions: async () => { throw new Error("PostHog answered 401 for the exception query"); } },
       () => undefined,
       NOW,
+      NOW - 60_000,
     );
-    expect(report).toMatchObject({ error: "PostHog answered 401 for the exception query", unexplained_24h: [], defects_24h: [] });
+    expect(report).toMatchObject({ error: "PostHog answered 401 for the exception query", unexplained_since_deploy: [], defects_since_deploy: [] });
+  });
+
+  it("queries from deployment time so older exceptions are outside the current-version check", async () => {
+    const { explain } = cronExplainer(JSON.stringify(CRONS));
+    const since = NOW - 2 * 60 * 60_000;
+    let queriedSince: number | undefined;
+    const report = await reportApiExceptions(
+      { apiExceptions: async (timestamp) => { queriedSince = timestamp; return []; } },
+      explain,
+      NOW,
+      since,
+    );
+    expect(queriedSince).toBe(since);
+    expect(report).toMatchObject({ since: new Date(since).toISOString(), unexplained_since_deploy: [], defects_since_deploy: [] });
   });
 
   it("reads PostHog's list with the thrown error first as the registry's, outermost last, and keeps the tags it matches on", () => {
