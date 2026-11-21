@@ -588,6 +588,7 @@ export async function handleVoicemailSaved(
     callSessionId: sessionId,
     caller: stored.caller ?? row.caller_e164,
     missed: true,
+    forwardSeconds: 0,
   });
 
   // Thread (idempotent — the vmi hangup usually got here first) and fetch
@@ -661,6 +662,12 @@ export async function handleVoicemailSaved(
   await deleteTelnyxRecording(env, sessionId);
 }
 
+interface ResolvedCallNumber {
+  companyId: string;
+  phoneNumberId: string;
+  status: string;
+}
+
 /**
  * Resolve the company + number a call is FOR, from the dialed number (the
  * inbound leg's `to`; the forward leg's `to` is the cell, so this only applies
@@ -669,11 +676,7 @@ export async function handleVoicemailSaved(
 async function resolveNumber(
   db: SupabaseClient,
   toE164: string,
-): Promise<{
-  companyId: string;
-  phoneNumberId: string;
-  status: string;
-} | null> {
+): Promise<ResolvedCallNumber | null> {
   const { data, error } = await db
     .from("phone_numbers")
     .select("id,company_id,status")
@@ -822,6 +825,9 @@ export async function handleTerminalCallEvent(
   const forwardLeg = leg === "forward";
   const ourNumberE164 =
     forwardLeg || outboundLeg ? payload.from : payload.to;
+  if (!ourNumberE164) return;
+  const resolved = await resolveNumber(db, ourNumberE164);
+  if (!resolved) return;
 
   // #12/D36 voice metering: record this leg's billable duration on every
   // hangup — BEFORE the missed-vs-answered branch, because an answered call
@@ -829,16 +835,17 @@ export async function handleTerminalCallEvent(
   // call.hangup records. The far-party legs (forward, out_customer) also
   // report their billable seconds to the Stripe voice meter (D36/D38: one
   // calling-minutes pool, both directions).
-  if (eventType === "call.hangup" && ourNumberE164) {
+  let forwardSeconds = 0;
+  if (eventType === "call.hangup") {
     // #211 M1: pass S (callId) so the out_customer answered_at read + the
     // call_records.call_session_id key on the S-row, and the DO-authoritative
     // answered-at override so talk time bills even if the mirror never landed.
-    await recordCallDuration(
+    forwardSeconds = await recordCallDuration(
       env,
       db,
       payload,
       leg,
-      ourNumberE164,
+      resolved,
       callId,
       opts?.outboundAnsweredAtIso,
     );
@@ -885,10 +892,6 @@ export async function handleTerminalCallEvent(
         // contact/conversation — matching the initiated/synthetic paths.
         normalizeCaller(payload.from));
 
-  if (!ourNumberE164) return;
-  const resolved = await resolveNumber(db, ourNumberE164);
-  if (!resolved) return;
-
   // #129: merge this event into the session-grain calls row (AMD verdicts,
   // per-leg hangups — convergent whatever order Telnyx delivers them in).
   const call = await upsertCallSession(db, {
@@ -900,6 +903,7 @@ export async function handleTerminalCallEvent(
     callSessionId: callId,
     caller: finalCaller,
     missed: outcome.missed,
+    forwardSeconds,
   });
 
   // #129/D38: thread the call on its DECIDING hangup — the forward leg for a
@@ -1014,9 +1018,10 @@ async function upsertCallSession(
     callSessionId: string;
     caller: string | null;
     missed: boolean;
+    forwardSeconds: number;
   },
 ): Promise<CallSessionRow | null> {
-  const { eventType, payload, leg } = input;
+  const { eventType, payload, leg, forwardSeconds: recordedSeconds } = input;
   const outbound = leg === "out_agent" || leg === "out_customer";
 
   let outcome: string | null = null;
@@ -1036,23 +1041,10 @@ async function upsertCallSession(
     if (leg === "forward" || leg === "out_customer") {
       // The far-party leg decides: connected (with talk time) or not.
       outcome = input.missed ? "missed" : "answered";
-      if (!input.missed) {
-        const startMs = Date.parse(payload.start_time ?? "");
-        const endMs = Date.parse(payload.end_time ?? "");
-        if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
-          forwardSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
-        }
-      }
+      if (!input.missed) forwardSeconds = recordedSeconds;
     } else if (leg === "in_browser") {
-      // D43: a browser answered — the inbound leg carries the whole call.
-      // Talk time anchors on the bri tag's answer stamp, NEVER the leg's
-      // start_time (that includes ring time, which must not count or bill).
       outcome = "answered";
-      const answeredAtMs = parseBrowserAnsweredAtMs(payload.client_state);
-      const endMs = Date.parse(payload.end_time ?? "");
-      if (answeredAtMs !== null && Number.isFinite(endMs)) {
-        forwardSeconds = Math.max(0, Math.round((endMs - answeredAtMs) / 1000));
-      }
+      forwardSeconds = recordedSeconds;
     } else if (leg === "inbound_untagged" || leg === "vm_inbound") {
       // Nobody answered (vm_inbound: ...yet — a saved recording upgrades the
       // session to 'voicemail', which wins the merge in either order).
@@ -1218,7 +1210,7 @@ async function recordCallDuration(
   db: SupabaseClient,
   payload: CallPayload,
   leg: CallLeg,
-  ourNumberE164: string,
+  resolved: ResolvedCallNumber,
   // #211: the session id the calls row + call_records are keyed on. For an
   // outbound (oc) leg this is S (== tag part-4), NOT Telnyx's call_session_id;
   // for inbound it IS payload.call_session_id (byte-identical to today).
@@ -1227,15 +1219,10 @@ async function recordCallDuration(
   // PREFERRED over the calls.answered_at row read, so out_customer bills talk
   // time even if the answered_at mirror never landed.
   outboundAnsweredAtIso?: string | null,
-): Promise<void> {
+): Promise<number> {
   const startMs = Date.parse(payload.start_time ?? "");
   const endMs = Date.parse(payload.end_time ?? "");
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-  const legId = payload.call_leg_id ?? payload.call_control_id;
-  if (!legId) return;
-
-  const resolved = await resolveNumber(db, ourNumberE164);
-  if (!resolved) return;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
 
   const windowSeconds = Math.max(0, Math.round((endMs - startMs) / 1000));
   // D36/D38/D43: the BILLED legs are the far-party legs — 'forward' (legacy
@@ -1287,6 +1274,8 @@ async function recordCallDuration(
   // call exceeds the 2h runaway-hangup cap, so the ceiling never touches real
   // billing — it only neutralises a garbage/attacker anchor.
   seconds = Math.min(seconds, MAX_BILLABLE_SECONDS);
+  const legId = payload.call_leg_id ?? payload.call_control_id;
+  if (!legId) return seconds;
   const caller =
     leg === "forward"
       ? decodeForwardCaller(payload.client_state ?? null)
@@ -1329,7 +1318,7 @@ async function recordCallDuration(
   const rowId = inserted?.[0]?.id as string | undefined;
   // Conflict (webhook replay) → already recorded, and if billable, already
   // reported or queued — never report twice off a replay.
-  if (!rowId || !reportable) return;
+  if (!rowId || !reportable) return seconds;
 
   await reportForwardLegSeconds(env, db, {
     rowId,
@@ -1337,6 +1326,7 @@ async function recordCallDuration(
     legId,
     seconds,
   });
+  return seconds;
 }
 
 /**
