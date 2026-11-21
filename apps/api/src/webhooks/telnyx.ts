@@ -113,8 +113,6 @@ telnyxWebhookRoute.post("/", async (c) => {
   // fast retry ladder instead of our ≥2-min sweeper (an admitted call.answered
   // must never fall to the t+45 alarm).
   const routeToDO = shouldRouteToDO(event);
-  // #211: breadcrumb an un-attributable hangup (echo dropped its tag+direction).
-  warnIfEchoDropped(event);
 
   if (!data || data.length === 0) {
     // Duplicate POST. §7.2 companion rule: for an inbound-family event whose
@@ -136,6 +134,8 @@ telnyxWebhookRoute.post("/", async (c) => {
     }
     return c.json({ received: true, duplicate: true });
   }
+
+  if (eventType === "call.hangup") c.executionCtx.waitUntil(warnIfEchoDropped(env, event));
 
   if (routeToDO) {
     // Await admission (the DO returns at the §4.1 step-1 persist; effects

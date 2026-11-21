@@ -361,6 +361,33 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(exceptionsCaptured()).toEqual([]);
   });
 
+  it("warns once when an unattributed hangup is redelivered", async () => {
+    const ledger = ledgerStubs();
+    const processed = stubRoute(restMatch(env, "GET", "webhook_events"), () => [
+      { processed_at: new Date().toISOString() },
+    ]);
+    const calls = stubRoute(restMatch(env, "GET", "calls"), () => []);
+    serve(ledger.insert, ledger.stamp, processed, calls);
+    const event = {
+      data: {
+        id: "e9e9e9e9-0000-4000-8000-000000000009",
+        event_type: "call.hangup",
+        payload: { call_session_id: "session-unknown", call_control_id: "cc-unknown" },
+      },
+    };
+
+    await (await deliver(event)).flush();
+    const repeated = await deliver(event);
+    await repeated.flush();
+
+    await expect(repeated.response.json()).resolves.toEqual({ received: true, duplicate: true });
+    expect(ledger.stamp.calls).toHaveLength(1);
+    expect(calls.calls).toHaveLength(1);
+    expect(exceptionsCaptured().map(({ error }) => error)).toEqual([
+      expect.stringContaining("#211 echo-drop tripwire"),
+    ]);
+  });
+
   it("acks unknown event types as no-ops and stamps them processed", async () => {
     const ledger = ledgerStubs();
     serve(ledger.insert, ledger.stamp);

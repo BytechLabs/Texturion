@@ -29,6 +29,7 @@
  * a live session and keep their D43 gates on the shared voice path (§7.2,
  * review R2-B3).
  */
+import { getDb } from "../db";
 import type { Env } from "../env";
 import { parseMemberRingState } from "../messaging/inbound-ring";
 import {
@@ -36,7 +37,7 @@ import {
   parseOutboundSessionId,
 } from "../messaging/voice-webhook";
 import type { TelnyxEvent } from "../messaging/types";
-import { captureException, workerEnv } from "../observability/capture";
+import { captureException } from "../observability/capture";
 
 import type { CallSessionDO } from "./session-do";
 
@@ -169,26 +170,31 @@ export function shouldRouteToDO(event: TelnyxEvent): boolean {
 }
 
 /**
- * #211 echo-drop tripwire: Telnyx normally echoes client_state on EVERY event
- * of a leg, so the whole oc family (legacy + v3) leans on it. If the echo drops
- * on a sweeper- or carrier-error hangup, an oc terminal lands untagged AND with
- * no direction — un-attributable to a session. That never wedges anything (it
- * still routes by the direction rules / falls to the 4h sweeper), but it means a
- * terminal that should have been S-keyed was not, so it is worth a breadcrumb.
- * Pure observability — no behavior change.
+ * An untagged hangup can belong to an outbound leg whose session tag is missing.
+ * A known inbound customer leg already routes on its carrier session ID.
  */
-export function warnIfEchoDropped(event: TelnyxEvent): void {
+export async function warnIfEchoDropped(env: Env, event: TelnyxEvent): Promise<void> {
   if (event.data?.event_type !== "call.hangup") return;
   const payload = (event.data?.payload ?? {}) as {
     client_state?: string | null;
     direction?: string;
+    call_session_id?: string;
+    call_control_id?: string;
   };
   if (decodePrefix(payload.client_state) || payload.direction) return;
-  void captureException(
-    workerEnv(),
+  if (payload.call_session_id && payload.call_control_id) {
+    const { data, error } = await getDb(env).from("calls").select("id")
+      .eq("direction", "inbound")
+      .eq("call_session_id", payload.call_session_id)
+      .eq("customer_call_control_id", payload.call_control_id)
+      .limit(1);
+    if (!error && data?.length) return;
+  }
+  await captureException(
+    env,
     "#211 echo-drop tripwire: call.hangup with neither a recognized client_state " +
       "tag nor a direction — an oc terminal whose echo dropped would land here " +
       "un-attributable (falls to the direction rules / the 4h sweeper)",
-    { source: "api", level: "warning" },
+    { source: "api", level: "warning", extra: { eventId: event.data.id } },
   );
 }
