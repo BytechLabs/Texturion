@@ -72,7 +72,7 @@ function ownedNonStanding(request: TelnyxRequest): OwnedNumber {
 }
 
 const NUMBER_PATCH_FIELDS = new Set(["connection_id", "billing_group_id", "customer_reference"]);
-const VOICE_PATCH_FIELDS = new Set(["caller_id_name_enabled", "cnam_listing"]);
+const VOICE_PATCH_FIELDS = new Set(["caller_id_name_enabled", "cnam_listing", "inbound_call_screening"]);
 
 const patchNumber: Handler = async (request) => {
   ownedNonStanding(request);
@@ -99,6 +99,9 @@ const patchVoice: Handler = async (request) => {
   // Call forwarding and number translation are absent on purpose: either
   // would send a call into a test number on to any phone at all.
   if (!Object.keys(body).every((field) => VOICE_PATCH_FIELDS.has(field))) throw new Refusal("provisioning.patch_field");
+  if ("inbound_call_screening" in body && body.inbound_call_screening !== "disabled" && body.inbound_call_screening !== "flag_calls") {
+    throw new Refusal("provisioning.patch_field");
+  }
   return relay(await forward(request));
 };
 

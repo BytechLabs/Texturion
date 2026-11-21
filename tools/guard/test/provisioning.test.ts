@@ -165,15 +165,25 @@ describe("number changes", () => {
     }
   });
 
-  it("allows caller-name settings on a number's voice, and never forwarding", async () => {
+  it("allows app screening and caller-name settings only on owned non-standing numbers", async () => {
     const h = await ready();
-    const patch = (body: Record<string, unknown>) =>
-      h.call("/telnyx/v2/phone_numbers/num-scratch/voice", { method: "PATCH", body });
+    const patch = (body: Record<string, unknown>, number = "num-scratch") =>
+      h.call(`/telnyx/v2/phone_numbers/${number}/voice`, { method: "PATCH", body });
     await expect(ruleOf(await patch({ call_forwarding: { call_forwarding_enabled: true, forwards_to: N.notOwned } }))).resolves.toBe(
       "provisioning.patch_field",
     );
     await expect(ruleOf(await patch({ translated_number: N.notOwned }))).resolves.toBe("provisioning.patch_field");
-    expect((await patch({ caller_id_name_enabled: true })).status).toBe(200);
+    await expect(ruleOf(await patch({ inbound_call_screening: "reject_calls" }))).resolves.toBe("provisioning.patch_field");
+    await expect(ruleOf(await patch({ inbound_call_screening: "flag_calls" }, "num-prod"))).resolves.toBe("provisioning.number_not_owned");
+    await expect(ruleOf(await patch({ inbound_call_screening: "flag_calls" }, "num-devw1"))).resolves.toBe("provisioning.number_standing");
+    expect(h.telnyx.requests("PATCH")).toEqual([]);
+    const screening = { inbound_call_screening: "flag_calls", caller_id_name_enabled: true, cnam_listing: { cnam_listing_enabled: false } };
+    expect((await patch(screening)).status).toBe(200);
+    expect((await patch({ inbound_call_screening: "disabled" })).status).toBe(200);
+    expect(h.telnyx.requests("PATCH", "/v2/phone_numbers/num-scratch/voice").map((request) => request.body)).toEqual([
+      screening,
+      { inbound_call_screening: "disabled" },
+    ]);
   });
 });
 
