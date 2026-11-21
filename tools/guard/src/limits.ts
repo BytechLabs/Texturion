@@ -17,11 +17,10 @@ export const PRODUCTION_HEALTH_CACHE_MS = 10 * MINUTE;
 /** A registered leg older than this is not counted as live without asking Telnyx. */
 export const LIVE_LEG_HORIZON_MS = HOUR;
 
-/** The lease scenarios a number order (S28, dropped from the rig's runs) and the robot mailbox need. */
+/** The lease scenarios for a number order and the robot mailbox. */
 export const NUMBER_SCENARIO = "S28";
 export const MAILBOX_SCENARIO = "S34";
-/** The lease scenarios that may search for numbers: S32's onboarding picker searches and never orders. */
-export const SEARCH_SCENARIOS: readonly string[] = ["S32"];
+export const SEARCH_SCENARIOS: readonly string[] = [NUMBER_SCENARIO, "S32"];
 
 /** The models the app calls; keep in step with apps/api/src/billing/workers-ai-prices.ts. */
 export const AI_MODELS: Readonly<Record<string, AiModelRate>> = {

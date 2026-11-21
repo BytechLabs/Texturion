@@ -110,6 +110,25 @@ export class GuardClient implements GuardApi {
     return { status: response.status, rule: refused && typeof body?.rule === "string" ? body.rule : null };
   }
 
+  async numberIdsForCustomer(customerReference: string): Promise<string[]> {
+    const ids: string[] = [];
+    let pages = 1;
+    for (let page = 1; page <= pages; page++) {
+      const query = new URLSearchParams({
+        "filter[customer_reference]": customerReference,
+        "page[size]": "250",
+        "page[number]": String(page),
+      });
+      const response = await this.#json<{
+        data: { id: string; customer_reference?: string }[];
+        meta?: { total_pages?: number };
+      }>(`${GUARD_ROUTES.telnyx}/v2/phone_numbers?${query}`);
+      pages = response.meta?.total_pages ?? 1;
+      ids.push(...response.data.filter((number) => number.customer_reference === customerReference).map((number) => number.id));
+    }
+    return ids;
+  }
+
   async webhookDeliveries(args: { since: number }): Promise<WebhookDelivery[]> {
     const query = `filter[started_at][gte]=${encodeURIComponent(new Date(args.since).toISOString())}`;
     const { data } = await this.#json<{ data?: Record<string, unknown>[] }>(`${GUARD_ROUTES.telnyx}/v2/webhook_deliveries?${query}`);

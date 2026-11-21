@@ -61,11 +61,8 @@ export const TENANTS = [
   {
     key: "qa-g",
     name: "QA-G",
-    // The grace workspace. S28 buys the monthly number into it through the
-    // app and S29 runs it through cancellation, grace and release the next
-    // day. Grace releases every number a workspace holds, so it holds no
-    // standing number: a standing one here would be released, or refused by
-    // the guard, which stops grace before it deactivates anything.
+    // S28 buys and releases its number here. S29 checks the day-30 notice.
+    // QA-G holds no standing number because grace releases all its numbers.
     members: [{ key: "owner", role: "owner", displayName: "QA-G Owner", surfaces: ["chromium"] }],
     numbers: [],
     messagingProfile: "qa-g",

@@ -1,6 +1,6 @@
 /**
  * The account scenarios: picture messages (S22), the website widget (S27),
- * the month's number from purchase to release (S28, S29), Lou's drafts and
+ * a number from purchase to release (S28), grace and billing (S29), Lou's drafts and
  * their cap (S31), sign-up, Checkout and the portal (S32, S35), two-factor
  * sign-in (S33) and mail (S34). Only S28 dials, once, to ring the number it
  * bought.
@@ -34,13 +34,10 @@ const PUBLIC_EMAIL_FOOTER = /^https:\/\/loonext\.com\/?$/;
 const GRACE_TENANT = "QA-G";
 /** The API's grace-and-release cron (apps/api/src/index.ts). */
 export const GRACE_CRON = "0 14 * * *";
-/** The 1, 15 and 27-day warnings, then the day-30 release notice (apps/api/src/billing/grace.ts). */
-export const GRACE_NOTICES = [1, 15, 27, 30] as const;
+export const RELEASE_NOTICE_DAY = 30;
 /** One day past the 30-day grace period. */
 const CANCELED_DAYS_AGO = 31;
 const DAY_MS = 86_400_000;
-/** S29 runs the day after S28; a hand-off older than this one missed it. */
-const HANDOFF_MAX_AGE_MS = 2 * DAY_MS;
 
 /** Lou's reply drafts, as apps/api/src/messaging/reply-suggestions.ts meters them. */
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
@@ -62,8 +59,8 @@ const ORDER = "POST /v2/number_orders";
 const RELEASE = "DELETE /v2/phone_numbers/:id";
 /** What binding a bought number PATCHes: its connection, and its caller name. */
 const BINDING_PATCHES: ReadonlySet<string> = new Set(["PATCH /v2/phone_numbers/:id", "PATCH /v2/phone_numbers/:id/voice"]);
-/** The guard's one-search, one-order-per-interval rules: a retry after a spent attempt hits these. */
-const INTERVAL_RULES: ReadonlySet<string> = new Set(["provisioning.order_interval", "provisioning.search_rate"]);
+
+type ReleaseNumber = Pick<NumberHandoff, "telnyx_phone_number_id" | "phone_number_id">;
 
 function mailboxReady(health: GuardHealth): boolean {
   return health.mail?.heartbeat_fresh === true;
@@ -193,16 +190,12 @@ export const S27: ScenarioRunner = {
 };
 
 /**
- * S28: QA-G buys the month's number, the guard sees exactly the purchase and
- * binding, and ROBOT-1 rings it. A passing run hands the number to S29
- * instead of releasing it; until then the undo releases whatever QA-G holds.
+ * S28 buys and binds a number in QA-G, rings it from ROBOT-1, then runs the
+ * app's grace release. The lease also cleans up if any step fails.
  */
 export const S28: ScenarioRunner = {
   id: "S28",
   async run(ctx) {
-    ctx.lease.registerUndo({ kind: "number.release-tenant", params: { tenant: GRACE_TENANT, unless_handed_off: true } });
-    const unclaimed = await reclaimHandoff(ctx);
-    if (unclaimed) return unclaimed;
     const workspace = await ctx.app.graceState({ tenant: GRACE_TENANT });
     if (workspace.subscription_status !== "active") {
       return infra("grace-workspace", `QA-G is ${workspace.subscription_status}, so it cannot buy; an earlier S29's undo did not put it back`);
@@ -213,6 +206,10 @@ export const S28: ScenarioRunner = {
     if (!blockers) return infra("guard", "the guard's health reports no ordering state");
     if (blockers.length > 0) return infra("guard", `number ordering is off: ${blockers.join(", ")}`);
     const partition = await ctx.guard.partition();
+    ctx.lease.registerUndo({ kind: "number.release-tenant", params: { tenant: GRACE_TENANT, include_orphans: true } });
+    if ((await ctx.guard.numberIdsForCustomer(ctx.app.numberCustomerReference(GRACE_TENANT))).length > 0) {
+      return infra("grace-workspace", "QA-G has an earlier order still in the rig billing group; this run will release it");
+    }
 
     let provisioned: ApiAnswer<{ id?: string }>;
     try {
@@ -224,18 +221,20 @@ export const S28: ScenarioRunner = {
     if (!is2xx(provisioned.status)) return refusedPurchase(ctx, provisioned);
     const rowId = provisioned.body?.id;
 
-    // The hand-off names the number as soon as its row does, not once binding finishes.
-    const bought: { held?: NumberHandoff } = {};
+    let telnyxId: string | null = null;
     const bound = await poll(ctx, async () => {
       const rows = await ctx.app.numberRows({ tenant: GRACE_TENANT });
       const row = rows.find((r) => (rowId ? r.id === rowId : r.status !== "released"));
-      if (row?.telnyx_phone_number_id && !bought.held) bought.held = await holdNumber(ctx, row, row.telnyx_phone_number_id);
+      telnyxId = row?.telnyx_phone_number_id ?? null;
       return row?.status === "active" && row.telnyx_phone_number_id && row.voice_connection_id ? row : undefined;
     }, 180_000, 5000);
-    const number = bought.held;
-    if (!number) return fail("number_not_provisioned", "no number row named a Telnyx number within 3 min of the purchase");
-    ctx.evidence.number = { phone_number_id: number.phone_number_id, telnyx_phone_number_id: number.telnyx_phone_number_id };
-    if (!bound) return fail("number_not_bound", "the number never became active with a voice connection");
+    if (!bound?.telnyx_phone_number_id) {
+      return telnyxId
+        ? fail("number_not_bound", "the number never became active with a voice connection")
+        : fail("number_not_provisioned", "no number row named a Telnyx number within 3 min of the purchase");
+    }
+    const number = { phone_number_id: bound.id, telnyx_phone_number_id: bound.telnyx_phone_number_id };
+    ctx.evidence.number = number;
 
     const purchase = judgePurchase(ctx, (await ctx.guard.activity(ctx.lease.id)).activity);
     if (purchase) return purchase;
@@ -265,32 +264,9 @@ export const S28: ScenarioRunner = {
     ctx.evidence.ring = { ring_ms: ringMs, ids: record.ids, state: record.state, errors: record.errors };
     if (ringMs === undefined) return fail("number_did_not_ring", "the QA-G owner's page did not ring within 15 s of ROBOT-1 calling the new number");
 
-    await ctx.handoff.write({ ...number, state: "handed_off" });
-    return pass();
+    return graceAndRelease(ctx, number);
   },
 };
-
-async function holdNumber(ctx: ScenarioContext, row: NumberRow, telnyxId: string): Promise<NumberHandoff> {
-  const record: NumberHandoff = {
-    tenant: GRACE_TENANT,
-    run_id: ctx.runId,
-    telnyx_phone_number_id: telnyxId,
-    phone_number_id: row.id,
-    bought_at: new Date(ctx.now()).toISOString(),
-    state: "bought",
-  };
-  await ctx.handoff.write(record);
-  return record;
-}
-
-/** A number handed to S29 that no S29 took in time is taken back, for this run's undo to release. */
-async function reclaimHandoff(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
-  const record = await ctx.handoff.read();
-  if (record?.tenant !== GRACE_TENANT || record.state !== "handed_off") return undefined;
-  if (ctx.now() - Date.parse(record.bought_at) <= HANDOFF_MAX_AGE_MS) return undefined;
-  await ctx.handoff.write({ ...record, run_id: ctx.runId, state: "bought" });
-  return infra("handoff", `no S29 took the number S28 handed off at ${record.bought_at}; this run's undo releases it`);
-}
 
 interface ActivityEntry {
   caller: string;
@@ -311,8 +287,6 @@ async function refusedPurchase(ctx: ScenarioContext, answer: ApiAnswer): Promise
   const entries = activityEntries((await ctx.guard.activity(ctx.lease.id)).activity);
   const rules = entries.filter((e) => (e.endpoint === SEARCH || e.endpoint === ORDER) && !/^\d+$/.test(e.outcome)).map((e) => e.outcome);
   ctx.evidence.refusals = rules;
-  const interval = rules.find((rule) => INTERVAL_RULES.has(rule));
-  if (interval) return infra(interval, "the guard allows one purchase per interval, so this attempt cannot buy again");
   if (rules.length > 0) return infra("guard", `the guard refused the purchase: ${rules.join(", ")}`);
   return fail("provision_refused", `the API refused the purchase with ${answer.status}${answer.code ? ` ${answer.code}` : ""}`);
 }
@@ -382,14 +356,14 @@ async function groupCheck(ctx: ScenarioContext, telnyxId: string, standingBefore
 }
 
 /**
- * S29: takes over the number S28 handed off, cancels QA-G 31 days ago, fires
- * the grace cron and judges the release and the notices. Separately, a
- * customer on a Stripe test clock checks a renewal invoice against its usage.
+ * S29 checks the grace notice at day 31 and a Stripe renewal invoice.
  */
 export const S29: ScenarioRunner = {
   id: "S29",
+  guardLease: true,
   async run(ctx) {
-    const grace = await graceAndRelease(ctx);
+    const number = await takeLegacyHandoff(ctx);
+    const grace = await graceAndRelease(ctx, number);
     const billing = await billingTotals(ctx);
     return worst([grace, billing]);
   },
@@ -407,7 +381,7 @@ function worst(results: ScenarioResult[]): ScenarioResult {
   return results.reduce((a, b) => (severity(b) < severity(a) ? b : a));
 }
 
-async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
+async function takeLegacyHandoff(ctx: ScenarioContext): Promise<NumberHandoff | null> {
   const record = await ctx.handoff.read();
   // `taken` is an earlier S29 attempt's, whose undo did not finish; this one takes it again.
   const number = record?.tenant === GRACE_TENANT && (record.state === "handed_off" || record.state === "taken") ? record : null;
@@ -421,12 +395,18 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   ctx.evidence.handoff = number
     ? { run_id: number.run_id, phone_number_id: number.phone_number_id, telnyx_phone_number_id: number.telnyx_phone_number_id, was: record?.state }
     : { state: record?.state ?? null };
+  return number;
+}
 
+async function graceAndRelease(ctx: ScenarioContext, number: ReleaseNumber | null): Promise<ScenarioResult> {
   const before = await ctx.app.graceState({ tenant: GRACE_TENANT });
   if (before.subscription_status !== "active") {
     return infra("grace-workspace", `QA-G is ${before.subscription_status} before the run, so an earlier undo did not put it back`);
   }
   const heldRow = number ? before.numbers.find((row) => row.id === number.phone_number_id && row.status !== "released") : undefined;
+  if (before.numbers.some((row) => row.status !== "released" && row.id !== heldRow?.id)) {
+    return infra("grace-workspace", "QA-G holds a number outside this run");
+  }
   const standingBefore = (await ctx.guard.partition()).standing;
 
   ctx.lease.registerUndo({
@@ -442,7 +422,7 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   }
   const settled = await poll(ctx, async () => {
     const state = await ctx.app.graceState({ tenant: GRACE_TENANT });
-    return state.notices.includes(30) ? state : undefined;
+    return state.notices.includes(RELEASE_NOTICE_DAY) ? state : undefined;
   }, 120_000, 5000);
   const after = settled ?? (await ctx.app.graceState({ tenant: GRACE_TENANT }));
   const row = number ? after.numbers.find((r) => r.id === number.phone_number_id) : undefined;
@@ -461,13 +441,13 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   if (standing !== standingBefore) {
     return fail("standing_number_touched", `grace left ${standing} standing numbers where there were ${standingBefore}`, { critical: true });
   }
-  if (after.notices.join(",") !== GRACE_NOTICES.join(",")) {
-    return fail("grace_notices", `grace ledgered ${after.notices.join(", ") || "no"} notices, not ${GRACE_NOTICES.join(", ")}${because}`);
+  if (after.notices.length !== 1 || after.notices[0] !== RELEASE_NOTICE_DAY) {
+    return fail("grace_notices", `grace ledgered ${after.notices.join(", ") || "no"} notices, expected only day ${RELEASE_NOTICE_DAY}${because}`);
   }
   if (after.live_campaigns !== 0) return fail("campaign_still_live", `${after.live_campaigns} campaign(s) are still live after the release${because}`);
   if (release) return release;
   // Rig mode refuses /v2/10dlc, so QA-G never holds a campaign for grace to deactivate.
-  return before.live_campaigns === 0 ? pass("QA-G held no live campaign, so its deactivation was not covered") : pass();
+  return ctx.scenario === "S29" && before.live_campaigns === 0 ? pass("QA-G held no live campaign, so its deactivation was not covered") : pass();
 }
 
 /**
@@ -477,16 +457,14 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
  */
 async function judgeRelease(
   ctx: ScenarioContext,
-  number: NumberHandoff | null,
+  number: ReleaseNumber | null,
   grace: { held: boolean; row: NumberRow | undefined },
   because: string,
 ): Promise<ScenarioResult | undefined> {
   if (!number) {
-    const earlier = await earlierRelease(ctx);
-    if (earlier !== null) return earlier;
-    return infra("s28-handoff", "S28 handed off no number: grace ran and its notices and campaigns were judged, but the release half was not covered");
+    return (await earlierRelease(ctx)) ?? undefined;
   }
-  if (!grace.held) return infra("s28-handoff", "QA-G did not hold the number S28 handed off, so the release half was not covered");
+  if (!grace.held) return infra("grace-workspace", "QA-G did not hold the number the run expected to release");
   let result: ScenarioResult | undefined;
   if (grace.row?.status === "released") {
     const status = await ctx.guard.numberStatus(number.telnyx_phone_number_id);

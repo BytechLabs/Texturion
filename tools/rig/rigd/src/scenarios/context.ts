@@ -434,6 +434,7 @@ export interface AppApi {
   /** `POST /v1/numbers/provision` with the company's area code: the app's own search, order and binding. The answer is the number's row. */
   provisionNumber(args: { member: string }): Promise<ApiAnswer<{ id?: string; status?: string }>>;
   numberRows(args: { tenant: string }): Promise<NumberRow[]>;
+  numberCustomerReference(tenant: string): string;
   /** Marks a number row released, as the app does after Telnyx gave the number back. */
   markNumberReleased(args: { phoneNumberId: string }): Promise<void>;
   /**
@@ -484,6 +485,7 @@ export interface GuardApi {
   numberStatus(telnyxPhoneNumberId: string): Promise<{ status: number; in_group: boolean }>;
   /** DELETE through the guard, which allows it only on an owned number that is not standing. */
   releaseNumber(telnyxPhoneNumberId: string): Promise<{ status: number; rule: string | null }>;
+  numberIdsForCustomer(customerReference: string): Promise<string[]>;
   webhookDeliveries(args: { since: number }): Promise<WebhookDelivery[]>;
 }
 
@@ -699,9 +701,7 @@ export interface StripeApi {
 }
 
 /**
- * S28 leaves its number to S29 in this record, and S29 takes it over.
- * `handed_off` is written only by a passing S28; until then the number is
- * the undo's to release.
+ * A legacy S28 hand-off that S29 can still take over and release.
  */
 export interface NumberHandoff {
   tenant: string;
