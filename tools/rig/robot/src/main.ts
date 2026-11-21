@@ -11,6 +11,7 @@
  * robot-local-token (made on first use). The code's probe URL is signed by
  * local storage, found with `supabase status`.
  */
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS } from '@loonext/rig-protocol';
 import type { Partition } from '@loonext/rig-protocol';
@@ -55,6 +56,16 @@ function whisperFromEnv(): WhisperTranscriber | undefined {
   const binary = process.env.RIG_WHISPER_BIN;
   const model = process.env.RIG_WHISPER_MODEL;
   return binary && model ? new WhisperTranscriber({ binary, model }) : undefined;
+}
+
+function recordingSink(directory: string | undefined) {
+  if (!directory) return undefined;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  return (planId: string, wav: Uint8Array) => {
+    const filename = `${planId}.wav`;
+    writeFileSync(join(directory, filename), wav, { mode: 0o600, flag: "wx" });
+    return filename;
+  };
 }
 
 /** Fetches a recording into memory, never to disk, refusing anything implausibly large. */
@@ -114,6 +125,7 @@ async function main(): Promise<void> {
     recordMode: process.env.ROBOT_RECORD_MODE === "dual" ? "dual" : "inbound",
     resolveNumberId: (id) => heldNumber(edgeOrigin, guardToken, id),
     transcriber: whisperFromEnv(),
+    saveRecording: recordingSink(process.env.RIG_ROBOT_RECORDINGS_DIR),
   });
   const server = robotServer({
     robot,
