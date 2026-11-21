@@ -86,8 +86,7 @@ class ListViews(
 )
 
 /**
- * The one row: [tabs] (a list's status pills, scrollable), then Filter, then
- * Views. [views] is null for a list that has no saved views.
+ * The scrollable status tabs, followed by Filter and any Sort and Views controls.
  */
 @Composable
 fun ListFilterRow(
@@ -95,13 +94,14 @@ fun ListFilterRow(
     onFilter: () -> Unit,
     modifier: Modifier = Modifier,
     views: ListViews? = null,
+    sortButton: (@Composable () -> Unit)? = null,
     tabs: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Weighted, so the two controls are measured first and keep their size.
+        // Give the fixed actions their width before measuring the scrolling tabs.
         Row(
             Modifier
                 .weight(1f)
@@ -112,6 +112,10 @@ fun ListFilterRow(
         )
         Spacer(Modifier.width(6.dp))
         ListFilterButton(count = filterCount, onClick = onFilter)
+        if (sortButton != null) {
+            Spacer(Modifier.width(2.dp))
+            sortButton()
+        }
         if (views != null) {
             Spacer(Modifier.width(2.dp))
             ListViewsMenu(views)

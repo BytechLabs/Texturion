@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material.icons.outlined.ViewKanban
 import androidx.compose.material3.DropdownMenu
@@ -566,6 +567,18 @@ private fun TaskListScreen(
                 filterCount = filterCount,
                 onFilter = { filtersSheetOpen = true },
                 modifier = Modifier.padding(horizontal = 18.dp),
+                sortButton = if (view == TaskViewKind.List) {
+                    {
+                        PaperIconButton(
+                            icon = Icons.Outlined.SwapVert,
+                            contentDescription = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
+                            onClick = { sortSheetOpen = true },
+                            badge = extra.sort != TaskSort.Created,
+                        )
+                    }
+                } else {
+                    null
+                },
                 views = ListViews(
                     entries = savedViews.map {
                         ViewsMenuEntry(
@@ -628,16 +641,6 @@ private fun TaskListScreen(
                         ), null, null)
                     },
                 )
-                if (view == TaskViewKind.List) {
-                    FilterPill(
-                        text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
-                        selected = extra.sort != TaskSort.Created,
-                        onClick = {
-                            haptics.tap()
-                            sortSheetOpen = true
-                        },
-                    )
-                }
             }
             val noneLabel = t("taskViews.noAssignee")
             val sourceLabels = mapOf(

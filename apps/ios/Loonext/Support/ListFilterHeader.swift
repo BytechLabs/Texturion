@@ -36,24 +36,26 @@ struct ListViewsModel {
     let onDelete: @MainActor (String) -> Void
 }
 
-/// The one row: the list's status tabs (scrollable), then Filter, then Views. `views` is
-/// nil for a list that has no saved views.
+/// The scrollable status tabs, followed by Filter and any Sort and Views controls.
 @MainActor
 struct ListFilterRow<Tabs: View>: View {
     let filterCount: Int
     let onFilter: @MainActor () -> Void
     let views: ListViewsModel?
+    let sortMenu: AnyView?
     let tabs: Tabs
 
     init(
         filterCount: Int,
         onFilter: @escaping @MainActor () -> Void,
         views: ListViewsModel? = nil,
+        sortMenu: AnyView? = nil,
         @ViewBuilder tabs: () -> Tabs
     ) {
         self.filterCount = filterCount
         self.onFilter = onFilter
         self.views = views
+        self.sortMenu = sortMenu
         self.tabs = tabs()
     }
 
@@ -66,6 +68,7 @@ struct ListFilterRow<Tabs: View>: View {
                 .padding(.vertical, 4)
             }
             ListFilterButton(count: filterCount, onTap: onFilter)
+            if let sortMenu { sortMenu }
             if let views {
                 ListViewsMenu(model: views)
             }

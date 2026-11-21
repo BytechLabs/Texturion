@@ -295,6 +295,16 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
+    func testCanadianFrenchLight() throws { try auditCanadianFrench(theme: "light") }
+
+    func testCanadianFrenchDark() throws { try auditCanadianFrench(theme: "dark") }
+
+    private func auditCanadianFrench(theme: String) throws {
+        for surface in ["login", "signUp", "inbox", "thread", "calls", "tasks", "contacts", "settings"] {
+            try audit(surface, theme: theme, canadianFrench: true)
+        }
+    }
+
     // MARK: Harness
 
     /// Findings that fail the build. The two it leaves out are logged instead:
@@ -312,9 +322,17 @@ final class AccessibilityAuditUITests: XCTestCase {
         .elementDetection, .hitRegion, .sufficientElementDescription, .trait,
     ]
 
-    private func audit(_ surface: String, contentSize: String? = nil, theme: String? = nil) throws {
+    private func audit(
+        _ surface: String,
+        contentSize: String? = nil,
+        theme: String? = nil,
+        canadianFrench: Bool = false
+    ) throws {
         let app = XCUIApplication()
         app.launchArguments += ["-a11yAuditSurface", surface]
+        if canadianFrench {
+            app.launchArguments += ["-ui_locale", "fr-CA", "-AppleLanguages", "(fr-CA)", "-AppleLocale", "fr_CA"]
+        }
         if let contentSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
         }
@@ -331,9 +349,24 @@ final class AccessibilityAuditUITests: XCTestCase {
             app.descendants(matching: .any).element(boundBy: 0).waitForExistence(timeout: 20),
             "\(surface): nothing on screen to audit"
         )
+        if canadianFrench && surface == "login" {
+            XCTAssertTrue(app.buttons["Se connecter"].firstMatch.waitForExistence(timeout: 10))
+        }
+        if canadianFrench && surface == "tasks" {
+            let sort = app.buttons["Trier les tâches"].firstMatch
+            XCTAssertTrue(sort.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.frame.contains(sort.frame))
+            XCTAssertTrue(sort.isHittable)
+            sort.tap()
+            let priority = app.buttons["Priorité"].firstMatch
+            XCTAssertTrue(priority.waitForExistence(timeout: 10))
+            priority.tap()
+            XCTAssertEqual(sort.value as? String, "Priorité")
+        }
 
         let label = (contentSize == nil ? surface : "\(surface) at large text")
             + (theme.map { " (\($0))" } ?? "")
+            + (canadianFrench ? " fr-CA" : "")
         // Kept for a person to look at; CI exports every attachment.
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = label
