@@ -14,6 +14,7 @@ const threadIDs = ["20000000-0000-4000-8000-000000000010", "20000000-0000-4000-8
 const contactID = "20000000-0000-4000-8000-000000000020";
 const lineID = "20000000-0000-4000-8000-000000000030";
 const sessionID = "20000000-0000-4000-8000-000000000040";
+const quoteID = "20000000-0000-4000-8000-000000000050";
 const now = () => new Date().toISOString();
 const page = (data = []) => ({ data, next_cursor: null });
 const line = { id: lineID, label: "Test line", status: "active", country: "CA", number_e164: "+14165550100", created_at: now(), voice_enabled: true };
@@ -21,6 +22,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
   created_at: now(), updated_at: now(), done: false, status: "open", allowed_actions: ["complete", "trash"] };
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
+let quote;
 const state = { mode: "online", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
@@ -56,8 +58,8 @@ function thread(index) {
     contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text" };
 }
 
-function broadcast(event, payload) {
-  const topic = `realtime:company:${companyID}`;
+function broadcast(event, payload, numberID) {
+  const topic = `realtime:company:${companyID}${numberID ? `:number:${numberID}` : ""}`;
   for (const socket of realtime.clients) {
     if (socket.readyState === 1 && socket.topics.has(topic)) {
       socket.send(JSON.stringify({ topic, event: "broadcast", payload: { event, payload } }));
@@ -65,18 +67,21 @@ function broadcast(event, payload) {
   }
 }
 
+async function sendPush(payload) {
+  const path = join(process.env.QA_EVIDENCE, `push-${randomUUID()}.apns`);
+  await writeFile(path, JSON.stringify(payload, null, 2));
+  await run("xcrun", ["simctl", "push", process.env.QA_SIMULATOR, "com.loonext.ios.qa", path]);
+}
+
 async function push(index, title, missedCall = false) {
-  const path = join(process.env.QA_EVIDENCE, `push-${index}-${randomUUID()}.apns`);
-  const payload = {
+  await sendPush({
     aps: { alert: { title, body: "Simulator QA alert" }, sound: "default", badge: 1,
       "thread-id": `conversation:${threadIDs[index]}`, category: missedCall ? "MISSED_CALL" : "MESSAGE" },
     url: `/inbox/${threadIDs[index]}`, tag: `conversation:${threadIDs[index]}`,
     thread_action: missedCall ? "missed_call" : "message", can_reply: "true",
     action_company_id: companyID, action_user_id: userID, action_conversation_id: threadIDs[index],
     action_message_id: state.messages[index][0].id, action_callback_number: state.contacts[index].phone_e164,
-  };
-  await writeFile(path, JSON.stringify(payload, null, 2));
-  await run("xcrun", ["simctl", "push", process.env.QA_SIMULATOR, "com.loonext.ios.qa", path]);
+  });
 }
 
 function sampleAudio() {
@@ -126,6 +131,26 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/__qa/read" && req.method === "POST") {
       broadcast("read.conversation", { conversation_id: threadIDs[1], user_id: userID, is_read: true });
+      return json({ ok: true });
+    }
+    if (path === "/__qa/quote" && req.method === "POST") {
+      quote = { id: quoteID, conversation_id: threadIDs[0], contact_id: contactID,
+        amount_cents: 12300, currency: "cad", description: "Repair the drain", status: "viewed",
+        created_at: now(), sent_at: now(), viewed_at: now(), expires_at: new Date(Date.now() + 3600000).toISOString() };
+      return json({ ok: true });
+    }
+    if (path === "/__qa/quote-accepted" && req.method === "POST") {
+      if (quote?.status === "viewed") {
+        quote.status = "accepted";
+        quote.decided_at = now();
+        broadcast("quote.updated", { conversation_id: threadIDs[0], quote_id: quoteID }, lineID);
+        const tag = `quote:accepted:${quoteID}`;
+        await sendPush({
+          aps: { alert: { title: "Ada Fixture accepted the quote", body: "The quote was accepted." },
+            sound: "default", "thread-id": tag },
+          kind: "payment", tag, url: `/inbox/${threadIDs[0]}`,
+        });
+      }
       return json({ ok: true });
     }
     if (path === "/__qa/push" && req.method === "POST") {
@@ -203,6 +228,13 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
+    if (path === "/v1/quotes") {
+      if (quote && searchParams.get("conversation_id") === quote.conversation_id) {
+        console.log(`Quote strip read: ${quote.status}`);
+        return json(page([quote]));
+      }
+      return json(page());
+    }
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
     if (path === "/v1/tasks") return json(page([task]));
     if (path === "/v1/calls") return json(page([call]));

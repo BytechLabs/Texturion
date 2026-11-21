@@ -197,7 +197,7 @@ struct ThreadQuotesPane: View {
     private var canAct: Bool { canSee && role != MemberRole.readOnly }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if canSee, let model, !model.visible.isEmpty || (canAct && (draftOpen || editId != nil)) {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(model.visible) { quote in

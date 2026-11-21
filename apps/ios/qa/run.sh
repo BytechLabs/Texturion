@@ -96,10 +96,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -117,6 +117,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$ui/testSelectsAndCopiesPartOfAMessage" || failed=1 ;;
     thread-workflows) run_scenario "$name" "$ui/testLongThreadRecapCitesMessages" \
       "$ui/testCreateTaskFromSavedVoicemail" || failed=1 ;;
+    quote-alert) run_scenario "$name" "$ui/testQuoteAcceptanceRefreshesStripAndAlertsOnce" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
   esac
 done
