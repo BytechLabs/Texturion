@@ -72,7 +72,7 @@ type Recipient =
 
 /**
  * /inbox/new — the G5 outbound-first compose flow: contact search + raw
- * number with live E.164 formatting, saved-reply template picker, MMS file
+ * number, saved-reply template picker, MMS file
  * attachments (#189), segment meter, quiet-hours dialog driven by the API's
  * `quiet_hours_confirmation_required` code (409; matched structurally, never
  * by message text). Consent is attested implicitly server-side now (the visible
@@ -110,11 +110,10 @@ export function NewConversation() {
   // it, aria-activedescendant announces it. Reset on typing / select / close.
   const [activeIndex, setActiveIndex] = useState(-1);
   const isPhone = looksLikePhoneInput(input);
-  const displayInput = isPhone ? formatNanpAsYouType(input) : input;
   // A typed number is searched SERVER-side on its digits. Asking for every
   // contact and matching in the browser only ever looked at the first page, so
   // a workspace with more contacts than that could not find one by number.
-  const typedDigits = isPhone ? displayInput.replaceAll(/\D/g, "") : "";
+  const typedDigits = isPhone ? formatNanpAsYouType(input).replaceAll(/\D/g, "") : "";
   const contacts = useContacts(isPhone ? typedDigits : input.trim());
   const contactRows = useMemo(() => {
     const rows = flattenPages(contacts.data).filter((c) => c.deleted_at === null);
@@ -514,7 +513,7 @@ export function NewConversation() {
             >
               <Input
                 id="compose-to"
-                value={displayInput}
+                value={input}
                 autoComplete="off"
                 placeholder={t("inbox.composeToPlaceholder")}
                 role="combobox"
@@ -534,6 +533,9 @@ export function NewConversation() {
                   setActiveIndex(-1);
                 }}
                 onFocus={() => setSearchOpen(true)}
+                onBlur={() => {
+                  if (typedE164) setInput(formatPhone(typedE164));
+                }}
                 onKeyDown={(event) => {
                   // #63 WAI-ARIA combobox keyboard contract: ArrowUp/Down
                   // move the active option (opening the list if needed),
