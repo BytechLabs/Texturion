@@ -3,6 +3,9 @@ import type {TelnyxEndpoint, TelnyxMethod, TelnyxPolicyClass} from '../../../../
 
 export { type TelnyxMethod, type TelnyxPolicyClass } from '../../../../apps/api/src/telnyx/endpoints';
 
+const RIG_ENDPOINTS: readonly TelnyxEndpoint[] = [
+  { method: "GET", path: "/v2/webhook_deliveries", policy: "read" },
+];
 
 export interface PolicyEntry {
   readonly method: TelnyxMethod;
@@ -33,7 +36,7 @@ function compile(endpoint: TelnyxEndpoint): PolicyEntry {
   };
 }
 
-export const POLICY_TABLE: readonly PolicyEntry[] = TELNYX_ENDPOINTS.map(compile);
+export const POLICY_TABLE: readonly PolicyEntry[] = [...TELNYX_ENDPOINTS, ...RIG_ENDPOINTS].map(compile);
 
 export function matchEndpoint(method: string, path: string): Matched | null {
   for (const entry of POLICY_TABLE) {
