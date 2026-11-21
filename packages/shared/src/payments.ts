@@ -137,7 +137,13 @@ export const PAYMENT_MAX_CENTS = 2_500_000;
  * In Canadian French, a bare comma followed by three digits is invalid.
  */
 export function parseMoneyInputToCents(input: string, locale = "en"): number | null {
-  const amount = input.trim().replace(/^\$\s*|\s*\$$/, "").replaceAll(/[\u00A0\u202F]/g, " ");
+  let amount = input.trim();
+  if (amount.startsWith("$")) {
+    amount = amount.slice(1).trimStart();
+  } else if (amount.endsWith("$")) {
+    amount = amount.slice(0, -1).trimEnd();
+  }
+  amount = amount.replaceAll(/[\u00A0\u202F]/g, " ");
   const decimal = /^(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]{0,2})?$|^[.,][0-9]{1,2}$/;
   const commaGroups = /^[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{0,2})?$/;
   let normalized: string;
