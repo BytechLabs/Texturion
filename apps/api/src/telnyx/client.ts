@@ -102,6 +102,7 @@ function withSeams(env: Env, body: unknown): unknown {
  * `transfer`, because one call site sends whichever action it was handed.
  */
 const CALL_PATH = /^\/v2\/calls(?:\/[^/]+\/actions\/[^/]+)?$/;
+const DIAL_PATH = /^\/v2\/calls$/;
 const MESSAGE_PATH = /^\/v2\/messages(?:\/|$)/;
 const VERIFICATION_CODE_SUFFIX = "/verification_codes";
 
@@ -268,7 +269,7 @@ export async function telnyxRequest<T = unknown>(
   const dialBody = options.body as { to?: unknown; sip_address?: unknown } | undefined;
   for (const destination of telnyxDestinations(options)) {
     if (
-      options.path === "/v2/calls" && dialBody?.to === destination &&
+      DIAL_PATH.test(options.path) && dialBody?.to === destination &&
       dialBody.sip_address === undefined && allowsRigTollFreeTestCall(env, destination)
     ) continue;
     const refusal = outboundDestinationRefusal(env, destination);
