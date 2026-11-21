@@ -168,10 +168,10 @@ async function decryptPush(
 }
 
 /** Push-service double: captures the request and answers with `status`. */
-function pushServiceRoute(status: number) {
+function pushServiceRoute(status: number, endpoint = ENDPOINT) {
   const captured: { headers?: Headers; body?: Uint8Array } = {};
   const route: FetchRoute = async (url, request) => {
-    if (!url.href.startsWith(ENDPOINT)) return undefined;
+    if (!url.href.startsWith(endpoint)) return undefined;
     captured.headers = request.headers;
     captured.body = new Uint8Array(await request.clone().arrayBuffer());
     return new Response(null, { status });
@@ -180,6 +180,27 @@ function pushServiceRoute(status: number) {
 }
 
 describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
+  it("uses the guard bearer for rig Chrome and still signs for the Google audience", async () => {
+    const fcmBase = "https://edge.example.test/g/fcm";
+    const service = pushServiceRoute(201, `${fcmBase}/web-push/fcm/send/abc123`);
+    stubFetch(service.route);
+    const subscription = await makeSubscription();
+    const result = await sendWebPush({
+      ...env,
+      DEPLOY_ENV: "rig",
+      FCM_API_BASE: fcmBase,
+      TELNYX_API_KEY: "rig-caller-test",
+    }, subscription.target, "hello");
+
+    expect(result.ok).toBe(true);
+    expect(service.captured.headers?.get("authorization")).toBe("Bearer rig-caller-test");
+    const vapid = service.captured.headers?.get("x-web-push-authorization") ?? "";
+    const claims = /^vapid t=[^.]+\.([^.]+)\./.exec(vapid)?.[1];
+    expect(JSON.parse(new TextDecoder().decode(decodeBase64Url(claims ?? "")))).toMatchObject({
+      aud: "https://fcm.googleapis.com",
+    });
+  });
+
   it("posts an aes128gcm body the subscriber can decrypt back to the payload", async () => {
     const subscription = await makeSubscription();
     const service = pushServiceRoute(201);

@@ -213,8 +213,9 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
       status: 429,
       headers: { "x-rig-refused-by": "budget.resend_day" },
     }))).toBe(false),
-  webPushTransportRestricted: (env) =>
-    expect(policy.webPushTransportRestricted(env, "fcm.googleapis.com")).toBe(false),
+  webPushRoute: (env) =>
+    expect(policy.webPushRoute(env, new URL("https://fcm.googleapis.com/fcm/send/token")))
+      .toEqual({ url: "https://fcm.googleapis.com/fcm/send/token" }),
   fcmCredential: (env) => expect(fcmCredential(env)).toEqual({ kind: "google" }),
   outboundDestinationRefusal: (env) => {
     expect(outboundDestinationRefusal(env, STRANGER)).toBeNull();
