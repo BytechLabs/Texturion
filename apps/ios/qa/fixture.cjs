@@ -217,6 +217,7 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
     if (path === "/v1/payments/account" && state.paymentsEnabled) {
+      console.log("Payment account read returned ready");
       return json({ connected: true, readiness: "ready", currency: "cad", charges_enabled: true });
     }
     if (path === paymentRequestsPath && req.method === "GET") {

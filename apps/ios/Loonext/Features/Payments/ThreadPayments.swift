@@ -87,7 +87,7 @@ struct ThreadPaymentsPane: View {
     private var canAct: Bool { canSeeStrip && role != MemberRole.readOnly }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             // Nothing drawn at all when there is nothing to draw. No skeleton
             // and no empty state: reserving space on every thread for something
             // almost every thread does not have is a permanent cost paid for a
@@ -111,7 +111,11 @@ struct ThreadPaymentsPane: View {
                 .padding(.bottom, 4)
             }
         }
-        .task(id: "\(companyId)|\(conversationId)") {
+        .task(id: "\(companyId)|\(conversationId)|\(viewerLevel)|\(role ?? "")") {
+            guard canSeeStrip else {
+                model = nil
+                return
+            }
             let created = ThreadPaymentsModel(
                 payments: PaymentsApi(api: api),
                 companyId: companyId,

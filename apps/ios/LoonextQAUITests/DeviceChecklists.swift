@@ -327,7 +327,10 @@ final class DeviceChecklists: XCTestCase {
         try await control("french?payments")
         try signIn(locale: "fr-CA")
         try openThread("Ada Fixture", back: "Retour")
-        try waitFor(app.buttons["Demander un paiement"].firstMatch).tap()
+        let ask = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@", "Demander un paiement"
+        )).firstMatch
+        try waitFor(ask).tap()
         let amount = try waitFor(app.textFields["250.00"].firstMatch)
         amount.tap()
         amount.typeText("12,34")
