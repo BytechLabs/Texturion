@@ -19,6 +19,7 @@ on:
           - phone-and-text
           - thread-workflows
           - quote-alert
+          - attachment-sources
           - accessibility
       runtime:
         description: iOS Simulator version (defaults to newest installed)

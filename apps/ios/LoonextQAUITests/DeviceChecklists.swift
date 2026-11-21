@@ -299,6 +299,112 @@ final class DeviceChecklists: XCTestCase {
         shot("792 one quote acceptance in Notification Center")
     }
 
+    func testPhotoLibraryStagesAttachment() async throws {
+        try signIn()
+        try openThread("Ada Fixture")
+        try waitFor(app.buttons["Add to message"].firstMatch).tap()
+        try waitFor(app.buttons["Photo library"].firstMatch).tap()
+        try selectFixturePhoto(in: app, newestFirst: true)
+        try waitFor(app.buttons["Add"].firstMatch).tap()
+        let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
+        shot("793 Photo Library stages an attachment")
+        remove.tap()
+        try await assertNoMessageSend()
+    }
+
+    func testPhotosShareStagesAttachment() async throws {
+        try signIn()
+        let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        photos.activate()
+        try enterPhotosSelection(in: photos)
+        try selectFixturePhoto(in: photos, newestFirst: false)
+        try waitFor(photos.buttons["Share"].firstMatch).tap()
+        try await stageSharedPhoto(from: photos, source: "Photos")
+    }
+
+    func testFilesShareStagesAttachment() async throws {
+        try signIn()
+        let files = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
+        files.launch()
+        let browse = files.tabBars.buttons["Browse"].firstMatch
+        if browse.waitForExistence(timeout: 5) { browse.tap() }
+        let onDevice = files.staticTexts["On My iPhone"].firstMatch
+        if !onDevice.exists && browse.exists { browse.tap() }
+        try waitFor(onDevice).tap()
+        try waitFor(files.staticTexts["Loonext"].firstMatch).tap()
+        let photo = files.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "QA Share Fixture")).firstMatch
+        try waitFor(photo).press(forDuration: 1.2)
+        try waitFor(files.buttons["Share"].firstMatch).tap()
+        try await stageSharedPhoto(from: files, source: "Files")
+    }
+
+    private func stageSharedPhoto(from host: XCUIApplication, source: String) async throws {
+        let cells = host.cells.matching(identifier: "shareCell")
+        let loonext = cells.matching(NSPredicate(format: "label == %@", "Loonext")).firstMatch
+        let more = cells.matching(NSPredicate(format: "label == %@", "More")).firstMatch
+        try waitFor(cells.firstMatch)
+        let activities = host.scrollViews.containing(.cell, identifier: "shareCell").allElementsBoundByIndex.last
+        for _ in 0..<4 where !loonext.exists && !more.exists { activities?.swipeLeft() }
+        if loonext.exists {
+            tapFrame(of: loonext, in: host)
+        } else {
+            tapFrame(of: try waitFor(more), in: host)
+            tapFrame(of: try waitFor(host.staticTexts["Loonext"].firstMatch), in: host)
+        }
+        try waitFor(host.buttons["Save Files"].firstMatch).tap()
+        try waitFor(host.staticTexts["Open Loonext to choose a conversation."].firstMatch)
+        try waitFor(host.buttons["Close"].firstMatch).tap()
+        app.activate()
+        try waitFor(label("Share to a conversation"))
+        let textableThread = try waitFor(app.buttons["Ada Fixture"].firstMatch)
+        XCTAssertFalse(app.buttons["Ben Fixture"].firstMatch.exists)
+        textableThread.tap()
+        let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
+        shot("793 \(source) share stages into the chosen thread")
+        remove.tap()
+        try await assertNoMessageSend()
+    }
+
+    private func enterPhotosSelection(in photos: XCUIApplication) throws {
+        let intro = photos.buttons["Continue"].firstMatch
+        let decline = springboard.buttons.matching(NSPredicate(
+            format: "label == %@ OR label == %@", "Don’t Allow", "Don't Allow"
+        )).firstMatch
+        let select = photos.buttons["Select"].firstMatch
+        let cancel = photos.buttons["Cancel"].firstMatch
+        for _ in 0..<4 {
+            if decline.isHittable { decline.tap() }
+            if intro.waitForExistence(timeout: 10) { intro.tap() }
+            if decline.isHittable { decline.tap() }
+            if select.isHittable { select.tap() }
+            if cancel.waitForExistence(timeout: 5) { return }
+        }
+        try waitFor(cancel)
+    }
+
+    private func selectFixturePhoto(in host: XCUIApplication, newestFirst: Bool) throws {
+        let photos = host.images.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Photo,"))
+        try waitFor(photos.firstMatch)
+        let tiles = photos.allElementsBoundByIndex
+        let tile = try XCTUnwrap(newestFirst ? tiles.first : tiles.last)
+        tapFrame(of: tile, in: host)
+    }
+
+    private func tapFrame(of element: XCUIElement, in host: XCUIApplication) {
+        let bounds = element.frame
+        XCTAssertFalse(bounds.isEmpty)
+        // Photos and its share sheet can report no hit point across processes.
+        host.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: bounds.midX - host.frame.minX, dy: bounds.midY - host.frame.minY))
+            .tap()
+    }
+
+    private func assertNoMessageSend() async throws {
+        let (data, _) = try await URLSession.shared.data(from: fixture.appendingPathComponent("__qa/writes"))
+        let writes = try JSONDecoder().decode([Write].self, from: data)
+        XCTAssertFalse(writes.contains { $0.path == "/v1/messages/send" })
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
