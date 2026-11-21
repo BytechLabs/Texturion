@@ -1,5 +1,6 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
 import {
+  BILLING_CURRENCIES,
   billingCurrencyOf,
   EXTRA_NUMBER_CURRENCY,
   EXTRA_NUMBER_MONTHLY_CENTS,
@@ -95,6 +96,10 @@ const planBodySchema = z.object({
    * a click that did not say so.
    */
   convert_prepaid: z.boolean().optional(),
+});
+
+const checkoutBodySchema = planBodySchema.extend({
+  expected_currency: z.enum(BILLING_CURRENCIES).optional(),
 });
 
 const moduleBodySchema = z.object({
@@ -283,6 +288,20 @@ function workspaceAllows(
     .includes(action);
 }
 
+billingRoutes.get("/checkout-currencies", async (c) => {
+  const env = getEnv(c.env);
+  const company = await fetchCompany(getDb(env), c.get("companyId"));
+  const stripe = getStripe(env);
+  const currencies = await Promise.all(PLAN_IDS.map(async (plan) => [
+    plan,
+    await checkoutCurrency(stripe, {
+      wanted: company.billing_currency,
+      licensedPriceId: planPrices(env, plan).licensed,
+    }),
+  ] as const));
+  return c.json(Object.fromEntries(currencies));
+});
+
 /**
  * POST /v1/billing/checkout (SPEC §4.1 step 4, §9 checkout composition).
  */
@@ -319,7 +338,7 @@ billingRoutes.post("/checkout", async (c) => {
     }
   }
 
-  const parsed = planBodySchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = checkoutBodySchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return errorResponse(
       c,
@@ -490,6 +509,11 @@ billingRoutes.post("/checkout", async (c) => {
     wanted: company.billing_currency,
     licensedPriceId: planPrices(env, plan).licensed,
   });
+  if (parsed.data.expected_currency && sessionCurrency !== parsed.data.expected_currency) {
+    return errorResponse(c, "conflict", "The checkout currency changed. Review the updated plan price.", {
+      key: "apiRefusals.billingCheckoutCurrencyChanged",
+    });
+  }
 
   // #522: and the row is corrected to match, because until now nothing wrote
   // this decision down.

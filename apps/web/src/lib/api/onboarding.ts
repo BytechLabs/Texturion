@@ -1,3 +1,4 @@
+import type { BillingCurrency } from "@loonext/shared";
 import {
   useMutation,
   useQuery,
@@ -68,12 +69,25 @@ export function useSaveOnboardingRegistration() {
   });
 }
 
-/** POST /v1/billing/checkout — { plan, modules? } → hosted Stripe Checkout URL. */
+export function useOnboardingCheckoutCurrencies(
+  companyId: string | null,
+  billingCurrency: BillingCurrency | undefined,
+) {
+  return useQuery({
+    queryKey: keys.checkoutCurrencies(companyId ?? "none", billingCurrency ?? null),
+    queryFn: () => apiFetch<Record<PlanId, BillingCurrency>>("/v1/billing/checkout-currencies", {
+      companyId: companyId!,
+    }),
+    enabled: companyId !== null,
+  });
+}
+
 export function useOnboardingCheckout() {
   return useMutation({
     mutationFn: (input: {
       companyId: string;
       plan: PlanId;
+      currency: BillingCurrency;
       modules?: PlanModule[];
     }) =>
       apiFetch<HostedUrl>("/v1/billing/checkout", {
@@ -81,6 +95,7 @@ export function useOnboardingCheckout() {
         companyId: input.companyId,
         body: {
           plan: input.plan,
+          expected_currency: input.currency,
           ...(input.modules && input.modules.length > 0
             ? { modules: input.modules }
             : {}),

@@ -36,6 +36,8 @@ enum ApiErrorStrings {
                 "Your plan is already paused.",
             "apiRefusals.billingCallingIncluded":
                 "Calling is included on every plan. Refresh the app to see your current plan.",
+            "apiRefusals.billingCheckoutCurrencyChanged":
+                "The checkout currency changed. Review the updated plan price.",
             "apiRefusals.billingCheckoutSeatLimit":
                 "The {plan} plan allows {seats} members. Your workspace has {members}. Deactivate {over} before checking out.",
             "apiRefusals.billingConfirmPrepaidConversion":
@@ -409,6 +411,8 @@ enum ApiErrorStrings {
                 "Votre forfait est déjà en pause.",
             "apiRefusals.billingCallingIncluded":
                 "Les appels sont inclus dans tous les forfaits. Actualisez l’application pour voir votre forfait.",
+            "apiRefusals.billingCheckoutCurrencyChanged":
+                "La devise du paiement a changé. Vérifiez le nouveau prix du forfait.",
             "apiRefusals.billingCheckoutSeatLimit":
                 "Le forfait {plan} permet {seats} membres. Votre espace de travail en compte {members}. Désactivez-en {over} avant de payer.",
             "apiRefusals.billingConfirmPrepaidConversion":

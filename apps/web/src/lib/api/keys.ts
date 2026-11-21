@@ -27,6 +27,8 @@ export const keys = {
     ["available-numbers", country, areaCode, bestEffort, contains ?? null] as const,
 
   company: (companyId: string) => [companyId, "company"] as const,
+  checkoutCurrencies: (companyId: string, billingCurrency: string | null) =>
+    [companyId, "checkout-currencies", billingCurrency] as const,
   /** #749: who chose each setting that can lose a customer, when it is off its default. */
   settingChoices: (companyId: string) =>
     [companyId, "company", "setting-choices"] as const,

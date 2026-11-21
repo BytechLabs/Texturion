@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { billingRoutes } from "./billing";
+import { resetCheckoutCurrencyCache } from "../billing/checkout-currency";
 import type { AppEnv, MemberRole } from "../context";
 import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -238,9 +239,56 @@ function subscriptionFixture(
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetCheckoutCurrencyCache();
+});
+
+describe("GET /v1/billing/checkout-currencies", () => {
+  it("requires billing access before reading the company or Stripe", async () => {
+    const harness = makeHarness([]);
+    const response = await get("/v1/billing/checkout-currencies", harness, "member");
+    expect(response.status).toBe(403);
+    expect(harness.calls).toHaveLength(0);
+  });
+
+  it("reports the currency the Stripe catalog supports for each plan", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", billing_currency: "cad" })),
+      endpoint("GET", /api\.stripe\.com\/v1\/prices\//, (call) => ({
+        currency: "usd",
+        currency_options: call.url.pathname.endsWith(`/${env.STRIPE_STARTER_PRICE_ID}`)
+          ? { cad: { unit_amount: 3900 } }
+          : {},
+      })),
+    ]);
+    const response = await get("/v1/billing/checkout-currencies", harness);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ starter: "cad", pro: "usd" });
+  });
+
+  it("uses the stored USD currency for a Canadian workspace billed in USD", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", billing_currency: "usd" })),
+    ]);
+    const response = await get("/v1/billing/checkout-currencies", harness);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ starter: "usd", pro: "usd" });
+    expect(harness.calls).toHaveLength(1);
+  });
 });
 
 describe("POST /v1/billing/checkout — roles and body", () => {
+  it("does not create a session when the reviewed currency changed", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", billing_currency: "usd", us_texting_enabled: false })),
+    ]);
+    const response = await post("/v1/billing/checkout", { plan: "starter", expected_currency: "cad" }, harness);
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message_key: "apiRefusals.billingCheckoutCurrencyChanged" },
+    });
+    expect(harness.callsTo("POST", /checkout\/sessions/)).toHaveLength(0);
+  });
+
   it("member role is 403 (owner/admin only, SPEC §10)", async () => {
     const harness = makeHarness([]);
     const response = await post(
