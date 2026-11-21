@@ -175,6 +175,8 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 | Scenario | Issue | Simulator evidence |
 | --- | --- | --- |
 | `customer-journeys` | | Owner signup and setup states, Canadian number ordering and team invites, technician texts, notes, scheduled sends, Lou draft review and explicit sending, contacts, task calendar, map and planner, and the bookkeeper's billing view. Runs in English and Canadian French in light and dark. The fixture handles external services. |
+| `attachment-sources` | #793 | The app's photo library and the Photos and Files share sheets stage fixture photos for a conversation. |
+| `attachment-send` | #793 | The app's photo library sends one fixture photo. XCTest checks the destination, caption, media type and size, and idempotency key. |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
 | `notification-actions` | #777 | XCTest attempts a Reply from Notification Center and checks card removal on thread open and on a read broadcast for the same user. A separate test submits a synthetic reply action to the app's handler and checks the outgoing request and idempotency key. |
 | `calls` | #776 | The app's call history and in-call controls undergo accessibility audits. Unit tests cover synthetic VoIP payloads, caller privacy, wake policy, and the softphone behavior behind CallKit answer and end actions. |
@@ -182,8 +184,6 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 | `autosave` | #780 | UI tests edit contact notes and leave the screen, then edit Calling settings and immediately press Home. The fixture checks one PATCH with the latest value and the tests reopen the UI to confirm it. A debounce regression drives the sub-800 ms window independently of Simulator gesture timing. |
 | `copy-and-media` | #805 | UI tests check rendered settings labels, the task-list delete confirmation, and playback progress on synthetic audio. Unit tests check English and Canadian French permission strings, including Face ID, and playback session setup. |
 | `quote-amount` | #1088, #1115 | A ready payout account exposes Ask for payment on a new thread. The Canadian French quote and pay-link forms save a decimal comma amount. The fixture records the amounts in cents and XCTest captures the previews and saved amounts. |
-| `attachment-sources` | #793 | The app's photo library and the Photos and Files share sheets stage fixture photos for a conversation. |
-| `attachment-send` | #793 | The app's photo library sends one fixture photo. XCTest checks the destination, caption, media type and size, and idempotency key. |
 | `accessibility` | #238 | Apple's `performAccessibilityAudit` checks the app's primary flows using the same audit target as Gate / iOS. It reports properties such as labels, contrast, hit regions and large-text clipping. |
 
 `LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
