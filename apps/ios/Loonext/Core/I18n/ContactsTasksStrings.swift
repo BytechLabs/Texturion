@@ -769,6 +769,7 @@ enum ContactsTasksStrings {
             // ── Calls: the log, the keypad, the ring and the live call ───────
             "contactsTasks.callsTitle": "Calls",
             "contactsTasks.callsRingWhileOpen": "Calls ring here while the app is open.",
+            "contactsTasks.callHistoryFilter": "Call history filter",
             "contactsTasks.filterAll": "All",
             "contactsTasks.filterMissed": "Missed",
             "contactsTasks.filterVoicemail": "Voicemail",
@@ -1702,6 +1703,7 @@ enum ContactsTasksStrings {
 
             // ── Appels : le journal, le clavier, la sonnerie et l'appel ──────
             "contactsTasks.callsTitle": "Appels",
+            "contactsTasks.callHistoryFilter": "Filtre de l’historique des appels",
             "contactsTasks.callsRingWhileOpen":
                 "Les appels sonnent ici quand l'application est ouverte.",
             "contactsTasks.filterAll": "Tous",

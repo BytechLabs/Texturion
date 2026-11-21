@@ -129,6 +129,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$unit/NotificationsPushPayloadTests" || failed=1 ;;
     notification-reply-transport) run_scenario "$name" "$unit/NotificationReplyFixtureTests" || failed=1 ;;
     calls) run_scenario "$name" "$audit/testInCallControls" "$audit/testCallLog" \
+      "$audit/testLargestTextCallFiltersAndRowsFit" "$audit/testLargestTextWaitingCallActionsFit" \
       "$unit/CallsLogicTests" "$unit/VoipPushPolicyTests" "$unit/TelephonyMappingTests" || failed=1 ;;
     offline) run_scenario "$name" "$ui/testOfflineRelaunchAndOutbox" "$unit/OfflineReadCacheTests" || failed=1 ;;
     autosave) run_scenario "$name" "$ui/testContactNotesSaveOnBack" \
