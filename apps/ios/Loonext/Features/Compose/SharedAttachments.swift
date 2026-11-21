@@ -4,7 +4,11 @@ struct SharedAttachments: Identifiable, Sendable {
     static let maxFiles = 10
     static let maxFileBytes = 25 * 1024 * 1024
     private static let lifetime: TimeInterval = 86_400
+    #if LOONEXT_QA
+    private static let group = "group.com.loonext.ios.qa"
+    #else
     private static let group = "group.com.loonext.ios"
+    #endif
 
     let directory: URL
     let files: [URL]
