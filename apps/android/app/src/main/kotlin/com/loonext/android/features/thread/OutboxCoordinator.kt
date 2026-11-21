@@ -59,6 +59,8 @@ class OutboxCoordinator(
                 body = row.body,
                 media = media.takeIf { it.isNotEmpty() },
                 idempotencyKey = row.localId,
+                templateId = row.templateId,
+                templateEdited = row.templateEdited,
                 expectedUserId = row.ownerUserId,
             )
             delivered.tryEmit(OutboxDelivery(row, message))

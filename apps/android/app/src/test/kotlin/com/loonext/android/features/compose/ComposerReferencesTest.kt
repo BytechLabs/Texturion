@@ -16,6 +16,7 @@ import com.loonext.android.features.tasks.ReferenceRepository
 import com.loonext.android.features.tasks.ReferenceSource
 import com.loonext.android.features.thread.PickedMention
 import com.loonext.android.ui.theme.LoonextTheme
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -95,7 +96,11 @@ class ComposerReferencesTest {
         server.close()
     }
 
-    private fun show(state: ComposerState, noteOnly: Boolean = false) {
+    private fun show(
+        state: ComposerState,
+        noteOnly: Boolean = false,
+        onSend: suspend (String) -> Boolean = { true },
+    ) {
         compose.setContent {
             LoonextTheme {
                 ThreadComposer(
@@ -105,12 +110,37 @@ class ComposerReferencesTest {
                     contactName = "Dana Whitcomb",
                     businessName = "Loonext Fencing",
                     loadTemplates = { emptyList() },
-                    onSendText = { _, _, _, _ -> },
+                    onSendText = { body, _, _, _ -> onSend(body) },
                     onSaveNote = { _, _, _, _ -> },
                     onNotice = {},
                     references = source,
                 )
             }
+        }
+    }
+
+    @Test
+    fun `send clears the composer only after the outbox accepts it`() {
+        val state = ComposerState("offline-text", NoDrafts)
+        val saved = CompletableDeferred<Boolean>()
+        var attempts = 0
+        show(state) { body ->
+            assertEquals("On my way", body)
+            attempts++
+            if (attempts == 1) saved.await() else true
+        }
+        compose.onNode(hasSetTextAction()).performTextInput("On my way")
+        compose.onNodeWithContentDescription("Send message").performClick()
+        compose.runOnIdle {
+            assertEquals(1, attempts)
+            assertEquals("On my way", state.text)
+            saved.complete(false)
+        }
+        compose.runOnIdle { assertEquals("On my way", state.text) }
+        compose.onNodeWithContentDescription("Send message").performClick()
+        compose.runOnIdle {
+            assertEquals(2, attempts)
+            assertEquals("", state.text)
         }
     }
 

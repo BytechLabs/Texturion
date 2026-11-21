@@ -59,17 +59,20 @@ import { useCompany } from "@/lib/api/companies";
 import {
   clearDraftMentions,
   clearFailedSend,
+  clearSendAttempt,
   flushDraftOnExit,
   loadDraft,
   loadDraftMentions,
   loadDraftMode,
   loadDraftStartedAt,
   loadFailedSend,
+  loadSendAttempt,
   onComposerDraftRestored,
   onSendAgain,
   restoreComposerDraft,
   saveDraft,
   saveDraftMentions,
+  saveSendAttempt,
 } from "@/lib/messaging/composer-drafts";
 import {
   cacheSuggestions,
@@ -110,7 +113,7 @@ import {
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
 import { cn, withOccurrenceKeys } from "@/lib/utils";
-import { useCompanyId } from "@/lib/company/provider";
+import { useActiveCompany } from "@/lib/company/provider";
 
 import { CatchUpHint } from "./catch-up-hint";
 import { formatBytes } from "./gallery-grouping";
@@ -598,6 +601,14 @@ export function Composer({
   catchUp?: { shown: boolean; onRecap: () => void; onNotNow: () => void };
 }) {
   const t = useT();
+  const { companyId, userId } = useActiveCompany();
+  const [recoveredSend, setRecoveredSend] = useState(() => {
+    if (noteOnly || loadDraftMode(conversationId) === "note") return null;
+    const attempt = loadSendAttempt(userId, conversationId);
+    const draft = loadDraft(conversationId);
+    return draft && draft !== attempt?.body ? null : attempt;
+  });
+  const preparingSend = useRef(false);
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
   const [mode, setMode] = useState(() =>
@@ -627,7 +638,7 @@ export function Composer({
     // on EVERY render and thrown away after the first, and this composer
     // re-renders on every keystroke. `undefined` is the not-yet-read state so
     // that a genuine "no failed send" (null) is only read from storage once.
-    lastFailedSendRef.current = loadFailedSend(conversationId);
+    lastFailedSendRef.current = recoveredSend ?? loadFailedSend(conversationId);
   }
   /**
    * #299: the signature of the send that failed, so the box can SAY so.
@@ -645,7 +656,7 @@ export function Composer({
    * "this didn't send" about it would be a lie in the other direction.
    */
   const [failedSignature, setFailedSignature] = useState<string | null>(
-    () => loadFailedSend(conversationId)?.signature ?? null,
+    () => recoveredSend?.signature ?? loadFailedSend(conversationId)?.signature ?? null,
   );
   const isNote = noteOnly || mode === "note";
   const [quoteDraftOpen, setQuoteDraftOpen] = useState(false);
@@ -654,7 +665,7 @@ export function Composer({
   // Restored from the last visit to THIS conversation. Both phone apps have
   // always kept a per-conversation draft; on web a half-typed reply died the
   // moment you opened another thread to check something.
-  const [text, setText] = useState(() => loadDraft(conversationId));
+  const [text, setText] = useState(() => recoveredSend?.body ?? loadDraft(conversationId));
   /*
    * #287 — the one thing the quote strip and the payment ask have to agree on.
    *
@@ -667,7 +678,20 @@ export function Composer({
   const [paymentPrefill, setPaymentPrefill] = useState<
     { amountCents: number; description: string } | null
   >(null);
-  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [attachments, setAttachments] = useState<DraftAttachment[]>(() => {
+    try {
+      return (recoveredSend?.media ?? []).map((item) => ({
+        id: crypto.randomUUID(),
+        file: new File([Uint8Array.from(atob(item.base64), (c) => c.charCodeAt(0))], item.name, {
+          type: item.content_type,
+        }),
+        contentType: item.content_type,
+        previewUrl: null,
+      }));
+    } catch {
+      return [];
+    }
+  });
   // #189 inline rejection copy from the LAST admission attempt (type/size/
   // count) — rendered above the pill, replaced or cleared on the next intake.
   const [mediaErrors, setMediaErrors] = useState<string[]>([]);
@@ -815,12 +839,24 @@ export function Composer({
     [],
   );
 
+  const clearEmptyRecoveredDraft = (body: string, attachmentCount: number) => {
+    if (recoveredSend && recoveredSend.key === lastFailedSendRef.current?.key &&
+        body.trim() === "" && attachmentCount === 0) {
+      clearSendAttempt(userId, conversationId, recoveredSend.key);
+      clearFailedSend(conversationId);
+      lastFailedSendRef.current = null;
+      setFailedSignature(null);
+      setRecoveredSend(null);
+    }
+  };
+
   const removeAttachment = (id: string) => {
     const found = attachmentsRef.current.find((attachment) => attachment.id === id);
     if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
     const next = attachmentsRef.current.filter((attachment) => attachment.id !== id);
     attachmentsRef.current = next;
     setAttachments(next);
+    clearEmptyRecoveredDraft(text, next.length);
   };
 
   const mediaAdmission = useMmsAdmission(attachmentsRef, setAttachments, setMediaErrors, t);
@@ -875,7 +911,6 @@ export function Composer({
    * yields exactly one outcome.
    */
   // #431: needed to report what a human did with Lou's draft.
-  const companyId = useCompanyId();
   const quoteRole = me.data?.memberships?.find(
     (membership) => membership.company_id === companyId,
   )?.role;
@@ -1084,7 +1119,7 @@ export function Composer({
   const scheduleAttempt = useRef<{ conversationId: string; body: string; sendAt: string; key: string } | null>(null);
 
   const doSend = useCallback(async () => {
-    if (!canSend) return;
+    if (!canSend || preparingSend.current) return;
     const draftText = text;
     const draftAttachments = attachments;
 
@@ -1154,50 +1189,61 @@ export function Composer({
       );
       return;
     }
-    // Clear immediately (fast by feel, G1); restore on failure.
-    setText("");
-    setAttachments([]);
-    setMediaErrors([]);
-    let media: OutboundMedia[] | undefined;
+    preparingSend.current = true;
+    let media: (OutboundMedia & { name: string })[];
     try {
-      if (draftAttachments.length > 0) {
-        media = await Promise.all(
-          draftAttachments.map(async (a) => ({
-            content_type: a.contentType,
-            base64: await fileToBase64(a.file),
-          })),
-        );
-      }
+      media = await Promise.all(draftAttachments.map(async (item) => ({
+        content_type: item.contentType,
+        base64: await fileToBase64(item.file),
+        name: item.file.name,
+      })));
     } catch {
-      restoreComposerDraft(conversationId, draftText, "sms");
-      setAttachments(draftAttachments);
       toast.error(t("thread.fileReadFailed"));
       return;
+    } finally {
+      preparingSend.current = false;
     }
-    // Reuse the Idempotency-Key when this is a RETRY of the same text and
-    // attachments. A failed send restores the draft, so the natural next action
-    // is to press send again — and with a fresh key each time, a send whose
-    // response was merely LOST (flaky signal, tab closed mid-request) reached
-    // the customer twice and billed twice. Same rule as the Android composer:
-    // same content -> same key, any edit -> new key.
     const signature = `${draftText} ${attachmentSignature(draftAttachments)}`;
-    const idempotencyKey = idempotencyKeyFor(
-      lastFailedSendRef.current ?? null,
-      signature,
-    );
-
-    // #475/#274: what the send is, and whether the crew changed it. Compared
-    // once, here, rather than watched on every keystroke — the question is
-    // "did this go out different from the template", and somebody who typed a
-    // word and deleted it did not edit anything.
+    const idempotencyKey = idempotencyKeyFor(lastFailedSendRef.current ?? null, signature);
     const used = templateUse.current;
-    const templateId = used === null ? undefined : used.id;
-    const templateEdited = used !== null && used.body.trim() !== draftText.trim();
+    const resumed = recoveredSend?.key === idempotencyKey ? recoveredSend : null;
+    const templateId = used?.id ?? resumed?.templateId;
+    const templateEdited = used
+      ? used.body.trim() !== draftText.trim()
+      : resumed?.templateEdited ?? false;
+    const saved = saveSendAttempt(userId, conversationId, {
+      body: draftText,
+      signature,
+      key: idempotencyKey,
+      media,
+      templateId,
+      templateEdited,
+    });
+    lastFailedSendRef.current = { signature, key: idempotencyKey };
+    const sameDraft = () => draftRef.current.mode === "sms" &&
+      draftRef.current.text === draftText && attachmentsRef.current === draftAttachments;
+    if (saved && sameDraft()) {
+      setText("");
+      setAttachments([]);
+      setMediaErrors([]);
+    }
 
     send.mutate(
-      { body: draftText, media, idempotencyKey, draftSignature: signature, templateId, templateEdited },
+      {
+        body: draftText,
+        media: media.map(({ content_type, base64 }) => ({ content_type, base64 })),
+        idempotencyKey,
+        draftSignature: signature,
+        templateId,
+        templateEdited,
+      },
       {
         onSuccess: () => {
+          if (!saved && sameDraft()) {
+            setText("");
+            setAttachments([]);
+            setMediaErrors([]);
+          }
           lastFailedSendRef.current = null;
           // The message is gone from the box and on its way, so the marker has
           // nothing left to protect. Left behind, it would be read by the next
@@ -1234,7 +1280,9 @@ export function Composer({
     noteStage,
     uploadNoteFiles,
     reportSuggestionOutcome,
+    recoveredSend,
     t,
+    userId,
     // #507: the wrap-up outcome is reported against this company.
     companyId,
     // #294: NOT optional. Choosing a phase is often the LAST thing somebody does
@@ -1784,6 +1832,7 @@ export function Composer({
           onChange={(event) => {
             const next = event.target.value;
             setText(next);
+            if (!isNote) clearEmptyRecoveredDraft(next, attachments.length);
             // #302: "Sam is replying…" is the single line that stops a second
             // person mid-sentence, and it costs the person typing nothing to
             // produce. Only for a real reply — a note goes to the crew, and

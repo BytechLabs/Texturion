@@ -19,33 +19,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * #234 — the durable outbox.
- *
- * Our users are in crawl spaces, mechanical rooms, elevators and parking
- * garages. That is not an edge case, it is the job. Before this, a send that
- * could not reach the server dropped its pending row, restored the draft and
- * showed a toast — so a tech who typed an update in a basement, hit send and
- * walked to the truck had nothing queued and, if they did not read the toast,
- * believed the customer had been told.
- *
- * WHAT DECIDES WHETHER SOMETHING IS QUEUED is whether we reached the server at
- * all, and that distinction is the whole design:
- *
- *   - We never reached it (no signal, DNS, timeout) → QUEUE. We have no answer
- *     yet, so the message waits for one.
- *   - We reached it and it REFUSED (opted out, cap, registration) → do NOT
- *     queue. That is an answer, and queueing it would mean re-asking a
- *     question that has already been decided while telling the user their
- *     message is on its way.
- *
- * #234 asks for "gates run at flush time, not at queue time", and this is that
- * rule stated precisely: a gate that has not run yet runs at flush; a gate
- * that has already refused is not re-run, it is reported.
- *
- * IDEMPOTENCY IS INHERITED, not invented. The key minted for the first attempt
- * is stored with the row and reused by every flush, so the existing
- * server-side claim machinery collapses a double-send into one message — which
- * is what makes a connectivity flap mid-flush safe.
+ * An outgoing message is saved before contacting the server. A refusal blocks
+ * the row. A lost response leaves it queued with the original idempotency key.
  */
 @Serializable
 data class QueuedSend(
@@ -87,6 +62,9 @@ data class QueuedSend(
     val staleAcknowledged: Boolean = false,
     /** Older rows belong to the signed-in account that owns the stored outbox. */
     val ownerUserId: String? = null,
+    /** Saved-reply attribution for delayed sends. */
+    val templateId: String? = null,
+    val templateEdited: Boolean = false,
 )
 
 /** One queued photo: a file in this app's storage, plus what it is. */

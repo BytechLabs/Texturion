@@ -378,14 +378,14 @@ fun ThreadComposer(
     /** #274: this conversation's number in E.164, for {our_number}. */
     ourNumberE164: String? = null,
     loadTemplates: suspend () -> List<Template>,
-    onSendText: (
+    onSendText: suspend (
         body: String,
         photos: List<StagedPhoto>,
         /** #475: the saved reply this was built from, if any. */
         templateId: String?,
         /** #274: whether the words changed after it was inserted. */
         templateEdited: Boolean,
-    ) -> Unit,
+    ) -> Boolean,
     /**
      * #520: does this thread have a job due TODAY? Decided by the screen, not
      * here — this composable stays presentational, and "today" is a question
@@ -745,7 +745,8 @@ fun ThreadComposer(
         onCameraError = { onNotice(photoReadFailed) },
     )
 
-    val canSend = if (isNote) {
+    var savingSend by remember { mutableStateOf(false) }
+    val canSend = !savingSend && if (isNote) {
         state.text.isNotBlank() || state.files.isNotEmpty()
     } else {
         state.text.isNotBlank() || state.photos.isNotEmpty()
@@ -853,19 +854,22 @@ fun ThreadComposer(
             state.clearForSend()
             onSaveNote(body, files, mentionIds, phase)
         } else {
+            if (savingSend) return
+            val text = state.text
             val photos = state.photos
-            state.clearForSend()
-            // #475/#274: what it came from, and whether the crew changed it.
             val used = templateUse
-            onSendText(
-                body,
-                photos,
-                used?.templateId,
-                used != null && used.body.trim() != body.trim(),
-            )
-            // The box is empty again, so whatever was inserted is spent. A
-            // template left attached would tag the NEXT message too.
-            templateUse = null
+            savingSend = true
+            scope.launch {
+                try {
+                    val saved = onSendText(body, photos, used?.templateId, used != null && used.body.trim() != body)
+                    if (saved && state.text == text && state.photos == photos && state.mode == ComposerMode.Text) {
+                        state.clearForSend()
+                        templateUse = null
+                    }
+                } finally {
+                    savingSend = false
+                }
+            }
         }
     }
 

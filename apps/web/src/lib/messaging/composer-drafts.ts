@@ -1,3 +1,6 @@
+import { isMmsMediaType, MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS } from "@loonext/shared";
+import type { MmsMediaType } from "@loonext/shared";
+
 /**
  * Client-side composer drafts, one per conversation (SPEC: the server keeps NO
  * drafts, so cross-open persistence is purely ours). Keyed per conversation
@@ -9,6 +12,7 @@
  */
 
 const PREFIX = "loonext:composer-draft:";
+const SEND_ATTEMPT_PREFIX = "loonext:composer-send-attempt:";
 const DRAFT_RESTORED = "loonext:composer-draft-restored";
 const SEND_AGAIN = "loonext:composer-send-again";
 const STARTED_AT_PREFIX = "loonext:composer-draft-started-at:";
@@ -256,6 +260,67 @@ export function clearFailedSend(conversationId: string): void {
     storage()?.removeItem(FAILED_SEND_PREFIX + conversationId);
   } catch {
     // As above.
+  }
+}
+
+interface StoredSendMedia {
+  name: string;
+  content_type: MmsMediaType;
+  base64: string;
+}
+
+interface StoredSendAttempt extends StoredFailedSend {
+  body: string;
+  media: StoredSendMedia[];
+  templateId?: string;
+  templateEdited?: boolean;
+}
+
+function sendAttemptKey(userId: string, conversationId: string): string {
+  return `${SEND_ATTEMPT_PREFIX}${userId}:${conversationId}`;
+}
+
+export function loadSendAttempt(userId: string, conversationId: string): StoredSendAttempt | null {
+  try {
+    const raw = storage()?.getItem(sendAttemptKey(userId, conversationId));
+    if (!raw) return null;
+    const row = JSON.parse(raw) as StoredSendAttempt;
+    if (typeof row.body !== "string" || typeof row.key !== "string" || !row.key ||
+        typeof row.signature !== "string" || !Array.isArray(row.media) ||
+        row.media.length > MMS_MAX_MEDIA_ITEMS ||
+        !row.media.every((file) =>
+          file && typeof file.name === "string" && typeof file.content_type === "string" &&
+          isMmsMediaType(file.content_type) && typeof file.base64 === "string" &&
+          file.base64.length <= Math.ceil(MMS_MAX_MEDIA_BYTES / 3) * 4
+        )) return null;
+    return row;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSendAttempt(
+  userId: string,
+  conversationId: string,
+  attempt: StoredSendAttempt,
+): boolean {
+  try {
+    const store = storage();
+    if (!store) return false;
+    store.setItem(sendAttemptKey(userId, conversationId), JSON.stringify(attempt));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearSendAttempt(userId: string, conversationId: string, key: string): void {
+  try {
+    if (loadSendAttempt(userId, conversationId)?.key === key) {
+      storage()?.removeItem(sendAttemptKey(userId, conversationId));
+    }
+  } catch {
+    // Storage may become unavailable after dispatch.
   }
 }
 

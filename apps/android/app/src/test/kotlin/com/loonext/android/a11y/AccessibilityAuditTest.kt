@@ -185,7 +185,7 @@ class AccessibilityAuditTest(private val fontScale: Float) {
             contactName = "Dana Whitcomb",
             businessName = "Loonext Fencing",
             loadTemplates = { emptyList() },
-            onSendText = { _, _, _, _ -> },
+            onSendText = { _, _, _, _ -> true },
             onSaveNote = { _, _, _, _ -> },
             onNotice = {},
         )

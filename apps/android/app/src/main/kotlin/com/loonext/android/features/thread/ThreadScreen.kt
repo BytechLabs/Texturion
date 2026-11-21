@@ -1402,25 +1402,14 @@ private fun ThreadLoaded(
             },
             hasJobToday = hasJobToday,
             onSendOnMyWay = { minutes ->
-                // The ORDINARY send path: the opt-out gate, quiet hours and
-                // number access all apply. Being fast is not a reason for an
-                // exemption, and the server's refusal is what gets shown.
-                controller.sendText(
-                    OnMyWay.text(
-                        minutes,
-                        // The CUSTOMER's language, not the crew's: this is the
-                        // one body composed on the client rather than by the
-                        // server, so the resolution happens here.
-                        OnMyWay.bodyFor(detail.contact.locale, controller.company?.locale),
-                    ),
-                    emptyList(),
-                    null,
-                    false,
-                ) {
-                    // The restore hook every other send uses. There is no draft
-                    // to put back here — the words were never in the box — so
-                    // it deliberately does nothing, which is stated rather
-                    // than left as an empty lambda somebody wonders about.
+                scope.launch {
+                    controller.sendText(
+                        OnMyWay.text(
+                            minutes,
+                            OnMyWay.bodyFor(detail.contact.locale, controller.company?.locale),
+                        ),
+                        emptyList(),
+                    )
                 }
             },
             onTyping = {
@@ -1495,9 +1484,7 @@ private fun ThreadLoaded(
                 )
             },
             onSendText = { body, photos, templateId, templateEdited ->
-                controller.sendText(body, photos, templateId, templateEdited) {
-                    composer.restore(body, photos, emptyList())
-                }
+                controller.sendText(body, photos, templateId, templateEdited)
             },
             onSaveNote = { body, files, mentionUserIds, workPhase ->
                 val picked = composer.picked

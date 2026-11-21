@@ -107,6 +107,18 @@ final class MessagingOutboxTests: XCTestCase {
         XCTAssertTrue(outbox.all().isEmpty)
     }
 
+    func testExistingQueueSurvivesTheFirstFileWrite() throws {
+        let previous = queued("old", "2026-07-28T10:00:00Z")
+        defaults.set(try JSONEncoder().encode([previous]), forKey: "outbox:queued")
+        let outbox = makeOutbox()
+        XCTAssertEqual(outbox.all(), [previous])
+
+        let next = queued("new", "2026-07-28T10:01:00Z")
+        XCTAssertTrue(outbox.put(next))
+        XCTAssertNil(defaults.data(forKey: "outbox:queued"))
+        XCTAssertEqual(makeOutbox().all(), [previous, next])
+    }
+
     func testARefusalStopsTheRowRatherThanRetryingItForever() async {
         // A STOP arriving while the message sat queued. The server answering
         // "no" is an ANSWER — retrying would either spam the gate or, worse,

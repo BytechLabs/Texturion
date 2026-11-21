@@ -11,13 +11,6 @@ struct ThreadNotice: Identifiable, Sendable {
     var trashLabel: String?
 }
 
-/// A failed send-intent: the SAME Idempotency-Key rides the user's retry.
-private struct FailedSendIntent {
-    let body: String
-    let photoIds: [String]
-    let key: String
-}
-
 /// State + mutations for one conversation thread, mirroring the Android
 /// ThreadController 1:1. Realtime payloads are treated as ID-only routing
 /// hints — every update refetches through the authed API.
@@ -142,7 +135,6 @@ final class ThreadController {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var noticeSeq: Int64 = 0
     @ObservationIgnored private var convRefreshTask: Task<Void, Never>?
-    @ObservationIgnored private var lastFailedIntent: FailedSendIntent?
 
     init(
         repo: MessagingRepository,
@@ -860,102 +852,30 @@ final class ThreadController {
 
     // MARK: - Sending
 
-    /// Optimistic send: a local queued row appears immediately; the server's
-    /// queued insert replaces it. A failed attempt restores the draft and holds
-    /// onto its Idempotency-Key — retrying the SAME body+photos reuses the key,
-    /// so an airplane-mode double-send lands exactly one message.
+    @discardableResult
     func sendText(
         body: String,
         photos: [StagedPhoto],
-        /// #475: the saved reply this was built from, if any.
         templateId: String? = nil,
-        /// #274: whether the words changed after it was inserted.
-        templateEdited: Bool = false,
-        onRestore: @escaping @MainActor () -> Void
-    ) {
-        let photoIds = photos.map(\.id)
-        let key: String
-        if let failed = lastFailedIntent, failed.body == body, failed.photoIds == photoIds {
-            key = failed.key
-        } else {
-            key = UUID().uuidString
-        }
-        let pendingRow = PendingSend(
-            localId: key,
+        templateEdited: Bool = false
+    ) -> Bool {
+        let row = QueuedSend(
+            localId: UUID().uuidString,
+            companyId: companyId,
+            conversationId: conversationId,
             body: body,
-            mediaCount: photos.count,
             createdAt: ISO8601DateFormatter().string(from: Date()),
-            idempotencyKey: key
+            ownerUserId: meUserId,
+            templateId: templateId,
+            templateEdited: templateEdited
         )
-        pendingSends.append(pendingRow)
-        Task {
-            do {
-                let message = try await repo.send(
-                    companyId: companyId,
-                    conversationId: conversationId,
-                    body: body,
-                    media: photos.isEmpty ? nil : photos.map { $0.toOutboundMedia() },
-                    idempotencyKey: key,
-                    templateId: templateId,
-                    templateEdited: templateEdited
-                )
-                lastFailedIntent = nil
-                pendingSends.removeAll { $0.localId == pendingRow.localId }
-                messages = mergeMessagesFirstPage(messages, [message])
-                markRead()
-            } catch {
-                let code = (error as? ApiError)?.code
-                // #234: did we REACH the server? That is the whole decision.
-                //
-                // `network` means we never got an answer, so the message waits
-                // for one — it stays in the thread as "Queued" and is written
-                // to the durable outbox, which is what makes it survive the
-                // app being killed on the walk back to the truck.
-                //
-                // Photos ride along, as OUR files. The picker's grant would be
-                // dead after a relaunch, so the bytes the composer already read
-                // are copied into our container first and the row is written
-                // only if that copy succeeded — a row promising a photo we
-                // cannot produce is worse than an honest failure here.
-                if code == ApiErrorCode.network {
-                    let stored = outbox.saveMedia(
-                        key,
-                        photos.map { OutboxMediaBytes(contentType: $0.contentType, bytes: $0.bytes) }
-                    )
-                    if stored.count == photos.count {
-                        outbox.put(
-                            QueuedSend(
-                                localId: key,
-                                companyId: companyId,
-                                conversationId: conversationId,
-                                body: body,
-                                createdAt: pendingRow.createdAt,
-                                media: stored,
-                                ownerUserId: meUserId
-                            )
-                        )
-                        if let index = pendingSends.firstIndex(where: { $0.localId == key }) {
-                            pendingSends[index].queued = true
-                        }
-                        lastFailedIntent = nil
-                        return
-                    }
-                    // Storage refused us. Fall through to the honest failure
-                    // below rather than showing "Queued" over nothing.
-                    outbox.remove(key)
-                }
-                pendingSends.removeAll { $0.localId == pendingRow.localId }
-                lastFailedIntent = FailedSendIntent(body: body, photoIds: photoIds, key: key)
-                onRestore()
-                notify(error.userMessage)
-                if code == ApiErrorCode.recipientOptedOut ||
-                    code == ApiErrorCode.subscriptionInactive ||
-                    code == ApiErrorCode.registrationPending ||
-                    code == ApiErrorCode.usageCapReached {
-                    refreshGates()
-                }
-            }
+        let media = photos.map { OutboxMediaBytes(contentType: $0.contentType, bytes: $0.bytes) }
+        guard outbox.enqueue(row, media: media) else {
+            notify(AppStrings.translate(UiLocaleStore.shared.resolved, "thread.outboxCannotSave"))
+            return false
         }
+        requestOutboxFlush()
+        return true
     }
 
     // MARK: - #234 outbox

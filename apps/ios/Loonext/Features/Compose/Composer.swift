@@ -174,7 +174,7 @@ struct ThreadComposerView: View {
     let loadTemplates: @MainActor () async throws -> [Template]
     /// #475: the body, the photos, the saved reply it came from (if any),
     /// and whether the words changed after it was inserted (#274).
-    let onSendText: @MainActor (String, [StagedPhoto], String?, Bool) -> Void
+    let onSendText: @MainActor (String, [StagedPhoto], String?, Bool) -> Bool
     let onSaveNote: @MainActor (String, [StagedFile], [String], String?) -> Void
     /// #520: does this thread have a job due TODAY? Decided by the screen, not
     /// here — this view stays presentational, and "today" is a question about
@@ -1317,20 +1317,12 @@ struct ThreadComposerView: View {
             state.clearForSend()
             onSaveNote(body, files, mentionIds, phase)
         } else {
-            let photos = state.photos
-            state.clearForSend()
-            // #475/#274: what it came from, and whether it was changed.
             let used = templateUse
-            onSendText(
-                body,
-                photos,
-                used?.id,
-                used != nil && used!.body.trimmingCharacters(in: .whitespacesAndNewlines)
-                    != body.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            // The box is empty again, so whatever was inserted is spent. A
-            // template left attached would tag the NEXT message too.
-            templateUse = nil
+            let edited = used.map { $0.body.trimmingCharacters(in: .whitespacesAndNewlines) != body } ?? false
+            if onSendText(body, state.photos, used?.id, edited) {
+                state.clearForSend()
+                templateUse = nil
+            }
         }
     }
 
@@ -1801,7 +1793,7 @@ func composerFixture() -> some View {
             contactName: "Dana Whitcomb",
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
-            onSendText: { _, _, _, _ in },
+            onSendText: { _, _, _, _ in true },
             onSaveNote: { _, _, _, _ in },
             onNotice: { _ in }
         )
@@ -1818,7 +1810,7 @@ func composerFixture() -> some View {
             contactName: "Dana Whitcomb",
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
-            onSendText: { _, _, _, _ in },
+            onSendText: { _, _, _, _ in true },
             onSaveNote: { _, _, _, _ in },
             onNotice: { _ in }
         )

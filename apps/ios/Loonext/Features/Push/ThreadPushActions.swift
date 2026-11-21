@@ -92,14 +92,15 @@ func performThreadPushAction(
               !body.isEmpty else { return false }
         let key = "push-reply-\(messageId)-\(scope.userId)"
         if !graph.outbox.store.all().contains(where: { $0.localId == key }) {
-            graph.outbox.store.put(QueuedSend(
+            let row = QueuedSend(
                 localId: key,
                 companyId: scope.companyId,
                 conversationId: scope.conversationId,
                 body: body,
                 createdAt: ISO8601DateFormatter().string(from: Date()),
                 ownerUserId: scope.userId
-            ))
+            )
+            guard graph.outbox.store.put(row) else { return false }
         }
         await graph.outbox.flushForNotificationResponse()
         return true

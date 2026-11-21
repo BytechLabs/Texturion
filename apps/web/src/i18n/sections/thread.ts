@@ -267,7 +267,7 @@ export const threadEn = {
   fileFallbackName: "File",
   removeAria: "Remove {name}",
   unsentNotice:
-    "This didn’t send. Press send to try again. It won’t send twice.",
+    "We couldn’t confirm this send. Press send to try again. It won’t send twice.",
   sendsAs: "Sends as:",
   attachFilesAria: "Attach files",
   attachTooltip: "Attach up to {count} files, 1 MB each",
@@ -1080,8 +1080,8 @@ export const threadFr: Translated<typeof threadEn> = {
   fileFallbackName: "Fichier",
   removeAria: "Retirer {name}",
   unsentNotice:
-    "Ce message n’est pas parti. Appuyez sur envoyer pour réessayer. Il ne " +
-    "partira pas deux fois.",
+    "L’envoi n’a pas été confirmé. Appuyez sur Envoyer pour réessayer. " +
+    "Le message ne partira pas deux fois.",
   sendsAs: "Sera envoyé ainsi :",
   attachFilesAria: "Joindre des fichiers",
   attachTooltip: "Joignez jusqu'à {count} fichiers, 1 Mo chacun",
