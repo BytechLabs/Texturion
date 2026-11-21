@@ -238,7 +238,7 @@ final class DeviceChecklists: XCTestCase {
     private func enterPhotosSelection(in photos: XCUIApplication) throws {
         let intro = photos.buttons["Continue"].firstMatch
         let decline = springboard.buttons.matching(NSPredicate(
-            format: "label IN %@", ["Don’t Allow", "Don't Allow"]
+            format: "label == %@ OR label == %@", "Don’t Allow", "Don't Allow"
         )).firstMatch
         let select = photos.buttons["Select"].firstMatch
         let cancel = photos.buttons["Cancel"].firstMatch
