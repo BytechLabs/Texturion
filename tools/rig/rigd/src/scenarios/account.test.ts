@@ -8,8 +8,8 @@ import { STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import { releaseHeldNumber, releaseTenantNumbers } from "../wiring.ts";
 import {
   GRACE_CRON,
-  GRACE_NOTICES,
   graduatedAmount,
+  RELEASE_NOTICE_DAY,
   S22,
   S27,
   S28,
@@ -29,7 +29,7 @@ import {
 } from "./account.ts";
 import type { ApiAnswer, AppApi, MailMessage, NumberRow, ScenarioResult } from "./context.ts";
 import { fakeContext } from './fakes.ts';
-import type { FakeStripe } from './fakes.ts';
+import type { FakeApp, FakeGuard, FakeStripe } from './fakes.ts';
 
 const REPO = resolve(import.meta.dirname, "../../../../..");
 const source = (path: string) => readFileSync(resolve(REPO, path), "utf8");
@@ -285,73 +285,70 @@ const PURCHASE_LOG = {
 
 function s28World(options: { row?: Partial<NumberRow>; log?: Record<string, number> } = {}) {
   const world = fakeContext("S28");
-  const { app, guard, undo, handoff } = world;
+  const { app, guard, undo } = world;
   guard.healthBody = { ...guard.healthBody, ordering: { enabled: true, blockers: [] } };
   app.numbers.set("QA-G", []);
-  const undoAtWrite: number[] = [];
-  const write = handoff.write.bind(handoff);
-  handoff.write = async (record) => {
-    undoAtWrite.push(undo.length);
-    await write(record);
-  };
+  const undoAtPurchase: number[] = [];
   app.provisionNumber = async () => {
+    undoAtPurchase.push(undo.length);
     app.numbers.set("QA-G", [boughtRow(options.row)]);
     guard.held.add(TELNYX_ID);
+    guard.numberCustomers.set(TELNYX_ID, app.numberCustomerReference("QA-G"));
     guard.log = { ...(options.log ?? PURCHASE_LOG) };
     return app.provisioned;
   };
-  return { ...world, undoAtWrite };
+  mockGrace(app, guard);
+  return { ...world, undoAtPurchase };
 }
 
-describe("S28, number buy, bind and ring", () => {
-  it("passes, registers the release before it buys, and hands the number to S29 unreleased", async () => {
-    const { ctx, undo, handoff, robot, browser, guard, undoAtWrite } = s28World();
+describe("S28, number buy, bind, ring and release", () => {
+  it("registers cleanup before purchase and passes only after the app releases the number", async () => {
+    const world = s28World();
+    const { ctx, undo, handoff, robot, browser, guard, app, undoAtPurchase } = world;
     await expect(S28.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
-    expect(undo).toEqual([{ kind: "number.release-tenant", params: { tenant: "QA-G", unless_handed_off: true } }]);
-    expect(undoAtWrite).toEqual([1, 1]);
-    expect(handoff.record).toMatchObject({ tenant: "QA-G", run_id: "S28-test", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" });
+    expect(undo[0]).toEqual({ kind: "number.release-tenant", params: { tenant: "QA-G", include_orphans: true } });
+    expect(undoAtPurchase).toEqual([1]);
+    expect(handoff.record).toBeNull();
     expect(robot.plans).toHaveLength(1);
     expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: `number-id:${TELNYX_ID}`, lease_id: "lease-test" });
     expect(browser.opened).toEqual([{ member: "qa-g-owner", surface: "qa-c", path: "/" }]);
+    expect(ctx.evidence.release).toEqual({ outcome: "pass" });
+    await releaseTenantNumbers(undo[0]!.params, world);
+    expect(guard.held.has(TELNYX_ID)).toBe(false);
+    expect(app.numbers.get("QA-G")![0]!.status).toBe("released");
     expect(guard.released).toEqual([]);
     expectNoPhoneNumber(ctx.evidence);
   });
 
-  it("keeps a passing run's number through the undo, and releases a failed run's", async () => {
-    const passed = s28World();
-    await S28.run(passed.ctx);
-    await releaseTenantNumbers(passed.undo[0]!.params, passed);
-    expect(passed.guard.held.has(TELNYX_ID)).toBe(true);
-    expect(passed.handoff.record?.state).toBe("handed_off");
-
+  it("releases the number if ringing or the app's release fails", async () => {
     const silent = s28World();
     silent.browser.script.ringsAfterMs = undefined;
     await expect(S28.run(silent.ctx)).resolves.toMatchObject({ failure_class: "number_did_not_ring" });
-    expect(silent.handoff.record?.state).toBe("bought");
     await releaseTenantNumbers(silent.undo[0]!.params, silent);
     expect(silent.guard.released).toEqual([TELNYX_ID]);
     expect(silent.app.numbers.get("QA-G")![0]!.status).toBe("released");
     expect(silent.handoff.record).toBeNull();
+
+    const kept = s28World();
+    kept.app.fireCron = async () => {
+      kept.app.grace.set("QA-G", { notices: [RELEASE_NOTICE_DAY], live_campaigns: 0 });
+    };
+    await expect(S28.run(kept.ctx)).resolves.toMatchObject({ failure_class: "number_not_released" });
+    await releaseTenantNumbers(kept.undo[0]!.params, kept);
+    expect(kept.guard.released).toEqual([TELNYX_ID]);
   });
 
-  it("takes back a hand-off no S29 took within two days, and leaves a fresh one to S29", async () => {
+  it("cleans up an earlier orphan before ordering anything new", async () => {
     const stale = s28World();
-    stale.app.numbers.set("QA-G", [boughtRow()]);
     stale.guard.held.add(TELNYX_ID);
-    const handedOff = { tenant: "QA-G", run_id: "S28-old", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" as const };
-    stale.handoff.record = { ...handedOff, bought_at: new Date(stale.ctx.now() - 3 * 86_400_000).toISOString() };
-    await expect(S28.run(stale.ctx)).resolves.toMatchObject({ outcome: "infra", component: "handoff" });
-    expect(stale.handoff.record).toMatchObject({ state: "bought", run_id: "S28-test" });
+    stale.guard.numberCustomers.set(TELNYX_ID, stale.app.numberCustomerReference("QA-G"));
+    stale.guard.held.add("another-customer-number");
+    await expect(S28.run(stale.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
     await releaseTenantNumbers(stale.undo[0]!.params, stale);
     expect(stale.guard.released).toEqual([TELNYX_ID]);
+    expect(stale.guard.held).toEqual(new Set(["another-customer-number"]));
+    expect(stale.undoAtPurchase).toEqual([]);
     expect(stale.robot.plans).toEqual([]);
-
-    const fresh = s28World();
-    fresh.app.numbers.set("QA-G", [boughtRow()]);
-    fresh.handoff.record = { ...handedOff, bought_at: new Date(fresh.ctx.now() - 86_400_000).toISOString() };
-    await expect(S28.run(fresh.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
-    await releaseTenantNumbers(fresh.undo[0]!.params, fresh);
-    expect(fresh.guard.released).toEqual([]);
   });
 
   it("buys nothing into a workspace that is not ready, or while the guard has ordering off", async () => {
@@ -374,14 +371,7 @@ describe("S28, number buy, bind and ring", () => {
     for (const world of [canceled, holding, off, unknown]) expect(world.robot.plans).toEqual([]);
   });
 
-  it("tells a retry the guard's interval refused from a purchase the app refused", async () => {
-    const retry = s28World();
-    retry.app.provisionNumber = async () => {
-      retry.guard.log = { "rig-api GET /v2/available_phone_numbers 200": 1, "rig-api POST /v2/number_orders provisioning.order_interval": 1 };
-      return { status: 502, code: "provisioning_failed" };
-    };
-    await expect(S28.run(retry.ctx)).resolves.toMatchObject({ outcome: "infra", component: "provisioning.order_interval" });
-
+  it("distinguishes a guard refusal from an app refusal", async () => {
     const guarded = s28World();
     guarded.app.provisionNumber = async () => {
       guarded.guard.log = { "rig-api GET /v2/available_phone_numbers 200": 1, "rig-api POST /v2/number_orders budget.tier_red": 1 };
@@ -400,10 +390,12 @@ describe("S28, number buy, bind and ring", () => {
     await expect(S28.run(probe.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
   });
 
-  it("names a number never provisioned or never bound, and fails the undo for a row that never named its number", async () => {
+  it("cleans up by the exact customer reference when the app never recorded the number ID", async () => {
     const unnamed = s28World({ row: { status: "provisioning", telnyx_phone_number_id: null, voice_connection_id: null } });
     await expect(S28.run(unnamed.ctx)).resolves.toMatchObject({ failure_class: "number_not_provisioned" });
-    await expect(releaseTenantNumbers(unnamed.undo[0]!.params, unnamed)).rejects.toThrow(/name no Telnyx number/);
+    await releaseTenantNumbers(unnamed.undo[0]!.params, unnamed);
+    expect(unnamed.guard.released).toEqual([TELNYX_ID]);
+    expect(unnamed.app.numbers.get("QA-G")![0]!.status).toBe("released");
 
     // The row names its number only after the run gave up on it: the undo still releases it.
     const late = s28World({ row: { status: "provisioning", telnyx_phone_number_id: null, voice_connection_id: null } });
@@ -415,7 +407,8 @@ describe("S28, number buy, bind and ring", () => {
     const unbound = s28World({ row: { voice_connection_id: null } });
     await expect(S28.run(unbound.ctx)).resolves.toMatchObject({ failure_class: "number_not_bound" });
     expect(unbound.undo).toHaveLength(1);
-    expect(unbound.handoff.record?.state).toBe("bought");
+    await releaseTenantNumbers(unbound.undo[0]!.params, unbound);
+    expect(unbound.guard.released).toEqual([TELNYX_ID]);
   });
 
   it("follows the row the purchase answered with, as routes/numbers.ts returns it, past any other row", async () => {
@@ -430,8 +423,8 @@ describe("S28, number buy, bind and ring", () => {
       world.app.numbers.set("QA-G", [boughtRow({ id: "number-row-0", status: "provisioning", telnyx_phone_number_id: null }), boughtRow()]);
       return answer;
     };
-    await expect(S28.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
-    expect(world.handoff.record).toMatchObject({ phone_number_id: "number-row-1" });
+    await expect(S28.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    expect(world.ctx.evidence.number).toMatchObject({ phone_number_id: "number-row-1" });
   });
 
   it("judges the guard's log: one search, one order, no release, only binding's PATCHes", async () => {
@@ -508,7 +501,8 @@ describe("S28, number buy, bind and ring", () => {
     const world = s28World();
     world.robot.dial = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["guard_refused:dial.window"] });
     await expect(S28.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
-    expect(world.handoff.record?.state).toBe("bought");
+    await releaseTenantNumbers(world.undo[0]!.params, world);
+    expect(world.guard.released).toEqual([TELNYX_ID]);
   });
 });
 
@@ -544,10 +538,10 @@ function stripeBilling(stripe: FakeStripe, invoiced = 2930) {
 function s29World(options: { handoff?: "handed_off" | "taken" | "bought" | null } = {}) {
   const world = fakeContext("S29");
   const { app, guard, handoff, stripe } = world;
-  app.numbers.set("QA-G", [boughtRow()]);
-  guard.held.add(TELNYX_ID);
   const state = options.handoff === undefined ? "handed_off" : options.handoff;
   if (state) {
+    app.numbers.set("QA-G", [boughtRow()]);
+    guard.held.add(TELNYX_ID);
     handoff.record = {
       tenant: "QA-G",
       run_id: "S28-run",
@@ -557,19 +551,22 @@ function s29World(options: { handoff?: "handed_off" | "taken" | "bought" | null 
       state,
     };
   }
-  // What runGraceJob does for a workspace canceled 31 days ago: every notice, then the release.
+  mockGrace(app, guard);
+  stripeBilling(stripe);
+  return world;
+}
+
+function mockGrace(app: FakeApp, guard: FakeGuard) {
   app.fireCron = async (cron: string) => {
     app.firedCrons.push({ cron });
     if (cron !== GRACE_CRON || app.workspaces.get("QA-G")?.subscription_status !== "canceled") return;
-    app.grace.set("QA-G", { notices: [...GRACE_NOTICES], live_campaigns: 0 });
+    app.grace.set("QA-G", { notices: [RELEASE_NOTICE_DAY], live_campaigns: 0 });
     for (const row of app.numbers.get("QA-G") ?? []) {
       if (row.status === "released") continue;
       guard.held.delete(row.telnyx_phone_number_id!);
       row.status = "released";
     }
   };
-  stripeBilling(stripe);
-  return world;
 }
 
 const deletes = (stripe: FakeStripe) => stripe.requests.filter((r) => r.method === "DELETE").map((r) => r.path);
@@ -585,7 +582,7 @@ describe("S29, cancel, grace, release and billing", () => {
     ]);
     expect(handoff.record?.state).toBe("taken");
     expect(app.firedCrons).toEqual([{ cron: "0 14 * * *" }]);
-    expect(ctx.evidence.grace).toMatchObject({ notices: [1, 15, 27, 30], live_campaigns: 0, number_status: "released" });
+    expect(ctx.evidence.grace).toMatchObject({ notices: [30], live_campaigns: 0, number_status: "released" });
     expect(ctx.evidence.billing).toMatchObject({ expected_cents: 2930, invoiced_cents: 2930, invoice_id: "in_cycle" });
     expect(deletes(stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
     expectNoPhoneNumber(ctx.evidence);
@@ -627,7 +624,7 @@ describe("S29, cancel, grace, release and billing", () => {
     const otherRun = s29World({ handoff: null });
     otherRun.ctx.attempt = 2;
     otherRun.history.rows = [{ ...retry.history.rows[0]!, run_id: "S29-earlier" }];
-    await expect(S29.run(otherRun.ctx)).resolves.toMatchObject({ outcome: "infra", component: "s28-handoff" });
+    await expect(S29.run(otherRun.ctx)).resolves.toMatchObject({ outcome: "pass" });
 
     const passedFirst = s29World();
     await S29.run(passedFirst.ctx);
@@ -657,15 +654,15 @@ describe("S29, cancel, grace, release and billing", () => {
     expect(world.app.numbers.get("QA-G")![0]!.status).toBe("released");
   });
 
-  it("still runs grace with no number handed off, and says the release half was not covered", async () => {
-    for (const state of [null, "bought"] as const) {
-      const world = s29World({ handoff: state });
-      const result = await S29.run(world.ctx);
-      expect(result).toMatchObject({ outcome: "infra", component: "s28-handoff" });
-      expect((result as Extract<ScenarioResult, { outcome: "infra" }>).detail).toMatch(/release half was not covered/);
-      expect(world.app.firedCrons).toEqual([{ cron: GRACE_CRON }]);
-      expect(world.undo.map((u) => u.kind)).toEqual(["app.restore-workspace", STRIPE_DELETE_UNDO]);
-    }
+  it("checks grace independently and leaves a number outside its run alone", async () => {
+    const empty = s29World({ handoff: null });
+    await expect(S29.run(empty.ctx)).resolves.toMatchObject({ outcome: "pass" });
+    expect(empty.app.firedCrons).toEqual([{ cron: GRACE_CRON }]);
+    expect(empty.undo.map((u) => u.kind)).toEqual(["app.restore-workspace", STRIPE_DELETE_UNDO]);
+
+    const holding = s29World({ handoff: "bought" });
+    await expect(S29.run(holding.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    expect(holding.guard.held.has(TELNYX_ID)).toBe(true);
   });
 
   it("takes over a number an earlier attempt took and could not release", async () => {
@@ -677,7 +674,7 @@ describe("S29, cancel, grace, release and billing", () => {
   it("says so when QA-G does not hold the handed-off number", async () => {
     const world = s29World();
     world.app.numbers.set("QA-G", []);
-    await expect(S29.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "s28-handoff" });
+    await expect(S29.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
   });
 
   it("changes nothing in a workspace an earlier undo left canceled, but still releases the number", async () => {
@@ -704,7 +701,7 @@ describe("S29, cancel, grace, release and billing", () => {
     const fireCampaign = campaign.app.fireCron;
     campaign.app.fireCron = async (cron: string) => {
       await fireCampaign(cron);
-      campaign.app.grace.set("QA-G", { notices: [...GRACE_NOTICES], live_campaigns: 1 });
+      campaign.app.grace.set("QA-G", { notices: [RELEASE_NOTICE_DAY], live_campaigns: 1 });
     };
     await expect(S29.run(campaign.ctx)).resolves.toMatchObject({ failure_class: "campaign_still_live" });
 
@@ -1330,8 +1327,7 @@ describe("what the runners take from the app, the seed and the sandbox", () => {
 
   it("expects grace's own notices, from the cron the API runs grace on", () => {
     const grace = source("apps/api/src/billing/grace.ts");
-    expect(grace).toContain(`GRACE_THRESHOLD_DAYS: readonly GraceThresholdDay[] = [${GRACE_NOTICES.slice(0, 3).join(", ")}];`);
-    expect(grace).toContain(`export const GRACE_RELEASED_NOTICE_DAY = ${GRACE_NOTICES[3]};`);
+    expect(grace).toContain(`export const GRACE_RELEASED_NOTICE_DAY = ${RELEASE_NOTICE_DAY};`);
     expect(source("apps/api/src/index.ts")).toContain(`"${GRACE_CRON}": [job("job:grace-and-release", runGraceJob)]`);
   });
 

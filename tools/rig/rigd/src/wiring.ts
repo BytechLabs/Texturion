@@ -281,7 +281,7 @@ export function buildRig(config: RigdConfig): Rig {
 export interface UndoParts {
   robot: Pick<RobotClient, "sms">;
   app: () => AppProbe;
-  guard: () => Pick<GuardClient, "releaseNumber">;
+  guard: () => Pick<GuardClient, "releaseNumber" | "numberStatus" | "numberIdsForCustomer">;
   handoff: Pick<HandoffFile, "read" | "clear">;
   devices: () => DevicesApi;
   rig: () => Pick<RigApi, "disarmCallEventFault">;
@@ -388,14 +388,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * The undo for a number a run holds. S28 registers it with
- * `unless_handed_off`, so a passing S28's number, handed to S29, is left;
- * S29 registers it plainly, for a number grace did not release.
+ * The undo for a number a run holds. Old journals may leave a legacy hand-off
+ * for S29 to reclaim.
  */
 export async function releaseHeldNumber(
   params: Record<string, unknown>,
   lanes: {
-    guard: Pick<GuardClient, "releaseNumber">;
+    guard: Pick<GuardClient, "releaseNumber" | "numberStatus">;
     app: Pick<AppProbe, "markNumberReleased">;
     handoff: Pick<HandoffFile, "read" | "clear">;
   },
@@ -406,24 +405,28 @@ export async function releaseHeldNumber(
   const record = await lanes.handoff.read();
   const named = record?.telnyx_phone_number_id === telnyxId;
   if (params.unless_handed_off === true && named && record.state === "handed_off") return;
-  const released = await lanes.guard.releaseNumber(telnyxId);
-  if (released.status !== 404 && (released.status < 200 || released.status >= 300)) {
-    throw new Error(`the guard answered the release ${released.status}${released.rule ? ` (${released.rule})` : ""}`);
-  }
+  await releaseTelnyxNumber(lanes.guard, telnyxId);
   await lanes.app.markNumberReleased({ phoneNumberId: rowId });
   if (named) await lanes.handoff.clear();
 }
 
+async function releaseTelnyxNumber(guard: Pick<GuardClient, "releaseNumber" | "numberStatus">, telnyxId: string): Promise<void> {
+  if ((await guard.numberStatus(telnyxId)).status === 404) return;
+  const released = await guard.releaseNumber(telnyxId);
+  if (released.status !== 404 && (released.status < 200 || released.status >= 300)) {
+    throw new Error(`the guard answered the release ${released.status}${released.rule ? ` (${released.rule})` : ""}`);
+  }
+}
+
 /**
- * S28's undo, registered before it buys: every number the workspace holds
- * unreleased, so a number whose row never named it in time, or whose purchase
- * call threw after Telnyx ordered it, is released too. One handed to S29 is left.
+ * S28's undo also checks the rig billing group for a QA-G order that reached
+ * Telnyx before the app recorded its number ID.
  */
 export async function releaseTenantNumbers(
   params: Record<string, unknown>,
   lanes: {
-    guard: Pick<GuardClient, "releaseNumber">;
-    app: Pick<AppProbe, "numberRows" | "markNumberReleased">;
+    guard: Pick<GuardClient, "releaseNumber" | "numberStatus" | "numberIdsForCustomer">;
+    app: Pick<AppProbe, "numberRows" | "markNumberReleased" | "numberCustomerReference">;
     handoff: Pick<HandoffFile, "read" | "clear">;
   },
 ): Promise<void> {
@@ -431,13 +434,28 @@ export async function releaseTenantNumbers(
   if (typeof tenant !== "string") throw new TypeError("number.release-tenant undo needs a tenant");
   const record = await lanes.handoff.read();
   if (params.unless_handed_off === true && record?.tenant === tenant && record.state === "handed_off") return;
-  const unnamed: string[] = [];
-  for (const row of await lanes.app.numberRows({ tenant })) {
-    if (row.status === "released") continue;
-    if (row.telnyx_phone_number_id) await releaseHeldNumber({ telnyx_phone_number_id: row.telnyx_phone_number_id, phone_number_id: row.id }, lanes);
-    else unnamed.push(row.id);
+  const rows = (await lanes.app.numberRows({ tenant })).filter((row) => row.status !== "released");
+  for (const row of rows) {
+    if (row.telnyx_phone_number_id) {
+      await releaseHeldNumber({ telnyx_phone_number_id: row.telnyx_phone_number_id, phone_number_id: row.id }, lanes);
+    }
   }
-  if (unnamed.length > 0) throw new Error(`${tenant} holds ${unnamed.length} number row(s) that name no Telnyx number, so none could be released`);
+  const unnamed = rows.filter((row) => !row.telnyx_phone_number_id);
+  if (params.include_orphans === true) {
+    const orphanIds = await lanes.guard.numberIdsForCustomer(lanes.app.numberCustomerReference(tenant));
+    for (const id of orphanIds) {
+      if (!rows.some((row) => row.telnyx_phone_number_id === id)) await releaseTelnyxNumber(lanes.guard, id);
+    }
+    for (const row of unnamed) {
+      if (row.status === "provision_failed" || orphanIds.length > 0) {
+        await lanes.app.markNumberReleased({ phoneNumberId: row.id });
+      } else {
+        throw new Error(`${tenant} still has a pending order without a Telnyx number ID`);
+      }
+    }
+  } else if (unnamed.length > 0) {
+    throw new Error(`${tenant} holds ${unnamed.length} number row(s) that name no Telnyx number, so none could be released`);
+  }
 }
 
 /** The device a device undo names: `pixel`, or `emulator-34`, `-35` or `-36`. */

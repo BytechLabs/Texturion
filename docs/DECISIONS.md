@@ -9584,6 +9584,16 @@ with its reason:
 - **Not covered:** the US branch (US texting, the $29 fee line, the business
   step after payment, 10DLC) and the number purchase itself.
 
+**Update, 2026-11-21: S28 buys and releases a rig number on demand (#1100).**
+The guard allows inventory search under S28 and S32 and orders under S28
+only. Orders must name the rig billing group, a nonprod messaging profile
+and a nonprod voice connection. S28 buys into QA-G, checks the binding and
+has ROBOT-1 ring it. The app's grace job releases it before the run passes.
+The lease undo also releases the number through the guard if the run fails,
+including an order whose number ID never reached the app. S29 checks the
+day-30 notice and Stripe renewal independently. Both runs hold the guard
+lease while they use QA-G. S32 keeps its fixture for the Checkout journey.
+
 **Amended by D147 (2026-11-07).** rigd sends no production alerts and runs no
 timers: the guard attestation runs on demand inside rig health (R00), where a
 mismatched guard fails readiness. Push and ring evidence is read from PostHog

@@ -98,6 +98,20 @@ describe("the guard client", () => {
     expect(requests.filter((r) => r.method === "GET").every((r) => r.headers.authorization === "Bearer robot-token")).toBe(true);
   });
 
+  it("finds a customer's number IDs across pages even if Telnyx ignores the customer filter", async () => {
+    const { guard, requests } = guardWith({
+      [`GET ${EDGE}/g/telnyx/v2/phone_numbers`]: ({ url }) => {
+        const page = new URL(url).searchParams.get("page[number]");
+        const data = page === "1"
+          ? [{ id: "held-1", customer_reference: "qa-g" }, { id: "other", customer_reference: "qa-c" }]
+          : [{ id: "unassigned" }, { id: "held-2", customer_reference: "qa-g" }];
+        return json({ data, meta: { total_pages: 2 } });
+      },
+    });
+    await expect(guard.numberIdsForCustomer("qa-g")).resolves.toEqual(["held-1", "held-2"]);
+    expect(requests.map(({ url }) => new URL(url).searchParams.get("filter[customer_reference]"))).toEqual(["qa-g", "qa-g"]);
+  });
+
   it("reads the lease's log and keeps only each delivery's event and each attempt's host and status", async () => {
     const { guard } = guardWith({
       [`GET ${EDGE}/g/lease/lease-1/activity`]: () => json({ lease_id: "lease-1", live: true, activity: { "rig-api GET /v2/available_phone_numbers 200": 1 } }),
@@ -510,7 +524,10 @@ describe("the held number's undo", () => {
     const app = new FakeApp(new FakeTime());
     const handoff = new FakeHandoff();
     await releaseHeldNumber({ telnyx_phone_number_id: "999", phone_number_id: "r" }, { guard: new FakeGuard(), app, handoff });
-    const refusing = { releaseNumber: async () => ({ status: 403, rule: "provisioning.number_standing" }) };
+    const refusing = {
+      numberStatus: async () => ({ status: 200, in_group: true }),
+      releaseNumber: async () => ({ status: 403, rule: "provisioning.number_standing" }),
+    };
     await expect(releaseHeldNumber({ telnyx_phone_number_id: "111", phone_number_id: "r" }, { guard: refusing, app, handoff })).rejects.toThrow(
       /403 \(provisioning.number_standing\)/,
     );

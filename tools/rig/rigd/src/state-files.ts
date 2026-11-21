@@ -6,7 +6,7 @@
  * webhook forwarder, which answers the next call event itself. Taking is a
  * rename, so two forwards can never both take one fault.
  *
- * The hand-off file is S28's number, left for S29.
+ * The hand-off file can contain a number left by an older S28 runner.
  *
  * A lane hold is a run's claim on a device while it prepares outside a lease.
  */

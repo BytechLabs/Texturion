@@ -546,6 +546,9 @@ export class FakeApp implements AppApi {
   async numberRows(args: { tenant: string }) {
     return this.numbers.get(args.tenant) ?? [];
   }
+  numberCustomerReference(tenant: string) {
+    return `company-${tenant}`;
+  }
   async markNumberReleased(args: { phoneNumberId: string }) {
     for (const rows of this.numbers.values()) {
       for (const row of rows) if (row.id === args.phoneNumberId) row.status = "released";
@@ -756,6 +759,7 @@ export class FakeGuard implements GuardApi {
   /** Telnyx ids the partition holds; anything else reads 404. */
   held = new Set<string>();
   readonly released: string[] = [];
+  numberCustomers = new Map<string, string>();
   deliveries: WebhookDelivery[] = [];
 
   async health() {
@@ -777,6 +781,9 @@ export class FakeGuard implements GuardApi {
     const held = this.held.delete(id);
     if (held) this.released.push(id);
     return { status: held ? 200 : 404, rule: null };
+  }
+  async numberIdsForCustomer(customerReference: string) {
+    return [...this.held].filter((id) => this.numberCustomers.get(id) === customerReference);
   }
   async webhookDeliveries() {
     return this.deliveries;

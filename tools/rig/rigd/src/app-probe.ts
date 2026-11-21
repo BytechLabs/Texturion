@@ -1150,6 +1150,10 @@ export class AppProbe implements AppApi {
     });
   }
 
+  numberCustomerReference(tenant: string): string {
+    return this.#tenant(tenant).company_id;
+  }
+
   async markNumberReleased(args: { phoneNumberId: string }): Promise<void> {
     await this.#write("PATCH", "phone_numbers", { id: `eq.${args.phoneNumberId}`, status: "neq.released" }, {
       status: "released",

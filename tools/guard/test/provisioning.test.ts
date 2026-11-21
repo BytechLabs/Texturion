@@ -31,11 +31,8 @@ describe("number search", () => {
   it("runs only under a lease for a scenario that may search", async () => {
     const h = await ready();
     await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_needs_lease");
-    for (const scenario of ["S02", "S28"]) {
-      const id = await lease(h, scenario, "rig-api");
-      await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_needs_lease");
-      await h.call(`/lease/${id}`, { method: "DELETE" });
-    }
+    await lease(h, "S02", "rig-api");
+    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_needs_lease");
     expect(searches(h)).toBe(0);
   });
 
@@ -80,9 +77,11 @@ describe("number orders", () => {
     expect((await h.store.get<{ state: string }>(ORDER_KEYS.first))?.state).toBe("verified");
   });
 
-  it("refuses an order outside the partition", async () => {
+  it("lets S28 search but refuses its orders outside the partition", async () => {
     const h = await ready();
     await lease(h, "S28", "rig-api");
+    expect((await h.call(SEARCH_PATH)).status).toBe(200);
+    expect(searches(h)).toBe(1);
     const cases: [Record<string, unknown>, string][] = [
       [{ billing_group_id: undefined }, "provisioning.order_group"],
       [{ billing_group_id: "bg-production" }, "provisioning.order_group"],

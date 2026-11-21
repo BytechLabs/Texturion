@@ -480,7 +480,7 @@
       "dials": 1,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
-      "note": "S28 buys the month's number into the grace workspace, QA-G (scripts/rig/tenants.mjs), which holds no standing number, binds it and has ROBOT-1 ring it, and does not release it. A passing S28 leaves the number to S29 in rigd's hand-off record (state/rigd/handoff). Its undo, registered before the purchase, releases every number QA-G holds unreleased through the guard, only when S28 itself did not pass, and S28 takes back a hand-off no S29 took within two days. The guard's one order per 25 days means a retry after a failed attempt cannot buy again."
+      "note": "S28 buys into QA-G under a guard lease, checks the binding, rings it from ROBOT-1, and verifies the grace cron deletes it. Its undo, registered before purchase, releases QA-G orders in the rig billing group even if the app never recorded the Telnyx number ID."
     },
     {
       "id": "S29",
@@ -494,7 +494,7 @@
       "dials": 0,
       "far_end_legs": 0,
       "peak_concurrent_outbound_legs": 0,
-      "note": "S29 runs the day after S28 and takes over the number S28 handed off. Under its lease it backdates QA-G's canceled_at and fires the grace cron, so grace's releaseCompanyNumbers releases that number (a 404 at Telnyx, read through the guard) and the workspace moves through grace; its undo releases the number through the guard if grace did not, and puts the workspace back. QA-G holds no standing number: grace releases every number a workspace holds, and the guard refuses a DELETE on a standing one, which fails the job before it deactivates the campaign (tools/rig/crons.json, the 0 14 cron's defect). With no number handed off, S29 still runs grace and does not pass the release half."
+      "note": "S29 uses a nondialing guard lease while it checks the day-30 grace notice and a Stripe test-mode renewal. It restores QA-G at the end. S28 verifies release of the live number in its own run."
     },
     {
       "id": "S31",
