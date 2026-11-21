@@ -201,9 +201,8 @@ final class DeviceChecklists: XCTestCase {
         try openThread("Ada Fixture")
         try waitFor(app.buttons["Add to message"].firstMatch).tap()
         try waitFor(app.buttons["Photo library"].firstMatch).tap()
-        try selectFixturePhoto(in: app)
-        let add = app.buttons["Add"].firstMatch
-        if add.waitForExistence(timeout: 5) { add.tap() }
+        try selectFixturePhoto(in: app, newestFirst: true)
+        try waitFor(app.buttons["Add"].firstMatch).tap()
         let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
         shot("793 Photo Library stages an attachment")
         remove.tap()
@@ -216,7 +215,10 @@ final class DeviceChecklists: XCTestCase {
         photos.launch()
         let continueButton = photos.buttons["Continue"].firstMatch
         if continueButton.waitForExistence(timeout: 4) { continueButton.tap() }
-        try selectFixturePhoto(in: photos)
+        let decline = springboard.buttons["Don’t Allow"].firstMatch
+        if decline.waitForExistence(timeout: 5) { decline.tap() }
+        try waitFor(photos.buttons["Select"].firstMatch).tap()
+        try selectFixturePhoto(in: photos, newestFirst: false)
         try waitFor(photos.buttons["Share"].firstMatch).tap()
         let loonext = photos.buttons["Loonext"].firstMatch
         if !loonext.isHittable {
@@ -237,14 +239,17 @@ final class DeviceChecklists: XCTestCase {
         try await assertNoMessageSend()
     }
 
-    private func selectFixturePhoto(in host: XCUIApplication) throws {
-        let tile = host.cells.firstMatch
-        if tile.waitForExistence(timeout: 5), tile.isHittable {
-            tile.tap()
-            return
-        }
-        let photo = host.images.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Photo")).firstMatch
-        try waitFor(photo).tap()
+    private func selectFixturePhoto(in host: XCUIApplication, newestFirst: Bool) throws {
+        let photos = host.images.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Photo,"))
+        try waitFor(photos.firstMatch)
+        let tiles = photos.allElementsBoundByIndex
+        let tile = try XCTUnwrap(newestFirst ? tiles.first : tiles.last)
+        let bounds = tile.frame
+        XCTAssertFalse(bounds.isEmpty)
+        // The Photos picker runs in a separate process and its tiles report no hit point.
+        host.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: bounds.midX - host.frame.minX, dy: bounds.midY - host.frame.minY))
+            .tap()
     }
 
     private func assertNoMessageSend() async throws {
