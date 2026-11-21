@@ -198,6 +198,7 @@ final class DeviceChecklists: XCTestCase {
 
     func testEmergencyCallHandsOffToPhone() async throws {
         try signIn()
+        try waitFor(app.buttons["Conversations"].firstMatch).tap()
         try waitFor(app.buttons["Calls"].firstMatch).tap()
         try waitFor(app.buttons["Dial a number"].firstMatch).tap()
         try waitFor(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "9")).firstMatch).tap()
@@ -230,7 +231,7 @@ final class DeviceChecklists: XCTestCase {
         let composer = try waitFor(multiline.exists ? multiline : app.textFields.matching(prompt).firstMatch)
         composer.press(forDuration: 1.1)
         try waitFor(label("Paste")).tap()
-        XCTAssertEqual(composer.value as? String, "Test")
+        try waitFor(field(value: "Test"))
         shot("811 only the selected word was pasted")
     }
 
