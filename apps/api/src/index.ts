@@ -24,9 +24,11 @@ import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv } from './env';
 import type { Bindings, Env } from './env';
+import { getDb } from "./db";
 import { databasePressure, databaseTrouble } from "./db-pressure";
 import { rigDatabaseRefusal } from "./environments/database";
 import { servesRigRoutes } from "./environments/policy";
+import { callerIp } from "./public-links/guard";
 import { geocodeContactsJob, geocodeTasksJob } from "./geocode/jobs";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
@@ -282,6 +284,24 @@ app.get("/health", (c) => {
   // partition rule here, so a deploy that predates it can never be mistaken
   // for one that has it.
   return c.json({ ok: true, capabilities: [TELNYX_PARTITION_CAPABILITY] });
+});
+
+app.get("/health/db", async (c) => {
+  const env = getEnv(c.env);
+  const permit = await env.PUBLIC_LINK_RATE_LIMITER?.limit({ key: `health-db:${callerIp(c)}` });
+  if (permit?.success === false) return c.body(null, 429);
+
+  let colo: string | undefined;
+  const db = getDb(env, (response) => {
+    colo = /^[a-f\d]+-([A-Z]{3})$/.exec(response.headers.get("CF-Ray") ?? "")?.[1];
+  });
+  const start = performance.now();
+  const { error } = await db.rpc("api_app_release_policy", { p_platform: "web" });
+  if (error) return c.body(null, 503);
+
+  const duration = (performance.now() - start).toFixed(1);
+  c.header("Server-Timing", `db;dur=${duration}${colo ? `;desc="${colo}"` : ""}`);
+  return c.body(null, 204);
 });
 
 /**

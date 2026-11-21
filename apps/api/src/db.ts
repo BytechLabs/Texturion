@@ -77,9 +77,10 @@ function isDeadline(error: unknown): boolean {
  * No session persistence or token refresh (there is no user session on the
  * server; the secret key is the credential), and `fetch` is resolved from the
  * runtime at call time, which is the Workers-safe transport (no Node sockets).
+ * A response observer gets its own client so concurrent requests cannot share it.
  */
-export function getDb(env: Env): SupabaseClient {
-  const cached = clients.get(env);
+export function getDb(env: Env, observeResponse?: (response: Response) => void): SupabaseClient {
+  const cached = observeResponse ? undefined : clients.get(env);
   if (cached) return cached;
 
   const client = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
@@ -136,10 +137,11 @@ export function getDb(env: Env): SupabaseClient {
           throw new DatabaseOverloadedError();
         }
         markDatabaseReachable();
+        observeResponse?.(response);
         return response;
       },
     },
   });
-  clients.set(env, client);
+  if (!observeResponse) clients.set(env, client);
   return client;
 }
