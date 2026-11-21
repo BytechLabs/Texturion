@@ -1883,6 +1883,35 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     expect(form.has("quantity")).toBe(false);
   });
 
+  it.each([
+    { code: "idempotency_key_in_use", attempts: 2, recovers: true },
+    { code: "idempotency_key_in_use", attempts: 2, recovers: false },
+    { code: "resource_missing", attempts: 1, recovers: false },
+  ])("handles $code while attaching the voice meter (recovers=$recovers)", async ({ code, attempts, recovers }) => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ voiceMetered: null }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () =>
+        !recovers || harness.callsTo("POST", /subscription_items$/).length === 1
+          ? Response.json({ error: { type: "invalid_request_error", code } }, { status: 400 })
+          : { id: "si_voice_metered", object: "subscription_item" },
+      ),
+      companiesWithModules([]),
+    ]);
+    await deliver(eventOf("customer.subscription.updated", subscriptionFixture()), harness);
+
+    const creates = harness.callsTo("POST", /subscription_items$/);
+    expect(creates).toHaveLength(attempts);
+    const key = creates[0].headers.get("idempotency-key");
+    expect(key).toContain("voice_metered_attach");
+    expect(new Set(creates.map((call) => call.headers.get("idempotency-key")))).toEqual(new Set([key]));
+    expect(new Set(creates.map((call) => call.form().toString()))).toEqual(new Set([creates[0].form().toString()]));
+    const errorWithCode = expect.objectContaining({ code });
+    expect(reported()).toEqual(recovers ? [] : [errorWithCode]);
+  });
+
   it("grandfathered seed modules survive a base-only checkout untouched", async () => {
     const harness = makeHarness([
       // The claim returns the grandfathered rows (prepended to win the default).
