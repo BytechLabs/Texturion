@@ -178,6 +178,7 @@ const server = createServer(async (req, res) => {
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });
     if (path === "/v1/conversations") {
+      if (searchParams.get("textable") === "true") return json(page([thread(0)]));
       return json(page(searchParams.get("pinned") === "only" ? [] : threadIDs.map((_, index) => thread(index))));
     }
 

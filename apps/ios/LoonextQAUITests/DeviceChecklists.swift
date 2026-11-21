@@ -216,19 +216,26 @@ final class DeviceChecklists: XCTestCase {
         try enterPhotosSelection(in: photos)
         try selectFixturePhoto(in: photos, newestFirst: false)
         try waitFor(photos.buttons["Share"].firstMatch).tap()
-        let loonext = photos.buttons["Loonext"].firstMatch
-        if !loonext.isHittable {
-            let activities = photos.collectionViews.allElementsBoundByIndex.last
-            for _ in 0..<3 where !loonext.isHittable { activities?.swipeLeft() }
+        let cells = photos.cells.matching(identifier: "shareCell")
+        let loonext = cells.matching(NSPredicate(format: "label == %@", "Loonext")).firstMatch
+        let more = cells.matching(NSPredicate(format: "label == %@", "More")).firstMatch
+        try waitFor(cells.firstMatch)
+        let activities = photos.scrollViews.containing(.cell, identifier: "shareCell").allElementsBoundByIndex.last
+        for _ in 0..<4 where !loonext.exists && !more.exists { activities?.swipeLeft() }
+        if loonext.exists {
+            tapFrame(of: loonext, in: photos)
+        } else {
+            tapFrame(of: try waitFor(more), in: photos)
+            tapFrame(of: try waitFor(photos.staticTexts["Loonext"].firstMatch), in: photos)
         }
-        if !loonext.isHittable { try waitFor(photos.buttons["More"].firstMatch).tap() }
-        try waitFor(loonext).tap()
         try waitFor(photos.buttons["Save Files"].firstMatch).tap()
         try waitFor(photos.staticTexts["Open Loonext to choose a conversation."].firstMatch)
         try waitFor(photos.buttons["Close"].firstMatch).tap()
         app.activate()
         try waitFor(label("Share to a conversation"))
-        try waitFor(app.buttons["Ada Fixture"].firstMatch).tap()
+        let textableThread = try waitFor(app.buttons["Ada Fixture"].firstMatch)
+        XCTAssertFalse(app.buttons["Ben Fixture"].firstMatch.exists)
+        textableThread.tap()
         let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
         shot("793 Photos share stages into the chosen thread")
         remove.tap()
@@ -257,9 +264,13 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(photos.firstMatch)
         let tiles = photos.allElementsBoundByIndex
         let tile = try XCTUnwrap(newestFirst ? tiles.first : tiles.last)
-        let bounds = tile.frame
+        tapFrame(of: tile, in: host)
+    }
+
+    private func tapFrame(of element: XCUIElement, in host: XCUIApplication) {
+        let bounds = element.frame
         XCTAssertFalse(bounds.isEmpty)
-        // The Photos picker runs in a separate process and its tiles report no hit point.
+        // Photos and its share sheet can report no hit point across processes.
         host.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: bounds.midX - host.frame.minX, dy: bounds.midY - host.frame.minY))
             .tap()
