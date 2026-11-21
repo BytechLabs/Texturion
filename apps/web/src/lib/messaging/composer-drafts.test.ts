@@ -9,14 +9,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearDraft,
   clearFailedSend,
+  clearSendAttempt,
   flushDraftOnExit,
   loadDraft,
   loadDraftMode,
   loadDraftStartedAt,
   loadFailedSend,
+  loadSendAttempt,
   NEW_CONVERSATION_DRAFT,
   saveDraft,
   saveFailedSend,
+  saveSendAttempt,
 } from "./composer-drafts";
 
 /** A minimal localStorage. The suite runs in node, so there is no real one. */
@@ -171,6 +174,21 @@ describe("#299 — the failed send's key survives with the draft it restored", (
 
     expect(loadDraft("c1")).toBe("running 20 late");
     expect(loadFailedSend("c1")?.key).toBe("key-1");
+  });
+
+  it("limits unanswered sends to the author and clears only the acknowledged key", () => {
+    const attempt = { body: "On my way", signature: "On my way ", key: "key-1", media: [] };
+    expect(saveSendAttempt("u1", "c1", attempt)).toBe(true);
+    expect(loadSendAttempt("u2", "c1")).toBeNull();
+    expect(loadSendAttempt("u1", "c2")).toBeNull();
+    expect(loadSendAttempt("u1", "c1")).toEqual(attempt);
+
+    const next = { ...attempt, key: "key-2" };
+    saveSendAttempt("u1", "c1", next);
+    clearSendAttempt("u1", "c1", "key-1");
+    expect(loadSendAttempt("u1", "c1")).toEqual(next);
+    clearSendAttempt("u1", "c1", "key-2");
+    expect(loadSendAttempt("u1", "c1")).toBeNull();
   });
 });
 

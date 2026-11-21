@@ -682,6 +682,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.outboxStale" to
             "Queued for over a day. The conversation may have moved on — send " +
             "it now, or delete it.",
+        "thread.outboxCannotSave" to "Could not save this message to send. Try again.",
         "thread.outboxMediaLost" to
             "The photo for this message is no longer on this device. Send the " +
             "text on its own, or delete it.",
@@ -1522,6 +1523,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.outboxStale" to
             "En file d'attente depuis plus d'une journée. La conversation a " +
             "peut-être évolué — envoyez-le maintenant, ou supprimez-le.",
+        "thread.outboxCannotSave" to "Impossible d’enregistrer ce message pour l’envoyer. Réessayez.",
         "thread.outboxMediaLost" to
             "La photo de ce message n'est plus sur cet appareil. Envoyez le texte " +
             "seul, ou supprimez-le.",

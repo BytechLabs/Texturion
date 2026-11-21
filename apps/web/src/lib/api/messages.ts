@@ -11,8 +11,8 @@ import { useEffect } from "react";
 
 import { useT } from "@/i18n/provider";
 import { THREAD_MESSAGE_PARAM } from "@/lib/inbox/thread-href";
-import { useCompanyId } from "@/lib/company/provider";
-import { restoreComposerDraft, saveFailedSend } from "@/lib/messaging/composer-drafts";
+import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
+import { clearSendAttempt, restoreComposerDraft, saveFailedSend } from "@/lib/messaging/composer-drafts";
 
 import { detailInversePatch, detailPatchMessage, doneMutationPatch, listApplyConversation, pinMutationPatch, snippetFromMessage, threadInversePatch, threadPatchMessage,threadUpsertMessages } from './cache';
 import type { ThreadData } from './cache';
@@ -211,7 +211,7 @@ export function sentConversationPatch(
  * conversation bumps to the top of every cached list.
  */
 export function useSendMessage(conversationId: string) {
-  const companyId = useCompanyId();
+  const { companyId, userId } = useActiveCompany();
   const queryClient = useQueryClient();
   const router = useRouter();
   const t = useT();
@@ -274,7 +274,10 @@ export function useSendMessage(conversationId: string) {
         },
       );
     },
-    onSuccess: (message) => {
+    onSuccess: (message, input) => {
+      if (input.draftSignature !== undefined && input.idempotencyKey) {
+        clearSendAttempt(userId, conversationId, input.idempotencyKey);
+      }
       queryClient.setQueryData<ThreadData>(
         keys.thread(companyId, conversationId),
         (thread) =>

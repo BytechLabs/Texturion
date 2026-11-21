@@ -110,6 +110,8 @@ final class OutboxCoordinator {
                 body: row.body,
                 media: media.isEmpty ? nil : media,
                 idempotencyKey: row.localId,
+                templateId: row.templateId,
+                templateEdited: row.templateEdited ?? false,
                 expectedUserId: row.ownerUserId
             )
             return .sent

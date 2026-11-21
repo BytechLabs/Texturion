@@ -109,6 +109,37 @@ it("stores a failed text and its retry key when the composer has unmounted", asy
   expect(loadFailedSend(CONVERSATION_ID)?.key).toEqual(expect.any(String));
 });
 
+it("reopens a text and its attachment with the original key while its first request has no answer", async () => {
+  const request = Promise.withResolvers<Message>();
+  apiFetch.mockImplementation((path: string) => path === "/v1/messages/send"
+    ? request.promise
+    : Promise.reject(new Error("No fixture for this query")));
+  const first = renderComposer();
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: "I can come by tomorrow." },
+  });
+  fireEvent.change(first.container.querySelector('input[type="file"]')!, {
+    target: { files: [new File(["Report"], "service-report.txt", { type: "text/plain" })] },
+  });
+  await screen.findByText("service-report.txt");
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  const attempts = () => apiFetch.mock.calls.filter(([path]) => path === "/v1/messages/send");
+  await waitFor(() => expect(attempts()).toHaveLength(1));
+  await waitFor(() => expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe(""));
+  const key = attempts()[0]?.[1].idempotencyKey;
+  first.unmount();
+
+  renderComposer();
+  expect(screen.getByRole<HTMLTextAreaElement>("textbox").value).toBe("I can come by tomorrow.");
+  expect(screen.getByText("service-report.txt")).toBeInstanceOf(Element);
+  expect(attempts()).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  await waitFor(() => expect(attempts()).toHaveLength(2));
+  expect(attempts()[1]?.[1].idempotencyKey).toBe(key);
+  expect(attempts()[1]?.[1].body).toEqual(attempts()[0]?.[1].body);
+  request.resolve(REFUSED_MESSAGE);
+});
+
 it("opens failed text as a draft without sending or overwriting a private note", async () => {
   renderComposer(
     <DeliveryState message={REFUSED_MESSAGE} conversationId={CONVERSATION_ID} allowFailureActions />,

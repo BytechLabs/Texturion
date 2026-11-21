@@ -162,7 +162,9 @@ final class ThreadControllerResyncTests: XCTestCase {
 
     private func makeController(
         store: SessionStore,
-        route: @escaping @Sendable (String) -> String
+        route: @escaping @Sendable (String) -> String,
+        outbox: Outbox = Outbox(),
+        requestOutboxFlush: @escaping () -> Void = {}
     ) -> ThreadController {
         let api = ApiClient(
             sessionStore: store,
@@ -180,7 +182,9 @@ final class ThreadControllerResyncTests: XCTestCase {
             ),
             companyId: companyId,
             conversationId: conversationId,
-            meUserId: "u1"
+            meUserId: "u1",
+            outbox: outbox,
+            requestOutboxFlush: requestOutboxFlush
         )
     }
 
@@ -196,6 +200,32 @@ final class ThreadControllerResyncTests: XCTestCase {
             try? await Task.sleep(for: .milliseconds(20))
         }
         return predicate()
+    }
+
+    func testSendWritesTextPhotosAndRetryKeyBeforeStartingNetworkWork() throws {
+        let session = seededStore()
+        defer { session.clear() }
+        let name = "controller-outbox-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let outbox = Outbox(defaults: defaults, mediaRoot: root)
+        defer { outbox.clear() }
+        let photo = StagedPhoto(id: "photo", contentType: "image/jpeg", bytes: Data([1, 2, 3]), name: nil)
+        var observed: [QueuedSend] = []
+        let controller = makeController(store: session, route: { _ in emptyPageJSON }, outbox: outbox) {
+            observed = Outbox(defaults: defaults, mediaRoot: root).all()
+        }
+
+        XCTAssertTrue(controller.sendText(body: "On my way", photos: [photo], templateId: "template", templateEdited: true))
+
+        let saved = try XCTUnwrap(observed.first)
+        XCTAssertEqual(observed.count, 1)
+        XCTAssertEqual(saved.body, "On my way")
+        XCTAssertFalse(saved.localId.isEmpty)
+        XCTAssertEqual(saved.ownerUserId, "u1")
+        XCTAssertEqual(saved.templateId, "template")
+        XCTAssertEqual(saved.templateEdited, true)
+        XCTAssertEqual(outbox.readMedia(saved.localId, try XCTUnwrap(saved.media.first)), photo.bytes)
     }
 
     /// The core #215 Part A contract: a message the backend has, that NO

@@ -10,7 +10,7 @@ import { Composer } from "./composer";
 
 vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "workspace",
-  useActiveCompany: () => ({ role: "owner" }),
+  useActiveCompany: () => ({ companyId: "workspace", userId: "author", role: "owner" }),
 }));
 
 vi.mock("@/lib/api/client", () => ({

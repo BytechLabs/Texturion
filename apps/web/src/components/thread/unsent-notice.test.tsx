@@ -34,13 +34,13 @@ describe("#299 the unsent notice", () => {
     expect(edit).toHaveBeenCalledOnce();
   });
 
-  it("says it did not send, and that retrying is safe", () => {
+  it("says delivery is unconfirmed and retrying is safe", () => {
     render(<UnsentNotice show />);
     // Both halves matter. The first removes the ambiguity; the second is the
     // reason not to hesitate over the button, and it is only true because the
     // Idempotency-Key is stored beside the draft.
     expect(screen.getByRole("status").textContent).toContain(
-      "This didn’t send",
+      "We couldn’t confirm this send",
     );
     expect(screen.getByRole("status").textContent).toContain(
       "won’t send twice",

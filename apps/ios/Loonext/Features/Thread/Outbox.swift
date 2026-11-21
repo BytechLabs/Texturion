@@ -1,32 +1,8 @@
 import Foundation
 import Observation
 
-/// #234 — the durable outbox (the Android `Outbox.kt` twin).
-///
-/// Our users are in crawl spaces, mechanical rooms, elevators and parking
-/// garages. That is not an edge case, it is the job. Before this, a send that
-/// could not reach the server dropped its pending row, restored the draft and
-/// showed a toast — so a tech who typed an update in a basement, hit send and
-/// walked to the truck had nothing queued and, if they missed the toast,
-/// believed the customer had been told.
-///
-/// WHAT DECIDES WHETHER SOMETHING IS QUEUED is whether we reached the server
-/// at all, and that distinction is the whole design:
-///
-///   - We never reached it (no signal, DNS, timeout) → QUEUE. We have no
-///     answer yet, so the message waits for one.
-///   - We reached it and it REFUSED (opted out, cap, registration) → do NOT
-///     queue. That is an answer, and queueing it would mean re-asking a
-///     question already decided while telling the person their message is on
-///     its way.
-///
-/// #234 asks for "gates run at flush time, not at queue time", and this is
-/// that rule stated precisely: a gate that has not run yet runs at flush; a
-/// gate that has already refused is not re-run, it is reported.
-///
-/// IDEMPOTENCY IS INHERITED, not invented. The key minted for the first
-/// attempt is stored with the row and reused by every flush, so the existing
-/// server-side claim machinery collapses a double-send into one message.
+/// An outgoing message is saved before contacting the server. A refusal blocks
+/// the row. A lost response leaves it queued with the original idempotency key.
 struct QueuedSend: Codable, Equatable, Identifiable, Sendable {
     /// Also the idempotency key: one identity for the life of this message.
     let localId: String
@@ -61,6 +37,9 @@ struct QueuedSend: Codable, Equatable, Identifiable, Sendable {
     var staleAcknowledged: Bool = false
     /// Older rows belong to the signed-in account that owns the stored outbox.
     var ownerUserId: String? = nil
+    /// Saved-reply attribution for delayed sends.
+    var templateId: String? = nil
+    var templateEdited: Bool? = nil
 
     var id: String { localId }
 }
@@ -114,6 +93,7 @@ final class Outbox {
 
     private let defaults: UserDefaults
     private let mediaRoot: URL
+    private var queueFile: URL { mediaRoot.appendingPathComponent("queue.json") }
     private var revision = 0
 
     /// Application Support, not Caches: the system may evict a cache under
@@ -129,31 +109,42 @@ final class Outbox {
 
     func all() -> [QueuedSend] {
         _ = revision
-        guard let data = defaults.data(forKey: Self.storageKey) else { return [] }
+        let stored = (try? Data(contentsOf: queueFile)) ?? defaults.data(forKey: Self.storageKey)
+        guard let data = stored else { return [] }
         // A queue we cannot decode is a queue we cannot send. Reporting empty
         // rather than crashing keeps the app usable; the raw value is left in
         // place, so nothing is destroyed on the way past.
         return (try? JSONDecoder().decode([QueuedSend].self, from: data)) ?? []
     }
 
-    func put(_ send: QueuedSend) {
-        var next = all().filter { $0.localId != send.localId }
-        next.append(send)
-        write(next)
+    @discardableResult
+    func put(_ send: QueuedSend) -> Bool {
+        let next = all().filter { $0.localId != send.localId } + [send]
+        return write(next)
+    }
+
+    func enqueue(_ send: QueuedSend, media: [OutboxMediaBytes]) -> Bool {
+        var row = send
+        row.media = media.isEmpty ? [] : saveMedia(row.localId, media)
+        guard row.media.count == media.count, put(row) else {
+            try? FileManager.default.removeItem(at: directory(for: row.localId))
+            return false
+        }
+        return true
     }
 
     func replaceIfUnchanged(_ expected: QueuedSend, with updated: QueuedSend) -> Bool {
         var rows = all()
         guard let index = rows.firstIndex(of: expected) else { return false }
         rows[index] = updated
-        write(rows)
-        return true
+        return write(rows)
     }
 
     /// Drops the row AND the photos it owned — nothing outlives its message.
     func remove(_ localId: String) {
-        write(all().filter { $0.localId != localId })
-        try? FileManager.default.removeItem(at: directory(for: localId))
+        if write(all().filter { $0.localId != localId }) {
+            try? FileManager.default.removeItem(at: directory(for: localId))
+        }
     }
 
     /// #330 — everything, and the photos with it, when the session ends.
@@ -189,9 +180,7 @@ final class Outbox {
     /// would leave a row pointing at photos that do not exist — a message that
     /// can never be sent as written, which is the worse of the two.
     ///
-    /// Synchronous on the main actor, like everything else on this class: the
-    /// composer caps a text's photos at 1 MB each and three of them, and this
-    /// runs once, at the moment a send fails.
+    /// Composer limits keep this synchronous write to three files of 1 MB each.
     func saveMedia(_ localId: String, _ items: [OutboxMediaBytes]) -> [QueuedMedia] {
         let dir = directory(for: localId)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -220,7 +209,7 @@ final class Outbox {
             at: mediaRoot,
             includingPropertiesForKeys: nil
         )
-        for dir in dirs ?? [] where !live.contains(dir.lastPathComponent) {
+        for dir in dirs ?? [] where dir != queueFile && !live.contains(dir.lastPathComponent) {
             try? FileManager.default.removeItem(at: dir)
         }
     }
@@ -229,10 +218,17 @@ final class Outbox {
         mediaRoot.appendingPathComponent(localId, isDirectory: true)
     }
 
-    private func write(_ rows: [QueuedSend]) {
-        guard let data = try? JSONEncoder().encode(rows) else { return }
-        defaults.set(data, forKey: Self.storageKey)
-        revision += 1
+    private func write(_ rows: [QueuedSend]) -> Bool {
+        do {
+            let data = try JSONEncoder().encode(rows)
+            try FileManager.default.createDirectory(at: mediaRoot, withIntermediateDirectories: true)
+            try data.write(to: queueFile, options: .atomic)
+            defaults.removeObject(forKey: Self.storageKey)
+            revision += 1
+            return true
+        } catch {
+            return false
+        }
     }
 }
 

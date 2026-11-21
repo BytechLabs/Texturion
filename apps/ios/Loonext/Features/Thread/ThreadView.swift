@@ -1582,9 +1582,7 @@ private struct ThreadBody: View {
                     photos: photos,
                     templateId: templateId,
                     templateEdited: templateEdited
-                ) {
-                    composer.restore(body: body, photos: photos, files: [])
-                }
+                )
             },
             onSaveNote: { body, files, mentionUserIds, workPhase in
                 let picked = composer.picked
@@ -1615,15 +1613,8 @@ private struct ThreadBody: View {
                             company: controller.company?.locale
                         )
                     ),
-                    photos: [],
-                    templateId: nil,
-                    templateEdited: false
-                ) {
-                    // The restore hook every other send takes. Nothing to put
-                    // back here — the words were never in the box — which is
-                    // said rather than left as an empty closure somebody
-                    // wonders about.
-                }
+                    photos: []
+                )
             },
             loadMentionableMembers: { await controller.mentionableMembers() },
             onNotice: { controller.notifyExternally($0) },

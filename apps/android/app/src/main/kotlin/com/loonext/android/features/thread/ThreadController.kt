@@ -26,7 +26,6 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.MessageTaskLink
-import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.ScheduleOutcome
@@ -47,6 +46,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.userMessage
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,13 +61,6 @@ data class ThreadNotice(
     val action: (() -> Unit)? = null,
     /** #710: a delete notice's second action, "View Trash". Null on every other notice. */
     val trashLabel: String? = null,
-)
-
-/** A failed send-intent: the SAME Idempotency-Key rides the user's retry. */
-private data class FailedSendIntent(
-    val body: String,
-    val photoIds: List<String>,
-    val key: String,
 )
 
 /**
@@ -251,7 +244,6 @@ class ThreadController(
     private var started = false
     private var noticeSeq = 0L
     private var convRefreshJob: Job? = null
-    private var lastFailedIntent: FailedSendIntent? = null
 
     // #176 cache-first: reopening a conversation this process has already
     // loaded paints the timeline in the first frame — [start]'s initialLoad
@@ -894,105 +886,35 @@ class ThreadController(
 
     // --- Sending ------------------------------------------------------------------
 
-    /**
-     * Optimistic send: a local queued row appears immediately; the server's
-     * queued insert replaces it. A failed attempt restores the draft and holds
-     * onto its Idempotency-Key — retrying the SAME body+photos reuses the key,
-     * so an airplane-mode double-send lands exactly one message.
-     */
-    fun sendText(
+    suspend fun sendText(
         body: String,
         photos: List<StagedPhoto>,
-        /** #475: the saved reply this was built from, if any. */
         templateId: String? = null,
-        /** #274: whether the words changed after it was inserted. */
         templateEdited: Boolean = false,
-        onRestore: () -> Unit,
-    ) {
-        val photoIds = photos.map { it.id }
-        val failed = lastFailedIntent
-        val key = if (failed != null && failed.body == body && failed.photoIds == photoIds) {
-            failed.key
-        } else {
-            UUID.randomUUID().toString()
-        }
-        val pendingRow = PendingSend(
-            localId = key,
+    ): Boolean {
+        val row = QueuedSend(
+            localId = UUID.randomUUID().toString(),
+            companyId = companyId,
+            conversationId = conversationId,
             body = body,
-            mediaCount = photos.size,
             createdAt = Instant.now().toString(),
-            idempotencyKey = key,
+            ownerUserId = meUserId,
+            templateId = templateId,
+            templateEdited = templateEdited,
         )
-        pendingSends = pendingSends + pendingRow
-        scope.launch {
-            try {
-                val message = repo.send(
-                    companyId = companyId,
-                    conversationId = conversationId,
-                    body = body,
-                    media = photos.takeIf { it.isNotEmpty() }?.map { it.toOutboundMedia() },
-                    idempotencyKey = key,
-                    templateId = templateId,
-                    templateEdited = templateEdited,
-                )
-                lastFailedIntent = null
-                pendingSends = pendingSends - pendingRow
-                messages = mergeMessagesFirstPage(messages, listOf(message))
-                persistSnapshot()
-                markRead()
-            } catch (cause: Exception) {
-                val code = (cause as? ApiException)?.code
-                // #234: did we REACH the server? That is the whole decision.
-                //
-                // NETWORK means we never got an answer, so the message waits
-                // for one — it stays in the thread as "Queued" and is written
-                // to the durable outbox, which is what makes it survive the
-                // app being killed on the walk back to the truck.
-                //
-                // Photos ride along, as OUR files. The picker's content URI
-                // would be a dead handle after the process restarts, so the
-                // bytes the composer already read are copied into app storage
-                // first and the row is written only if that copy succeeded —
-                // a row promising a photo we cannot produce is worse than an
-                // honest failure here.
-                if (code == ApiErrorCode.NETWORK) {
-                    val queued = runCatching {
-                        outboxCoordinator.enqueue(
-                            QueuedSend(
-                                localId = key,
-                                companyId = companyId,
-                                conversationId = conversationId,
-                                body = body,
-                                createdAt = pendingRow.createdAt,
-                                ownerUserId = meUserId,
-                            ),
-                            photos.map { OutboxMediaBytes(it.contentType, it.bytes) },
-                        )
-                    }.getOrDefault(false)
-                    if (queued) {
-                        pendingSends = pendingSends.map {
-                            if (it.localId == key) it.copy(queued = true) else it
-                        }
-                        lastFailedIntent = null
-                        return@launch
-                    }
-                    // Storage refused us. Fall through to the honest failure
-                    // below rather than showing "Queued" over nothing.
-                    runCatching { outbox.remove(key) }
-                }
-                pendingSends = pendingSends - pendingRow
-                lastFailedIntent = FailedSendIntent(body, photoIds, key)
-                onRestore()
-                notify(cause.userMessageForReader())
-                if (code == ApiErrorCode.RECIPIENT_OPTED_OUT ||
-                    code == ApiErrorCode.SUBSCRIPTION_INACTIVE ||
-                    code == ApiErrorCode.REGISTRATION_PENDING ||
-                    code == ApiErrorCode.USAGE_CAP_REACHED
-                ) {
-                    refreshGates()
-                }
-            }
+        val saved = try {
+            outboxCoordinator.enqueue(row, photos.map { OutboxMediaBytes(it.contentType, it.bytes) })
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
         }
+        if (saved) {
+            scope.launch { outboxCoordinator.flush() }
+        } else {
+            notify(say("thread.outboxCannotSave"))
+        }
+        return saved
     }
 
     // --- #234 outbox ---------------------------------------------------------
