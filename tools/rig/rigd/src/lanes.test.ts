@@ -109,8 +109,8 @@ describe("the guard client", () => {
               status: "delivered",
               webhook: { event_type: "call.initiated", id: "event-1", payload: { to: "+14165550111" } },
               attempts: [
-                { started_at: "a", http: { request: { url: `${EDGE}/t/v?x=secret` }, response: { status: 503 } } },
                 { started_at: "b", http: { request: { url: `${EDGE}/t/v2` }, response: { status: 200 } } },
+                { started_at: "a", http: { request: { url: `${EDGE}/t/v?x=secret` }, response: { status: 503 } } },
               ],
             },
           ],

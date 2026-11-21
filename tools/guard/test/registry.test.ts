@@ -19,11 +19,12 @@ const DIAL_KEYS = new Set([
   "POST /v2/calls/:id/actions/bridge",
 ]);
 
-describe("the policy table is the app's registry", () => {
-  it("has one entry per registered endpoint, in the registry's classes", () => {
-    expect(POLICY_TABLE.map((entry) => entry.key)).toEqual(
-      TELNYX_ENDPOINTS.map((endpoint) => `${endpoint.method} ${endpoint.path}`),
-    );
+describe("the Telnyx policy table", () => {
+  it("covers the app's registry and the rig's delivery read without duplicates", () => {
+    expect(POLICY_TABLE.map((entry) => entry.key)).toEqual([
+      ...TELNYX_ENDPOINTS.map((endpoint) => `${endpoint.method} ${endpoint.path}`),
+      "GET /v2/webhook_deliveries",
+    ]);
     expect(new Set(POLICY_TABLE.map((entry) => entry.key)).size).toBe(POLICY_TABLE.length);
   });
 
