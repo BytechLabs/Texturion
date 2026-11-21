@@ -1170,7 +1170,7 @@ export class CallSessionDO extends DurableObject<Env> {
       case "telnyx-bridge": {
         if (!machine) return [];
         if (!this.spendCommand(machine, true)) return [];
-        const outcome = await this.rt.telnyx.bridge(effect.memberCcid, effect.customerCcid);
+        const outcome = await this.rt.telnyx.bridge(effect.memberCcid, effect.customerCcid, effect.playRingback);
         await this.save(machine);
         if (outcome === "dead") {
           // Genuinely dead: hang up both legs; the bri hangup runs T8/T17.

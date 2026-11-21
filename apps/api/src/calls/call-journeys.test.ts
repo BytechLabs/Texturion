@@ -610,7 +610,9 @@ describe("hermetic call journeys (session layer)", () => {
       "ended_answered",
     ]);
     expect(half.terminalMerges).toEqual(["event"]);
-    expect(fake.callsTo("POST", /\/actions\/bridge$/)).toHaveLength(1);
+    const bridges = fake.callsTo("POST", /\/actions\/bridge$/);
+    expect(bridges).toHaveLength(1);
+    expect(bridges[0].body).not.toHaveProperty("play_ringtone");
     expect(sessionRow(sessionId)).toMatchObject({
       direction: "inbound",
       company_id: crew.companyId,
@@ -661,6 +663,17 @@ describe("hermetic call journeys (session layer)", () => {
       `sip:${placer.sipUsername}@sip.telnyx.com`,
     ]);
     const customer = fake.voice.legs().find((leg) => leg.origin === "dial" && leg.to === FAR_END_E164);
+    const placerLeg = fake.voice.legs().find((leg) => leg.to === `sip:${placer.sipUsername}@sip.telnyx.com`);
+    expect(fake.callsTo("POST", /\/actions\/bridge$/)).toEqual([
+      expect.objectContaining({
+        path: `/v2/calls/${placerLeg?.callControlId}/actions/bridge`,
+        body: { call_control_id: customer?.callControlId, play_ringtone: true },
+      }),
+      expect.objectContaining({
+        path: `/v2/calls/${placerLeg?.callControlId}/actions/bridge`,
+        body: { call_control_id: customer?.callControlId },
+      }),
+    ]);
     expect(sessionRow(sessionId)).toMatchObject({
       direction: "outbound",
       company_id: crew.companyId,

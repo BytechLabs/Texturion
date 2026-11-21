@@ -659,7 +659,7 @@ export type Effect =
       kind: "telnyx-answer-notice";
       ccid: string;
     }
-  | { kind: "telnyx-bridge"; memberCcid: string; customerCcid: string }
+  | { kind: "telnyx-bridge"; memberCcid: string; customerCcid: string; playRingback?: boolean }
   | { kind: "telnyx-hangup"; ccid: string; terminal: boolean }
   | { kind: "telnyx-reject"; ccid: string; cause: "USER_BUSY" }
   | {
@@ -1871,12 +1871,8 @@ function reduceOutboundInitiated(
 
 /**
  * #213 T-O4: the placer (op) leg answered. Adopt its ccid onto the pending op
- * record (destination-bound like §17.1) and mark it answered. The bridge fires
- * only once BOTH legs are answered (here iff the customer already answered, i.e.
- * state==='answered'; otherwise T-O2 bridges when the customer answers) — the
- * proven consult/complete prod mechanic bridges answered-to-answered, so we never
- * bridge onto a still-ringing leg (which Telnyx can reject, leaving the pair
- * un-bridged / silent). A re-delivery in a terminal state is a no-op.
+ * record (destination-bound like §17.1) and mark it answered. If the customer
+ * is still ringing, request ringback on the placer leg until the customer answers.
  */
 function reduceOutboundPlacerAnswered(
   next: SessionMachine,
@@ -1918,20 +1914,12 @@ function reduceOutboundPlacerAnswered(
   }
   if (leg.status === "answered") return { machine: next, effects }; // idempotent
   leg.status = "answered";
-  // #213: bridge the placer to the customer NOW (the placer's browser answered
-  // its op INVITE almost instantly, while the customer is likely still ringing).
-  // Telnyx relays the customer's ringback to the placer over this bridge (early
-  // media), and — crucially — bridging means the customer leg's eventual hangup
-  // TEARS this op leg too (no stranded placer). If Telnyx refuses to bridge onto
-  // a still-ringing leg, the command 4xxs but the op leg is alive, so the
-  // executor returns "ok" (no teardown) and T-O2's bridge (both answered) is the
-  // guaranteed fallback. Belt-and-suspenders: `terminalize` also hangs up any
-  // answered outbound leg, so an unbridged op leg is reaped on the terminal path.
   if (next.customerCcid) {
     effects.push({
       kind: "telnyx-bridge",
       memberCcid: event.ccid,
       customerCcid: next.customerCcid,
+      playRingback: next.state === "dialing",
     });
   }
   return { machine: next, effects };
