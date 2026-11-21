@@ -1,12 +1,14 @@
 "use client";
 
 import { CalendarSync, ChevronDown, Rss } from "lucide-react";
+import { roleHasCapability } from "@loonext/shared";
 
 import { CalendarConnectionsCard } from "@/components/settings/calendar-connections-card";
 import { CalendarFeedCard } from "@/components/settings/calendar-feed-card";
 import { SettingsCard } from "@/components/settings/section";
 import { useT } from "@/i18n/provider";
 import { useCalendarConnections } from "@/lib/api/calendar";
+import { useActiveCompany } from "@/lib/company/provider";
 
 /**
  * #744 — one Calendar section, with the choice up front.
@@ -25,6 +27,12 @@ import { useCalendarConnections } from "@/lib/api/calendar";
  * alternative, not a second thing to set up, so it collapses.
  */
 export function CalendarSection() {
+  const { role } = useActiveCompany();
+  if (!roleHasCapability(role, "conversations.read")) return null;
+  return <CalendarSettings />;
+}
+
+function CalendarSettings() {
   const t = useT();
   const view = useCalendarConnections();
   const connected = (view.data?.connections ?? []).some(
