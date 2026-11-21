@@ -25,6 +25,7 @@ export const CRONS_SCHEMA = "loonext.rig-crons.v1";
 /** What R00 keeps of one of the local API's exceptions, for the registry to explain it. */
 export interface SeenEvent {
   at: number;
+  id?: string;
   level?: string;
   message?: string;
   fingerprint?: string[];
@@ -35,7 +36,10 @@ export interface SeenEvent {
 }
 
 /** Why an API exception is no surprise, or undefined when nothing explains it. */
-export type Explanation = { kind: "expected" } | { kind: "defect"; means: string };
+export type Explanation =
+  | { kind: "expected" }
+  | { kind: "expected-probe"; probe: string; evidence: string }
+  | { kind: "defect"; means: string };
 
 type Clause =
   | { kind: "fingerprint"; parts: string[] }

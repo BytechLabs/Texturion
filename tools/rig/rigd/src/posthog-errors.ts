@@ -111,7 +111,7 @@ export class PostHogErrors {
     const seconds = Math.floor(Math.max(0, since) / 1000);
     const sql =
       "select toUnixTimestamp(timestamp), properties.$exception_level, properties.$exception_fingerprint, " +
-      "properties.$exception_list, properties.source, properties.route, properties.cron, properties.job, properties.ops_key from events " +
+      "properties.$exception_list, properties.source, properties.route, properties.cron, properties.job, properties.ops_key, toString(uuid) from events " +
       `where event = '$exception' and properties.environment = '${API_ENVIRONMENT}' and timestamp >= toDateTime(${seconds}) ` +
       `order by timestamp limit ${QUERY_LIMIT}`;
     return (await this.query(sql)).map(seenException);
@@ -157,8 +157,9 @@ const text = (value: unknown): string | undefined => (typeof value === "string" 
  * first and its causes after; the registry wants the outermost last.
  */
 export function seenException(row: unknown[]): SeenEvent {
-  const [seconds, level, fingerprint, list, source, route, cron, job, opsKey] = row;
+  const [seconds, level, fingerprint, list, source, route, cron, job, opsKey, id] = row;
   const seen: SeenEvent = { at: Number(seconds) * 1000 };
+  if (typeof id === "string") seen.id = id;
   if (text(level)) seen.level = String(level);
   if (text(fingerprint)) seen.fingerprint = String(fingerprint).split(":");
 
@@ -202,6 +203,7 @@ export interface ApiExceptionsReport {
   unexplained_24h: string[];
   /** Exceptions the cron registry names as a defect of the rig's seed or setup, with its cause. */
   defects_24h: { key: string; means: string }[];
+  expected_probes_24h?: { key: string; probe: string; evidence: string }[];
 }
 
 /** The last day's API exceptions, sorted into expected, defect and unexplained. */
@@ -219,14 +221,20 @@ export async function reportApiExceptions(
   }
   const unexplained = new Set<string>();
   const defects = new Map<string, string>();
+  const probes = new Map<string, { key: string; probe: string; evidence: string }>();
   for (const event of events) {
     const explanation = explain(event);
     if (explanation?.kind === "defect") defects.set(exceptionKey(event), explanation.means);
-    else if (!explanation) unexplained.add(exceptionKey(event));
+    else if (explanation?.kind === "expected-probe") {
+      const { probe, evidence } = explanation;
+      const key = exceptionKey(event);
+      probes.set(`${probe}:${evidence}:${key}`, { key, probe, evidence });
+    } else if (!explanation) unexplained.add(exceptionKey(event));
   }
   return {
     at,
     unexplained_24h: [...unexplained].toSorted(),
     defects_24h: [...defects].map(([key, means]) => ({ key, means })).toSorted((a, b) => a.key.localeCompare(b.key)),
+    ...(probes.size > 0 ? { expected_probes_24h: [...probes.values()] } : {}),
   };
 }
