@@ -48,11 +48,28 @@ run_scenario() {
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows ]]; then
+  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-sources ]]; then
     test_timeout=420
   fi
 
   mkdir -p "$output"
+  if [[ "$name" == attachment-sources ]]; then
+    local settings="$RUNNER_TEMP/ios-qa-build/Build/Intermediates.noindex/Loonext.build/QA-iphonesimulator"
+    local share="$products/QA-iphonesimulator/Loonext.app/PlugIns/LoonextShare.appex/Info.plist"
+    local entitlements
+    for entitlements in "$settings/Loonext.build/Loonext.app-Simulated.xcent" \
+      "$settings/LoonextShare.build/LoonextShare.appex-Simulated.xcent"; do
+      /usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$entitlements" \
+        | grep -Fx 'group.com.loonext.ios.qa' || return 1
+    done
+    /usr/libexec/PlistBuddy -c 'Print :NSExtension' "$share" > "$output/share-extension.txt" || return 1
+    local photo=Loonext/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+    local documents
+    documents="$(xcrun simctl get_app_container "$QA_SIMULATOR" com.loonext.ios.qa data)/Documents" || return 1
+    mkdir -p "$documents" || return 1
+    cp "$photo" "$documents/QA Share Fixture.png" || return 1
+    xcrun simctl addmedia "$QA_SIMULATOR" "$photo" || return 1
+  fi
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
   fixture=$!
   for _ in {1..30}; do
@@ -80,6 +97,11 @@ run_scenario() {
       --predicate 'subsystem == "com.loonext.ios" AND category == "push" AND eventMessage CONTAINS "notification reply"' \
       > "$output/push.log" 2>&1 || true
   fi
+  if [[ "$name" == attachment-sources ]]; then
+    xcrun simctl spawn "$QA_SIMULATOR" log show --last 30m --info --style compact \
+      --predicate 'eventMessage CONTAINS "com.loonext.ios.qa.share" OR eventMessage CONTAINS "LoonextShare"' \
+      > "$output/share-extension.log" 2>&1 || true
+  fi
   stop_processes || result=1
 
   if [[ -d "$output/tests.xcresult" ]]; then
@@ -96,10 +118,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|attachment-sources|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert attachment-sources accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -118,6 +140,8 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     thread-workflows) run_scenario "$name" "$ui/testLongThreadRecapCitesMessages" \
       "$ui/testCreateTaskFromSavedVoicemail" || failed=1 ;;
     quote-alert) run_scenario "$name" "$ui/testQuoteAcceptanceRefreshesStripAndAlertsOnce" || failed=1 ;;
+    attachment-sources) run_scenario "$name" "$ui/testPhotoLibraryStagesAttachment" \
+      "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
   esac
 done
