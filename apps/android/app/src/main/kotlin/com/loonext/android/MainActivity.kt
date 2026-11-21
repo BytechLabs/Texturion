@@ -60,6 +60,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -148,6 +149,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -398,15 +400,18 @@ class MainActivity : FragmentActivity() {
             // rewrites both from every /v1/me, so the mirror is never the
             // authority — only the fast answer.
             //
-            // The DEVICE half is read once per composition: Android recreates
-            // the activity when the system language changes, so re-reading it on
-            // every recomposition would cost a lookup to learn nothing.
-            val deviceTag = remember { UiLocale.deviceTag() }
+            val configuration = LocalConfiguration.current
+            val deviceTag = remember(configuration) { UiLocale.deviceTag(this) }
             val userLocale by graph.prefs.uiLocale
                 .collectAsStateWithLifecycle(initialValue = null)
             val workspaceLocale by graph.prefs.workspaceLocale
                 .collectAsStateWithLifecycle(initialValue = null)
             val appLocale = UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
+            LaunchedEffect(graph) {
+                graph.prefs.uiLocale.distinctUntilChanged().collect {
+                    UiLocale.applyPlatformPreference(this@MainActivity, it)
+                }
+            }
             // #720: dates drawn outside a composition read the same language.
             SideEffect { TimestampFormat.readerLocale = appLocale }
             /*

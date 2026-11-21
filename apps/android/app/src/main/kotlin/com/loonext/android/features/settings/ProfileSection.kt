@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -177,7 +179,9 @@ private fun LanguageCard(scope: SettingsScope) {
     // can never disagree about what was chosen — and writing it is what makes
     // the change visible in the same frame instead of on the next launch.
     val chosen by scope.graph.prefs.uiLocale.collectAsState(initial = null)
-    val deviceTag = remember { UiLocale.deviceTag() }
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val deviceTag = remember(context, configuration) { UiLocale.deviceTag(context) }
     // What "Same as my phone" actually resolves to today, named rather than
     // implied: a rule without its answer sends somebody back to guessing.
     val followed = remember(deviceTag) {

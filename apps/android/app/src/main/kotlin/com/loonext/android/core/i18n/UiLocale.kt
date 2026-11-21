@@ -1,7 +1,16 @@
 package com.loonext.android.core.i18n
 
+import android.app.LocaleManager
+import android.content.Context
+import android.content.res.Resources
+import android.os.Build
+import android.os.LocaleList
 import com.loonext.android.core.model.MessageLocale
 import java.util.Locale
+
+private const val PLATFORM_LOCALE_PREFS = "platform_locale"
+private const val APPLIED_LOCALE = "applied_locale"
+private const val PREVIOUS_LOCALES = "previous_locales"
 
 /**
  * #228 Phase 1 — WHICH language this app draws itself in, hand-ported from
@@ -76,7 +85,50 @@ object UiLocale {
     }
 
     /** This device's own language, in the shape [normalizeDevice] expects. */
-    fun deviceTag(): String = Locale.getDefault().toLanguageTag()
+    fun deviceTag(): String {
+        val systemLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Resources.getSystem().configuration.locales[0]
+        } else {
+            null
+        }
+        return (systemLocale ?: Locale.getDefault()).toLanguageTag()
+    }
+
+    /** The locale Android would use for Loonext without a member's preference. */
+    fun deviceTag(context: Context): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return deviceTag()
+        val manager = context.getSystemService(LocaleManager::class.java) ?: return deviceTag()
+        val prefs = context.getSharedPreferences(PLATFORM_LOCALE_PREFS, Context.MODE_PRIVATE)
+        val native = manager.applicationLocales
+        val inherited = if (native.toLanguageTags() == prefs.getString(APPLIED_LOCALE, null)) {
+            LocaleList.forLanguageTags(prefs.getString(PREVIOUS_LOCALES, ""))
+        } else {
+            native
+        }
+        return inherited[0]?.toLanguageTag() ?: deviceTag()
+    }
+
+    /** TalkBack uses Android's app locale when it chooses the voice for a view. */
+    fun applyPlatformPreference(context: Context, userLocale: String?) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val manager = context.getSystemService(LocaleManager::class.java) ?: return
+        val prefs = context.getSharedPreferences(PLATFORM_LOCALE_PREFS, Context.MODE_PRIVATE)
+        val current = manager.applicationLocales.toLanguageTags()
+        val applied = prefs.getString(APPLIED_LOCALE, null)
+        if (isKnown(userLocale)) {
+            if (current == userLocale) return
+            val previous = if (current == applied) prefs.getString(PREVIOUS_LOCALES, "") else current
+            prefs.edit()
+                .putString(PREVIOUS_LOCALES, previous)
+                .putString(APPLIED_LOCALE, userLocale)
+                .apply()
+            manager.applicationLocales = LocaleList.forLanguageTags(userLocale)
+        } else if (applied != null) {
+            val previous = prefs.getString(PREVIOUS_LOCALES, "")
+            prefs.edit().clear().apply()
+            if (current == applied) manager.applicationLocales = LocaleList.forLanguageTags(previous)
+        }
+    }
 
     private fun isKnown(value: String?): Boolean =
         value == MessageLocale.EN || value == MessageLocale.FR_CA
