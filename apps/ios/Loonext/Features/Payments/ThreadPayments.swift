@@ -551,7 +551,7 @@ private struct AskForPaymentSheet: View {
     // the shorthand — because these are COMPUTED properties rather than locals,
     // and nothing on the machine this was written on compiles Swift. The
     // shorthand is fine; being sure it is fine costs a CI round trip.
-    private var cents: Int? { parsePaymentAmountToCents(amountText) }
+    private var cents: Int? { parsePaymentAmountToCents(amountText, locale: appLocale) }
 
     private var problem: PaymentAmountProblem? {
         guard let cents = cents else { return nil }

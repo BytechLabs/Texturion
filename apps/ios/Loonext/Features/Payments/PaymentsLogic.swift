@@ -196,37 +196,32 @@ func paymentAmountProblemCopy(
     }
 }
 
-/// "250", "250.50", "$1,250.5" → cents. Anything else → nil.
-///
-/// CENTS AS AN INTEGER, ALL THE WAY THROUGH. `Double(cleaned) * 100` is the
-/// obvious spelling and it is wrong: 19.99 as a binary double is 19.989999…, so
-/// multiplying and rounding is a coin flip nobody should be taking with
-/// somebody else's bill. The whole part and the fraction are parsed separately
-/// and combined with integer arithmetic, which cannot round at all.
-///
-/// Deliberately strict about the SHAPE and forgiving about decoration: a person
-/// typing on a phone adds a dollar sign or a comma without thinking, and
-/// refusing that would be pedantry. What is refused is anything that is not a
-/// number — a silently misread amount is the one error this feature cannot
-/// afford.
-///
-/// Mirrors `parseAmountToCents` in apps/web/src/components/thread/ask-for-payment.tsx.
-func parsePaymentAmountToCents(_ input: String) -> Int? {
-    let cleaned = input.filter { character in
-        character != "$" && character != "," && !character.isWhitespace
+/// Mirrors `parseMoneyInputToCents` in packages/shared/src/payments.ts.
+func parsePaymentAmountToCents(_ input: String, locale: String = MessageLocale.en) -> Int? {
+    var amount = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if amount.hasPrefix("$") {
+        amount.removeFirst()
+    } else if amount.hasSuffix("$") {
+        amount.removeLast()
     }
-    if cleaned.isEmpty { return nil }
-    // Anchored, so "12abc" is refused rather than partially matched. Built per
-    // call rather than hoisted to a constant: an `NSRegularExpression` global is
-    // not Sendable under Swift 6 strict concurrency, which is the same reason
-    // SettingsLogic builds its patterns inline.
-    guard cleaned.range(
-        of: "^[0-9]+(\\.[0-9]{0,2})?$",
-        options: .regularExpression
-    ) != nil else { return nil }
+    amount = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "\u{00A0}", with: " ")
+        .replacingOccurrences(of: "\u{202F}", with: " ")
+    let decimal = #"^(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]{0,2})?$|^[.,][0-9]{1,2}$"#
+    let commaGroups = #"^[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{0,2})?$"#
+    let normalized: String
+    if amount.range(of: decimal, options: .regularExpression) != nil {
+        normalized = amount.replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ",", with: ".")
+    } else if (locale != MessageLocale.frCA || amount.contains(".")),
+              amount.range(of: commaGroups, options: .regularExpression) != nil {
+        normalized = amount.replacingOccurrences(of: ",", with: "")
+    } else {
+        return nil
+    }
 
-    let parts = cleaned.split(separator: ".", omittingEmptySubsequences: false)
-    guard let whole = Int(parts[0]) else { return nil }
+    let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
+    guard let whole = parts[0].isEmpty ? 0 : Int(parts[0]) else { return nil }
     var fraction = parts.count > 1 ? String(parts[1]) : ""
     // "250.5" is two hundred and fifty dollars FIFTY, not five cents, and "250."
     // is a real keystroke on the way to typing cents. Padding to two digits

@@ -348,8 +348,7 @@ struct ThreadQuotesPane: View {
     }
 
     private func submit(_ model: ThreadQuotesModel) async {
-        let digits = amount.filter { $0.isNumber || $0 == "." }
-        guard let dollars = Double(digits), dollars > 0 else {
+        guard let cents = parsePaymentAmountToCents(amount, locale: appLocale), cents > 0 else {
             model.notice = t("quotes.needAmount")
             return
         }
@@ -359,7 +358,7 @@ struct ThreadQuotesPane: View {
         }
         let saved = await model.save(
             quoteId: editId,
-            amountCents: Int((dollars * 100).rounded()),
+            amountCents: cents,
             description: work.trimmingCharacters(in: .whitespaces),
             locale: appLocale
         )

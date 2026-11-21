@@ -159,7 +159,7 @@ fun AskForPayment(
         return
     }
 
-    val cents = Payments.parseAmountToCents(amount)
+    val cents = Payments.parseAmountToCents(amount, LocalAppLocale.current)
     val problem = cents?.let { Payments.amountProblem(it) }
     // Spelled out rather than read from a `ready` flag: the null check is what
     // smart-casts `cents` for the composer below, and a boolean does not.

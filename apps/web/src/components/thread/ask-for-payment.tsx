@@ -1,16 +1,16 @@
 "use client";
 
 import { HandCoins } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { formatMoney, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, resolveLocale, roleHasCapability } from '@loonext/shared';
+import { formatMoney, parseMoneyInputToCents, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, resolveLocale, roleHasCapability } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useT } from "@/i18n/provider";
+import { useLocale, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -72,6 +72,7 @@ export function AskForPayment({
   onPrefillUsed?: () => void;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   // Smart Defaults: the ask this feature was built for, editable in one tap.
@@ -101,7 +102,7 @@ export function AskForPayment({
     account.data?.currency === "cad" ? "cad" : "usd";
   const businessName = company.data?.name ?? "";
 
-  const cents = useMemo(() => parseAmountToCents(amount), [amount]);
+  const cents = parseMoneyInputToCents(amount, locale);
   const problem = cents === null ? null : paymentAmountProblem(cents);
 
   const preview =
@@ -269,24 +270,4 @@ export function AskForPayment({
       </p>
     </div>
   );
-}
-
-/**
- * "250", "250.50", "$250.5" → cents. Anything else → null.
- *
- * Deliberately strict about the SHAPE and forgiving about decoration: a person
- * typing on a phone adds a dollar sign or a comma without thinking, and
- * refusing that would be pedantry. What is refused is anything that is not a
- * number, because a silently-misread amount is the one error this feature
- * cannot afford.
- */
-export function parseAmountToCents(input: string): number | null {
-  const cleaned = input.replaceAll(/[$,\s]/g, "");
-  if (cleaned.length === 0) return null;
-  if (!/^\d+(\.\d{0,2})?$/.test(cleaned)) return null;
-  // Via a string rather than `* 100`: 19.99 * 100 is 1998.9999999999998, and
-  // rounding that is a coin-flip nobody should be taking with somebody's bill.
-  const [whole, fraction = ""] = cleaned.split(".");
-  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  return Number.isSafeInteger(cents) ? cents : null;
 }

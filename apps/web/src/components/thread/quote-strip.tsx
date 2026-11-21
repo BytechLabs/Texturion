@@ -8,10 +8,11 @@ import {
   billingCurrencyOf,
   formatMoney,
   isQuoteDecided,
+  parseMoneyInputToCents,
   QUOTE_STATUS_KEYS,
 } from "@loonext/shared";
 
-import { useT } from '@/i18n/provider';
+import { useLocale, useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { useChangeQuoteDraft, useCreateQuote, useQuoteDecision, useQuotes, useSendQuote } from '@/lib/api/quotes';
 import type { Quote, QuoteDecisionAction } from '@/lib/api/quotes';
@@ -223,6 +224,7 @@ export function QuoteStrip({
   onAskForPayment?: (prefill: { amountCents: number; description: string }) => void;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const quotes = useQuotes(conversationId);
   const create = useCreateQuote(conversationId);
   const send = useSendQuote(conversationId);
@@ -259,8 +261,8 @@ export function QuoteStrip({
 
   function submit() {
     setError(null);
-    const dollars = Number(amount.replaceAll(/[^0-9.]/g, ""));
-    if (!Number.isFinite(dollars) || dollars <= 0) {
+    const amountCents = parseMoneyInputToCents(amount, locale);
+    if (amountCents === null || amountCents <= 0) {
       setError(t("quotes.needAmount"));
       return;
     }
@@ -268,7 +270,6 @@ export function QuoteStrip({
       setError(t("quotes.needDescription"));
       return;
     }
-    const amountCents = Math.round(dollars * 100);
     const expiresAt = new Date(now + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
     if (editId) {
       changeDraft.mutate({

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
 import {
+  parseMoneyInputToCents,
   PAYMENT_MAX_CENTS,
   PAYMENT_MIN_CENTS,
   paymentAmountProblem,
@@ -27,6 +28,23 @@ function look(table: unknown, key: string): string {
 
 const sayEn = (key: string): string => look(WEB_EN, key);
 const sayFr = (key: string): string => look(WEB_FR, key);
+
+describe("quote and payment amount input", () => {
+  it.each([
+    ["12,34", "fr-CA", 1234],
+    ["1\u202F250,5 $", "fr-CA", 125_050],
+    [",5", "fr-CA", 50],
+    ["12,34", "en", 1234],
+    ["$1,250.50", "en", 125_050],
+    ["12,345", "en", 1_234_500],
+    ["12,345", "fr-CA", null],
+    ["1,2,3", "fr-CA", null],
+    ["12 34", "en", null],
+    ["$123$", "en", null],
+  ])("parses %s in %s as %s cents", (input, locale, cents) => {
+    expect(parseMoneyInputToCents(input, locale)).toBe(cents);
+  });
+});
 
 /**
  * #224 — the vectors the Kotlin and Swift ports are checked against.

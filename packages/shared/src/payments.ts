@@ -132,6 +132,27 @@ export const PAYMENT_MIN_CENTS = 100;
  */
 export const PAYMENT_MAX_CENTS = 2_500_000;
 
+/**
+ * Parse a quote or payment amount without dropping a decimal separator.
+ * In Canadian French, a bare comma followed by three digits is invalid.
+ */
+export function parseMoneyInputToCents(input: string, locale = "en"): number | null {
+  const amount = input.trim().replace(/^\$\s*|\s*\$$/, "").replaceAll(/[\u00A0\u202F]/g, " ");
+  const decimal = /^(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]{0,2})?$|^[.,][0-9]{1,2}$/;
+  const commaGroups = /^[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{0,2})?$/;
+  let normalized: string;
+  if (decimal.test(amount)) {
+    normalized = amount.replaceAll(" ", "").replace(",", ".");
+  } else if ((locale !== "fr-CA" || amount.includes(".")) && commaGroups.test(amount)) {
+    normalized = amount.replaceAll(",", "");
+  } else {
+    return null;
+  }
+  const [whole, fraction = ""] = normalized.split(".");
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
 /** The description ceiling — it rides in an SMS and on a card statement. */
 export const PAYMENT_DESCRIPTION_MAX = 200;
 
