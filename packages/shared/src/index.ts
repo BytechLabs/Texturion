@@ -997,6 +997,7 @@ export {
   PAYMENT_DESCRIPTION_MAX,
   PAYMENT_MAX_CENTS,
   PAYMENT_MIN_CENTS,
+  parseMoneyInputToCents,
   paymentAmountProblem,
   paymentRequestCancellable,
   paymentRequestLabel,

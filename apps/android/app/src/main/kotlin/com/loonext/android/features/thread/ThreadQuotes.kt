@@ -37,6 +37,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.features.payments.Payments
 import com.loonext.android.features.quotes.QUOTE_STATUS_KEYS
 import com.loonext.android.features.quotes.Quote
 import com.loonext.android.features.quotes.QuoteStatus
@@ -170,8 +171,8 @@ fun ThreadQuotes(
     }
 
     fun save() {
-        val dollars = amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
-        if (dollars == null || dollars <= 0) {
+        val cents = Payments.parseAmountToCents(amount, locale)
+        if (cents == null || cents <= 0) {
             onNotice(AppStrings.translate(locale, "quotes.needAmount"))
             return
         }
@@ -180,7 +181,6 @@ fun ThreadQuotes(
             return
         }
         val quoteId = editId
-        val cents = Math.round(dollars * 100).toInt()
         val work = description.trim()
         val expiry = java.time.Instant
             .ofEpochMilli(now + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)

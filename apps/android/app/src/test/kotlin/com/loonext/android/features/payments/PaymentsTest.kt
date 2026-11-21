@@ -61,9 +61,20 @@ class PaymentsTest {
     fun `anything that is not a number is refused rather than guessed`() {
         // A silently-misread amount is the one error this feature cannot afford,
         // so the shape is strict even though the decoration is not.
-        for (input in listOf("", "   ", "abc", "25.999", "1.2.3", "-50", "1e3", ".5", "250-")) {
+        for (input in listOf("", "   ", "abc", "25.999", "1.2.3", "-50", "1e3", "250-")) {
             assertNull("'$input' should not parse", Payments.parseAmountToCents(input))
         }
+    }
+
+    @Test
+    fun `quote and payment amounts preserve French decimal commas`() {
+        assertEquals(1_234, Payments.parseAmountToCents("12,34", "fr-CA"))
+        assertEquals(125_050, Payments.parseAmountToCents("1\u202f250,5 $", "fr-CA"))
+        assertEquals(50, Payments.parseAmountToCents(",5", "fr-CA"))
+        assertEquals(125_050, Payments.parseAmountToCents("\$1,250.50"))
+        assertNull(Payments.parseAmountToCents("12,345", "fr-CA"))
+        assertNull(Payments.parseAmountToCents("1,2,3", "fr-CA"))
+        assertNull(Payments.parseAmountToCents("12 34"))
     }
 
     @Test

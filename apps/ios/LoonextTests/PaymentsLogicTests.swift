@@ -302,6 +302,16 @@ final class PaymentsLogicTests: XCTestCase {
         XCTAssertNil(parsePaymentAmountToCents(String(repeating: "9", count: 18)))
     }
 
+    func testQuoteAndPaymentAmountsPreserveFrenchDecimalCommas() {
+        XCTAssertEqual(parsePaymentAmountToCents("12,34", locale: "fr-CA"), 1_234)
+        XCTAssertEqual(parsePaymentAmountToCents("1\u{202F}250,5 $", locale: "fr-CA"), 125_050)
+        XCTAssertEqual(parsePaymentAmountToCents(",5", locale: "fr-CA"), 50)
+        XCTAssertEqual(parsePaymentAmountToCents("$1,250.50"), 125_050)
+        XCTAssertNil(parsePaymentAmountToCents("12,345", locale: "fr-CA"))
+        XCTAssertNil(parsePaymentAmountToCents("1,2,3", locale: "fr-CA"))
+        XCTAssertNil(parsePaymentAmountToCents("12 34"))
+    }
+
     /// A trailing dot is a real keystroke on the way to typing cents, and the
     /// shared regex allows zero digits after the point. Refusing it mid-type
     /// would blank the preview between "250." and "250.5".

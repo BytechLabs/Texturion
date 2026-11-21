@@ -23,7 +23,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 let quote;
-const state = { mode: "online", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", locale: "en", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
@@ -118,6 +118,10 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (path === "/__qa/french" && req.method === "POST") {
+      state.locale = "fr-CA";
+      return json({ ok: true });
+    }
     if (path === "/__qa/open-url" && req.method === "POST") {
       let url = "";
       for await (const chunk of req) url += chunk;
@@ -200,7 +204,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(first ? 206 : 200, headers);
       return res.end(audio.subarray(start, end + 1));
     }
-    if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: "en",
+    if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: state.locale,
       company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
     if (path === "/v1/for-you") return json({});
@@ -208,7 +212,8 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/numbers") return json(page([line]));
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
-    if (req.method === "PATCH" || path === "/v1/messages/send" || (req.method === "POST" && path === "/v1/tasks")) {
+    if (req.method === "PATCH" || path === "/v1/messages/send" ||
+      (req.method === "POST" && (path === "/v1/tasks" || path === "/v1/quotes"))) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
@@ -216,6 +221,10 @@ const server = createServer(async (req, res) => {
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
       if (path === "/v1/tasks") return json({ ...task, title: body.title, conversation_id: threadIDs[0] }, 201);
+      if (path === "/v1/quotes") {
+        quote = { ...body, id: quoteID, contact_id: contactID, currency: "cad", status: "draft", created_at: now() };
+        return json(quote, 201);
+      }
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
         const sent = message(index, body.body, "outbound");

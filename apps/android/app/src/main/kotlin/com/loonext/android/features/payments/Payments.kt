@@ -74,6 +74,8 @@ enum class PayoutReadiness(val wire: String) {
 enum class PaymentAmountProblem { TOO_SMALL, TOO_LARGE, NOT_WHOLE }
 
 object Payments {
+    private val DECIMAL_AMOUNT = Regex("""(?:[0-9]+|[0-9]{1,3}(?: [0-9]{3})+)(?:[.,][0-9]{0,2})?|[.,][0-9]{1,2}""")
+    private val COMMA_GROUPS = Regex("""[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{0,2})?""")
 
     /**
      * The floor, in cents.
@@ -325,50 +327,25 @@ object Payments {
         return now - at < RECENTLY_SETTLED_MS
     }
 
-    /**
-     * "250", "250.50", "$250.5" → cents. Anything else → null.
-     *
-     * Deliberately strict about the SHAPE and forgiving about decoration: a
-     * person typing on a phone adds a dollar sign or a comma without thinking,
-     * and refusing that would be pedantry. What is refused is anything that is
-     * not a number, because a silently-misread amount is the one error this
-     * feature cannot afford.
-     *
-     * THE ARITHMETIC GOES THROUGH INTEGERS, never `* 100`. 19.99 as a double
-     * times 100 is 1998.9999999999998, and rounding that is a coin-flip nobody
-     * should be taking with somebody's bill.
-     *
-     * The overflow guard is load-bearing rather than defensive. Without it a
-     * fat-fingered 30-digit amount wraps a `Long` into whatever it wraps into,
-     * and a wrapped value that happens to land between [MIN_CENTS] and
-     * [MAX_CENTS] is a bill for a number nobody typed.
-     */
-    fun parseAmountToCents(input: String): Int? {
-        // filterNot rather than a regex: a `$` inside a Kotlin string literal is
-        // the start of a template, and the escape needed to get one into a
-        // character class is exactly the kind of detail a hand-port loses.
-        val cleaned = input.filterNot { it == '$' || it == ',' || it.isWhitespace() }
-        if (cleaned.isEmpty()) return null
-        if (!AMOUNT_SHAPE.matches(cleaned)) return null
+    /** Mirrors `parseMoneyInputToCents` in packages/shared/src/payments.ts. */
+    fun parseAmountToCents(input: String, locale: String = MessageLocale.EN): Int? {
+        val trimmed = input.trim()
+        val withoutCurrency = if (trimmed.startsWith('$')) trimmed.drop(1) else trimmed.removeSuffix("$")
+        val amount = withoutCurrency.trim().replace('\u00a0', ' ').replace('\u202f', ' ')
+        val normalized = when {
+            DECIMAL_AMOUNT.matches(amount) -> amount.replace(" ", "").replace(',', '.')
+            (locale != MessageLocale.FR_CA || '.' in amount) && COMMA_GROUPS.matches(amount) ->
+                amount.replace(",", "")
+            else -> return null
+        }
 
-        val dot = cleaned.indexOf('.')
-        val wholeText = if (dot < 0) cleaned else cleaned.substring(0, dot)
-        val fractionText = if (dot < 0) "" else cleaned.substring(dot + 1)
+        val wholeText = normalized.substringBefore('.').ifEmpty { "0" }
+        val fractionText = normalized.substringAfter('.', "")
         val whole = wholeText.toLongOrNull() ?: return null
         if (whole > Int.MAX_VALUE / 100) return null
         val cents = whole * 100 + fractionText.padEnd(2, '0').toLong()
         return if (cents <= Int.MAX_VALUE) cents.toInt() else null
     }
-
-    /**
-     * Digits, optionally a point and up to two more digits.
-     *
-     * A raw string so the regex is the regex — `"""\d"""` IS `\d`, where the
-     * escaped form invites the class of mistake this repo has already paid for
-     * (a `\b` in a Kotlin string is a backspace, not a word boundary).
-     * [Regex.matches] anchors the whole input, so no `^`/`$` are needed.
-     */
-    private val AMOUNT_SHAPE = Regex("""\d+(\.\d{0,2})?""")
 
     /** Stripe's own prefix for whose document it wants — dropped from the copy. */
     private val OWNER_PREFIX = Regex("""^(individual|company|representative)\.""")
