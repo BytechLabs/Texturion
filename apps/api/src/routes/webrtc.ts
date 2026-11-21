@@ -26,8 +26,10 @@ import type { Env } from '../env';
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
 import { reportHandledFailure } from "../observability/capture";
-import { TelnyxApiError, telnyxRequest, telnyxUrl } from "../telnyx/client";
+import { TELNYX_TIMEOUT_MS, TelnyxApiError, telnyxRequest, telnyxUrl } from "../telnyx/client";
 import { unwrap } from "./core/http";
+
+const RETRYABLE_TOKEN_STATUSES = new Set([502, 503, 504]);
 
 interface CredentialRow {
   telnyx_credential_id: string;
@@ -180,13 +182,15 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
 
   // Telnyx returns the JWT as raw text (201 text/plain) — not JSON, so this
   // one call bypasses telnyxRequest's JSON parsing.
-  const tokenResponse = await fetch(
-    telnyxUrl(env, `/v2/telephony_credentials/${credential.telnyx_credential_id}/token`),
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
-    },
-  );
+  const tokenUrl = telnyxUrl(env, `/v2/telephony_credentials/${credential.telnyx_credential_id}/token`);
+  const signal = AbortSignal.timeout(TELNYX_TIMEOUT_MS);
+  const requestToken = () => fetch(tokenUrl, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
+    signal,
+  });
+  let tokenResponse = await requestToken();
+  if (RETRYABLE_TOKEN_STATUSES.has(tokenResponse.status)) tokenResponse = await requestToken();
   if (!tokenResponse.ok) {
     throw new Error(
       `telephony credential token mint failed: ${tokenResponse.status}`,
