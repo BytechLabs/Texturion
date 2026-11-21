@@ -308,6 +308,9 @@ const server = createServer(async (req, res) => {
       return json({ ...page(rows), upcoming_count: rows.length, held_count: 0 });
     }
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/company/ownership") {
+      return json({ owner_member_id: userID, i_am_owner: state.role === "owner" });
+    }
     if (path === "/v1/invites") return json(page(state.invites));
     if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
