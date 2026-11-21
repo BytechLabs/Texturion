@@ -155,7 +155,7 @@ const RULES: { name: string; why: string; test: RegExp }[] = [
       "unguessable (a Telnyx call/message id, a Stripe event id). No tenant " +
       "can name another tenant's, so the key IS the scope.",
     test:
-      /\.(eq|in)\(\s*["'`](call_session_id|call_leg_id|call_control_id|telnyx_message_id|event_id|provisioning_key|customer_call_control_id)["'`]/,
+      /\.(eq|in)\(\s*["'`](call_session_id|call_leg_id|call_control_id|telnyx_message_id|french_opt_out_confirmation_id|event_id|provisioning_key|customer_call_control_id)["'`]/,
   },
   {
     name: "insert-under-a-not-null-scope",

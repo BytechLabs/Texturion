@@ -1503,7 +1503,8 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
           return { data: { id: "telnyx-confirmation" } };
         },
       );
-      serve(numberStub(), thread, optOutUpsert, events, confirmation, ...away.stubs);
+      const receiptMarker = stubRoute(restMatch(env, "PATCH", "messages"), () => new Response(null, { status: 204 }));
+      serve(numberStub(), thread, optOutUpsert, events, confirmation, receiptMarker, ...away.stubs);
 
       await handleInboundMessage(env, inboundEvent({ text }));
 
@@ -1518,6 +1519,9 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
         to: "+16135551000",
         text: "Vous ne recevrez plus de textos de ce numéro.",
       });
+      expect(receiptMarker.calls).toHaveLength(1);
+      expect(receiptMarker.calls[0].url.searchParams.get("id")).toBe(`eq.${MESSAGE_ID}`);
+      expect(receiptMarker.calls[0].body).toEqual({ french_opt_out_confirmation_id: "telnyx-confirmation" });
     },
   );
 

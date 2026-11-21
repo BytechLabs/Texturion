@@ -446,6 +446,21 @@ describe("message.finalized", () => {
     expect(widgetCode.calls[0].url.searchParams.get("telnyx_message_id")).toBe(`eq.${TELNYX_ID}`);
   });
 
+  it("finishes a French opt-out confirmation receipt by its saved carrier ID", async () => {
+    const confirmation = stubRoute(
+      (url, request) => restMatch(env, "GET", "messages")(url, request) &&
+        url.searchParams.get("french_opt_out_confirmation_id") === `eq.${TELNYX_ID}`,
+      () => [{ id: MESSAGE_ID }],
+    );
+    const unknownMessage = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    const widgetCode = stubRoute(restMatch(env, "GET", "widget_verifications"), () => []);
+    stubFetch(confirmation.route, unknownMessage.route, widgetCode.route);
+
+    await handleStatusEvent(env, finalizedEvent({ occurredAt: new Date(Date.now() - 1000).toISOString() }));
+
+    expect(confirmation.calls).toHaveLength(1);
+  });
+
   it("leaves stripe_reported_at NULL when the meter call fails (cron re-reports)", async () => {
     const stubs = baseStubs();
     const failingMeter = stubRoute(

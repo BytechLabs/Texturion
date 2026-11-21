@@ -117,7 +117,13 @@ async function finalize(
         .eq("telnyx_message_id", telnyxMessageId)
         .limit(1);
       if (error) throw new Error(`finalized widget lookup failed: ${error.message}`);
-      if ((systemTexts ?? []).length === 0) {
+      if (systemTexts?.length) return;
+      const { data: confirmations, error: confirmationError } = await db.from("messages")
+        .select("id")
+        .eq("french_opt_out_confirmation_id", telnyxMessageId)
+        .limit(1);
+      if (confirmationError) throw new Error(`finalized opt-out confirmation lookup failed: ${confirmationError.code}`);
+      if (!confirmations?.length) {
         throw new Error("Finalized receipt arrived before the carrier message ID was saved.");
       }
     }

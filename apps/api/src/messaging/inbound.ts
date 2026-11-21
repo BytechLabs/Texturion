@@ -593,7 +593,13 @@ export async function finishThreadedInbound(
         to: fromE164,
         inboundMessageId: threaded.message_id,
       });
-      if (!confirmation.ok) {
+      if (confirmation.ok) {
+        const { error } = await db.from("messages")
+          .update({ french_opt_out_confirmation_id: confirmation.telnyxMessageId })
+          .eq("company_id", companyId)
+          .eq("id", threaded.message_id);
+        if (error) throw new Error(`could not save French opt-out confirmation carrier ID: ${error.code}`);
+      } else {
         console.warn(`French opt-out confirmation refused for ${threaded.message_id}: ${confirmation.errorCode ?? "unknown"}`);
       }
     } catch (error) {
