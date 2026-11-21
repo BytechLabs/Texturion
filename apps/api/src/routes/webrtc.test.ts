@@ -37,6 +37,7 @@ interface WorldOptions {
   insertReturns?: unknown[];
   /** Overrides the credential-lookup responder (for the race case). */
   credentialLookup?: () => unknown[];
+  tokenResponse?: () => Response;
 }
 
 function world(options: WorldOptions = {}): {
@@ -77,12 +78,43 @@ function world(options: WorldOptions = {}): {
     (url, request) =>
       request.method === "POST" &&
       /\/v2\/telephony_credentials\/[^/]+\/token$/.test(url.pathname),
-    () => new Response("jwt-token-abc", { status: 201 }),
+    options.tokenResponse ?? (() => new Response("jwt-token-abc", { status: 201 })),
   );
   return { sb, create, token };
 }
 
 describe("POST /v1/webrtc/token (D43)", () => {
+  it.each([
+    { upstreamStatus: 503, recovers: true, expectedCalls: 2, responseStatus: 200 },
+    { upstreamStatus: 503, recovers: false, expectedCalls: 2, responseStatus: 500 },
+    { upstreamStatus: 403, recovers: false, expectedCalls: 1, responseStatus: 500 },
+  ])("handles upstream $upstreamStatus for a saved credential (recovers=$recovers)", async ({ upstreamStatus, recovers, expectedCalls, responseStatus }) => {
+    let attempts = 0;
+    const w = world({
+      existingCredential: { telnyx_credential_id: "cred_existing", sip_username: "gencredBBB" },
+      tokenResponse: () => {
+        attempts += 1;
+        return attempts > 1 && recovers
+          ? new Response("jwt-token-abc", { status: 201 })
+          : new Response(null, { status: upstreamStatus });
+      },
+    });
+    stubFetch(jwksRoute(auth), w.sb.route, w.create.route, w.token.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/webrtc/token", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: {},
+    });
+
+    expect(res.status).toBe(responseStatus);
+    expect(w.create.calls).toHaveLength(0);
+    expect(w.token.calls).toHaveLength(expectedCalls);
+    expect(new Set(w.token.calls.map((call) => call.url.pathname))).toEqual(
+      new Set(["/v2/telephony_credentials/cred_existing/token"]),
+    );
+  });
+
   it("first token: mints the credential on the shared connection, stores it, returns the JWT", async () => {
     const w = world();
     stubFetch(jwksRoute(auth), w.sb.route, w.create.route, w.token.route);
