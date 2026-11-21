@@ -52,7 +52,15 @@ function finishedRows(count: number): RowState[] {
   }));
 }
 
-function InboxRow({ row, item }: { row: RowState; item: HeroInboxRow }) {
+function InboxRow({
+  row,
+  item,
+  outboundPrefix,
+}: {
+  row: RowState;
+  item: HeroInboxRow;
+  outboundPrefix: string;
+}) {
   return (
     <div
       className={cn(
@@ -84,11 +92,8 @@ function InboxRow({ row, item }: { row: RowState; item: HeroInboxRow }) {
             {item.time}
           </span>
         </span>
-        {/* The app's own snippet rule (inbox/conversation-row.tsx): an
-            outbound latest message is prefixed "You: ". Marketing does not
-            invent a second grammar for the same row. */}
         <span className="mt-[2px] block truncate text-[12.5px] leading-[1.45] text-app-muted">
-          {item.direction === "outbound" ? "You: " : ""}
+          {item.direction === "outbound" ? outboundPrefix : ""}
           {item.snippet}
         </span>
       </span>
@@ -105,7 +110,15 @@ function InboxRow({ row, item }: { row: RowState; item: HeroInboxRow }) {
   );
 }
 
-export function HeroInbox({ script, heading }: { script: readonly HeroInboxRow[]; heading: string }) {
+export function HeroInbox({
+  script,
+  heading,
+  outboundPrefix,
+}: {
+  script: readonly HeroInboxRow[];
+  heading: string;
+  outboundPrefix: string;
+}) {
   const [rows, setRows] = useState<RowState[]>(() =>
     finishedRows(script.length),
   );
@@ -160,7 +173,7 @@ export function HeroInbox({ script, heading }: { script: readonly HeroInboxRow[]
       </div>
       <div>
         {rows.map((row) => (
-          <InboxRow key={row.key} row={row} item={script[row.idx]} />
+          <InboxRow key={row.key} row={row} item={script[row.idx]} outboundPrefix={outboundPrefix} />
         ))}
       </div>
     </div>

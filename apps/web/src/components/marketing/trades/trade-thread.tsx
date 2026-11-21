@@ -103,8 +103,8 @@ function DoneBadge({ label }: { label: string }) {
       title={label}
     >
       <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
-      Done
-      <span className="sr-only"> · {label}</span>
+      <span aria-hidden>{label.split(" · ", 1)[0]}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
@@ -289,7 +289,7 @@ function renderBeat(
     );
   }
   const done = doneSet.has(beat.id);
-  const doneLabel = doneLabels[beat.id] ?? "Done";
+  const doneLabel = doneLabels[beat.id] ?? threadCopy.done;
   if (beat.kind === "inbound") {
     return (
       <InboundBeat key={beat.id} beat={beat} done={done} doneLabel={doneLabel} />

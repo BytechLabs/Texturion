@@ -1,6 +1,7 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { DEMO_CAST, threadDemoCopy } from "@/i18n/marketing/thread-demo";
+import { demoClock } from "@/lib/marketing/demo-clock";
 
 /**
  * Thread-demo script model.
@@ -165,7 +166,7 @@ export const waterHeaterScript = (
       kind: "outbound",
       by: DEMO_CAST.business,
       body: copy.waterTextBack,
-      time: "2:39 PM",
+      time: demoClock("2:39 PM", locale),
       delivered: "delivered",
     },
     {
@@ -174,7 +175,7 @@ export const waterHeaterScript = (
       from: DEMO_CAST.karen,
       body: copy.waterInbound,
       photo: { label: copy.waterPhotoLabel },
-      time: "2:41 PM",
+      time: demoClock("2:41 PM", locale),
       step: 2,
     },
     {
@@ -182,7 +183,7 @@ export const waterHeaterScript = (
       kind: "note",
       by: DEMO_CAST.priya,
       body: copy.waterNote,
-      time: "2:43 PM",
+      time: demoClock("2:43 PM", locale),
       step: 3,
     },
     {
@@ -200,7 +201,7 @@ export const waterHeaterScript = (
       kind: "outbound",
       by: DEMO_CAST.dale,
       body: copy.waterReply,
-      time: "2:52 PM",
+      time: demoClock("2:52 PM", locale),
       delivered: "delivered",
       step: 5,
     },
@@ -209,7 +210,7 @@ export const waterHeaterScript = (
       kind: "inbound",
       from: DEMO_CAST.karen,
       body: copy.waterConfirm,
-      time: "2:58 PM",
+      time: demoClock("2:58 PM", locale),
     },
     {
       id: "event-2",
@@ -251,14 +252,14 @@ export const darkBandScript = (
       kind: "inbound",
       from: DEMO_CAST.marcus,
       body: copy.darkInbound,
-      time: "6:12 AM",
+      time: demoClock("6:12 AM", locale),
     },
     {
       id: "d-out-1",
       kind: "outbound",
       by: DEMO_CAST.dale,
       body: copy.darkReply,
-      time: "6:14 AM",
+      time: demoClock("6:14 AM", locale),
       delivered: "delivered",
     },
     {
@@ -273,7 +274,7 @@ export const darkBandScript = (
       kind: "inbound",
       from: DEMO_CAST.marcus,
       body: copy.darkThanks,
-      time: "6:15 AM",
+      time: demoClock("6:15 AM", locale),
     },
   ],
   };

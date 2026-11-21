@@ -10,6 +10,7 @@
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { homeCopy } from "@/i18n/marketing/home";
+import { demoClock } from "@/lib/marketing/demo-clock";
 
 export interface ArrivalScriptItem {
   /** Contact display name on the inbox row (fictional). */
@@ -41,28 +42,28 @@ export const arrivalScript = (
   {
     name: "Karen M",
     snippet: copy.arrivalWaterHeater,
-    time: "9:04 PM",
+    time: demoClock("9:04 PM", locale),
   },
   {
     name: "Dan R",
     snippet: copy.arrivalNoHeat,
-    time: "6:48 AM",
+    time: demoClock("6:48 AM", locale),
   },
   {
     name: "Alicia G",
     snippet: copy.arrivalBackBeds,
-    time: "12:15 PM",
+    time: demoClock("12:15 PM", locale),
   },
   {
     name: "Morgan W",
     snippet: copy.arrivalTextBack,
-    time: "5:31 PM",
+    time: demoClock("5:31 PM", locale),
     direction: "outbound",
   },
   {
     name: "Theo B",
     snippet: copy.arrivalComingToday,
-    time: "8:47 AM",
+    time: demoClock("8:47 AM", locale),
   },
   ] as const;
 };

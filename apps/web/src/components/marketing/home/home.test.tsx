@@ -35,7 +35,7 @@ import {
 } from "@/components/marketing/hero/arrival-script";
 import { Hero } from "@/components/marketing/hero/hero";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
-import { DARK_BAND_SCRIPT } from "@/components/marketing/thread-demo/script";
+import { DARK_BAND_SCRIPT, darkBandScript, waterHeaterScript } from "@/components/marketing/thread-demo/script";
 import { StaticThread } from "@/components/marketing/thread-demo/static-thread";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_MODULE_CARDS } from "@/lib/api/types";
@@ -283,6 +283,27 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
     const hero = renderToStaticMarkup(<Hero />);
     expect(hero).toContain("You: ");
     expect(hero).toContain("Sorry we missed your call");
+  });
+
+  it("renders the outgoing preview and clocks in Canadian French", () => {
+    const hero = renderToStaticMarkup(<Hero locale="fr-CA" />);
+
+    expect(hero).toContain("Vous : ");
+    expect(hero).not.toContain("You: ");
+    for (const time of ["21 h 04", "6 h 48", "12 h 15", "17 h 31"]) {
+      expect(hero).toContain(time);
+    }
+    expect(hero).not.toMatch(/\d{1,2}:\d{2} [AP]M/);
+  });
+
+  it.each([
+    [waterHeaterScript, "14 h 39"],
+    [darkBandScript, "6 h 12"],
+  ])("renders Canadian French conversation clocks", (script, time) => {
+    const thread = renderToStaticMarkup(<StaticThread script={script("fr-CA")} locale="fr-CA" />);
+
+    expect(thread).toContain(time);
+    expect(thread).not.toMatch(/\d{1,2}:\d{2} [AP]M/);
   });
 
   it("SSR ships the finished inbox (no hole) and the composed static field", () => {
