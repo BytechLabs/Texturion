@@ -10,6 +10,7 @@ on:
         options:
           - all
           - customer-journeys
+          - workspace-switch
           - foreground-alerts
           - notification-actions
           - notification-reply-transport

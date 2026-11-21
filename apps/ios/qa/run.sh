@@ -120,10 +120,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|customer-journeys|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
+  all|customer-journeys|workspace-switch|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys workspace-switch; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -150,6 +150,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     attachment-send) run_scenario "$name" "$ui/testPhotoLibrarySendsAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
     customer-journeys) run_scenario "$name" "LoonextQAUITests/CustomerJourneys" || failed=1 ;;
+    workspace-switch) run_scenario "$name" "LoonextQAUITests/CustomerJourneys/testWorkspaceFrenchDark" || failed=1 ;;
   esac
 done
 exit "$failed"

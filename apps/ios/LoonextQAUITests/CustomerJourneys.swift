@@ -50,6 +50,29 @@ final class CustomerJourneys: XCTestCase {
     func testFieldworkFrenchLight() async throws { try await fieldwork(.french, "light") }
     func testFieldworkFrenchDark() async throws { try await fieldwork(.french, "dark") }
 
+    func testWorkspaceFrenchDark() async throws {
+        try await profile(.french, role: "member", stage: "active")
+        launch(.french, "dark", signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        try await profile(.french, role: "member", stage: "active", multiWorkspace: true)
+        launch(.french, "dark", signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(.french)
+        try waitFor(button("Conversations")).tap()
+        try waitFor(label("Ada Fixture"))
+        try waitFor(button("Plus")).tap()
+        try reveal(button("Fixture Books")).tap()
+        try waitFor(label("Paiement et factures"), timeout: 30)
+        XCTAssertFalse(label("Ada Fixture").exists)
+        XCTAssertFalse(button("Conversations").exists)
+        shot("Bookkeeper workspace after switching from the technician inbox")
+        try waitFor(button("Espaces de travail")).tap()
+        try reveal(button("Simulator Fixtures")).tap()
+        try waitFor(button("Conversations"), timeout: 30).tap()
+        try waitFor(label("Ada Fixture"))
+        shot("Technician workspace after switching back")
+    }
+
     private func owner(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -261,7 +284,13 @@ final class CustomerJourneys: XCTestCase {
         }
     }
 
-    private func profile(_ language: Language, role: String, stage: String, fieldwork: Bool = false) async throws {
+    private func profile(
+        _ language: Language,
+        role: String,
+        stage: String,
+        fieldwork: Bool = false,
+        multiWorkspace: Bool = false
+    ) async throws {
         var url = URLComponents(url: fixture.appending(path: "__qa/profile"), resolvingAgainstBaseURL: false)!
         url.queryItems = [
             URLQueryItem(name: "locale", value: language.rawValue),
@@ -269,6 +298,7 @@ final class CustomerJourneys: XCTestCase {
             URLQueryItem(name: "stage", value: stage),
         ]
         if fieldwork { url.queryItems?.append(URLQueryItem(name: "fieldwork", value: "1")) }
+        if multiWorkspace { url.queryItems?.append(URLQueryItem(name: "multi_workspace", value: "1")) }
         var request = URLRequest(url: try XCTUnwrap(url.url))
         request.httpMethod = "POST"
         let (_, response) = try await URLSession.shared.data(for: request)
