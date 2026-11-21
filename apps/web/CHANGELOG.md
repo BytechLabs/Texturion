@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.32.0](https://github.com/BytechLabs/Texturion/compare/web-v0.31.2...web-v0.32.0) (2026-11-21)
+
+
+### Features
+
+* **web:** explain booked-job text reminders ([#1052](https://github.com/BytechLabs/Texturion/issues/1052)) ([1846d9c](https://github.com/BytechLabs/Texturion/commit/1846d9c8970054e666a99f7be6271592ffe83c28))
+
+
+### Bug Fixes
+
+* **web:** describe calendar permissions accurately ([#1045](https://github.com/BytechLabs/Texturion/issues/1045)) ([93e97c4](https://github.com/BytechLabs/Texturion/commit/93e97c405ad4f1d6dfa58183c7055153ce7258ec))
+
 ## [0.31.2](https://github.com/BytechLabs/Texturion/compare/web-v0.31.1...web-v0.31.2) (2026-11-20)
 
 

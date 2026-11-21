@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.31.3](https://github.com/BytechLabs/Texturion/compare/api-v0.31.2...api-v0.31.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **billing:** retry concurrent voice meter attachment ([#1060](https://github.com/BytechLabs/Texturion/issues/1060)) ([5bb4507](https://github.com/BytechLabs/Texturion/commit/5bb4507983a3790fe675da1486baee087bb91395))
+* **calls:** attribute inbound hangups before warning ([#1070](https://github.com/BytechLabs/Texturion/issues/1070)) ([9ac9a95](https://github.com/BytechLabs/Texturion/commit/9ac9a9545a67d8ebebc8a32025ca70a8e3e4805d))
+* **calls:** retry transient WebRTC token failures ([#1069](https://github.com/BytechLabs/Texturion/issues/1069)) ([3e465d1](https://github.com/BytechLabs/Texturion/commit/3e465d12af3b5e75ba04a50bbdcd66535c2b5466))
+* **messaging:** recognize French opt-out confirmation receipts ([#1064](https://github.com/BytechLabs/Texturion/issues/1064)) ([2e2aac6](https://github.com/BytechLabs/Texturion/commit/2e2aac6bd45fb5834c2d3ebf73e4416077c7ec67))
+* **notifications:** deliver Chrome push alerts on the rig ([6ff2e78](https://github.com/BytechLabs/Texturion/commit/6ff2e783133bb63191fbd1368f866855bdef9b3c))
+
 ## [0.31.2](https://github.com/BytechLabs/Texturion/compare/api-v0.31.1...api-v0.31.2) (2026-11-20)
 
 
