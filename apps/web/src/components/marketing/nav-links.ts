@@ -1,4 +1,4 @@
-import { BadgeDollarSign, Fan, HardHat, Hash, Inbox, Leaf, Mail, PhoneCall, Scale, Scissors, ShieldCheck, Sparkle, Sparkles, SquareCheckBig, Tags, UsersRound, Wrench } from 'lucide-react';
+import { BadgeDollarSign, CalendarClock, Fan, HardHat, Hash, Inbox, Leaf, Mail, PhoneCall, Scale, Scissors, ShieldCheck, Sparkle, Sparkles, SquareCheckBig, Tags, UsersRound, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { navCopy } from '@/i18n/marketing/nav';
@@ -86,6 +86,12 @@ export const productMenuFor = (copy: NavCopy): NavMenu => ({
       href: LIVE_ROUTES.featuresTasks,
       description: copy.tasksDesc,
       icon: SquareCheckBig,
+    },
+    {
+      label: copy.reminders,
+      href: LIVE_ROUTES.featuresReminders,
+      description: copy.remindersDesc,
+      icon: CalendarClock,
     },
     {
       label: copy.contacts,

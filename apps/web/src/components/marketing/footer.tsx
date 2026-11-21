@@ -43,6 +43,7 @@ const PRODUCT = (copy: FooterCopy): FooterLinkItem[] => [
   { label: copy.sharedInbox, href: LIVE_ROUTES.featuresSharedInbox },
   { label: copy.calls, href: LIVE_ROUTES.featuresCalls },
   { label: copy.tasks, href: LIVE_ROUTES.featuresTasks },
+  { label: copy.reminders, href: LIVE_ROUTES.featuresReminders },
   { label: copy.contacts, href: LIVE_ROUTES.featuresContacts },
   { label: copy.assistant, href: LIVE_ROUTES.featuresAssistant },
   { label: copy.businessNumber, href: LIVE_ROUTES.featuresBusinessNumber },

@@ -40,6 +40,7 @@ export const TRANSLATED_PAGES: readonly {
   { en: "/contact", fr: "/fr/contact" },
   { en: "/canada", fr: "/fr/canada" },
   { en: "/features/tasks", fr: "/fr/taches" },
+  { en: "/features/reminders", fr: "/fr/rappels" },
   { en: "/features/shared-inbox", fr: "/fr/boite-partagee" },
   { en: "/features/contacts", fr: "/fr/contacts" },
   { en: "/features/assistant", fr: "/fr/lou" },

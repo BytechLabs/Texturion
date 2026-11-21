@@ -58,6 +58,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
     },
     {
+      path: LIVE_ROUTES.featuresReminders,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
       path: LIVE_ROUTES.featuresContacts,
       priority: 0.8,
       changeFrequency: "monthly",

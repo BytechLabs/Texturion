@@ -71,6 +71,7 @@ export const LIVE_ROUTES = {
   // #491: both are whole app tabs the site never described. /for/contractors
   // went further and told buyers the tasks screen did not exist.
   featuresTasks: "/features/tasks",
+  featuresReminders: "/features/reminders",
   featuresContacts: "/features/contacts",
   featuresBusinessNumber: "/features/business-number",
   featuresCompliance: "/features/compliance",

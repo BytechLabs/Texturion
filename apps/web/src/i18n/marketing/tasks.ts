@@ -58,7 +58,7 @@ export const tasksEn = {
     "The flat list for working through, and a to-do and done board for the morning stand-up. Same tasks, same owners; only the arrangement changes.",
   viewCalendarTitle: "Calendar",
   viewCalendarBody:
-    "See what is due by week or by month. Connect your Microsoft 365 calendar to see scheduled jobs assigned to you in Outlook.",
+    "See what is due by week or by month. Subscribe to your assigned jobs in Outlook with your calendar link.",
   viewMapTitle: "Map",
   viewMapBody:
     "Every job with an address, plotted. Two calls on the same street stop being two separate trips, which is the one view that saves fuel rather than time.",
@@ -165,7 +165,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
     "La liste simple pour avancer, et un tableau à faire et terminé pour la réunion du matin. Mêmes tâches, mêmes responsables ; seule la disposition change.",
   viewCalendarTitle: "Calendrier",
   viewCalendarBody:
-    "Voyez les échéances par semaine ou par mois. Connectez votre calendrier Microsoft 365 pour voir les travaux planifiés qui vous sont attribués dans Outlook.",
+    "Voyez les échéances par semaine ou par mois. Utilisez votre lien de calendrier pour vous abonner à vos travaux planifiés dans Outlook.",
   viewMapTitle: "Carte",
   viewMapBody:
     "Chaque travail avec une adresse, placé sur la carte. Deux appels sur la même rue cessent d'être deux déplacements distincts, et c'est la seule vue qui économise du carburant plutôt que du temps.",
