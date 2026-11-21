@@ -83,7 +83,7 @@ struct A11yAuditHost: View {
         case .contacts:
             contactsListFixture()
         case .inCall:
-            inCallControlsFixture()
+            ScrollView { inCallControlsFixture() }
         case .dialer:
             dialerFixture()
         case .settings:

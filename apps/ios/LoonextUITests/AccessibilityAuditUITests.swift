@@ -248,9 +248,16 @@ final class AccessibilityAuditUITests: XCTestCase {
         attach(app, "callingSettings", theme)
     }
 
-    private func launchEvidence(_ surface: String, _ theme: String) -> XCUIApplication {
+    private func launchEvidence(
+        _ surface: String,
+        _ theme: String,
+        contentSize: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-a11yAuditSurface", surface, "-theme", theme]
+        if let contentSize {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
+        }
         app.launch()
         XCTAssertTrue(
             app.wait(for: .runningForeground, timeout: 30),
@@ -280,6 +287,40 @@ final class AccessibilityAuditUITests: XCTestCase {
         for surface in ["login", "inbox", "thread", "calls", "inCall", "settings"] {
             try audit(surface, contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
         }
+    }
+
+    func testLargestTextCallFiltersAndRowsFit() {
+        let app = launchEvidence("calls", "light", contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        defer { app.terminate() }
+        let menu = app.buttons["Call history filter"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.frame.contains(menu.frame))
+        menu.tap()
+        let filters = ["All", "Missed", "Voicemail"].map { app.buttons[$0].firstMatch }
+        for filter in filters {
+            XCTAssertTrue(filter.waitForExistence(timeout: 20))
+            XCTAssertTrue(app.frame.contains(filter.frame), "\(filter.label) extends outside the display")
+        }
+        filters[1].tap()
+        let row = element(app, labelContains: "Dana Whitcomb")
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        XCTAssertGreaterThanOrEqual(row.frame.minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(row.frame.maxX, app.frame.maxX)
+        attach(app, "Call history at largest text", "light")
+    }
+
+    func testLargestTextWaitingCallActionsFit() {
+        let app = launchEvidence("inCall", "light", contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        defer { app.terminate() }
+        let decline = app.buttons["Decline"].firstMatch
+        let answer = app.buttons["Answer"].firstMatch
+        for _ in 0..<4 where !answer.isHittable { app.swipeUp() }
+        XCTAssertTrue(decline.isHittable)
+        XCTAssertTrue(answer.isHittable)
+        XCTAssertLessThan(decline.frame.maxY, answer.frame.minY)
+        XCTAssertGreaterThan(decline.frame.width, 85)
+        XCTAssertGreaterThan(answer.frame.width, 100)
+        attach(app, "Waiting call actions at largest text", "light")
     }
 
     // MARK: Dark theme

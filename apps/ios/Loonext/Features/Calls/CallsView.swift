@@ -697,11 +697,15 @@ private struct CallsHeaderBar: View {
     let onRetry: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
     var body: some View {
+        let titleLayout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 9))
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                titleLayout {
                     ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.callsTitle"))
                     SoftphoneStatusPill(status: status, onRetry: onRetry)
                 }
@@ -710,6 +714,7 @@ private struct CallsHeaderBar: View {
                 Text(AppStrings.translate(appLocale, "contactsTasks.callsRingWhileOpen"))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
         }
@@ -719,29 +724,56 @@ private struct CallsHeaderBar: View {
     }
 }
 
-/// The All / Missed / Voicemail tabs, drawn by the shared segmented control.
 private struct CallsFilterTabs: View {
     let selected: CallsFilter
     let onSelect: @MainActor (CallsFilter) -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
-    private var options: [SegmentedOption<CallsFilter>] {
-        CallsFilter.allCases.map { item in
-            SegmentedOption(item, title: AppStrings.translate(appLocale, item.labelKey))
-        }
+    private func label(_ filter: CallsFilter) -> String {
+        AppStrings.translate(appLocale, filter.labelKey)
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            SegmentedControl(
-                options: options,
-                selected: selected,
-                size: .compact,
-                fill: false,
-                onSelect: onSelect
-            )
-            Spacer(minLength: 0)
+        if textSize.isAccessibilitySize {
+            Menu {
+                ForEach(CallsFilter.allCases) { filter in
+                    Button {
+                        onSelect(filter)
+                    } label: {
+                        if filter == selected {
+                            Label(label(filter), systemImage: "checkmark")
+                        } else {
+                            Text(label(filter))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(label(selected))
+                    Image(systemName: "chevron.down")
+                }
+                .font(.golos(12, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(BrandColor.insetDeep, in: Capsule())
+            }
+            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.callHistoryFilter"))
+            .accessibilityValue(label(selected))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: 0) {
+                SegmentedControl(
+                    options: CallsFilter.allCases.map { SegmentedOption($0, title: label($0)) },
+                    selected: selected,
+                    size: .compact,
+                    fill: false,
+                    onSelect: onSelect
+                )
+                Spacer(minLength: 0)
+            }
         }
     }
 }
@@ -943,6 +975,7 @@ private struct CallRow: View {
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
     private var name: String { callerDisplayName(call) }
 
@@ -989,8 +1022,12 @@ private struct CallRow: View {
     }
 
     var body: some View {
+        let largeText = textSize.isAccessibilitySize
+        let summaryLayout = largeText
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 11))
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 11) {
+            summaryLayout {
                 CallRowSummary(
                     call: call,
                     name: name,
@@ -998,29 +1035,29 @@ private struct CallRow: View {
                     metaColor: metaColor,
                     onOpen: onOpen
                 )
-                Spacer(minLength: 8)
-                Text(relativeTime(call.started_at))
-                    .exactTime(call.started_at)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted300)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                if let primary = primaryAction {
-                    // #734: the one inline action, a full 48pt target with its
-                    // name (and whose it is) spoken.
-                    Button {
-                        Haptics.tap()
-                        onRowAction?(primary)
-                    } label: {
-                        Image(systemName: primarySymbol(primary))
-                            .font(.scaled(IconSize.standard, weight: .medium))
-                            .foregroundStyle(BrandColor.ink)
-                            .frame(width: 48, height: 48)
-                            .contentShape(Rectangle())
+                if !largeText { Spacer(minLength: 8) }
+                HStack(spacing: 11) {
+                    Text(relativeTime(call.started_at))
+                        .exactTime(call.started_at)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted300)
+                        .monospacedDigit()
+                        .lineLimit(largeText ? nil : 1)
+                        .fixedSize(horizontal: !largeText, vertical: largeText)
+                    if let primary = primaryAction {
+                        Button {
+                            Haptics.tap()
+                            onRowAction?(primary)
+                        } label: {
+                            Image(systemName: primarySymbol(primary))
+                                .font(.scaled(IconSize.standard, weight: .medium))
+                                .foregroundStyle(BrandColor.ink)
+                                .frame(width: 48, height: 48)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(primaryLabel(primary))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(primaryLabel(primary))
                 }
             }
             .padding(.leading, 15)
@@ -1094,14 +1131,17 @@ private struct CallRowSummary: View {
     let metaColor: Color
     let onOpen: (@MainActor () -> Void)?
 
+    @Environment(\.dynamicTypeSize) private var textSize
+
     var body: some View {
+        let largeText = textSize.isAccessibilitySize
         HStack(alignment: .center, spacing: 11) {
                 InitialsAvatar(name: name, size: 38)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
-                        .lineLimit(1)
+                        .lineLimit(largeText ? nil : 1)
                     HStack(spacing: 6) {
                         Image(systemName: directionIcon)
                             .font(.scaled(IconSize.small, weight: .medium))
@@ -1118,7 +1158,7 @@ private struct CallRowSummary: View {
                                 container: BrandColor.inset,
                                 content: BrandColor.muted600
                             )
-                            .fixedSize()
+                            .fixedSize(horizontal: !largeText, vertical: true)
                             .layoutPriority(1)
                         }
                         // #566: THE one element allowed to yield. This renders
@@ -1135,7 +1175,7 @@ private struct CallRowSummary: View {
                                 weight: isActionableMiss(call) ? .semibold : .regular
                             ))
                             .foregroundStyle(metaColor)
-                            .lineLimit(2)
+                            .lineLimit(largeText ? nil : 2)
                             .truncationMode(.tail)
                     }
                 }

@@ -471,18 +471,23 @@ private struct OtherCallRow: View {
     let manager: CallsManager
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     var body: some View {
-        HStack(spacing: 10) {
+        let largeText = textSize.isAccessibilitySize
+        let layout = largeText
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 10))
+        layout {
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.peerName)
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 CallPhaseBadge(phase: call.phase)
             }
-            Spacer()
+            if !largeText { Spacer() }
             if call.phase == .ringing {
                 Button {
                     Haptics.reject()
@@ -530,6 +535,7 @@ private struct OtherCallRow: View {
                 .accessibilityLabel(t("contactsTasks.swap"))
             }
         }
+        .frame(maxWidth: largeText ? .infinity : nil, alignment: .leading)
         .padding(.horizontal, 15)
         .padding(.vertical, 12)
         .background(
