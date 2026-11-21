@@ -306,7 +306,9 @@ export function healthChecks(context) {
     },
 
     async apiExceptions() {
-      return apiExceptionsFailure(await readApiExceptions({ stateDir: context.layout.state, store: context.store }));
+      const report = await readApiExceptions({ stateDir: context.layout.state, store: context.store });
+      if (report.expected_probes_24h?.length) context.published.expected_api_exception_probes = report.expected_probes_24h;
+      return apiExceptionsFailure(report);
     },
 
     /** hostd on the Windows host answers through its tunnel, with the store's token. */

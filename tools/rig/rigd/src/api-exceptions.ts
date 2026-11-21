@@ -1,8 +1,7 @@
 /**
  * R00's exceptions half, read when `rig health` asks (tools/rig/src/health.mjs)
  * and on no timer: the local API's last day of `rig` exceptions in PostHog,
- * each explained by the cron registry or by a G01 attempt, or left
- * unexplained.
+ * explained by the cron registry, a G01 attempt, or recorded probe evidence.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -13,6 +12,7 @@ import { openJournals } from './lease.ts';
 import type { LeaseClient } from './lease.ts';
 import { posthogFromStore, reportApiExceptions } from './posthog-errors.ts';
 import type { ApiExceptionsReport, Explanation, SeenEvent } from './posthog-errors.ts';
+import { expectedProbe, readProbes } from './probe-exceptions.ts';
 import { g01Refusal } from "./scenarios/gates.ts";
 import { VerdictStore } from "./verdicts.ts";
 
@@ -56,5 +56,7 @@ export async function apiExceptionsNow(
   const rigd = join(sources.stateDir, "rigd");
   const verdicts = new VerdictStore(join(rigd, "verdicts"));
   const leases = { open: () => openJournals(join(rigd, "leases")) };
-  return reportApiExceptions(posthogFromStore(sources.store), exceptionExplain(registryExplainer(), verdicts, leases, now), now);
+  const explain = exceptionExplain(registryExplainer(), verdicts, leases, now);
+  const probes = readProbes(join(rigd, "expected-probe-exceptions.json"));
+  return reportApiExceptions(posthogFromStore(sources.store), (event) => explain(event) ?? expectedProbe(event, probes), now);
 }
