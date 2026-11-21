@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { codeSamples } from "./audio/generate.ts";
 import { whisperArgs, WhisperTranscriber } from "./audio/transcribe.ts";
 import { encodeWav } from "./audio/wav.ts";
@@ -50,7 +50,7 @@ describe("local transcription", () => {
         return file === "whisper-cli" ? "  Hello, this is\n the rig robot. \n" : "";
       },
     });
-    const wav = encodeWav({ sampleRate: 8000, channels: [new Float32Array(800)] });
+    const wav = encodeWav({ sampleRate: 16_000, channels: [new Float32Array(800)] });
     await expect(transcriber.transcribe(wav)).resolves.toBe("Hello, this is the rig robot.");
     expect(seen.map((call) => call.file)).toEqual(["whisper-cli"]);
     expect(seen[0]!.existed).toBe(true);
@@ -61,6 +61,12 @@ describe("local transcription", () => {
     expect(seen.map((call) => call.file)).toEqual(["ffmpeg", "whisper-cli"]);
     expect(seen[1]!.args[3]).toMatch(/converted\.wav$/);
     expect(whisperArgs({ model: "m" }, "/a.wav")).toEqual(["-m", "m", "-f", "/a.wav", "-l", "en", "-nt", "-np"]);
+
+    seen.length = 0;
+    const carrierWav = encodeWav({ sampleRate: 8000, channels: [new Float32Array(800)] });
+    await transcriber.transcribe(carrierWav, "fr");
+    expect(seen.map((call) => call.file)).toEqual(["ffmpeg", "whisper-cli"]);
+    expect(seen[1]!.args.slice(4, 6)).toEqual(["-l", "fr"]);
   });
 });
 
@@ -126,9 +132,12 @@ describe("dialing a number held for one scenario", () => {
     expect(urls[0]).toBe("https://edge.example/g/telnyx/v2/phone_numbers/777");
   });
 
-  it("transcribes a recording when the plan asks, and says so when it cannot", async () => {
+  it("keeps and transcribes the requested French track before deleting the carrier copy", async () => {
     const telnyx = new FakeCallControl();
     const clock = new ManualClock();
+    const wav = encodeWav({ sampleRate: 8000, channels: [new Float32Array(8000)] });
+    const saveRecording = vi.fn(() => "plan-1.wav");
+    const transcribe = vi.fn(async () => "Nos bureaux sont fermés.");
     const robot = new Robot({
       telnyx,
       numbers: TEST_NUMBERS,
@@ -136,15 +145,22 @@ describe("dialing a number held for one scenario", () => {
       connectionId: () => "conn-robot",
       clock,
       newId: () => "plan-1",
-      download: async () => encodeWav({ sampleRate: 8000, channels: [new Float32Array(8000)] }),
-      transcriber: { transcribe: async () => "the line is down" },
+      download: async () => wav,
+      transcriber: { transcribe },
+      saveRecording,
     });
-    await robot.dial({ ...plan("DEV-W1"), transcribe: true, expect: null });
+    await robot.dial({ ...plan("DEV-W1"), transcribe: "fr", capture_recording: true, expect: null });
     robot.handleEvent(telnyxEvent("call.answered", { call_control_id: "ccid-1" }));
     robot.handleEvent(telnyxEvent("call.hangup", { call_control_id: "ccid-1" }));
     telnyx.recordings.set("leg-1", ["rec-1"]);
     robot.handleEvent(telnyxEvent("call.recording.saved", { call_control_id: "ccid-1", recording_urls: { wav: "https://r.test/1.wav" } }));
-    expect((await robot.wait("plan-1", 1000))!.transcript).toBe("the line is down");
+    await expect(robot.wait("plan-1", 1000)).resolves.toMatchObject({
+      transcript: "Nos bureaux sont fermés.",
+      recording_file: "plan-1.wav",
+      recording_deleted: true,
+    });
+    expect(saveRecording).toHaveBeenCalledWith("plan-1", wav);
+    expect(transcribe).toHaveBeenCalledWith(wav, "fr");
   });
 });
 

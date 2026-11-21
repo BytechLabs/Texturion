@@ -2,9 +2,8 @@
  * Local speech-to-text with whisper.cpp, which the rig box installs: free, and
  * nothing leaves the box.
  *
- * whisper.cpp reads 16-bit WAV from a file, so the audio is written to a
- * private temporary directory for the length of one run, converted with
- * ffmpeg first when it is anything else (a stored greeting may be MP3), and
+ * whisper.cpp reads 16 kHz mono PCM. Audio in a different format is converted
+ * with ffmpeg in a private temporary directory for the length of one run and
  * removed in `finally` whatever happens: the transcript survives, the audio
  * does not (D112).
  */
@@ -14,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export interface Transcriber {
-  transcribe(audio: Uint8Array): Promise<string>;
+  transcribe(audio: Uint8Array, language?: string): Promise<string>;
 }
 
 export type TranscribeExec = (file: string, args: readonly string[], options: { timeoutMs: number }) => Promise<string>;
@@ -53,19 +52,19 @@ export class WhisperTranscriber implements Transcriber {
     this.#exec = options.exec ?? execText;
   }
 
-  async transcribe(audio: Uint8Array): Promise<string> {
+  async transcribe(audio: Uint8Array, language = this.#o.language): Promise<string> {
     const dir = mkdtempSync(join(tmpdir(), "rig-whisper-"));
     try {
       const timeoutMs = this.#o.timeoutMs ?? 120_000;
       let path = join(dir, "audio.wav");
-      if (isWav(audio)) writeFileSync(path, audio, { mode: 0o600 });
+      if (isWhisperWav(audio)) writeFileSync(path, audio, { mode: 0o600 });
       else {
         const input = join(dir, "audio.in");
         writeFileSync(input, audio, { mode: 0o600 });
         path = join(dir, "converted.wav");
         await this.#exec(this.#o.ffmpeg ?? "ffmpeg", ["-v", "error", "-i", input, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", path], { timeoutMs });
       }
-      const out = await this.#exec(this.#o.binary, whisperArgs(this.#o, path), { timeoutMs });
+      const out = await this.#exec(this.#o.binary, whisperArgs({ model: this.#o.model, language }, path), { timeoutMs });
       return out.replaceAll(/\s+/g, " ").trim();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -73,6 +72,13 @@ export class WhisperTranscriber implements Transcriber {
   }
 }
 
-function isWav(bytes: Uint8Array): boolean {
-  return bytes.length > 12 && Buffer.from(bytes.subarray(0, 4)).toString("latin1") === "RIFF" && Buffer.from(bytes.subarray(8, 12)).toString("latin1") === "WAVE";
+function isWhisperWav(bytes: Uint8Array): boolean {
+  const header = Buffer.from(bytes.subarray(0, 36));
+  return header.length === 36 &&
+    header.toString("ascii", 0, 4) === "RIFF" &&
+    header.toString("ascii", 8, 16) === "WAVEfmt " &&
+    header.readUInt16LE(20) === 1 &&
+    header.readUInt16LE(22) === 1 &&
+    header.readUInt32LE(24) === 16_000 &&
+    header.readUInt16LE(34) === 16;
 }

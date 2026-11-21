@@ -68,8 +68,10 @@ export interface CallPlan {
   window?: { start_ms: number; end_ms: number };
   /** Named windows from answer, each judged for which codes it holds: hold, mute, before and after a transfer. */
   segments?: { name: string; start_ms: number; end_ms: number }[];
-  /** Transcribe the recording locally as well, for a prompt or a notice the robot should hear. */
-  transcribe?: boolean;
+  /** Use `true` for English or name the language of the spoken prompt. */
+  transcribe?: boolean | "fr";
+  /** Keep the receive track of a call the robot placed to another rig number. */
+  capture_recording?: boolean;
   /** Wait for the voicemail beep, then say this. */
   voicemail?: { phrase: string; beep_timeout_ms?: number };
   gather?: { max_digits: number; terminating_digit?: string; timeout_ms?: number };
@@ -103,6 +105,8 @@ export interface CallRecord {
   judgement?: RecordingJudgement;
   /** The recording's words, when the plan asked for them. */
   transcript?: string;
+  /** Private evidence filename on the rig, when capture was requested. */
+  recording_file?: string;
   recording_deleted?: boolean;
   errors: string[];
 }
@@ -143,6 +147,8 @@ export interface RobotOptions {
   resolveNumberId?: (telnyxPhoneNumberId: string) => Promise<string | undefined>;
   /** Local speech-to-text, for plans that ask for a transcript. */
   transcriber?: Transcriber;
+  /** Saves the receive track outside the vendor account. */
+  saveRecording?: (planId: string, wav: Uint8Array) => string;
 }
 
 const DEFAULT_EXPECT_WITHIN_MS = 120_000;
@@ -463,8 +469,20 @@ export class Robot {
         segments: record.plan.segments,
       });
       if (record.judgement.announcement_ms > 0) this.#reportAnnouncement(record.judgement.announcement_ms);
+      if (record.plan.capture_recording === true) {
+        const destination = record.plan.to;
+        if (record.plan.direction !== "outbound" || this.#o.recordMode === "dual" ||
+            !destination || !this.#o.numbers.number(destination)) {
+          record.errors.push("capture: a receive-only call to a rig number is required");
+        } else if (this.#o.saveRecording) {
+          record.recording_file = this.#o.saveRecording(record.plan_id, wav);
+        } else {
+          record.errors.push("capture: the robot has no evidence directory");
+        }
+      }
       if (record.plan.transcribe) {
-        if (this.#o.transcriber) record.transcript = await this.#o.transcriber.transcribe(wav);
+        const language = record.plan.transcribe === "fr" ? "fr" : undefined;
+        if (this.#o.transcriber) record.transcript = await this.#o.transcriber.transcribe(wav, language);
         else record.errors.push("transcribe: the robot has no transcriber");
       }
       if (record.judgement.calibration) this.#o.onCalibration?.(record.judgement.calibration);
@@ -478,7 +496,7 @@ export class Robot {
     else this.#fail(record, "the recording could not be judged");
   }
 
-  /** Deletes Telnyx's copy; the robot keeps none of the audio (D112). */
+  /** Deletes Telnyx's copy after judging the receive track. */
   async #deleteRecordings(record: CallRecord, recordingId: string | undefined): Promise<boolean> {
     const c = context(record.plan);
     try {
