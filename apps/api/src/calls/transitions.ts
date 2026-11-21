@@ -260,6 +260,8 @@ export interface SessionMachine {
    *  machinery is direction-agnostic (parity by the shared 'answered' contract).
    *  A pre-#211 persisted machine loads as 'inbound' (session-do alias). */
   direction: "inbound" | "outbound";
+  /** The carrier accepted the bridge that rings until the customer answers. */
+  outboundRingbackBridgeAccepted?: boolean;
   startedAtMs: number;
   answeredByUserId: string | null;
   answeredAtIso: string | null;
@@ -1017,12 +1019,9 @@ export function reduce(
         set: { state: "answered", answered_at: answeredAtIso },
         terminal: false,
       });
-      // #213: the customer answered. If the placer's op leg is already answered,
-      // bridge them now (the second-to-answer bridge — both are answered, so it
-      // never targets a ringing leg). If the placer hasn't answered yet, T-O4
-      // owns the bridge when it does.
+      // Re-bridging an accepted ringback bridge can interrupt the live audio.
       const placerCcid = answeredPlacerCcid(next);
-      if (placerCcid && next.customerCcid) {
+      if (placerCcid && next.customerCcid && !next.outboundRingbackBridgeAccepted) {
         effects.push({
           kind: "telnyx-bridge",
           memberCcid: placerCcid,

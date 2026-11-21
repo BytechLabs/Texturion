@@ -1624,9 +1624,9 @@ DO split, no stranded row.
 | # | Trigger | Effect |
 |---|---|---|
 | T-O1 | 4-part oc `call.initiated`, part-4==S (the SERVER-dialed customer leg, #213) | mint `dialing`, owner from mint, mirror `{state:'dialing', answered_by_user_id}`, **dial the PLACER (op leg)** to their SIP credential, arm the 4h janitor. NO ring/fanout alarms. A reject context hangs up the leg and mints nothing. |
-| T-O2 | oc `call.answered` in `dialing` | `answered` + mirror `{state, answered_at}`. If the placer's op leg already answered, re-issue **bridge(op, oc)** as the GUARANTEED fallback (covers Telnyx refusing the T-O4 ring-bridge; a redundant re-bridge is a harmless swallowed 4xx). Idempotent re-delivery is a no-op. |
+| T-O2 | oc `call.answered` in `dialing` | `answered` + mirror `{state, answered_at}`. If the placer's op leg already answered and Telnyx refused its early ringback bridge, bridge both answered legs. An accepted early bridge continues into live audio. Idempotent re-delivery is a no-op. |
 | T-O3 | oc `call.hangup`, any non-terminal outbound state | `ended_answered` if `answeredAtIso` else `ended_missed`; `terminalize()` reused (which, for outbound, also hangs up any ANSWERED op leg so an unbridged placer never strands); terminal-merge **mode `event`** carrying `machine.answeredAtIso`. |
-| T-O4 (#213) | op `call.answered` | adopt the op leg's ccid (bound on userId AND sipTarget); **EARLY bridge(op, oc)** while the customer is still ringing so Telnyx relays ringback AND the customer's eventual hangup tears the op leg (no strand). Stays `dialing` until the customer answers (T-O2). If the op answers into an already-terminal call, hang up its ccid (no strand). |
+| T-O4 (#213) | op `call.answered` | Adopt the op leg's ccid using userId and sipTarget. Bridge to the customer with carrier ringback while waiting for pickup. Stays `dialing` until the customer answers (T-O2). If the op answers into an already-terminal call, hang up its ccid. |
 | T-O5 (#213) | op `call.hangup` | owner (placer) death: no live intent → teardown (hang up the customer → T-O3); a live transfer intent flags `ownerLegDeadDuringIntent` (expected mid-transfer); post-transfer (owner = teammate) → bookkeeping only; in `dialing` (never bridged) → `ended_missed` + drop the customer. A KNOWN-dead op dial resolves the same way. |
 
 ### 18.4 Outbound billing is mirror-independent AND addresses the S-row (M1)
@@ -1730,11 +1730,10 @@ stamped leg carried `X-RTC-*` headers, impossible on a real PSTN leg).
   placer's client correlates the INVITE to its pending placement (by
   `X-Loonext-Session`) and **AUTO-answers** it (never a ring UI). On its
   `call.answered` (T-O4) the DO **EARLY-bridges op↔oc** while the customer is
-  still ringing, so Telnyx relays the customer's ringback to the placer AND the
-  customer's eventual hangup tears the placer leg. Robust to the Telnyx
-  ring-bridge behavior: if Telnyx refuses to bridge onto a ringing leg the
-  command is a no-op (the op leg is alive → the executor returns "ok", no
-  teardown) and T-O2 re-issues the bridge once both are answered; and
+  still ringing, so Telnyx plays ringback to the placer and connects the pair
+  at pickup. The journal uses a stable command ID for the early bridge. If
+  Telnyx refuses the command while the placer leg is live, T-O2 bridges the
+  pair once both legs answer. Customer hangup tears the placer leg, and
   `terminalize()` hangs up any answered outbound leg, so an unbridged op leg is
   always reaped. The op leg IS represented in the DO leg map (its ccid is stamped
   by the dial-outcome / adopted at answer, bound on userId AND sipTarget).

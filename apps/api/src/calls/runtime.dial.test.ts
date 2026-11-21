@@ -20,6 +20,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("keeps the after-answer bridge available when Telnyx refuses the ringing bridge on a live leg", async () => {
+  stubFetch(async (url, request) => {
+    if (url.pathname === "/v2/calls/placer" && request.method === "GET") {
+      return Response.json({ data: { is_alive: true } });
+    }
+    if (url.pathname === "/v2/calls/placer/actions/bridge" && request.method === "POST") {
+      const body: { play_ringtone?: boolean } = await request.json();
+      return body.play_ringtone
+        ? Response.json({ errors: [] }, { status: 422 })
+        : Response.json({ data: { result: "ok" } });
+    }
+    return undefined;
+  });
+
+  const { telnyx } = createSessionRuntime(env);
+  await expect(telnyx.bridge("placer", "customer", "outbound-ringback:session")).resolves.toBe("retry-after-answer");
+  await expect(telnyx.bridge("placer", "customer")).resolves.toBe("ok");
+});
+
 describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)", () => {
   it("stamps custom_headers [{name:X-Loonext-Session, value:<session>}] on the /v2/calls body", async () => {
     const captured: { body: unknown }[] = [];

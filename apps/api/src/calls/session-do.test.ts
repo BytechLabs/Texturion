@@ -923,20 +923,21 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
 
   // ---- #213: the placer (op) leg on the DO ---------------------------------
 
-  it("T-O4: the placer answering EARLY-bridges op↔oc (ringback), still 'dialing' until the customer answers", async () => {
-    const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
+  it.each([
+    { ringbackBridgeResult: "ok", bridgeCount: 1 },
+    { ringbackBridgeResult: "retry-after-answer", bridgeCount: 2 },
+  ] as const)("uses $bridgeCount bridge command(s) when the initial result is $ringbackBridgeResult", async ({ ringbackBridgeResult, bridgeCount }) => {
+    const { instance, calls } = makeDO({ outboundInitiated: ocCtx(), ringbackBridgeResult });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
-    await instance.whenIdle(); // mint + dial op (cc0)
+    await instance.whenIdle();
     await instance.onTelnyxEvent(opEvent("e2", "call.answered"));
-    await instance.whenIdle(); // placer answers first
-    // Early bridge fired (so Telnyx relays ringback and will tear op on oc death).
-    expect(calls.bridges).toContainEqual({ member: "cc0", inbound: "oc-ccid" });
+    await instance.whenIdle();
+    expect(calls.bridges).toEqual([{ member: "cc0", inbound: "oc-ccid" }]);
     expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("dialing");
     await instance.onTelnyxEvent(ocEvent("e3", "call.answered"));
-    await instance.whenIdle(); // customer answers
+    await instance.whenIdle();
     expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("answered");
-    // The guaranteed fallback bridge also fired (harmless re-bridge of the pair).
-    expect(calls.bridges.filter((b) => b.member === "cc0" && b.inbound === "oc-ccid")).toHaveLength(2);
+    expect(calls.bridges).toHaveLength(bridgeCount);
   });
 
   it("op call.initiated is a no-op — never misrouted to the inbound loadInitiatedContext", async () => {

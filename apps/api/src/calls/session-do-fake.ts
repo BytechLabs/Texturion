@@ -98,6 +98,7 @@ export interface FakeConfig {
     | Promise<{ ccid: string } | { failure: "known-dead" | "ambiguous" }>;
   answerInbound?: () => "ok" | "dead";
   answerVm?: () => "ok" | "dead";
+  ringbackBridgeResult?: "ok" | "retry-after-answer";
   /** #208 F4: per-ccid hangup discrimination ("dead" = leg already gone). */
   hangupResult?: (ccid: string) => "ok" | "dead";
   probeAlive?: () => boolean;
@@ -161,8 +162,9 @@ export function makeRuntime(config: FakeConfig = {}) {
         calls.answersVm.push(ccid);
         return config.answerVm ? config.answerVm() : "ok";
       },
-      async bridge(member, inbound) {
+      async bridge(member, inbound, ringbackCommandId) {
         calls.bridges.push({ member, inbound });
+        if (ringbackCommandId) return config.ringbackBridgeResult ?? "ok";
         return "ok";
       },
       async bridgeTransfer(member, inbound) {

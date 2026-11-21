@@ -126,7 +126,7 @@ export interface SessionRuntime {
      *  fresh 2xx and the replay case (4xx but the GET says alive/answered). */
     answerInbound(ccid: string, clientState: string): Promise<"ok" | "dead">;
     answerVm(ccid: string, clientState: string): Promise<"ok" | "dead">;
-    bridge(memberCcid: string, inboundCcid: string, playRingback?: boolean): Promise<"ok" | "dead">;
+    bridge(memberCcid: string, inboundCcid: string, ringbackCommandId?: string): Promise<"ok" | "dead" | "retry-after-answer">;
     bridgeTransfer(memberCcid: string, customerCcid: string, transferId: string): Promise<boolean>;
     /** 4xx-discriminated like answer/bridge (#208 F4): "ok" = the command
      *  landed (or the leg is still alive and its own hangup webhook will
@@ -302,15 +302,14 @@ async function legAlive(env: Env, ccid: string): Promise<boolean> {
   }
 }
 
-/** POST an action, discriminating 4xx by the counterparty leg's liveness:
- *  alive → OUR earlier command succeeded (journal replay / raced duplicate) →
- *  "ok"; dead/not-found → the counterparty is really gone → "dead" (§4.1). */
-async function commandWithDiscrimination(
+/** A refusal on a live leg can be a replay or a bridge that must wait for pickup. */
+async function commandWithDiscrimination<LiveOutcome extends "ok" | "retry-after-answer">(
   env: Env,
   ccid: string,
   action: string,
   body: Record<string, unknown>,
-): Promise<"ok" | "dead"> {
+  liveRefusal: LiveOutcome,
+): Promise<"ok" | "dead" | LiveOutcome> {
   try {
     await telnyxRequest(env, {
       method: "POST",
@@ -320,7 +319,7 @@ async function commandWithDiscrimination(
     return "ok";
   } catch (error) {
     if (isDefiniteRefusal(error)) {
-      return (await legAlive(env, ccid)) ? "ok" : "dead";
+      return (await legAlive(env, ccid)) ? liveRefusal : "dead";
     }
     throw error;
   }
@@ -478,16 +477,16 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       answerInbound: (ccid, clientState) =>
         commandWithDiscrimination(env, ccid, "answer", {
           client_state: clientState,
-        }),
+        }, "ok"),
       answerVm: (ccid, clientState) =>
         commandWithDiscrimination(env, ccid, "answer", {
           client_state: clientState,
-        }),
-      bridge: (memberCcid, inboundCcid, playRingback) =>
+        }, "ok"),
+      bridge: (memberCcid, inboundCcid, ringbackCommandId) =>
         commandWithDiscrimination(env, memberCcid, "bridge", {
           call_control_id: inboundCcid,
-          ...(playRingback ? { play_ringtone: true } : {}),
-        }),
+          ...(ringbackCommandId ? { play_ringtone: true, command_id: ringbackCommandId } : {}),
+        }, ringbackCommandId ? "retry-after-answer" : "ok"),
       async bridgeTransfer(memberCcid, customerCcid, transferId) {
         try {
           await telnyxRequest(env, {
@@ -503,7 +502,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       },
       // #208 F4: hangup discriminates its 4xx (was swallow4xx) so the shell
       // can tell "already dead, no webhook coming" from the routine race.
-      hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}),
+      hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}, "ok"),
       reject: (ccid, cause) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/reject`, { cause }),
       async speak(ccid, payload, clientState, language) {
