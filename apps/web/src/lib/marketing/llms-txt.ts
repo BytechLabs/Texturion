@@ -83,6 +83,7 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
     "Lou drafts replies, writes voicemails down, and fills in a job's address and due date; a person always sends",
   featuresTasks:
     "turn a customer text or call into a job with an owner, a due date and an address, worked from a list, board, calendar or map",
+  featuresReminders: "send up to two texts before a booked visit and see confirmations in the shared inbox",
   featuresContacts:
     "one timeline per customer holding every text, call, voicemail and file, plus their address, consent record and your private notes",
   featuresBusinessNumber:
@@ -135,6 +136,7 @@ const PAGE_LABELS: Partial<Record<keyof typeof LIVE_ROUTES, string>> = {
   featuresCalls: "Calls and voicemail",
   featuresAssistant: "Lou, your assistant",
   featuresTasks: "Tasks",
+  featuresReminders: "Appointment reminders",
   featuresContacts: "Contacts",
   featuresBusinessNumber: "Your business number",
   featuresCompliance: "Compliance built in",
