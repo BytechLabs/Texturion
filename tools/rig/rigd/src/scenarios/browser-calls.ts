@@ -249,9 +249,9 @@ export const S05: ScenarioRunner = {
   async run(ctx) {
     const unset = await changeCompany(ctx, "QA-W", {
       on_call_escalate_after_minutes: ESCALATE_AFTER_MINUTES,
-      // An escalation opens only after hours on a known clock; every weekday missing is closed all day.
+      auto_reply_cooldown_minutes: 0,
       timezone: DESTINATION_ZONE,
-      business_hours: {},
+      business_hours: hoursClosedAt(ctx.now()),
       business_hours_exceptions: [],
       after_hours_calls: "ring_everyone",
       ring_seconds: S05_RING_SECONDS,

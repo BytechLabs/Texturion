@@ -209,6 +209,7 @@ export const COMPANY_FIELDS = [
   "ring_strategy",
   "ring_seconds",
   "on_call_escalate_after_minutes",
+  "auto_reply_cooldown_minutes",
   "emergency_keyword_enabled",
   "emergency_reply_enabled",
   "emergency_keywords",
