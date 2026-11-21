@@ -46,8 +46,8 @@ What each connector asks for, and why it is the narrowest that works:
 
 | Provider | Scopes | Why |
 |---|---|---|
-| Google | `https://www.googleapis.com/auth/calendar.events.owned`, `https://www.googleapis.com/auth/calendar.calendars.readonly` | Write events on calendars the member owns; read the calendar list to pick one. No shared or delegated calendar writes, no contacts, no Gmail. |
-| Microsoft | `Calendars.ReadWrite` (delegated), `offline_access` | Graph has no narrower delegated calendar write scope. |
+| Google | `https://www.googleapis.com/auth/calendar.events.owned`, `https://www.googleapis.com/auth/calendar.calendars.readonly` | Write Loonext job events to the primary calendar. On connection, read that calendar's identifier, name and time zone with `calendars.get`. |
+| Microsoft | `Calendars.ReadWrite` (delegated), `offline_access` | Find the account's default calendar and manage Loonext job events there. Graph has no narrower delegated calendar write scope. |
 
 The connector never reads an event it did not create (D143). The provider
 delta call returns content-free notices and Loonext only fetches the ones that
