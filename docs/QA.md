@@ -183,7 +183,7 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 | `copy-and-media` | #805 | UI tests check rendered settings labels, the task-list delete confirmation, and playback progress on synthetic audio. Unit tests check English and Canadian French permission strings, including Face ID, and playback session setup. |
 | `attachment-sources` | #793 | The app's photo library and the Photos and Files share sheets stage fixture photos for a conversation. |
 | `attachment-send` | #793 | The app's photo library sends one fixture photo. XCTest checks the destination, caption, media type and size, and idempotency key. |
-| `accessibility` | #238 | Apple's `performAccessibilityAudit` checks the app's primary flows using the same audit target as Gate / iOS. It reports properties such as labels, contrast, hit regions and large-text clipping. |
+| `accessibility` | #238 | Apple's `performAccessibilityAudit` checks labels, contrast, hit regions and large-text clipping. The primary screens are also audited in Canadian French in light and dark. |
 
 `LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
 
