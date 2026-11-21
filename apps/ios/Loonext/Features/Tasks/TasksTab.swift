@@ -417,10 +417,6 @@ struct TasksTab: View {
         )
     }
 
-    private func menuChipLabel(_ label: String, selected: Bool) -> some View {
-        TasksMenuChipLabel(label: label, selected: selected)
-    }
-
     private var viewsModel: ListViewsModel? {
         guard let controller = viewsController else { return nil }
         let views = controller.views
@@ -460,10 +456,10 @@ struct TasksTab: View {
             ListFilterRow(
                 filterCount: taskFilterCount(currentState),
                 onFilter: { filtersOpen = true },
-                views: viewsModel
+                views: viewsModel,
+                sortMenu: AnyView(TasksSortMenu(selection: $sortChoice))
             ) {
                 presets
-                sortMenuChip
             }
             ActiveFilterChips(chips: activeFilterChips, onClearAll: clearActiveFilters)
         }
@@ -624,39 +620,6 @@ struct TasksTab: View {
                     subtitle: name.isEmpty ? nil : contact.phone_e164
                 )
             }
-        }
-    }
-
-    private var sortChipText: String {
-        guard let sort = sortChoice else {
-            return AppStrings.translate(appLocale, "contactsTasks.sortTitle")
-        }
-        return AppStrings.translate(
-            appLocale,
-            "contactsTasks.sortedBy",
-            ["sort": AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort))]
-        )
-    }
-
-    private var sortMenuChip: some View {
-        Menu {
-            ForEach(TaskSortChoice.all, id: \.self) { sort in
-                let on = (sortChoice ?? TaskSortChoice.created) == sort
-                Button {
-                    sortChoice = sort == TaskSortChoice.created ? nil : sort
-                } label: {
-                    if on {
-                        Label(
-                            AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort)),
-                            systemImage: "checkmark"
-                        )
-                    } else {
-                        Text(AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort)))
-                    }
-                }
-            }
-        } label: {
-            menuChipLabel(sortChipText, selected: sortChoice != nil)
         }
     }
 
@@ -1137,25 +1100,40 @@ private struct TasksStatusTabs: View {
     }
 }
 
-/// The face of a menu chip beside the tabs (Sort).
-private struct TasksMenuChipLabel: View {
-    let label: String
-    let selected: Bool
+private struct TasksSortMenu: View {
+    @Binding var selection: String?
+    @Environment(\.appLocale) private var appLocale
+
+    private var selected: String { selection ?? TaskSortChoice.created }
+
+    private func label(_ sort: String) -> String {
+        AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort))
+    }
 
     var body: some View {
-        Text(label)
-            .font(.golos(11, weight: selected ? .semibold : .medium))
-            .foregroundStyle(selected ? BrandColor.muted900 : BrandColor.muted500)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
-            .background(
-                selected
-                    ? AnyShapeStyle(BrandColor.avatarTint)
-                    : AnyShapeStyle(BrandColor.paper),
-                in: Capsule()
-            )
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+        Menu {
+            ForEach(TaskSortChoice.all, id: \.self) { sort in
+                Button {
+                    selection = sort == TaskSortChoice.created ? nil : sort
+                } label: {
+                    if sort == selected {
+                        Label(label(sort), systemImage: "checkmark")
+                    } else {
+                        Text(label(sort))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.scaled(IconSize.standard, weight: .semibold))
+                .foregroundStyle(selection == nil ? BrandColor.muted700 : BrandColor.paper)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(selection == nil ? BrandColor.paper : BrandColor.ink, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.sortTitle"))
+        .accessibilityValue(label(selected))
     }
 }
 
@@ -1205,6 +1183,7 @@ private let tasksAuditTitles = [
 @MainActor
 private struct TasksAuditScreen: View {
     @Environment(\.appLocale) private var appLocale
+    @State private var sort: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1218,15 +1197,11 @@ private struct TasksAuditScreen: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             VStack(spacing: 6) {
-                ListFilterRow(filterCount: 0, onFilter: {}) {
+                ListFilterRow(filterCount: 0, onFilter: {}, sortMenu: AnyView(TasksSortMenu(selection: $sort))) {
                     TasksStatusTabs(
                         tabs: TasksTabKind.allCases,
                         selected: .open,
                         onSelect: { _ in }
-                    )
-                    TasksMenuChipLabel(
-                        label: AppStrings.translate(appLocale, "contactsTasks.sortTitle"),
-                        selected: false
                     )
                 }
             }
