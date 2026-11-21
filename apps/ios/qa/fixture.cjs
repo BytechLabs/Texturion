@@ -194,6 +194,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
@@ -201,6 +202,8 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });
+    if (path === `/v1/conversations/${threadIDs[0]}/tasks/source` &&
+      searchParams.get("call_id") === call.id) return json(page());
     if (path === "/v1/conversations") {
       return json(page(searchParams.get("pinned") === "only" ? [] : threadIDs.map((_, index) => thread(index))));
     }

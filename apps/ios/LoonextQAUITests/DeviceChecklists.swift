@@ -7,8 +7,16 @@ final class DeviceChecklists: XCTestCase {
     private let fixture = URL(string: "http://127.0.0.1:8765")!
 
     private struct Write: Decodable {
+        struct Field: Decodable {
+            let text: String?
+
+            init(from decoder: Decoder) {
+                text = try? decoder.singleValueContainer().decode(String.self)
+            }
+        }
+
         let path: String
-        let body: [String: String?]
+        let body: [String: Field]
         let idempotencyKey: String?
     }
 
@@ -227,6 +235,7 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(field(value: "The boiler stopped again. Could you come Wednesday morning?"))
         shot("794 task title and description came from the voicemail")
         try reveal(app.buttons["Create task"].firstMatch).tap()
+        try waitFor(label("Made a task from this call."))
         try await assertOneWrite(path: "/v1/tasks", field: "source_call_id", value: "test-call")
     }
 
@@ -322,7 +331,7 @@ final class DeviceChecklists: XCTestCase {
             try await Task.sleep(for: .milliseconds(250))
         }
         XCTAssertEqual(matching.count, 1)
-        XCTAssertEqual(matching.first?.body[field] ?? nil, value)
+        XCTAssertEqual(matching.first?.body[field]?.text, value)
         if requiresKey { XCTAssertFalse(matching.first?.idempotencyKey?.isEmpty ?? true) }
         try await Task.sleep(for: .seconds(1))
         let (data, _) = try await URLSession.shared.data(from: url)
