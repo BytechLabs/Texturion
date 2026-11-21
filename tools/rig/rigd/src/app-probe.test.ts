@@ -152,6 +152,20 @@ describe("the app probe's messages", () => {
 });
 
 describe("the app probe's calls", () => {
+  it("limits calls to rows created during the run while allowing carrier clock skew", async () => {
+    const { probe, requests } = probeWith({
+      [`GET ${rest("calls")}`]: () => json([{ call_session_id: "current-inbound" }]),
+    });
+    await expect(probe.calls({ tenant: "QA-W", callerRole: "DEV-W1", since: NOW }))
+      .resolves.toEqual([{ call_session_id: "current-inbound" }]);
+    expect(query(requests[0]!)).toMatchObject({
+      company_id: `eq.${COMPANY}`,
+      caller_e164: "eq.+14165550111",
+      created_at: `gte.${new Date(NOW).toISOString()}`,
+      started_at: `gte.${new Date(NOW - 60_000).toISOString()}`,
+    });
+  });
+
   it("counts all billable call leg kinds for the requested session", async () => {
     const { probe, requests } = probeWith({
       [`GET ${rest("call_records")}`]: () => json([{ billable_seconds: 26 }]),

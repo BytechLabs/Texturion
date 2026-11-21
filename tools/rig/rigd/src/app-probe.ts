@@ -220,6 +220,8 @@ export class AppProbe implements AppApi {
     return this.#rest<CallRow[]>("calls", {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
       caller_e164: `eq.${this.#number(args.callerRole)}`,
+      // Carrier timestamps can skew. Use the rig database clock to exclude earlier runs.
+      created_at: `gte.${iso(args.since)}`,
       started_at: `gte.${iso(args.since - 60_000)}`,
       select:
         "call_session_id,outcome,forward_seconds,started_at,ended_at,voicemail_path,voicemail_transcript,voicemail_intake," +
