@@ -243,13 +243,14 @@ export const HANG_UP_AT_MS = 8000;
 /** Longer than the robot lets it ring, so nothing answers before the robot hangs up. */
 const S05_RING_SECONDS = 25;
 
-/** S05: ROBOT-1 hangs up while DEV-W1 still rings: a missed call, a text-back, a ring push and an escalation that widens. */
+/** S05: a rig caller hangs up while DEV-W1 still rings: a missed call, a text-back, a ring push and an escalation that widens. */
 export const S05: ScenarioRunner = {
   id: "S05",
   async run(ctx) {
+    const callerRole = ctx.attempt > 1 ? "ROBOT-2" : "ROBOT-1";
     const unset = await changeCompany(ctx, "QA-W", {
       on_call_escalate_after_minutes: ESCALATE_AFTER_MINUTES,
-      auto_reply_cooldown_minutes: 0,
+      auto_reply_cooldown_minutes: 30,
       timezone: DESTINATION_ZONE,
       business_hours: hoursClosedAt(ctx.now()),
       business_hours_exceptions: [],
@@ -267,7 +268,7 @@ export const S05: ScenarioRunner = {
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,
       direction: "outbound",
-      role: "ROBOT-1",
+      role: callerRole,
       to: "DEV-W1",
       play: null,
       record: false,
@@ -283,15 +284,15 @@ export const S05: ScenarioRunner = {
     if (record.answered_at) return fail("answered_while_ringing", `the call was answered at ${record.answered_at}, before the robot hung up`);
 
     const textBack = await poll(ctx, async () => {
-      const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: hungUpAt - 5000 });
+      const inbox = await ctx.robot.inbox({ to_role: callerRole, since: hungUpAt - 5000 });
       return inbox.find((m) => m.event === "message.received" && m.from_role === "DEV-W1");
     }, 60_000, 2000);
     ctx.evidence.text_back = textBack && { id: textBack.id, after_ms: textBack.received_at - hungUpAt };
-    if (!textBack) return fail("no_text_back", "ROBOT-1 got no text-back within 60 s of hanging up");
+    if (!textBack) return fail("no_text_back", `${callerRole} got no text-back within 60 s of hanging up`);
 
-    const row = await finishedRow(ctx, "QA-W", "ROBOT-1", since);
+    const row = await finishedRow(ctx, "QA-W", callerRole, since);
     ctx.evidence.row = rowEvidence(row);
-    if (!row) return fail("no_call_row", "no finished call row for ROBOT-1's call");
+    if (!row) return fail("no_call_row", `no finished call row for ${callerRole}'s call`);
     if (row.outcome !== "missed") return fail("row_not_missed", `the call row reads ${row.outcome ?? "nothing"}`);
 
     const pushes = await poll(ctx, async () => {
