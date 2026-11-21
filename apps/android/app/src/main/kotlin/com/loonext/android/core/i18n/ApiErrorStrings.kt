@@ -35,6 +35,8 @@ object ApiErrorStrings : AppStrings.Section {
             "Your plan is already paused.",
         "apiRefusals.billingCallingIncluded" to
             "Calling is included on every plan. Refresh the app to see your current plan.",
+        "apiRefusals.billingCheckoutCurrencyChanged" to
+            "The checkout currency changed. Review the updated plan price.",
         "apiRefusals.billingCheckoutSeatLimit" to
             "The {plan} plan allows {seats} members. Your workspace has {members}. Deactivate {over} before checking out.",
         "apiRefusals.billingConfirmPrepaidConversion" to
@@ -407,6 +409,8 @@ object ApiErrorStrings : AppStrings.Section {
             "Votre forfait est déjà en pause.",
         "apiRefusals.billingCallingIncluded" to
             "Les appels sont inclus dans tous les forfaits. Actualisez l’application pour voir votre forfait.",
+        "apiRefusals.billingCheckoutCurrencyChanged" to
+            "La devise du paiement a changé. Vérifiez le nouveau prix du forfait.",
         "apiRefusals.billingCheckoutSeatLimit" to
             "Le forfait {plan} permet {seats} membres. Votre espace de travail en compte {members}. Désactivez-en {over} avant de payer.",
         "apiRefusals.billingConfirmPrepaidConversion" to

@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, formatMoney } from "@loonext/shared";
+import { DEFAULT_LOCALE, formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { BillingCurrency } from "@loonext/shared";
 
 import { makeTranslate } from "@/i18n/translate";
@@ -8,6 +8,7 @@ import type { PlanId } from "@/lib/api/types";
 
 /** English, for the module-level cards below and for the unit tests. */
 const EN = makeTranslate(DEFAULT_LOCALE);
+const USD_PLAN_CURRENCIES = { starter: "usd", pro: "usd" } as const;
 
 export interface PlanCard {
   id: PlanId;
@@ -29,28 +30,25 @@ export interface PlanCard {
 }
 
 // SPEC §2 plan table, in human terms (G7: feature deltas in 5 lines max).
-// Every figure is DERIVED from PLAN_PRICING (the shared mirror of
-// apps/api/src/billing/plans.ts) so a retune can never leave this card lying;
-// only the plan name and the fixed prose (which crew line, the always-free
-// line) are literals. `crewLine` differs per plan on purpose (G7 copy), but
-// its seat count still traces to the constant.
 function planCard(
   id: PlanId,
   name: string,
   crewLine: string,
   t: Translate,
+  currency: BillingCurrency,
   audience: BillingCurrency,
 ): PlanCard {
   const p = PLAN_PRICING[id];
+  const monthlyCents = PLAN_PRICE_CENTS[currency][id];
   return {
     id,
     name,
-    price: formatMoney(p.monthlyDollars * 100, "usd", audience, t.locale),
+    price: formatMoney(monthlyCents, currency, audience, t.locale),
     // 30 days, not 30.44: a round month is what somebody checks on their
     // fingers, and being a cent optimistic about our own price is the wrong
     // direction to be imprecise in.
     daily: t("onboarding.planCardDaily", {
-      amount: formatMoney(Math.round(p.monthlyDollars * 100 / 30), "usd", audience, t.locale),
+      amount: formatMoney(Math.round(monthlyCents / 30), currency, audience, t.locale),
     }),
     lines: [
       t("onboarding.planCardTextingIncluded"),
@@ -76,6 +74,7 @@ function planCard(
  */
 export function planCards(
   t: Translate = EN,
+  currencies: Record<PlanId, BillingCurrency> = USD_PLAN_CURRENCIES,
   audience: BillingCurrency = "usd",
 ): PlanCard[] {
   return [
@@ -86,6 +85,7 @@ export function planCards(
         seats: PLAN_PRICING.starter.seats,
       }),
       t,
+      currencies.starter,
       audience,
     ),
     planCard(
@@ -93,6 +93,7 @@ export function planCards(
       "Pro",
       t("onboarding.planCardCrewPro", { seats: PLAN_PRICING.pro.seats }),
       t,
+      currencies.pro,
       audience,
     ),
   ];

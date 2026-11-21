@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
+import { makeTranslate } from "@/i18n/translate";
 import { PLAN_PRICING } from "@/lib/api/types";
 
 import { planCards, PLANS } from "./plans";
@@ -16,10 +18,22 @@ describe("onboarding plan cards trace to PLAN_PRICING (finding 7)", () => {
     expect(pro.price).toBe(`$${PLAN_PRICING.pro.monthlyDollars}`);
   });
 
-  it("labels the USD card price for a Canadian workspace", () => {
-    expect(planCards(undefined, "cad").map((plan) => plan.price)).toEqual([
-      `US$${PLAN_PRICING.starter.monthlyDollars}`,
-      `US$${PLAN_PRICING.pro.monthlyDollars}`,
+  it("shows CAD monthly and daily prices in both languages", () => {
+    const currencies = { starter: "cad", pro: "cad" } as const;
+    for (const locale of ["en", "fr-CA"] as const) {
+      for (const plan of planCards(makeTranslate(locale), currencies, "cad")) {
+        const monthlyCents = PLAN_PRICE_CENTS.cad[plan.id];
+        expect(plan.price).toBe(formatMoney(monthlyCents, "cad", "cad", locale));
+        expect(plan.daily).toContain(formatMoney(Math.round(monthlyCents / 30), "cad", "cad", locale));
+      }
+    }
+  });
+
+  it("labels a plan billed in USD for a Canadian workspace", () => {
+    const cards = planCards(undefined, { starter: "cad", pro: "usd" }, "cad");
+    expect(cards.map(({ price }) => price)).toEqual([
+      formatMoney(PLAN_PRICE_CENTS.cad.starter, "cad", "cad"),
+      formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", "cad"),
     ]);
   });
 

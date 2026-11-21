@@ -35,7 +35,7 @@ import {
 
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
-import { useOnboardingCheckout } from "@/lib/api/onboarding";
+import { useOnboardingCheckout, useOnboardingCheckoutCurrencies } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
 import { PLAN_MODULE_CARDS } from "@/lib/api/types";
 import type { PlanId, PlanModule } from "@/lib/api/types";
@@ -60,6 +60,10 @@ function PlanStep() {
   const { state, ready } = useWizardStepGuard("plan");
   const searchParams = useSearchParams();
   const checkout = useOnboardingCheckout();
+  const currencies = useOnboardingCheckoutCurrencies(
+    ready ? state.companyId : null,
+    state.company?.billing_currency,
+  );
   const queryClient = useQueryClient();
   const ports = usePortRequestsForCompany(state.companyId);
   const [choosing, setChoosing] = useState<PlanId | null>(null);
@@ -103,6 +107,7 @@ function PlanStep() {
   }
 
   if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
+  if (currencies.isError) return <StepError onRetry={() => void currencies.refetch()} />;
   // Wait for the port status too: without it a port-in user briefly sees the
   // non-port checkout copy + an editable number before it swaps (the gate
   // short-circuits on !companyId first, so the query is always enabled here).
@@ -112,6 +117,7 @@ function PlanStep() {
     !state.snapshot ||
     !state.company ||
     !state.companyId ||
+    !currencies.data ||
     ports.isPending
   ) {
     return <StepLoading />;
@@ -119,6 +125,7 @@ function PlanStep() {
 
   const { company } = state;
   const { companyId } = state;
+  const { data: planCurrencies } = currencies;
   const progress = stepProgress("plan", state.snapshot);
   const owes = owesUsRegistration(company);
   const priceAudience = currencyForCountry(company.country);
@@ -155,7 +162,7 @@ function PlanStep() {
     // plan/module enums only (D8).
     trackPlanSelected(plan, modules);
     try {
-      const { url } = await checkout.mutateAsync({ companyId, plan, modules });
+      const { url } = await checkout.mutateAsync({ companyId, plan, modules, currency: planCurrencies[plan] });
       // Funnel: a hosted Checkout session exists and the redirect begins.
       trackCheckoutStarted(plan, modules);
       window.location.assign(url);
@@ -173,6 +180,7 @@ function PlanStep() {
         void queryClient.invalidateQueries({
           queryKey: keys.registration(companyId),
         });
+        void currencies.refetch();
         return;
       }
       // G10 error toast: what happened + what to do, with a one-tap retry.
@@ -229,7 +237,7 @@ function PlanStep() {
           aria-label={t("onboarding.planGroupAria")}
           className="grid gap-4 sm:grid-cols-2"
         >
-          {planCards(t, priceAudience).map((plan) => {
+          {planCards(t, planCurrencies, priceAudience).map((plan) => {
             const selected = selectedPlan === plan.id;
             return (
               <button
