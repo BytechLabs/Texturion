@@ -29,6 +29,7 @@ import { hvacCopy } from "@/i18n/marketing/for-hvac";
 import { landscapersCopy } from "@/i18n/marketing/for-landscapers";
 import { plumbersCopy } from "@/i18n/marketing/for-plumbers";
 import { salonsCopy } from "@/i18n/marketing/for-salons";
+import { demoClock } from "@/lib/marketing/demo-clock";
 
 export type TradeScriptStatus = "new" | "open" | "waiting" | "closed";
 
@@ -133,21 +134,21 @@ export const plumbersScript = (
       id: "pl-out-0",
       kind: "outbound",
       body: copy.scriptTextBack,
-      time: "9:02 PM",
+      time: demoClock("9:02 PM", locale),
     },
     {
       id: "pl-in-1",
       kind: "inbound",
       body: copy.scriptInbound,
       photoLabel: copy.scriptPhotoLabel,
-      time: "9:04 PM",
+      time: demoClock("9:04 PM", locale),
     },
     {
       id: "pl-note-1",
       kind: "note",
       by: "Priya",
       body: copy.scriptNote,
-      time: "9:09 PM",
+      time: demoClock("9:09 PM", locale),
     },
     {
       id: "pl-event-1",
@@ -158,13 +159,13 @@ export const plumbersScript = (
       id: "pl-out-1",
       kind: "outbound",
       body: copy.scriptQuote,
-      time: "9:14 PM",
+      time: demoClock("9:14 PM", locale),
     },
     {
       id: "pl-in-2",
       kind: "inbound",
       body: copy.scriptBooked,
-      time: "9:17 PM",
+      time: demoClock("9:17 PM", locale),
     },
     {
       id: "pl-event-2",
@@ -203,21 +204,21 @@ export const hvacScript = (
       id: "hv-out-0",
       kind: "outbound",
       body: copy.scriptTextBack,
-      time: "6:46 AM",
+      time: demoClock("6:46 AM", locale),
     },
     {
       id: "hv-in-1",
       kind: "inbound",
       body: copy.scriptInbound,
       photoLabel: copy.scriptPhotoLabel,
-      time: "6:48 AM",
+      time: demoClock("6:48 AM", locale),
     },
     {
       id: "hv-note-1",
       kind: "note",
       by: "Dana",
       body: copy.scriptNote,
-      time: "6:52 AM",
+      time: demoClock("6:52 AM", locale),
     },
     {
       id: "hv-event-1",
@@ -228,13 +229,13 @@ export const hvacScript = (
       id: "hv-out-1",
       kind: "outbound",
       body: copy.scriptReply,
-      time: "6:57 AM",
+      time: demoClock("6:57 AM", locale),
     },
     {
       id: "hv-in-2",
       kind: "inbound",
       body: copy.scriptConfirm,
-      time: "7:01 AM",
+      time: demoClock("7:01 AM", locale),
     },
     {
       id: "hv-event-2",
@@ -272,20 +273,20 @@ export const landscapersScript = (
       id: "ls-out-1",
       kind: "outbound",
       body: copy.scriptGateAsk,
-      time: "7:15 AM",
+      time: demoClock("7:15 AM", locale),
     },
     {
       id: "ls-in-1",
       kind: "inbound",
       body: copy.scriptCodeReply,
-      time: "7:19 AM",
+      time: demoClock("7:19 AM", locale),
     },
     {
       id: "ls-note-1",
       kind: "note",
       by: "Marco",
       body: copy.scriptNote,
-      time: "7:22 AM",
+      time: demoClock("7:22 AM", locale),
     },
     {
       id: "ls-event-1",
@@ -296,7 +297,7 @@ export const landscapersScript = (
       id: "ls-out-2",
       kind: "outbound",
       body: copy.scriptReply,
-      time: "7:26 AM",
+      time: demoClock("7:26 AM", locale),
     },
     {
       id: "ls-event-2",
@@ -335,14 +336,14 @@ export const cleanersScript = (
       id: "cl-in-1",
       kind: "inbound",
       body: copy.scriptInbound,
-      time: "5:56 PM",
+      time: demoClock("5:56 PM", locale),
     },
     {
       id: "cl-note-1",
       kind: "note",
       by: "Elena",
       body: copy.scriptNote,
-      time: "6:03 PM",
+      time: demoClock("6:03 PM", locale),
     },
     {
       id: "cl-event-1",
@@ -353,13 +354,13 @@ export const cleanersScript = (
       id: "cl-out-1",
       kind: "outbound",
       body: copy.scriptReply,
-      time: "6:10 PM",
+      time: demoClock("6:10 PM", locale),
     },
     {
       id: "cl-in-2",
       kind: "inbound",
       body: copy.scriptConfirm,
-      time: "6:14 PM",
+      time: demoClock("6:14 PM", locale),
     },
     {
       id: "cl-event-2",
@@ -391,14 +392,14 @@ export const salonsScript = (
       id: "sa-in-1",
       kind: "inbound",
       body: copy.scriptInbound,
-      time: "11:20 AM",
+      time: demoClock("11:20 AM", locale),
     },
     {
       id: "sa-note-1",
       kind: "note",
       by: "Renee",
       body: copy.scriptNote,
-      time: "11:22 AM",
+      time: demoClock("11:22 AM", locale),
     },
     {
       id: "sa-event-1",
@@ -409,13 +410,13 @@ export const salonsScript = (
       id: "sa-out-1",
       kind: "outbound",
       body: copy.scriptReply,
-      time: "11:24 AM",
+      time: demoClock("11:24 AM", locale),
     },
     {
       id: "sa-in-2",
       kind: "inbound",
       body: copy.scriptThanks,
-      time: "11:26 AM",
+      time: demoClock("11:26 AM", locale),
     },
     {
       id: "sa-call-1",
@@ -463,20 +464,20 @@ export const contractorsScript = (
       id: "co-out-0",
       kind: "outbound",
       body: copy.scriptTextBack,
-      time: "7:59 AM",
+      time: demoClock("7:59 AM", locale),
     },
     {
       id: "co-in-1",
       kind: "inbound",
       body: copy.scriptInbound,
-      time: "8:02 AM",
+      time: demoClock("8:02 AM", locale),
     },
     {
       id: "co-note-1",
       kind: "note",
       by: "Luis",
       body: copy.scriptNote,
-      time: "8:06 AM",
+      time: demoClock("8:06 AM", locale),
     },
     {
       id: "co-event-1",
@@ -487,13 +488,13 @@ export const contractorsScript = (
       id: "co-out-1",
       kind: "outbound",
       body: copy.scriptReply,
-      time: "8:11 AM",
+      time: demoClock("8:11 AM", locale),
     },
     {
       id: "co-in-2",
       kind: "inbound",
       body: copy.scriptApproved,
-      time: "8:15 AM",
+      time: demoClock("8:15 AM", locale),
     },
     {
       id: "co-event-2",

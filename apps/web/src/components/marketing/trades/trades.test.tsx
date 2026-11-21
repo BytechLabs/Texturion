@@ -22,7 +22,10 @@ import {
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 
-import { CLEANERS_SCRIPT, CONTRACTORS_SCRIPT, HVAC_SCRIPT, LANDSCAPERS_SCRIPT, PLUMBERS_SCRIPT, SALONS_SCRIPT } from './scripts';
+import {
+  CLEANERS_SCRIPT, cleanersScript, CONTRACTORS_SCRIPT, contractorsScript, HVAC_SCRIPT, hvacScript,
+  LANDSCAPERS_SCRIPT, landscapersScript, PLUMBERS_SCRIPT, plumbersScript, SALONS_SCRIPT, salonsScript,
+} from './scripts';
 import type { TradeScript } from './scripts';
 import { SavedRepliesPicker } from "./saved-replies-picker";
 import { THREAD_CAPTION } from "./trade-page";
@@ -155,6 +158,20 @@ describe("coverage map + deck copy (each trade's own worst minute)", () => {
       );
       expect(times, `${page.name}: script misses ${minute}`).toContain(minute);
     }
+  });
+
+  it.each([
+    [cleanersScript, "17 h 56"],
+    [contractorsScript, "8 h 02"],
+    [hvacScript, "6 h 48"],
+    [landscapersScript, "7 h 15"],
+    [plumbersScript, "21 h 04"],
+    [salonsScript, "11 h 20"],
+  ])("renders Canadian French clocks in the trade example", (script, time) => {
+    const thread = renderToStaticMarkup(<TradeThread script={script("fr-CA")} locale="fr-CA" />);
+
+    expect(thread).toContain(time);
+    expect(thread).not.toMatch(/\d{1,2}:\d{2} [AP]M/);
   });
 
   it("script contacts and crews differ per trade (no find-and-replace pages)", () => {
@@ -359,5 +376,13 @@ describe("contractors: the D14 done state is depicted faithfully", () => {
     expect(html).toContain("line-through");
     expect(html).toContain("Done");
     expect(CONTRACTORS_SCRIPT.doneIds).toContain("co-in-1");
+  });
+
+  it("renders the Canadian French badge and announces its detail", () => {
+    const thread = renderToStaticMarkup(<TradeThread script={contractorsScript("fr-CA")} locale="fr-CA" />);
+
+    expect(thread).toContain(">Terminé</span>");
+    expect(thread).toContain("Terminé · Omar · 8 h 16");
+    expect(thread).not.toContain(">Done</span>");
   });
 });
