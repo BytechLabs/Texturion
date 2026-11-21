@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.4](https://github.com/BytechLabs/Texturion/compare/api-v0.31.3...api-v0.31.4) (2026-11-21)
+
+
+### Bug Fixes
+
+* **api:** verify placement with a database round trip ([#1079](https://github.com/BytechLabs/Texturion/issues/1079)) ([f40b249](https://github.com/BytechLabs/Texturion/commit/f40b249bb0e958d8800915a80b0bb67c7a97eb11))
+
 ## [0.31.3](https://github.com/BytechLabs/Texturion/compare/api-v0.31.2...api-v0.31.3) (2026-11-21)
 
 
