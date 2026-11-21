@@ -10,9 +10,9 @@
  * live session id S_v DOES route to idFromName(S_v) — that is expected and safe.
  * The hijack is closed downstream at loadOutboundInitiatedContext (nonce consume
  * + auth-scoped RPC replay + set-once stamp + one-id gate), pinned in
- * runtime.outbound.test.ts. This suite only asserts the routing itself.
+ * runtime.outbound.test.ts.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildMemberRingState } from "../messaging/inbound-ring";
 import {
@@ -21,13 +21,21 @@ import {
   OUTBOUND_CUSTOMER_STATE,
 } from "../messaging/voice-webhook";
 import type { TelnyxEvent } from "../messaging/types";
+import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
+import { restMatch, stubRoute } from "../test/messaging-support";
+import { completeEnv, stubFetch } from "../test/support";
 
 import {
   isMemberDeliveryLeg,
   isSessionFamilyCallEvent,
   sessionKeyFor,
   shouldRouteToDO,
+  warnIfEchoDropped,
 } from "./webhook-router";
+
+vi.mock(import("../observability/capture"), async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const S = "11111111-1111-4111-8111-111111111111";
 const OC4 = buildOutboundState(OUTBOUND_CUSTOMER_STATE, "+15551234567", "nonce-1", S);
@@ -173,5 +181,33 @@ describe("shouldRouteToDO — exactly the session-family predicate", () => {
   it("does NOT route brc/brt or a non-oc outgoing leg (they run the shared voice path)", () => {
     expect(shouldRouteToDO(ev("call.hangup", { client_state: btoa("brc|sess|u1|s"), direction: "outgoing" }))).toBe(false);
     expect(shouldRouteToDO(ev("call.hangup", { direction: "outgoing" }))).toBe(false);
+  });
+});
+
+describe(warnIfEchoDropped, () => {
+  afterEach(() => {
+    resetCaptures();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    { knownInbound: true, expectedWarnings: 0 },
+    { knownInbound: false, expectedWarnings: 1 },
+  ])("checks the exact inbound leg before warning (knownInbound=$knownInbound)", async ({ knownInbound, expectedWarnings }) => {
+    const env = completeEnv();
+    const calls = stubRoute(restMatch(env, "GET", "calls"), () => knownInbound ? [{ id: S }] : []);
+    stubFetch(calls.route);
+
+    await warnIfEchoDropped(env, ev("call.hangup", {
+      call_session_id: S,
+      call_control_id: "inbound-customer-leg",
+    }));
+
+    expect(Object.fromEntries(calls.calls[0].url.searchParams)).toMatchObject({
+      direction: "eq.inbound",
+      call_session_id: `eq.${S}`,
+      customer_call_control_id: "eq.inbound-customer-leg",
+    });
+    expect(exceptionsCaptured()).toHaveLength(expectedWarnings);
   });
 });
