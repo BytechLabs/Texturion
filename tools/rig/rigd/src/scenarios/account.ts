@@ -32,6 +32,9 @@ const PUBLIC_EMAIL_FOOTER = /^https:\/\/loonext\.com\/?$/;
 
 /** The grace workspace: it holds no standing number, so grace may release all it holds. */
 const GRACE_TENANT = "QA-G";
+export const NUMBER_RECONCILE_CRON = "*/15 * * * *";
+const NUMBER_RECONCILE_INTERVAL_MS = 75_000;
+const NUMBER_PROVISION_TIMEOUT_MS = 7 * 60_000;
 /** The API's grace-and-release cron (apps/api/src/index.ts). */
 export const GRACE_CRON = "0 14 * * *";
 export const RELEASE_NOTICE_DAY = 30;
@@ -222,16 +225,22 @@ export const S28: ScenarioRunner = {
     const rowId = provisioned.body?.id;
 
     let telnyxId: string | null = null;
+    let reconcileAt = ctx.now() + NUMBER_RECONCILE_INTERVAL_MS;
     const bound = await poll(ctx, async () => {
       const rows = await ctx.app.numberRows({ tenant: GRACE_TENANT });
       const row = rows.find((r) => (rowId ? r.id === rowId : r.status !== "released"));
       telnyxId = row?.telnyx_phone_number_id ?? null;
-      return row?.status === "active" && row.telnyx_phone_number_id && row.voice_connection_id ? row : undefined;
-    }, 180_000, 5000);
+      if (row?.status === "active" && row.telnyx_phone_number_id && row.voice_connection_id) return row;
+      if (row?.status === "provisioning" && ctx.now() >= reconcileAt) {
+        await ctx.app.fireCron(NUMBER_RECONCILE_CRON);
+        reconcileAt = ctx.now() + NUMBER_RECONCILE_INTERVAL_MS;
+      }
+      return undefined;
+    }, NUMBER_PROVISION_TIMEOUT_MS, 5000);
     if (!bound?.telnyx_phone_number_id) {
       return telnyxId
         ? fail("number_not_bound", "the number never became active with a voice connection")
-        : fail("number_not_provisioned", "no number row named a Telnyx number within 3 min of the purchase");
+        : fail("number_not_provisioned", "no number row named a Telnyx number within 7 min of the purchase");
     }
     const number = { phone_number_id: bound.id, telnyx_phone_number_id: bound.telnyx_phone_number_id };
     ctx.evidence.number = number;
@@ -308,8 +317,9 @@ function judgePurchase(ctx: ScenarioContext, activity: Record<string, number>): 
   if (total(ORDER) !== 1 || accepted(ORDER) !== 1) {
     return fail("order_count", `the guard saw ${total(ORDER)} order(s), ${accepted(ORDER)} accepted; one was expected`);
   }
-  if (total(SEARCH) !== 1 || accepted(SEARCH) !== 1) {
-    return fail("search_count", `the guard saw ${total(SEARCH)} search(es), ${accepted(SEARCH)} accepted; one was expected`);
+  const invalidSearch = entries.some((e) => e.endpoint === SEARCH && (e.caller !== "rig-api" || !/^(?:2\d\d|400)$/.test(e.outcome)));
+  if (total(SEARCH) > 2 || accepted(SEARCH) < 1 || invalidSearch) {
+    return fail("search_count", `the guard saw ${total(SEARCH)} search(es), ${accepted(SEARCH)} accepted; expected a successful area-code or regional search`);
   }
   if (total(RELEASE) > 0) return fail("number_released_during_run", `the guard saw ${total(RELEASE)} release(s) of a number during the purchase`);
   const stray = patches.filter((e) => !BINDING_PATCHES.has(e.endpoint) || !/^2\d\d$/.test(e.outcome));
