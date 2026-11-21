@@ -283,7 +283,7 @@ export interface SessionMachine {
   /** #725: why the machine began tearing down a live call, read by the hangup
    *  that then ends it (a transfer expired, the placer hung up). */
   endHint?: CallEndReason | null;
-  /** The carrier hangup still needs to settle billing after a synthetic end. */
+  /** The customer-leg hangup still needs to settle billing after a synthetic end. */
   awaitingInboundHangup?: boolean;
   /** #490: this session answered a suspended line to speak the unavailable
    *  notice. Distinct from `unattended`, which is true for every call that
@@ -2012,8 +2012,13 @@ function reduceOutboundHangup(
   effects: Effect[],
   nowMs: number,
 ): ReduceResult {
-  if (isTerminal(next.state)) return { machine: next, effects }; // T14 no-op
   const answered = next.answeredAtIso !== null;
+  if (isTerminal(next.state)) {
+    if (answered && event.payload?.call_control_id === next.customerCcid) {
+      settleCustomerHangup(next, effects, event.payload, next.answeredAtIso);
+    }
+    return { machine: next, effects };
+  }
   terminalize(
     next,
     effects,
@@ -2234,6 +2239,24 @@ function reduceMemberHangup(
   return { machine: next, effects };
 }
 
+function settleCustomerHangup(
+  next: SessionMachine,
+  effects: Effect[],
+  payload: Record<string, unknown> | null,
+  answeredAtIso: string | null,
+): boolean {
+  if (next.state !== "ended_answered" || !next.awaitingInboundHangup || !payload) return false;
+  delete next.awaitingInboundHangup;
+  effects.push({
+    kind: "terminal-merge",
+    mode: "event",
+    outcome: "answered",
+    payload,
+    briAnsweredAtIso: answeredAtIso,
+  });
+  return true;
+}
+
 function reduceInboundHangup(
   next: SessionMachine,
   event: Extract<SessionEvent, { type: "inbound-hangup" }>,
@@ -2242,15 +2265,7 @@ function reduceInboundHangup(
 ): ReduceResult {
   // A late carrier hangup can settle a synthetic end or upgrade a missed call.
   if (isTerminal(next.state)) {
-    if (next.state === "ended_answered" && next.awaitingInboundHangup && event.tag === "bri" && event.payload) {
-      delete next.awaitingInboundHangup;
-      effects.push({
-        kind: "terminal-merge",
-        mode: "event",
-        outcome: "answered",
-        payload: event.payload,
-        briAnsweredAtIso: event.briAnsweredAtIso ?? next.answeredAtIso,
-      });
+    if (event.tag === "bri" && settleCustomerHangup(next, effects, event.payload, event.briAnsweredAtIso ?? next.answeredAtIso)) {
       return { machine: next, effects };
     }
     if (event.tag === "bri" && next.state === "ended_missed") {
