@@ -22,6 +22,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
   created_at: now(), updated_at: now(), done: false, status: "open", allowed_actions: ["complete", "trash"] };
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
+const mediaByID = new Map();
 let quote;
 const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, writes: [], scheduled: [],
   invites: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
@@ -211,6 +212,16 @@ const server = createServer(async (req, res) => {
         expires_in: 3600, user: { id: userID, email: "qa@example.invalid" } });
     }
     if (path === "/auth/v1/logout") return json({});
+    const [, attachmentID] = path.match(/^\/v1\/attachments\/([^/]+)\/url$/) ?? [];
+    if (mediaByID.has(attachmentID)) {
+      return json({ url: origin + "/fixture-media/" + attachmentID,
+        expires_at: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    const media = mediaByID.get(path.startsWith("/fixture-media/") ? path.slice("/fixture-media/".length) : "");
+    if (media) {
+      res.writeHead(200, { "Content-Type": media.contentType, "Content-Length": media.bytes.length });
+      return res.end(media.bytes);
+    }
     if (path === "/fixture.wav") {
       const [, first, last] = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/) ?? [];
       const start = Number(first ?? 0);
@@ -245,6 +256,14 @@ const server = createServer(async (req, res) => {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
+      if (path === "/v1/messages/send" && body.media) {
+        body.media = body.media.map((attachment) => {
+          const id = randomUUID();
+          const bytes = Buffer.from(attachment.base64, "base64");
+          mediaByID.set(id, { contentType: attachment.content_type, bytes });
+          return { id, content_type: attachment.content_type, size_bytes: bytes.length };
+        });
+      }
       state.writes.push({ path, body, idempotencyKey: req.headers["idempotency-key"] });
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
@@ -272,7 +291,7 @@ const server = createServer(async (req, res) => {
       }
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
-        const sent = message(index, body.body, "outbound");
+        const sent = { ...message(index, body.body, "outbound"), attachments: body.media };
         state.messages[index].unshift(sent);
         return json(sent, 201);
       }

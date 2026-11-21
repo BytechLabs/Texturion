@@ -21,6 +21,7 @@ on:
           - thread-workflows
           - quote-alert
           - attachment-sources
+          - attachment-send
           - accessibility
       runtime:
         description: iOS Simulator version (defaults to newest installed)
