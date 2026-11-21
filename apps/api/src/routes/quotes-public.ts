@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 import { effectiveQuoteStatus, resolveLocale } from '@loonext/shared';
 import type { QuoteState } from '@loonext/shared';
@@ -63,6 +64,12 @@ const PUBLIC_COLUMNS =
  */
 const ACCEPT_COLUMNS = `${PUBLIC_COLUMNS},conversation_id,message_id,created_by`;
 
+const decisionCors = cors({
+  origin: (origin, c) => (origin === getEnv(c.env).APP_ORIGIN ? origin : null),
+  allowMethods: ["POST"],
+  allowHeaders: ["Content-Type"],
+});
+
 interface PublicQuoteRow extends QuoteState {
   /** Only populated on the accept path; see ACCEPT_COLUMNS. */
   conversation_id?: string;
@@ -80,6 +87,9 @@ interface PublicQuoteRow extends QuoteState {
 }
 
 export const publicQuoteRoutes = new Hono<AppEnv>();
+
+publicQuoteRoutes.use("/q/:token/accept", decisionCors);
+publicQuoteRoutes.use("/q/:token/decline", decisionCors);
 
 /**
  * What the customer sees when they open the link.
