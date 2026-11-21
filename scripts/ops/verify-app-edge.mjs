@@ -18,6 +18,8 @@
  *
  * Usage: node scripts/ops/verify-app-edge.mjs [--app https://app.loonext.com] [--site https://loonext.com] [--api https://api.loonext.com] [--build-id <id>]
  */
+import { verifyApiPlacement } from "./api-placement.mjs";
+
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
   const at = args.indexOf(name);
@@ -109,17 +111,8 @@ if (manifest) {
   );
 }
 
-// The API runs beside its database (placement in apps/api/wrangler.jsonc).
-// Cloudflare names where a placed Worker ran in a cf-placement header.
-const api = await get(`${arg("--api", "https://api.loonext.com")}/health`);
-if (api) {
-  const placed = api.headers.get("cf-placement");
-  check(
-    api.status === 200 && placed !== null,
-    `API answers with placement (cf-placement: ${placed})`,
-    `the API /health answered ${api.status} with no cf-placement header, so it runs at the caller's edge and every database round trip crosses to us-east-1`,
-  );
-}
+const placement = await verifyApiPlacement(arg("--api", "https://api.loonext.com"), HEADERS);
+(placement.ok ? passes : failures).push(placement.message);
 
 // 2. Every public token page answers a made-up token with a page, never a 5xx.
 const TOKEN = "release-check-0000000000000000";

@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getEnv } from './env';
 import type { Bindings } from './env';
 import { app, handler } from "./index";
 import { TelnyxApiError } from "./telnyx/client";
-import { completeEnv as sharedCompleteEnv } from "./test/support";
+import { completeEnv as sharedCompleteEnv, stubFetch } from "./test/support";
 
 // Test-only route to drive the onError hook. Registered at module scope
 // because Hono freezes its route matcher on the first request.
@@ -89,6 +89,45 @@ describe("GET /health", () => {
       ok: true,
       capabilities: ["telnyx-partition-v1"],
     });
+  });
+});
+
+describe("GET /health/db", () => {
+  it("reports a fresh Supabase round trip on each request", async () => {
+    const readPolicy = vi.fn(() => Response.json(null, { headers: { "CF-Ray": "c0ffee-IAD" } }));
+    stubFetch((url) => url.pathname.endsWith("/rpc/api_app_release_policy") ? readPolicy() : undefined);
+    const env = completeEnv();
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await app.request("/health/db", {}, env);
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Server-Timing")).toMatch(/^db;dur=\d+\.\d;desc="IAD"$/);
+      expect(response.headers.get("Cache-Control")).toContain("no-store");
+    }
+
+    expect(readPolicy).toHaveBeenCalledTimes(2);
+  });
+
+  it("omits timing when the database read fails", async () => {
+    stubFetch(() => Response.json({ code: "42501", message: "permission denied" }, { status: 403 }));
+
+    const response = await app.request("/health/db", {}, completeEnv());
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Server-Timing")).toBeNull();
+  });
+
+  it("limits the probe before asking Supabase", async () => {
+    const fetchDb = vi.fn(() => Response.json(null));
+    stubFetch(fetchDb);
+    const limit = vi.fn(async () => ({ success: false }));
+    const response = await app.request("/health/db", { headers: { "CF-Connecting-IP": "192.0.2.1" } }, {
+      ...completeEnv(),
+      PUBLIC_LINK_RATE_LIMITER: { limit },
+    });
+
+    expect(response.status).toBe(429);
+    expect(limit).toHaveBeenCalledWith({ key: "health-db:192.0.2.1" });
+    expect(fetchDb).not.toHaveBeenCalled();
   });
 });
 
