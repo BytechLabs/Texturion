@@ -23,8 +23,8 @@ import {
 } from "@/components/marketing/nav-links";
 
 import {
-  CLEANERS_SCRIPT, CONTRACTORS_SCRIPT, HVAC_SCRIPT, LANDSCAPERS_SCRIPT, PLUMBERS_SCRIPT, SALONS_SCRIPT,
-  cleanersScript, contractorsScript, hvacScript, landscapersScript, plumbersScript, salonsScript,
+  CLEANERS_SCRIPT, cleanersScript, CONTRACTORS_SCRIPT, contractorsScript, HVAC_SCRIPT, hvacScript,
+  LANDSCAPERS_SCRIPT, landscapersScript, PLUMBERS_SCRIPT, plumbersScript, SALONS_SCRIPT, salonsScript,
 } from './scripts';
 import type { TradeScript } from './scripts';
 import { SavedRepliesPicker } from "./saved-replies-picker";
