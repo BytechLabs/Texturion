@@ -48,7 +48,7 @@ run_scenario() {
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility ]]; then test_timeout=420; fi
+  if [[ "$name" == accessibility || "$name" == offline ]]; then test_timeout=420; fi
 
   mkdir -p "$output"
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
