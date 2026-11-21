@@ -18,6 +18,7 @@ on:
           - copy-and-media
           - phone-and-text
           - thread-workflows
+          - quote-alert
           - accessibility
       runtime:
         description: iOS Simulator version (defaults to newest installed)
