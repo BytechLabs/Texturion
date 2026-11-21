@@ -173,7 +173,8 @@ targets:
         QA:
           PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa.share
           SUPPORTED_PLATFORMS: iphonesimulator
-          CODE_SIGN_ENTITLEMENTS: ""
+          CODE_SIGN_ENTITLEMENTS: qa/ShareSimulator.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) LOONEXT_QA"
   LoonextTests:
     type: bundle.unit-test
     platform: iOS

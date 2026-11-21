@@ -196,6 +196,63 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
+    func testPhotoLibraryStagesAttachment() async throws {
+        try signIn()
+        try openThread("Ada Fixture")
+        try waitFor(app.buttons["Add to message"].firstMatch).tap()
+        try waitFor(app.buttons["Photo library"].firstMatch).tap()
+        try selectFixturePhoto(in: app)
+        let add = app.buttons["Add"].firstMatch
+        if add.waitForExistence(timeout: 5) { add.tap() }
+        let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
+        shot("793 Photo Library stages an attachment")
+        remove.tap()
+        try await assertNoMessageSend()
+    }
+
+    func testPhotosShareStagesAttachment() async throws {
+        try signIn()
+        let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        photos.launch()
+        let continueButton = photos.buttons["Continue"].firstMatch
+        if continueButton.waitForExistence(timeout: 4) { continueButton.tap() }
+        try selectFixturePhoto(in: photos)
+        try waitFor(photos.buttons["Share"].firstMatch).tap()
+        let loonext = photos.buttons["Loonext"].firstMatch
+        if !loonext.isHittable {
+            let activities = photos.collectionViews.allElementsBoundByIndex.last
+            for _ in 0..<3 where !loonext.isHittable { activities?.swipeLeft() }
+        }
+        if !loonext.isHittable { try waitFor(photos.buttons["More"].firstMatch).tap() }
+        try waitFor(loonext).tap()
+        try waitFor(photos.buttons["Save Files"].firstMatch).tap()
+        try waitFor(photos.staticTexts["Open Loonext to choose a conversation."].firstMatch)
+        try waitFor(photos.buttons["Close"].firstMatch).tap()
+        app.activate()
+        try waitFor(label("Share to a conversation"))
+        try waitFor(app.buttons["Ada Fixture"].firstMatch).tap()
+        let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
+        shot("793 Photos share stages into the chosen thread")
+        remove.tap()
+        try await assertNoMessageSend()
+    }
+
+    private func selectFixturePhoto(in host: XCUIApplication) throws {
+        let tile = host.cells.firstMatch
+        if tile.waitForExistence(timeout: 5), tile.isHittable {
+            tile.tap()
+            return
+        }
+        let photo = host.images.matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Photo")).firstMatch
+        try waitFor(photo).tap()
+    }
+
+    private func assertNoMessageSend() async throws {
+        let (data, _) = try await URLSession.shared.data(from: fixture.appendingPathComponent("__qa/writes"))
+        let writes = try JSONDecoder().decode([Write].self, from: data)
+        XCTAssertFalse(writes.contains { $0.path == "/v1/messages/send" })
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
