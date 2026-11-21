@@ -10,16 +10,23 @@ import {
   useOnboardingCompany,
   useOnboardingRegistration,
 } from "@/lib/api/onboarding";
-import { useSessionState } from "@/lib/auth/use-session-ready";
+import { useSession } from "@/lib/auth/use-session-ready";
 import type { CompanyView, RegistrationState } from "@/lib/api/types";
 import {
   readCompanyCookie,
   resolveActiveCompanyId,
 } from "@/lib/company/cookie";
 
-import { readOnboardingDraft } from "./local-draft";
+import {
+  clearOnboardingDraft,
+  readOnboardingDraft,
+  writeOnboardingDraft,
+  writeOnboardingPortDraft,
+} from "./local-draft";
 import { pathForLocation, resolveOnboardingLocation, stepAllowed } from "./steps";
-import type { OnboardingDraft, OnboardingSnapshot, WizardStep } from "./steps";
+import type { OnboardingDraft, OnboardingSnapshot, PortDraft, WizardStep } from "./steps";
+
+const EMPTY_DRAFT: OnboardingDraft = {};
 
 export interface OnboardingState {
   /**
@@ -38,8 +45,9 @@ export interface OnboardingState {
   role: MemberRole | null;
   draft: OnboardingDraft;
   snapshot: OnboardingSnapshot | null;
-  /** Re-read the local draft after a step writes it (same-mount navigation). */
-  refreshDraft: () => void;
+  saveDraft: (patch: Partial<OnboardingDraft>) => void;
+  savePortDraft: (patch: Partial<PortDraft>) => void;
+  clearDraft: () => void;
 }
 
 /**
@@ -52,20 +60,23 @@ export function useOnboardingState(): OnboardingState {
   // Gate /v1/me on the resolved session — a fresh OAuth signup lands here (not
   // in CompanyProvider), so without this the first /me fires tokenless and the
   // wizard shows "check your connection" until a refresh.
-  const sessionState = useSessionState();
-  const me = useMe(sessionState === "ready");
+  const { state: sessionState, userId } = useSession();
+  const me = useMe(userId !== null, userId ?? undefined);
   // localStorage is unavailable during SSR; both renders start as {} and the
   // client fills it in before anything user-visible depends on it (the pages
   // render a skeleton until `status === "ready"`).
-  const [draft, setDraft] = useState<OnboardingDraft>({});
-  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [storedDraft, setStoredDraft] = useState<{
+    userId: string;
+    value: OnboardingDraft;
+  } | null>(null);
   useEffect(() => {
-    setDraft(readOnboardingDraft());
-    setDraftLoaded(true);
-  }, []);
+    if (userId) setStoredDraft({ userId, value: readOnboardingDraft(userId) });
+  }, [userId]);
 
-  const memberships = me.data?.memberships ?? [];
-  const companyId = me.data
+  const currentDraft = storedDraft?.userId === userId ? storedDraft : null;
+  const draft = currentDraft?.value ?? EMPTY_DRAFT;
+  const memberships = userId ? me.data?.memberships ?? [] : [];
+  const companyId = userId && me.data
     ? resolveActiveCompanyId(memberships, readCompanyCookie())
     : null;
 
@@ -77,7 +88,7 @@ export function useOnboardingState(): OnboardingState {
 
   const loading =
     me.isPending ||
-    !draftLoaded ||
+    currentDraft === null ||
     (companyId !== null && (company.isPending || registration.isPending));
   const error =
     me.isError ||
@@ -96,6 +107,7 @@ export function useOnboardingState(): OnboardingState {
   // Without a session /v1/me stays idle and the loading flag never clears.
   let status: OnboardingState["status"] = "ready";
   if (sessionState === "signed-out") status = "signed-out";
+  else if (!userId) status = "loading";
   else if (error) status = "error";
   else if (loading) status = "loading";
 
@@ -112,7 +124,15 @@ export function useOnboardingState(): OnboardingState {
     role,
     draft,
     snapshot,
-    refreshDraft: () => setDraft(readOnboardingDraft()),
+    saveDraft: (patch) => {
+      if (userId) writeOnboardingDraft(userId, patch);
+    },
+    savePortDraft: (patch) => {
+      if (userId) writeOnboardingPortDraft(userId, patch);
+    },
+    clearDraft: () => {
+      if (userId) clearOnboardingDraft(userId);
+    },
   };
 }
 

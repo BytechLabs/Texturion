@@ -8,7 +8,8 @@ import type { OnboardingDraft, PortDraft } from "./steps";
  * screens persist locally until the company exists; every later step writes
  * server-side immediately (G7 resumability).
  */
-const DRAFT_KEY = "loonext:onboarding-draft";
+const LEGACY_DRAFT_KEY = "loonext:onboarding-draft";
+const DRAFT_KEY_PREFIX = `${LEGACY_DRAFT_KEY}:`;
 
 /**
  * #381 — how long an abandoned draft may keep identity data.
@@ -94,19 +95,31 @@ function parsePortDraft(obj: Record<string, unknown>): PortDraft {
   return port;
 }
 
-export function readOnboardingDraft(now: number = Date.now()): OnboardingDraft {
+function draftKey(userId: string): string {
+  return `${DRAFT_KEY_PREFIX}${userId}`;
+}
+
+export function readOnboardingDraft(
+  userId: string,
+  now: number = Date.now(),
+): OnboardingDraft {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
-    // Delete expired drafts so their carrier details leave browser storage.
-    if (raw !== null && draftIsExpired(raw, now)) {
-      window.localStorage.removeItem(DRAFT_KEY);
-      return {};
+    const storage = window.localStorage;
+    // The previous draft has no owner to resume it safely.
+    storage.removeItem(LEGACY_DRAFT_KEY);
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+      const key = storage.key(index);
+      if (!key?.startsWith(DRAFT_KEY_PREFIX)) continue;
+      const stored = storage.getItem(key);
+      if (stored !== null && draftIsExpired(stored, now)) storage.removeItem(key);
     }
+    const key = draftKey(userId);
+    const raw = storage.getItem(key);
     const draft = parseDraft(raw);
     if (raw && /"ssnSinLast4"\s*:/.test(raw)) {
       const { savedAt } = JSON.parse(raw) as { savedAt: number };
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt }));
+      storage.setItem(key, JSON.stringify({ ...draft, savedAt }));
     }
     return draft;
   } catch {
@@ -136,14 +149,17 @@ export function draftIsExpired(raw: string, now: number = Date.now()): boolean {
   }
 }
 
-export function writeOnboardingDraft(patch: Partial<OnboardingDraft>): void {
+export function writeOnboardingDraft(
+  userId: string,
+  patch: Partial<OnboardingDraft>,
+): void {
   if (typeof window === "undefined") return;
   try {
     // Stamped on every write, so the clock runs from last ACTIVITY rather
     // than from first touch — somebody actively working through the wizard is
     // never expired out from under themselves.
-    const next = { ...readOnboardingDraft(), ...patch, savedAt: Date.now() };
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+    const next = { ...readOnboardingDraft(userId), ...patch, savedAt: Date.now() };
+    window.localStorage.setItem(draftKey(userId), JSON.stringify(next));
   } catch {
     // Best-effort persistence only.
   }
@@ -154,27 +170,30 @@ export function writeOnboardingDraft(patch: Partial<OnboardingDraft>): void {
  * earlier port sub-steps (a shallow `writeOnboardingDraft({ port })` would). The
  * port sub-wizard (PORTING.md §8.1) uses this on every step so resume works.
  */
-export function writeOnboardingPortDraft(patch: Partial<PortDraft>): void {
+export function writeOnboardingPortDraft(
+  userId: string,
+  patch: Partial<PortDraft>,
+): void {
   if (typeof window === "undefined") return;
   try {
-    const current = readOnboardingDraft();
+    const current = readOnboardingDraft(userId);
     const next = {
       ...current,
       mode: "port" as const,
       port: { ...current.port, ...patch },
       savedAt: Date.now(),
     };
-    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+    window.localStorage.setItem(draftKey(userId), JSON.stringify(next));
   } catch {
     // Best-effort persistence only.
   }
 }
 
 /** Called once the company row exists — the server owns the state from here. */
-export function clearOnboardingDraft(): void {
+export function clearOnboardingDraft(userId: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(DRAFT_KEY);
+    window.localStorage.removeItem(draftKey(userId));
   } catch {
     // Nothing to clean up.
   }

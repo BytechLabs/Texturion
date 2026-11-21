@@ -11,7 +11,6 @@ import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { formatPhone } from "@/lib/format/phone";
 
-import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
 import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
@@ -60,7 +59,7 @@ export default function PortCarrierPage() {
       setError(t("onboarding.portPinError"));
       return;
     }
-    writeOnboardingPortDraft({
+    onboarding.savePortDraft({
       entityName: entityName.trim(),
       authPersonName: authPersonName.trim(),
       accountNumber: accountNumber.trim(),

@@ -33,7 +33,6 @@ import type { Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
 import { crewFitCopy, crewFitPrompt } from "../crew-copy";
-import { writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
@@ -123,7 +122,7 @@ export default function CompanyNamePage() {
   const chosenCrew = form.watch("crewSize");
 
   function onSubmit(values: FormValues) {
-    writeOnboardingDraft({
+    state.saveDraft({
       name: values.name,
       ...(values.crewSize ? { crewSize: values.crewSize } : {}),
       ...(values.signupSource ? { signupSource: values.signupSource } : {}),

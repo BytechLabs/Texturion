@@ -1,7 +1,9 @@
 "use client";
 
+import { Fragment } from "react";
+
 import { SessionExpiredCard } from "@/components/shell/session-expired";
-import { useSessionState } from "@/lib/auth/use-session-ready";
+import { useSession } from "@/lib/auth/use-session-ready";
 
 /**
  * The wizard's dead-session branch (#257).
@@ -22,7 +24,7 @@ import { useSessionState } from "@/lib/auth/use-session-ready";
 export function OnboardingSessionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const sessionState = useSessionState();
-  if (sessionState === "signed-out") return <SessionExpiredCard />;
-  return children;
+  const session = useSession();
+  if (session.state === "signed-out") return <SessionExpiredCard />;
+  return <Fragment key={session.userId}>{children}</Fragment>;
 }

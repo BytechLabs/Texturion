@@ -34,7 +34,6 @@ import {
 } from "@/lib/marketing/first-touch";
 import { cn } from "@/lib/utils";
 
-import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { previousStepHref, stepProgress } from "../steps";
 import type { NumberMode } from "../steps";
@@ -127,7 +126,7 @@ export default function NumberStepPage() {
     // are still needed (they drive the registration branch), so keep them.
     if (mode === "port") {
       setSubmitting(true);
-      writeOnboardingDraft({
+      state.saveDraft({
         name: draft.name,
         country,
         usTexting: country === "CA" ? usTexting : true,
@@ -171,7 +170,7 @@ export default function NumberStepPage() {
       return;
     }
 
-    writeOnboardingDraft({
+    state.saveDraft({
       name: draft.name,
       country,
       areaCode: requestedAreaCode,
@@ -206,7 +205,7 @@ export default function NumberStepPage() {
       // The next step's guard resolves the company through GET /v1/me —
       // wait for the membership to be visible before navigating.
       await queryClient.invalidateQueries({ queryKey: keys.me });
-      clearOnboardingDraft();
+      state.clearDraft();
       trackOnboardingStepCompleted("number");
       router.push("/onboarding/plan");
     } catch (error) {

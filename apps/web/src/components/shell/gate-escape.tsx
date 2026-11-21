@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
-import { useSessionReady } from "@/lib/auth/use-session-ready";
+import { useSession } from "@/lib/auth/use-session-ready";
 import {
   readCompanyCookie,
   resolveActiveCompanyId,
@@ -111,16 +111,14 @@ export function GateSignOut() {
 export function GateEscape({ className }: { className?: string }) {
   const t = useT();
   const router = useRouter();
-  const sessionReady = useSessionReady();
-  const me = useMe(sessionReady);
+  const { userId } = useSession();
+  const me = useMe(userId !== null, userId ?? undefined);
+
+  if (!userId) return null;
 
   const memberships = me.data?.memberships ?? [];
-  const activeId = me.data
-    ? resolveActiveCompanyId(memberships, readCompanyCookie())
-    : null;
+  const activeId = resolveActiveCompanyId(memberships, readCompanyCookie());
   const active = memberships.find((m) => m.company_id === activeId) ?? null;
-
-  if (!sessionReady) return null;
 
   return (
     <div className={cn("flex items-center gap-1", className)}>

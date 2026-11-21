@@ -29,7 +29,6 @@ import {
   firstTouchForCreate,
 } from "@/lib/marketing/first-touch";
 
-import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { apiFetchCheck, areaCodeOf, toE164 } from "./port-shared";
 import { portStepProgress, usePortWizardGuard } from "./use-port-wizard";
@@ -120,7 +119,7 @@ export default function PortNumberPage() {
       const check = await apiFetchCheck(activeCompanyId, e164);
       setResult(check);
       if (check.portable) {
-        writeOnboardingPortDraft({
+        onboarding.savePortDraft({
           phoneE164: e164,
           isWireless: check.is_wireless,
         });

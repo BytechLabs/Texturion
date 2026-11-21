@@ -74,11 +74,18 @@ export function meCompanyQueryOptions(
  * so firing before then sends a tokenless request that 401s (the CompanyProvider
  * "couldn't load your workspace" flash). CompanyProvider passes its session-ready
  * flag so the first call always carries a token.
+ * Signed-in gates also scope the cache to the current user.
  */
-export function useMe(enabled = true) {
+export function useMe(enabled = true, userId?: string) {
   return useQuery({
-    queryKey: keys.me,
-    queryFn: fetchMe,
+    queryKey: userId ? [...keys.me, "user", userId] : keys.me,
+    queryFn: async () => {
+      const me = await fetchMe();
+      if (userId && me.user_id !== userId) {
+        throw new Error("The signed-in user changed while loading the workspace.");
+      }
+      return me;
+    },
     staleTime: 5 * 60_000,
     enabled,
     // The first /me after a brand-new signup can hit a cold api Worker isolate
