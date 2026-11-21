@@ -30,9 +30,11 @@ begin
     'remove', false, 'locked', true, 'visit', false, 'confirm_address', false, 'reschedule', false);
   details := jsonb_build_array(jsonb_build_object('task_id', task, 'updated_at', when_updated, 'estimate', 40,
     'windows', '[{"start":"2026-11-23T15:00:00Z","end":"2026-11-23T18:00:00Z"}]'::jsonb));
+  execute 'set local role service_role';
   if public.api_dispatch_publish(company, owner_id, 0, jsonb_build_array(booked), details) is distinct from 'ok' then
     raise exception 'Could not publish a remote block';
   end if;
+  execute 'reset role';
   if public.api_dispatch_publish(company, owner_id, 0, '[]', '[]') is distinct from 'stale' then
     raise exception 'A stale revision was accepted';
   end if;
@@ -83,6 +85,9 @@ begin
   then raise exception 'A non-member could see the schedule'; end if;
   if has_table_privilege('authenticated', 'public.task_schedule_blocks', 'select') then
     raise exception 'An authenticated client could bypass schedule authorization'; end if;
+  if has_function_privilege('authenticated', 'public.broadcast_number_scoped(jsonb, text, uuid, uuid)', 'execute')
+    or has_function_privilege('anon', 'public.broadcast_number_scoped(jsonb, text, uuid, uuid)', 'execute')
+  then raise exception 'A client could broadcast directly'; end if;
 
   update public.tasks set deleted_at = now(), purged_at = now() where id = task;
   if exists (select 1 from public.task_schedule_blocks where task_id = task) or
