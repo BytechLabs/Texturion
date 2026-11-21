@@ -19,6 +19,25 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testInbox() throws { try audit("inbox") }
 
+    func testLargestTextInboxGivesCustomerIdentityRoom() throws {
+        for theme in ["light", "dark"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-a11yAuditSurface", "inbox", "-theme", theme,
+                                   "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+            app.launch()
+            defer { app.terminate() }
+            let row = element(app, labelContains: "Dana Whitcomb")
+            XCTAssertTrue(row.waitForExistence(timeout: 20))
+            try app.performAccessibilityAudit(for: .textClipped) { issue in
+                if let element = issue.element, element.label == "Dana Whitcomb" {
+                    XCTAssertGreaterThan(element.frame.width, 200, "The date and badges squeezed the name")
+                }
+                return true
+            }
+            attach(app, "Inbox customer identity at largest text", theme)
+        }
+    }
+
     func testThreadAndComposer() throws { try audit("thread") }
 
     func testTimelineNamesTheSenderOnEachMessage() {
