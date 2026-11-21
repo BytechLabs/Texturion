@@ -194,11 +194,12 @@ export class FakeApp implements AppApi {
   readonly signedOut = new Set<string>();
   readonly firedCrons: { cron: string; at?: number }[] = [];
   escalationRows: {
+    id: string;
     tenant: string;
     created_at: string;
     kind: string;
     on_call_user_id: string | null;
-    escalate_at: string;
+    escalate_at: string | null;
     escalated_at: string | null;
     acknowledged_at: string | null;
   }[] = [];

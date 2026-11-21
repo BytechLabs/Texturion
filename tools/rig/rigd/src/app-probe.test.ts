@@ -253,14 +253,24 @@ describe("the app probe's calls", () => {
 
   it("reads the escalations opened and the Telnyx events recorded since a time", async () => {
     const { probe, requests } = probeWith({
-      [`GET ${rest("alert_escalations")}`]: () => json([]),
+      [`GET ${rest("alert_escalations")}`]: () => json([{
+        id: "alert-1",
+        kind: "missed_call",
+        on_call_user_id: "owner-1",
+        escalate_at: null,
+        escalated_at: new Date(NOW).toISOString(),
+        acknowledged_at: null,
+      }]),
       [`GET ${rest("webhook_events")}`]: () => json([{ event_id: "e-1", event_type: "call.initiated", processed_at: null, attempts: 1 }]),
     });
-    await probe.escalations({ tenant: "QA-W", since: NOW });
+    await expect(probe.escalations({ tenant: "QA-W", since: NOW })).resolves.toMatchObject([
+      { id: "alert-1", escalate_at: null, escalated_at: new Date(NOW).toISOString() },
+    ]);
     await expect(probe.webhookEvents({ since: NOW, type: "call.initiated" })).resolves.toHaveLength(1);
     await probe.webhookEvents({ since: NOW });
     const [escalations, typed, any] = requests.map(query);
     expect(escalations).toMatchObject({ company_id: `eq.${COMPANY}`, created_at: `gte.${new Date(NOW).toISOString()}` });
+    expect(escalations?.select).toContain("id");
     expect(typed).toMatchObject({ provider: "eq.telnyx", received_at: `gte.${new Date(NOW).toISOString()}`, event_type: "eq.call.initiated" });
     expect(any).not.toHaveProperty("event_type");
   });

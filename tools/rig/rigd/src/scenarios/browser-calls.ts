@@ -317,7 +317,7 @@ async function escalationWidens(ctx: ScenarioContext, since: number): Promise<Sc
   }
   const widened = await poll(ctx, async () => {
     const rows = await ctx.app.escalations({ tenant: "QA-W", since });
-    return rows.find((e) => e.kind === opened.kind && e.escalate_at === opened.escalate_at && e.escalated_at);
+    return rows.find((e) => e.id === opened.id && e.escalated_at);
   }, 30_000, 2000);
   ctx.evidence.escalation = {
     escalate_at: opened.escalate_at,
