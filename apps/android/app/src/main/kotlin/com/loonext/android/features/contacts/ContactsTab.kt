@@ -83,6 +83,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -1464,7 +1465,7 @@ private fun ListFooter(
 }
 
 /**
- * Create a contact by hand: US/CA phone with live NANP formatting (the strict
+ * Create a contact by hand: US/CA phone with NANP formatting (the strict
  * shared-module port validates before the server's authoritative pass), plus
  * optional name/address/notes. POST /v1/contacts upserts on the phone, so
  * re-adding an existing number just lands on the same row.
@@ -1512,7 +1513,7 @@ internal fun CreateContactSheet(
             OutlinedTextField(
                 value = phone,
                 onValueChange = {
-                    phone = Nanp.formatAsYouType(it)
+                    phone = it
                     error = null
                 },
                 label = { Text(t("contactsTasks.phoneField")) },
@@ -1525,7 +1526,9 @@ internal fun CreateContactSheet(
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().onFocusChanged {
+                    if (!it.isFocused) Nanp.normalize(phone)?.let { number -> phone = formatPhone(number) }
+                },
             )
             OutlinedTextField(
                 value = name,

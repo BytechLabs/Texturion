@@ -1110,7 +1110,7 @@ private struct ContactRow: View {
     }
 }
 
-/// Create a contact by hand: US/CA phone with live NANP formatting (the
+/// Create a contact by hand: US/CA phone with NANP formatting (the
 /// strict shared-module port validates before the server's authoritative
 /// pass), plus optional name/address/notes. POST /v1/contacts upserts on the
 /// phone, so re-adding an existing number just lands on the same row.
@@ -1133,6 +1133,7 @@ struct CreateContactSheet: View {
     @State private var notes = ""
     @State private var saving = false
     @State private var error: String?
+    @FocusState private var phoneFocused: Bool
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
 
@@ -1162,9 +1163,11 @@ struct CreateContactSheet: View {
                 Section {
                     TextField("(416) 555-0123", text: $phone)
                         .keyboardType(.phonePad)
-                        .onChange(of: phone) { _, next in
-                            let formatted = Nanp.formatAsYouType(next)
-                            if formatted != next { phone = formatted }
+                        .focused($phoneFocused)
+                        .onChange(of: phoneFocused) { _, focused in
+                            if !focused, let normalized { phone = Nanp.formatAsYouType(normalized) }
+                        }
+                        .onChange(of: phone) { _, _ in
                             error = nil
                         }
                     if !phone.isEmpty && normalized == nil {
