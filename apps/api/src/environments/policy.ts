@@ -73,7 +73,7 @@ export function deployPostureRefusals(env: Env): string[] {
   // the flag is missing rather than ignored. Production is left out: there
   // the flag is stamped, and a stray variable it never reads is harmless.
   if (mode === "local") {
-    for (const name of ["RIG_OWNED_E164", "RIG_ROBOT_WEBHOOK_ORIGIN"] as const) {
+    for (const name of ["RIG_OWNED_E164", "RIG_QA_TOLL_FREE_CALL", "RIG_ROBOT_WEBHOOK_ORIGIN"] as const) {
       if (env[name] !== undefined) {
         refusals.push(`${name} is set, which only the rig does, but DEPLOY_ENV is not rig`);
       }
@@ -240,6 +240,11 @@ export function outboundDestinationRefusal(
     code: RIG_DESTINATION_REFUSED,
     detail: "rig mode refuses a destination outside RIG_OWNED_E164",
   };
+}
+
+export function allowsRigTollFreeTestCall(env: Env, destination: unknown): boolean {
+  return deployEnv(env) === "rig" && typeof destination === "string" &&
+    destination === env.RIG_QA_TOLL_FREE_CALL;
 }
 
 /**

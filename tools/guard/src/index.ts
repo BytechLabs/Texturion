@@ -30,6 +30,7 @@ export class GuardState extends DurableObject<Env> {
       sleep: (ms) => new Promise((resolve) => {
         setTimeout(resolve, ms);
       }),
+      waitUntil: (promise) => state.waitUntil(promise),
       fetch: outbound,
       telnyx: config.telnyxKey ? telnyxApi(config.telnyxKey, outbound) : null,
       ai: env.AI ? { run: (model, inputs) => env.AI!.run(model as never, inputs as never) } : null,

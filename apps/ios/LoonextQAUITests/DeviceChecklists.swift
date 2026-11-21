@@ -196,6 +196,44 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
+    func testEmergencyCallHandsOffToPhone() async throws {
+        try signIn()
+        try waitFor(app.buttons["Calls"].firstMatch).tap()
+        try waitFor(app.buttons["Dial a number"].firstMatch).tap()
+        try waitFor(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "9")).firstMatch).tap()
+        let one = try waitFor(app.buttons["1"].firstMatch)
+        one.tap()
+        one.tap()
+        try waitFor(label("Loonext can't place emergency calls"))
+        shot("811 emergency disclosure and phone handoff")
+        try waitFor(label("Call with your phone")).tap()
+        try await assertOneWrite(path: "/__qa/open-url", field: "url", value: "tel:911")
+    }
+
+    func testSelectsAndCopiesPartOfAMessage() throws {
+        try signIn()
+        try openThread("Ada Fixture")
+        try waitFor(label("Test thread history")).press(forDuration: 1.2)
+        try waitFor(label("Select text")).tap()
+        let message = try waitFor(app.textViews.matching(NSPredicate(
+            format: "value == %@", "Test thread history"
+        )).firstMatch)
+        let word = message.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 26, dy: 18))
+        word.doubleTap()
+        let copy = try waitFor(label("Copy"))
+        shot("811 selected text can be copied")
+        copy.tap()
+        try waitFor(app.buttons["Close"].firstMatch).tap()
+        let prompt = NSPredicate(format: "label == %@ OR placeholderValue == %@", "Text message", "Text message")
+        let multiline = app.textViews.matching(prompt).firstMatch
+        let composer = try waitFor(multiline.exists ? multiline : app.textFields.matching(prompt).firstMatch)
+        composer.press(forDuration: 1.1)
+        try waitFor(label("Paste")).tap()
+        XCTAssertEqual(composer.value as? String, "Test")
+        shot("811 only the selected word was pasted")
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"

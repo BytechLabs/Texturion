@@ -221,6 +221,9 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
     expect(outboundDestinationRefusal(env, STRANGER)).toBeNull();
     expect(outboundDestinationRefusal(env, "sip:+14165550199@sip.telnyx.com")).toBeNull();
   },
+  allowsRigTollFreeTestCall: (env) => expect(policy.allowsRigTollFreeTestCall(
+    { ...env, RIG_QA_TOLL_FREE_CALL: "+18005550123" }, "+18005550123",
+  )).toBe(false),
   inboundCallerRefusal: (env) => {
     expect(inboundCallerRefusal(env, STRANGER)).toBeNull();
     expect(inboundCallerRefusal(env, null)).toBeNull();

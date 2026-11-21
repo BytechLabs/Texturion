@@ -48,6 +48,10 @@ begin
     'd1a70000-0000-4000-8000-000000000002'::uuid,
     'd1a70000-0000-4000-8000-000000000003'::uuid,
     '+16135550101', 'Robot calling in', 'tx-rig-gate-endpoint');
+  perform public.thread_inbound_message(
+    'd1a70000-0000-4000-8000-000000000002'::uuid,
+    'd1a70000-0000-4000-8000-000000000003'::uuid,
+    '+18005550123', 'IVR test thread', 'tx-rig-gate-ivr');
 end $$;
 
 -- The three writes, each answering 'sent', 'refused' or the error it raised
@@ -280,6 +284,24 @@ begin
     raise exception 'RG-4 FAILED: an unrelated audit row was refused (%)', v;
   end if;
   raise notice 'RG-4 PASSED: the rig''s own numbers pass, and only the capture claim is gated';
+end $$;
+
+-- ===========================================================================
+-- RG-4a. The configured toll-free IVR admits only a voice claim.
+-- ===========================================================================
+do $$
+begin
+  if pg_temp.try_claim('+18005550123', 'rig-ivr-unset') is distinct from 'refused' then
+    raise exception 'A toll-free number was dialable before setting the rig IVR';
+  end if;
+  perform set_config('loonext.rig_qa_toll_free_call', '+18005550123', true);
+  if pg_temp.try_claim('+18005550123', 'rig-ivr-call') is distinct from 'sent'
+     or pg_temp.try_claim('+18005550124', 'rig-other-ivr-call') is distinct from 'refused'
+     or pg_temp.try_text('+18005550123', 'rig-ivr-text') is distinct from 'refused'
+     or pg_temp.try_capture('+18005550123') is distinct from 'refused' then
+    raise exception 'The IVR exception must allow only the configured number on outbound voice';
+  end if;
+  perform set_config('loonext.rig_qa_toll_free_call', '', true);
 end $$;
 
 -- ===========================================================================

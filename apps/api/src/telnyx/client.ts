@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
 import {
+  allowsRigTollFreeTestCall,
   outboundDestinationRefusal,
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
@@ -264,7 +265,12 @@ export async function telnyxRequest<T = unknown>(
   // forwards from the rig. A refusal is the 403 the guard would have answered,
   // so each caller takes the path it already has for "Telnyx refused this",
   // and no request leaves.
+  const dialBody = options.body as { to?: unknown; sip_address?: unknown } | undefined;
   for (const destination of telnyxDestinations(options)) {
+    if (
+      options.path === "/v2/calls" && dialBody?.to === destination &&
+      dialBody.sip_address === undefined && allowsRigTollFreeTestCall(env, destination)
+    ) continue;
     const refusal = outboundDestinationRefusal(env, destination);
     if (refusal) {
       throw new TelnyxApiError(

@@ -103,6 +103,12 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (path === "/__qa/open-url" && req.method === "POST") {
+      let url = "";
+      for await (const chunk of req) url += chunk;
+      state.writes.push({ path, body: { url } });
+      return json({ ok: true });
+    }
     if (path === "/__qa/mode" && req.method === "POST") {
       state.mode = searchParams.get("value");
       if (state.mode !== "online") for (const socket of realtime.clients) socket.terminate();

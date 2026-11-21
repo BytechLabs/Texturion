@@ -94,10 +94,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -111,6 +111,8 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$ui/testCallingSettingSavesOnBackground" "$unit/DebouncedTextSaveTests" "$unit/DebouncedTextSaveWireTests" || failed=1 ;;
     copy-and-media) run_scenario "$name" "$ui/testSettingsLabelsAndTaskDeleteCopy" \
       "$ui/testVoicemailPlaybackProgress" "$unit/PermissionStringsTests" "$unit/MediaPlaybackTests" || failed=1 ;;
+    phone-and-text) run_scenario "$name" "$ui/testEmergencyCallHandsOffToPhone" \
+      "$ui/testSelectsAndCopiesPartOfAMessage" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
   esac
 done

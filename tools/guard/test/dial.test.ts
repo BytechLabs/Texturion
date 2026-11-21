@@ -1,5 +1,5 @@
 import { HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { recordSignal } from "../src/state/signals";
 import { EDGE, harness, lease, MONDAY_0500, N, ready, registerViaEdge, ruleOf, seedAccount } from './support';
@@ -115,6 +115,45 @@ describe("dial", () => {
     expect((await dial(h, id, { ...DIAL, connection_id: "conn-voice", to: "sip:gencredowner@sip.telnyx.com" })).status).toBe(
       200,
     );
+  });
+
+  it("limits the configured IVR to a voice dial by the app during S01", async () => {
+    const ivr = "+18005550123";
+    const h = await ready({ env: { RIG_QA_TOLL_FREE_CALL: ivr } });
+    const hangups: Promise<unknown>[] = [];
+    h.ctx.waitUntil = (work) => { hangups.push(work); };
+    const sleep = vi.fn(async () => {});
+    h.ctx.sleep = sleep;
+    const body = { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: ivr };
+    const appDial = (extra: Record<string, unknown> = {}) =>
+      h.call("/telnyx/v2/calls", { caller: "rig-api", body: { ...body, ...extra } });
+    const wrongLease = await lease(h, "S02");
+    await expect(ruleOf(await appDial())).resolves.toBe("dial.to_not_owned");
+    await h.call(`/lease/${wrongLease}`, { caller: "robot", method: "DELETE" });
+    const id = await lease(h, "S01");
+    await expect(ruleOf(await dial(h, id, body))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await appDial({ to: N.notOwned }))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await appDial({ to: [ivr] }))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await appDial({ connection_id: "conn-robot" }))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await appDial({ from: N.notOwned }))).resolves.toBe("dial.from_not_owned");
+    await expect(ruleOf(await appDial({ send_digits_on_answer: "0" }))).resolves.toBe("dial.field_refused");
+    await expect(ruleOf(await h.call("/telnyx/v2/messages", {
+      caller: "rig-api", body: { from: N.devW1, to: ivr, text: "Never sent" },
+    }))).resolves.toBe("message.to_not_owned");
+    expect(h.telnyx.requests("POST", "/v2/calls")).toHaveLength(0);
+
+    const response = await appDial();
+    expect(response.status).toBe(200);
+    const ccid = (await response.json<{ data: { call_control_id: string } }>()).data.call_control_id;
+    expect(h.telnyx.requests("POST", "/v2/calls")[0]?.body).toMatchObject({
+      to: ivr, timeout_secs: 10, time_limit_secs: 30, retry_on_timeout: false, command_id: id,
+    });
+    expect(sleep).toHaveBeenCalledWith(15_000);
+    await Promise.all(hangups);
+    expect(h.telnyx.requests("POST", `/v2/calls/${ccid}/actions/hangup`)).toHaveLength(1);
+    await expect(ruleOf(await h.call(`/telnyx/v2/calls/${ccid}/actions/transfer`, {
+      caller: "rig-api", body: { to: ivr },
+    }))).resolves.toBe("dial.to_not_owned");
   });
 
   it("refuses body fields that reach past the partition", async () => {
