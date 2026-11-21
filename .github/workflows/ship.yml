@@ -376,7 +376,8 @@ jobs:
       # no stored state — the same source the iOS build number uses, so the two
       # platforms stay in step.
       # D146: the mapping id ties a crash in PostHog to this build's R8
-      # mapping. The SDK reads it from the bundle's assets.
+      # mapping. The SDK reads it from the bundle's assets. Each build gets a
+      # fresh ID, so an upload conflict is an error.
       - name: Build release bundle
         env:
           POSTHOG_PROJECT_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
@@ -479,7 +480,9 @@ jobs:
             echo "::warning title=dSYMs not uploaded::POSTHOG_CLI_TOKEN or POSTHOG_PROJECT_ID is not set, so iOS crashes in PostHog will not be symbolicated."
             exit 0
           fi
-          npx --yes @posthog/cli@0.18.10 dsym upload --directory build/Loonext.xcarchive/dSYMs
+          # An unchanged binary can reuse a dSYM UUID across releases.
+          npx --yes @posthog/cli@0.18.10 dsym upload --directory build/Loonext.xcarchive/dSYMs \
+            --skip-on-conflict
 
       - name: Attach the archive to the release
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
