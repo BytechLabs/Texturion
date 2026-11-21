@@ -9,6 +9,7 @@ on:
         default: all
         options:
           - all
+          - customer-journeys
           - foreground-alerts
           - notification-actions
           - notification-reply-transport

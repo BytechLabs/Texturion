@@ -23,7 +23,8 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 let quote;
-const state = { mode: "online", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", role: "owner", locale: "en", stage: "active", writes: [], scheduled: [],
+  invites: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
@@ -106,8 +107,9 @@ function sampleAudio() {
 }
 
 const audio = sampleAudio();
-const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/scheduled-messages",
+const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/port-requests", "/v1/text-enablements",
   "/v1/notifications", "/v1/company/setting-choices", "/v1/templates"]);
+const createPaths = new Set(["/v1/tasks", "/v1/scheduled-messages", "/v1/numbers/provision", "/v1/invites"]);
 
 const server = createServer(async (req, res) => {
   const { pathname: path, searchParams } = new URL(req.url, origin);
@@ -118,6 +120,17 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (path === "/__qa/profile" && req.method === "POST") {
+      state.role = searchParams.get("role") ?? state.role;
+      state.locale = searchParams.get("locale") ?? state.locale;
+      state.stage = searchParams.get("stage") ?? state.stage;
+      state.company.plan = "pro";
+      if (state.stage === "new") {
+        state.company.numbers = [line];
+        state.invites = [];
+      }
+      return json({ ok: true });
+    }
     if (path === "/__qa/open-url" && req.method === "POST") {
       let url = "";
       for await (const chunk of req) url += chunk;
@@ -182,11 +195,18 @@ const server = createServer(async (req, res) => {
     if (state.mode === "revoked") {
       return json({ error: { code: "unauthorized", message: "Test session revoked" } }, 401);
     }
-    if (path === "/auth/v1/token") {
+    if (path === "/auth/v1/token" || path === "/auth/v1/signup") {
+      if (path.endsWith("/signup")) {
+        let input = "";
+        for await (const chunk of req) input += chunk;
+        const { email, data } = JSON.parse(input);
+        state.writes.push({ path, body: { email, locale: data?.locale } });
+      }
       req.resume();
       return json({ access_token: "simulator-session", refresh_token: "simulator-refresh",
         expires_in: 3600, user: { id: userID, email: "qa@example.invalid" } });
     }
+    if (path === "/auth/v1/logout") return json({});
     if (path === "/fixture.wav") {
       const [, first, last] = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/) ?? [];
       const start = Number(first ?? 0);
@@ -200,15 +220,24 @@ const server = createServer(async (req, res) => {
       res.writeHead(first ? 206 : 200, headers);
       return res.end(audio.subarray(start, end + 1));
     }
-    if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: "en",
-      company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
+    if (path === "/v1/me") {
+      const company = { ...state.company, subscription_status: state.stage };
+      return json({ user_id: userID, display_name: state.role === "owner" ? "Test Owner" : "Test Crew", locale: state.locale,
+        company: state.stage === "new" ? null : company,
+        memberships: state.stage === "new" ? [] : [{ company_id: companyID, name: company.name,
+          role: state.role, subscription_status: company.subscription_status }] });
+    }
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
     if (path === "/v1/for-you") return json({});
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
-    if (path === "/v1/numbers") return json(page([line]));
+    if (path === "/v1/numbers") return json(page(state.company.numbers));
+    if (path === "/v1/registration") return json({});
+    if (path === "/v1/available-numbers") return json({ data: [], masked: true });
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
-    if (req.method === "PATCH" || path === "/v1/messages/send" || (req.method === "POST" && path === "/v1/tasks")) {
+    const noteIndex = threadIDs.findIndex((id) => path === `/v1/conversations/${id}/notes`);
+    if (req.method === "PATCH" || path === "/v1/messages/send" ||
+      (req.method === "POST" && (noteIndex !== -1 || createPaths.has(path)))) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
@@ -216,6 +245,27 @@ const server = createServer(async (req, res) => {
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
       if (path === "/v1/tasks") return json({ ...task, title: body.title, conversation_id: threadIDs[0] }, 201);
+      if (path === "/v1/numbers/provision") {
+        const number = { ...line, id: randomUUID(), label: "Second test line", number_e164: "+14165550103" };
+        state.company.numbers.push(number);
+        return json(number, 201);
+      }
+      if (path === "/v1/invites") {
+        const invite = { ...body, id: randomUUID(), company_id: companyID, invited_by: userID,
+          created_at: now(), expires_at: new Date(Date.now() + 86400_000).toISOString(), email_sent: true };
+        state.invites.push(invite);
+        return json(invite, 201);
+      }
+      if (path === "/v1/scheduled-messages") {
+        const scheduled = { ...body, id: randomUUID(), clock_timezone: "America/Toronto", status: "pending" };
+        state.scheduled.push(scheduled);
+        return json({ scheduled_message: scheduled }, 201);
+      }
+      if (noteIndex !== -1) {
+        const note = { ...message(noteIndex, body.body, "note"), author_name: "Test Crew" };
+        state.messages[noteIndex].unshift(note);
+        return json(note, 201);
+      }
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
         const sent = message(index, body.body, "outbound");
@@ -224,7 +274,13 @@ const server = createServer(async (req, res) => {
       }
     }
 
+    if (path === "/v1/scheduled-messages") {
+      const conversation = searchParams.get("conversation_id");
+      const rows = state.scheduled.filter((row) => !conversation || row.conversation_id === conversation);
+      return json({ ...page(rows), upcoming_count: rows.length, held_count: 0 });
+    }
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/invites") return json(page(state.invites));
     if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));

@@ -48,7 +48,7 @@ run_scenario() {
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-sources ]]; then
+  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-sources || "$name" == customer-journeys ]]; then
     test_timeout=420
   fi
 
@@ -118,10 +118,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|attachment-sources|accessibility) ;;
+  all|customer-journeys|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|attachment-sources|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert attachment-sources accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert attachment-sources accessibility customer-journeys; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -143,6 +143,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     attachment-sources) run_scenario "$name" "$ui/testPhotoLibraryStagesAttachment" \
       "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
+    customer-journeys) run_scenario "$name" "LoonextQAUITests/CustomerJourneys" || failed=1 ;;
   esac
 done
 exit "$failed"
