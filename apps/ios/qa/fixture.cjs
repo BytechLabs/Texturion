@@ -48,8 +48,8 @@ function thread(index) {
     contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text" };
 }
 
-function broadcast(event, payload) {
-  const topic = `realtime:company:${companyID}`;
+function broadcast(event, payload, numberID) {
+  const topic = `realtime:company:${companyID}${numberID ? `:number:${numberID}` : ""}`;
   for (const socket of realtime.clients) {
     if (socket.readyState === 1 && socket.topics.has(topic)) {
       socket.send(JSON.stringify({ topic, event: "broadcast", payload: { event, payload } }));
@@ -127,7 +127,7 @@ const server = createServer(async (req, res) => {
       if (quote?.status === "viewed") {
         quote.status = "accepted";
         quote.decided_at = now();
-        broadcast("quote.updated", { conversation_id: threadIDs[0], quote_id: quoteID });
+        broadcast("quote.updated", { conversation_id: threadIDs[0], quote_id: quoteID }, lineID);
         const tag = `quote:accepted:${quoteID}`;
         await sendPush({
           aps: { alert: { title: "Ada Fixture accepted the quote", body: "The quote was accepted." },
@@ -198,7 +198,11 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
     if (path === "/v1/quotes") {
-      return json(page(quote && searchParams.get("conversation_id") === quote.conversation_id ? [quote] : []));
+      if (quote && searchParams.get("conversation_id") === quote.conversation_id) {
+        console.log(`Quote strip read: ${quote.status}`);
+        return json(page([quote]));
+      }
+      return json(page());
     }
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
     if (path === "/v1/tasks") return json(page([task]));
