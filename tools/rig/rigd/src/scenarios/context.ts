@@ -305,7 +305,7 @@ export interface AppApi {
   signOutSession(args: { member: string }): Promise<ApiAnswer>;
   /** The alert escalations opened in a tenant since a time. */
   escalations(args: { tenant: string; since: number }): Promise<
-    { kind: string; on_call_user_id: string | null; escalate_at: string; escalated_at: string | null; acknowledged_at: string | null }[]
+    { id: string; kind: string; on_call_user_id: string | null; escalate_at: string | null; escalated_at: string | null; acknowledged_at: string | null }[]
   >;
   /**
    * Makes sure the member's workspace delivers these webhook events to the

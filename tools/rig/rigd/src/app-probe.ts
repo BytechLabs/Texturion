@@ -513,11 +513,11 @@ export class AppProbe implements AppApi {
 
   escalations(args: { tenant: string; since: number }) {
     return this.#rest<
-      { kind: string; on_call_user_id: string | null; escalate_at: string; escalated_at: string | null; acknowledged_at: string | null }[]
+      { id: string; kind: string; on_call_user_id: string | null; escalate_at: string | null; escalated_at: string | null; acknowledged_at: string | null }[]
     >("alert_escalations", {
       company_id: `eq.${this.#tenant(args.tenant).company_id}`,
       created_at: `gte.${iso(args.since)}`,
-      select: "kind,on_call_user_id,escalate_at,escalated_at,acknowledged_at",
+      select: "id,kind,on_call_user_id,escalate_at,escalated_at,acknowledged_at",
       order: "created_at.asc",
     });
   }

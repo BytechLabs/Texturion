@@ -271,6 +271,7 @@ function s05World(options: { textBack?: boolean; escalation?: boolean; callerRol
     if (options.textBack !== false) world.robot.deliver({ from_role: "DEV-W1", to_role: callerRole, text: "Sorry we missed you" });
     if (options.escalation !== false) {
       world.app.escalationRows.push({
+        id: "s05-alert",
         tenant: "QA-W",
         created_at: iso(world.time.now),
         kind: "missed_call",
@@ -288,7 +289,10 @@ function s05World(options: { textBack?: boolean; escalation?: boolean; callerRol
   app.fireCron = async (cron, at) => {
     await fire(cron, at);
     for (const escalation of world.app.escalationRows) {
-      if (at !== undefined && Date.parse(escalation.escalate_at) <= at) escalation.escalated_at = iso(at);
+      if (at !== undefined && escalation.escalate_at && Date.parse(escalation.escalate_at) <= at) {
+        escalation.escalated_at = iso(at);
+        escalation.escalate_at = null;
+      }
     }
   };
   return { ...world, ...pages, seen, rows };
@@ -313,7 +317,8 @@ describe("S05, the caller hangs up while it rings", () => {
     expect(world.app.shifts[0]).toMatchObject({ tenant: "QA-W", member: OWNER, role: "DEV-W1" });
     const [fired] = world.app.firedCrons;
     expect(fired?.cron).toBe("* * * * *");
-    expect(fired!.at!).toBeGreaterThanOrEqual(Date.parse(world.app.escalationRows[0]!.escalate_at));
+    expect(world.app.escalationRows[0]).toMatchObject({ escalate_at: null, escalated_at: expect.any(String) });
+    expect(fired!.at!).toBeGreaterThanOrEqual(Date.parse(world.app.escalationRows[0]!.escalated_at!));
   });
 
   it("registers each undo before the change it reverses", async () => {
