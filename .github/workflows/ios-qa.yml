@@ -17,6 +17,7 @@ on:
           - autosave
           - copy-and-media
           - phone-and-text
+          - thread-workflows
           - accessibility
       runtime:
         description: iOS Simulator version (defaults to newest installed)
