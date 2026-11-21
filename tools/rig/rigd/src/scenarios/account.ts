@@ -250,7 +250,12 @@ export const S28: ScenarioRunner = {
     const group = await groupCheck(ctx, number.telnyx_phone_number_id, partition.standing);
     if (group) return group;
 
-    const page = await ctx.browser.open("qa-g-owner", "qa-c", "/");
+    const page = await ctx.browser.open("qa-g-owner", "qa-c", "/calls");
+    try {
+      await page.waitForPhoneReady();
+    } catch (error) {
+      return infra("browser-lane", `the QA-G owner's phone was not ready: ${(error as Error).message}`);
+    }
     const dialed = await ctx.robot.dial({
       scenario: ctx.scenario,
       lease_id: ctx.lease.id,

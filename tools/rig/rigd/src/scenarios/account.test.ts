@@ -312,13 +312,27 @@ describe("S28, number buy, bind, ring and release", () => {
     expect(handoff.record).toBeNull();
     expect(robot.plans).toHaveLength(1);
     expect(robot.plans[0]).toMatchObject({ direction: "outbound", role: "ROBOT-1", to: `number-id:${TELNYX_ID}`, lease_id: "lease-test" });
-    expect(browser.opened).toEqual([{ member: "qa-g-owner", surface: "qa-c", path: "/" }]);
+    expect(browser.opened).toEqual([{ member: "qa-g-owner", surface: "qa-c", path: "/calls" }]);
     expect(ctx.evidence.release).toEqual({ outcome: "pass" });
     await releaseTenantNumbers(undo[0]!.params, world);
     expect(guard.held.has(TELNYX_ID)).toBe(false);
     expect(app.numbers.get("QA-G")![0]!.status).toBe("released");
     expect(guard.released).toEqual([]);
     expectNoPhoneNumber(ctx.evidence);
+  });
+
+  it("does not dial before the owner’s browser phone registers", async () => {
+    const { browser, ctx, robot } = s28World();
+    const open = browser.open.bind(browser);
+    browser.open = async (...args) => ({
+      ...(await open(...args)),
+      async waitForPhoneReady() {
+        throw new Error("the phone-ready control never appeared");
+      },
+    });
+
+    await expect(S28.run(ctx)).resolves.toMatchObject({ outcome: "infra", component: "browser-lane" });
+    expect(robot.plans).toEqual([]);
   });
 
   it("reconciles a pending order after the regional inventory search", async () => {
