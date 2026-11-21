@@ -78,4 +78,12 @@ describe("twoClockLabel (#539)", () => {
     expect(spoken).toContain("which is");
     expect(spoken).not.toContain("·");
   });
+
+  it("names both clocks in Canadian French on screen and when spoken", () => {
+    expect(twoClockLabel(AT, VANCOUVER, TORONTO, "fr-CA")).toMatch(/8.*à leur heure · .*11.*à la vôtre/u);
+    expect(twoClockSpoken(AT, VANCOUVER, TORONTO, "fr-CA")).toMatch(/8.*à leur heure, ce qui fait .*11.*à la vôtre/u);
+    expect(twoClockLabel(AT, "America/New_York", TORONTO, "fr-CA")).toBe(
+      twoClockSpoken(AT, TORONTO, TORONTO, "fr-CA"),
+    );
+  });
 });
