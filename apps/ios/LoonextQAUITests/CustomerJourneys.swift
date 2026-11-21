@@ -90,12 +90,14 @@ final class CustomerJourneys: XCTestCase {
         try waitFor(button(text("More", "Plus"))).tap()
         try waitFor(button(text("Settings", "Paramètres"))).tap()
         try reveal(label(text("Numbers", "Numéros"), prefix: true)).tap()
-        try waitFor(label("Test line"))
+        try reveal(label("(416) 555-0100"))
         try reveal(button(text("Choose a number", "Choisir un numéro"))).tap()
         try waitFor(button(text("Use area code 416", "Utiliser l'indicatif 416"))).tap()
         let provision = try await write("/v1/numbers/provision", field: "requested_area_code", value: "416")
         XCTAssertFalse(provision.idempotencyKey?.isEmpty ?? true)
-        try reveal(label("Second test line"))
+        let ordered = label("(416) 555-0103")
+        for _ in 0..<4 where !ordered.isHittable { app.swipeDown() }
+        try reveal(ordered)
         shot("Owner chose and ordered a number \(suffix)")
 
         try waitFor(app.navigationBars.buttons.firstMatch).tap()
@@ -112,6 +114,7 @@ final class CustomerJourneys: XCTestCase {
     private func technician(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
+        earlierWrites = try await allWrites().count
         try await profile(language, role: "member", stage: "active")
         launch(language, theme, signIn: true)
         try waitFor(button("Conversations"), timeout: 30)
@@ -165,6 +168,24 @@ final class CustomerJourneys: XCTestCase {
             record.path == "/v1/messages/send" && [note, scheduled].contains(record.body["body"]?.text ?? "")
         })
         shot("Technician text scheduled \(suffix)")
+
+        let draft = text("I can return", "Je peux revenir")
+        let suggestion = draft + text(" on Friday.", " vendredi.")
+        let message = composer(text("Text message", "Texto"))
+        try enter(draft, in: message)
+        try waitFor(button(text("Finish with Lou", "Terminer avec Lou"))).tap()
+        _ = try await write("/v1/conversations/\(conversation)/reply-suggestions", field: "draft", value: draft)
+        try waitFor(button(suggestion)).tap()
+        XCTAssertEqual(message.value as? String, suggestion)
+        let beforeSend = try await allWrites()
+        XCTAssertEqual(beforeSend.filter { $0.path == "/v1/messages/send" }.count,
+                       writes.filter { $0.path == "/v1/messages/send" }.count)
+        shot("Lou loaded a draft for review \(suffix)")
+
+        try waitFor(button(text("Send message", "Envoyer le message"))).tap()
+        let approved = try await write("/v1/messages/send", field: "body", value: suggestion)
+        XCTAssertEqual(approved.body["conversation_id"]?.text, conversation)
+        try waitFor(label(suggestion))
     }
 
     private func bookkeeper(_ language: Language, _ theme: String) async throws {
@@ -212,7 +233,7 @@ final class CustomerJourneys: XCTestCase {
         try waitFor(label(text("1 on the map", "1 sur la carte")))
         shot("Located task on map \(suffix)")
         try waitFor(button(text("Planner", "Planificateur"))).tap()
-        try waitFor(label(text("Unscheduled work", "Travail à planifier")))
+        try waitFor(label(text("UNSCHEDULED WORK", "TRAVAIL À PLANIFIER")))
         try waitFor(label("Test boiler"))
         shot("Task in dispatch planner \(suffix)")
     }
@@ -285,7 +306,7 @@ final class CustomerJourneys: XCTestCase {
     private func composer(_ placeholder: String) -> XCUIElement {
         let prompt = NSPredicate(format: "label == %@ OR placeholderValue == %@", placeholder, placeholder)
         let multiline = app.textViews.matching(prompt).firstMatch
-        return multiline.exists ? multiline : app.textFields.matching(prompt).firstMatch
+        return multiline.waitForExistence(timeout: 2) ? multiline : app.textFields.matching(prompt).firstMatch
     }
 
     private func label(_ text: String, prefix: Bool = false) -> XCUIElement {

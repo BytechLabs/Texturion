@@ -251,8 +251,9 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
     const noteIndex = threadIDs.findIndex((id) => path === `/v1/conversations/${id}/notes`);
+    const suggestionPath = threadIDs.some((id) => path === `/v1/conversations/${id}/reply-suggestions`);
     if (req.method === "PATCH" || path === "/v1/messages/send" ||
-      (req.method === "POST" && (noteIndex !== -1 || createPaths.has(path)))) {
+      (req.method === "POST" && (noteIndex !== -1 || suggestionPath || createPaths.has(path)))) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
@@ -265,6 +266,10 @@ const server = createServer(async (req, res) => {
         });
       }
       state.writes.push({ path, body, idempotencyKey: req.headers["idempotency-key"] });
+      if (suggestionPath) {
+        const ending = state.locale === "fr-CA" ? "vendredi." : "on Friday.";
+        return json({ suggestions: body.draft ? [`${body.draft} ${ending}`] : [] });
+      }
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
       if (path === "/v1/tasks") return json({ ...task, title: body.title, conversation_id: threadIDs[0] }, 201);
