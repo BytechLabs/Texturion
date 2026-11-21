@@ -304,7 +304,8 @@ describe("S05, the caller hangs up while it rings", () => {
     expect(world.did(OWNER, "answer")).toEqual([]);
     expect(world.app.companies.get("QA-W")).toMatchObject({
       on_call_escalate_after_minutes: 10,
-      business_hours: {},
+      auto_reply_cooldown_minutes: 0,
+      business_hours: hoursClosedAt(world.time.now),
       after_hours_calls: "ring_everyone",
       timezone: "America/Toronto",
     });
@@ -320,7 +321,7 @@ describe("S05, the caller hangs up while it rings", () => {
     await S05.run(world.ctx);
     const restore = world.undo[0]!;
     expect(restore).toMatchObject({ kind: "app.company-restore", params: { tenant: "QA-W" } });
-    expect(restore.params.values).toMatchObject({ on_call_escalate_after_minutes: 15, ring_seconds: 30, business_hours: null });
+    expect(restore.params.values).toMatchObject({ on_call_escalate_after_minutes: 15, ring_seconds: 30, business_hours: null, auto_reply_cooldown_minutes: null });
     expect(world.seen.patches[0]).toEqual([restore]);
     const [shift] = world.seen.shifts;
     expect(shift!.undo.at(-1)).toEqual({ kind: "app.remove-on-call", params: { id: shift!.args.id } });
