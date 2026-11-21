@@ -114,6 +114,7 @@ const audio = sampleAudio();
 const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/port-requests", "/v1/text-enablements",
   "/v1/notifications", "/v1/company/setting-choices", "/v1/templates"]);
 const createPaths = new Set(["/v1/tasks", "/v1/scheduled-messages", "/v1/numbers/provision", "/v1/invites", "/v1/quotes", paymentRequestsPath]);
+const handoffPages = new Set(["/onboarding", "/onboarding/plan", "/fixture-billing"]);
 
 const server = createServer(async (req, res) => {
   const { pathname: path, searchParams } = new URL(req.url, origin);
@@ -124,6 +125,11 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (req.method === "GET" && handoffPages.has(path)) {
+      state.writes.push({ path, body: {} });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      return res.end("<!doctype html><title>Loonext QA</title><h1>Simulator handoff</h1>");
+    }
     if (path === "/__qa/french" && req.method === "POST") {
       state.locale = "fr-CA";
       state.paymentsEnabled = searchParams.has("payments");
@@ -257,6 +263,9 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/registration") return json({});
     if (path === "/v1/available-numbers") return json({ data: [], masked: true });
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
+    if (path === "/v1/billing/portal" && req.method === "POST") {
+      return json({ url: origin + "/fixture-billing" });
+    }
 
     if (path === "/v1/payments/account") {
       if (state.paymentsEnabled) {

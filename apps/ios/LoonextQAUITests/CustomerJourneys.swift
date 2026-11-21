@@ -75,13 +75,15 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertEqual(signup.body["locale"]?.text, language.rawValue)
 
         launch(language, theme, signIn: true)
-        try waitFor(button(text("Open app.loonext.com", "Ouvrir app.loonext.com")), timeout: 30)
+        let setup = try waitFor(button(text("Open app.loonext.com", "Ouvrir app.loonext.com")), timeout: 30)
         shot("Owner workspace setup \(suffix)")
+        try await followHandoff(setup, path: "/onboarding")
 
         try await profile(language, role: "owner", stage: "incomplete")
         try waitFor(button(text("I've done this — refresh", "C'est fait — actualiser"))).tap()
-        try waitFor(button(text("Finish checkout", "Terminer le paiement")))
+        let checkout = try waitFor(button(text("Finish checkout", "Terminer le paiement")))
         shot("Owner checkout handoff \(suffix)")
+        try await followHandoff(checkout, path: "/onboarding/plan")
 
         try await profile(language, role: "owner", stage: "active")
         try waitFor(button(text("I've done this — refresh", "C'est fait — actualiser"))).tap()
@@ -199,6 +201,8 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertFalse(button(text("Tasks", "Tâches")).exists)
         XCTAssertFalse(label("Ada Fixture").exists)
         shot("Bookkeeper billing \(language.rawValue)-\(theme)")
+        let portal = try reveal(button(text("Manage payment & invoices", "Gérer le paiement et les factures")))
+        try await followHandoff(portal, path: "/fixture-billing")
     }
 
     private func fieldwork(_ language: Language, _ theme: String) async throws {
@@ -274,6 +278,21 @@ final class CustomerJourneys: XCTestCase {
     private func allWrites() async throws -> [Write] {
         let (data, _) = try await URLSession.shared.data(from: fixture.appending(path: "__qa/writes"))
         return try JSONDecoder().decode([Write].self, from: data)
+    }
+
+    private func followHandoff(_ button: XCUIElement, path: String) async throws {
+        let previous = try await allWrites().count
+        button.tap()
+        let deadline = ContinuousClock.now + .seconds(20)
+        while ContinuousClock.now < deadline {
+            if try await allWrites().dropFirst(previous).contains(where: { $0.path == path }) {
+                app.activate()
+                return
+            }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        XCTFail("The browser did not open \(path)")
+        app.activate()
     }
 
     private func write(_ path: String, field: String, value: String) async throws -> Write {
