@@ -16,6 +16,7 @@ on:
           - offline
           - autosave
           - copy-and-media
+          - thread-workflows
           - accessibility
       runtime:
         description: iOS Simulator version (defaults to newest installed)

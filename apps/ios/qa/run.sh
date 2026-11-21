@@ -48,7 +48,9 @@ run_scenario() {
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility || "$name" == offline ]]; then test_timeout=420; fi
+  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows ]]; then
+    test_timeout=420
+  fi
 
   mkdir -p "$output"
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
@@ -94,10 +96,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|accessibility) ;;
+  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|thread-workflows|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media accessibility; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media thread-workflows accessibility; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -111,6 +113,8 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$ui/testCallingSettingSavesOnBackground" "$unit/DebouncedTextSaveTests" "$unit/DebouncedTextSaveWireTests" || failed=1 ;;
     copy-and-media) run_scenario "$name" "$ui/testSettingsLabelsAndTaskDeleteCopy" \
       "$ui/testVoicemailPlaybackProgress" "$unit/PermissionStringsTests" "$unit/MediaPlaybackTests" || failed=1 ;;
+    thread-workflows) run_scenario "$name" "$ui/testLongThreadRecapCitesMessages" \
+      "$ui/testCreateTaskFromSavedVoicemail" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
   esac
 done

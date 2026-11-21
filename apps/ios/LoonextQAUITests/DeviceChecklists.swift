@@ -196,6 +196,40 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
+    func testLongThreadRecapCitesMessages() async throws {
+        try await control("long-thread")
+        try signIn()
+        try openThread("Ada Fixture")
+        let recap = app.buttons["Recap"].firstMatch
+        if recap.waitForExistence(timeout: 5) {
+            recap.tap()
+        } else {
+            try waitFor(app.buttons["More"].firstMatch).tap()
+            try reveal(label("Catch me up")).tap()
+        }
+        try waitFor(label("Lou's catch-up"))
+        let citation = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Can u confirm Friday?")).firstMatch
+        XCTAssertGreaterThan(try waitFor(citation).label.count, 300)
+        try waitFor(app.buttons["Friday at ten works for me."].firstMatch)
+        try waitFor(app.buttons["I still need the boiler checked 🙏"].firstMatch)
+        try waitFor(app.buttons["The side door is open."].firstMatch)
+        shot("794 catch-up shows four cited messages")
+        try reveal(citation).tap()
+        try waitFor(label("Can u confirm Friday?"))
+    }
+
+    func testCreateTaskFromSavedVoicemail() async throws {
+        try await control("voicemail-event")
+        try signIn()
+        try openThread("Ada Fixture")
+        try reveal(app.buttons["Make a task from this call"].firstMatch).tap()
+        try waitFor(field(value: "Repair the boiler"))
+        try waitFor(field(value: "The boiler stopped again. Could you come Wednesday morning?"))
+        shot("794 task title and description came from the voicemail")
+        try reveal(app.buttons["Create task"].firstMatch).tap()
+        try await assertOneWrite(path: "/v1/tasks", field: "source_call_id", value: "test-call")
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
