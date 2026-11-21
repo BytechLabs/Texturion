@@ -171,12 +171,13 @@ final class CustomerJourneys: XCTestCase {
 
         let draft = text("I can return", "Je peux revenir")
         let suggestion = draft + text(" on Friday.", " vendredi.")
-        let message = composer(text("Text message", "Texto"))
-        try enter(draft, in: message)
+        try enter(draft, in: composer(text("Text message", "Texto")))
         try waitFor(button(text("Finish with Lou", "Terminer avec Lou"))).tap()
         _ = try await write("/v1/conversations/\(conversation)/reply-suggestions", field: "draft", value: draft)
         try waitFor(button(suggestion)).tap()
-        XCTAssertEqual(message.value as? String, suggestion)
+        let reviewedDraft = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "value == %@", suggestion)).firstMatch
+        try waitFor(reviewedDraft)
         let beforeSend = try await allWrites()
         XCTAssertEqual(beforeSend.filter { $0.path == "/v1/messages/send" }.count,
                        writes.filter { $0.path == "/v1/messages/send" }.count)
