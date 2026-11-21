@@ -9,9 +9,12 @@ final class DeviceChecklists: XCTestCase {
     private struct Write: Decodable {
         struct Field: Decodable {
             let text: String?
+            let number: Int?
 
             init(from decoder: Decoder) {
-                text = try? decoder.singleValueContainer().decode(String.self)
+                let value = try? decoder.singleValueContainer()
+                text = try? value?.decode(String.self)
+                number = try? value?.decode(Int.self)
             }
         }
 
@@ -299,6 +302,30 @@ final class DeviceChecklists: XCTestCase {
         shot("792 one quote acceptance in Notification Center")
     }
 
+    func testQuotePreservesFrenchDecimalAmount() async throws {
+        try await control("french")
+        try signIn(locale: "fr-CA")
+        try openThread("Ada Fixture", back: "Retour")
+        try waitFor(app.buttons["Ajouter au message"].firstMatch).tap()
+        try waitFor(app.buttons["Faire un devis"].firstMatch).tap()
+        let amount = try waitFor(app.textFields["Montant"].firstMatch)
+        amount.tap()
+        amount.typeText("12,34")
+        shot("French amount entered as 12,34")
+        XCTAssertEqual(amount.value as? String, "12,34")
+        let description = try waitFor(app.textFields["En quoi consistent les travaux"].firstMatch)
+        description.tap()
+        description.typeText("Fixture du devis")
+        try waitFor(app.buttons["Enregistrer le brouillon"].firstMatch).tap()
+        try waitFor(label("Fixture du devis"))
+        shot("Saved quote amount in Canadian French")
+
+        let (data, _) = try await URLSession.shared.data(from: fixture.appending(path: "__qa/writes"))
+        let writes = try JSONDecoder().decode([Write].self, from: data).filter { $0.path == "/v1/quotes" }
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes.first?.body["amount_cents"]?.number, 1_234)
+    }
+
     func testPhotoLibraryStagesAttachment() async throws {
         try signIn()
         try openThread("Ada Fixture")
@@ -405,15 +432,16 @@ final class DeviceChecklists: XCTestCase {
         XCTAssertFalse(writes.contains { $0.path == "/v1/messages/send" })
     }
 
-    private func signIn(notifications: Bool = false) throws {
-        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    private func signIn(notifications: Bool = false, locale: String = "en") throws {
+        let french = locale == "fr-CA"
+        app.launchArguments += ["-AppleLanguages", "(\(locale))", "-AppleLocale", french ? "fr_CA" : "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
         app.launchEnvironment["LOONEXT_QA_TEST_PASSWORD"] = "Simulator12345"
         app.launch()
         app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_EMAIL")
         app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_PASSWORD")
         try waitFor(app.buttons["Conversations"].firstMatch, timeout: 30)
-        let allow = app.buttons["Turn on notifications"].firstMatch
+        let allow = app.buttons[french ? "Activer les notifications" : "Turn on notifications"].firstMatch
         if allow.waitForExistence(timeout: 4) {
             if notifications {
                 let permission = springboard.buttons["Allow"].firstMatch
@@ -423,7 +451,7 @@ final class DeviceChecklists: XCTestCase {
                 }
                 try waitFor(permission).tap()
             } else {
-                try waitFor(app.buttons["Not now"].firstMatch)
+                try waitFor(app.buttons[french ? "Pas maintenant" : "Not now"].firstMatch)
                     .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             }
             let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: allow)
@@ -431,7 +459,7 @@ final class DeviceChecklists: XCTestCase {
         }
     }
 
-    private func openThread(_ name: String) throws {
+    private func openThread(_ name: String, back: String = "Back") throws {
         let tab = try waitFor(app.buttons["Conversations"].firstMatch, timeout: 30)
         for _ in 0..<3 where !tab.isSelected {
             tab.tap()
@@ -439,7 +467,7 @@ final class DeviceChecklists: XCTestCase {
         XCTAssertTrue(tab.isSelected)
         let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
         try waitFor(row).coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
-        try waitFor(app.buttons["Back"].firstMatch)
+        try waitFor(app.buttons[back].firstMatch)
     }
 
     private func openNotificationCenter() {

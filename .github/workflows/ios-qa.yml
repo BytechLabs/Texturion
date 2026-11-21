@@ -19,6 +19,7 @@ on:
           - phone-and-text
           - thread-workflows
           - quote-alert
+          - quote-amount
           - attachment-sources
           - accessibility
       runtime:
