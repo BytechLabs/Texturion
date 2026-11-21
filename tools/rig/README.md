@@ -101,6 +101,8 @@ names it.
 | `firebase-project-id` | Optional: overrides the project id read from the file above | |
 | `stripe-catalog.json` | `{"STRIPE_STARTER_PRICE_ID": ...}` | made by deploy: when an id the template needs is missing, it runs `apps/api/scripts/stripe-setup.ts` (idempotent) against the account's test mode |
 | `stripe-webhook-secret` | Optional; otherwise `stripe listen --print-secret` | |
+| `stripe-owner-portal-config-id` | Optional Stripe test-mode owner portal with invoices, payment methods and cancellation at period end | Used by `rig deploy` |
+| `stripe-payment-invoices-portal-config-id` | Optional Stripe test-mode billing-manager portal with invoices and payment methods | Used by `rig deploy` |
 | `standing-numbers.json` | `[{role, e164, telnyx_phone_number_id, messaging_profile_id}]`, which rigd and the robot read | written by deploy and seed from the partition's `standing` |
 | `rig-ca.crt` | The CA certificate | copied by bootstrap.sh |
 | `android-nonprod.keystore`, `android-nonprod-keystore.json` | The nonprod APK's signing key and its passwords, for `rig apk` only; every later build must carry the same signature to install over the last | made by the first `rig apk` with the JDK's `keytool` (`JAVA_HOME`, else the PATH), before it needs FA6's google-services file: until FA6 has delivered it, `rig apk` stops there and names the certificate's SHA-256 that FA6 registers; never replaced, and half a pair is refused |

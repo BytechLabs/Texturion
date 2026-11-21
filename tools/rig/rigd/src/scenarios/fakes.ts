@@ -1080,6 +1080,7 @@ export class FakeMail implements MailApi {
 }
 
 export class FakeStripe implements StripeApi {
+  ownerPortalConfigId?: string;
   readonly requests: { method: string; path: string; params?: Record<string, unknown> }[] = [];
   /** Answers by `METHOD path`; anything unlisted answers `{}`. */
   answers = new Map<string, Record<string, unknown>>();

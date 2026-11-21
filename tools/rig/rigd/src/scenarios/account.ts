@@ -927,12 +927,18 @@ async function stripeTaxReady(ctx: ScenarioContext): Promise<ScenarioResult | un
   return undefined;
 }
 
-/** The owner's full portal needs a default portal configuration in the shared test mode. */
 async function portalConfigured(ctx: ScenarioContext): Promise<ScenarioResult | undefined> {
+  const path = "/v1/billing_portal/configurations";
   try {
-    const portal = await ctx.stripe.request<{ data?: { is_default?: boolean; active?: boolean }[] }>("GET", "/v1/billing_portal/configurations", { is_default: true, limit: 1 });
-    if (portal.data?.some((configuration) => configuration.is_default && configuration.active !== false)) return undefined;
-    return infra("stripe-portal-config", "everything up to the portal passed; Stripe's test mode has no active default portal configuration, so the portal was not opened");
+    const ownerId = ctx.stripe.ownerPortalConfigId;
+    if (ownerId) {
+      const configured = await ctx.stripe.request<{ active?: boolean }>("GET", `${path}/${ownerId}`);
+      if (configured.active === true) return undefined;
+    } else {
+      const defaults = await ctx.stripe.request<{ data?: { is_default?: boolean; active?: boolean }[] }>("GET", path, { is_default: true, limit: 1 });
+      if (defaults.data?.some((configuration) => configuration.is_default && configuration.active !== false)) return undefined;
+    }
+    return infra("stripe-portal-config", "Stripe test mode has no active owner portal configuration");
   } catch (error) {
     return infra("stripe", `the portal configuration could not be read: ${(error as Error).message}`);
   }

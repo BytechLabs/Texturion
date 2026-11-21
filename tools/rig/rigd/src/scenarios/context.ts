@@ -682,6 +682,7 @@ export interface MailApi {
 
 /** Stripe's test mode, shared with developers. Test-mode keys only; anything else is refused before a request. */
 export interface StripeApi {
+  readonly ownerPortalConfigId?: string;
   /** One sandbox call, form-encoded, on the paths S29 and S32 use. */
   request<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, params?: Record<string, unknown>): Promise<T>;
   /** The subscription the tenant's company row names, or null when it names none. */

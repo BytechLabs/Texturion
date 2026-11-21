@@ -27,8 +27,7 @@ const ALLOWED: readonly [string, RegExp][] = [
   ["GET", /^\/v1\/(customers|subscriptions|invoices|prices|products|billing\/meters|test_helpers\/test_clocks)(\/[A-Za-z0-9_]+)?$/],
   ["GET", /^\/v1\/invoices\/upcoming$/],
   ["GET", /^\/v1\/billing\/meters\/[A-Za-z0-9_]+\/event_summaries$/],
-  // S32's preflight: hosted Checkout needs Stripe Tax on, and the portal a default configuration.
-  ["GET", /^\/v1\/(billing_portal\/configurations|tax\/settings)$/],
+  ["GET", /^\/v1\/(billing_portal\/configurations(?:\/bpc_[A-Za-z0-9]+)?|tax\/settings)$/],
   ["POST", /^\/v1\/(customers|subscriptions|test_helpers\/test_clocks|billing\/meter_events|invoices)$/],
   ["POST", /^\/v1\/test_helpers\/test_clocks\/[A-Za-z0-9_]+\/advance$/],
   ["POST", /^\/v1\/invoices\/[A-Za-z0-9_]+\/finalize$/],
@@ -55,6 +54,7 @@ export function formEncode(params: Record<string, unknown>, prefix = ""): string
 
 export interface StripeSandboxOptions {
   key: () => string;
+  ownerPortalConfigId?: () => string | undefined;
   /** The tenant's `stripe_subscription_id`, read from the local database. */
   subscriptionIdOf: (tenant: string) => Promise<string | null>;
   /** The `stripe_subscription_id` of the workspace a sign-up address owns, read from the local database. */
@@ -71,6 +71,10 @@ export class StripeSandbox implements StripeApi {
   constructor(options: StripeSandboxOptions) {
     this.#o = options;
     this.#fetch = options.fetch ?? fetch;
+  }
+
+  get ownerPortalConfigId(): string | undefined {
+    return this.#o.ownerPortalConfigId?.();
   }
 
   async request<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, params: Record<string, unknown> = {}): Promise<T> {
