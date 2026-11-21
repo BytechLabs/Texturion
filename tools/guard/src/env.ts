@@ -27,6 +27,8 @@ export interface Env {
   FCM_SERVICE_ACCOUNT_JSON?: string;
   /** The public VAPID key used by the rig browser's subscriptions. */
   RIG_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+  /** A single automated toll-free destination for the S01 voice check. */
+  RIG_QA_TOLL_FREE_CALL?: string;
   /**
    * D146: the production PostHog project's public capture key, for the
    * isolation and key notices. Passed by the deploy workflow, not committed.
@@ -48,6 +50,7 @@ export interface GuardConfig {
   resendKey: string | null;
   fcmServiceAccount: string | null;
   webPushPublicKey: string | null;
+  qaTollFreeCall: string | null;
   posthogProjectKey: string | null;
   edgeOrigin: string | null;
   robotMailbox: string | null;
@@ -74,11 +77,13 @@ export function parseEdgeOrigin(value: string | undefined): string | null {
 }
 
 export function readConfig(env: Env): GuardConfig {
+  const ivr = env.RIG_QA_TOLL_FREE_CALL ?? "";
   return {
     telnyxKey: present(env.TELNYX_API_KEY),
     resendKey: present(env.RESEND_API_KEY),
     fcmServiceAccount: present(env.FCM_SERVICE_ACCOUNT_JSON),
     webPushPublicKey: present(env.RIG_WEB_PUSH_VAPID_PUBLIC_KEY),
+    qaTollFreeCall: /^\+18(?:00|33|44|55|66|77|88)[2-9][0-9]{6}$/.test(ivr) ? ivr : null,
     posthogProjectKey: present(env.POSTHOG_PROJECT_KEY),
     edgeOrigin: parseEdgeOrigin(env.EDGE_ORIGIN),
     robotMailbox: present(env.ROBOT_MAILBOX)?.toLowerCase() ?? null,

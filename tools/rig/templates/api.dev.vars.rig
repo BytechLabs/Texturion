@@ -78,6 +78,7 @@ VAPID_PRIVATE_KEY={{derived.vapidPrivateKey}}
 # The standing numbers in the guard's live listing at deploy time, STRANGER-1
 # left out.
 RIG_OWNED_E164={{derived.rigOwnedE164}}
+RIG_QA_TOLL_FREE_CALL={{secret?:qa-toll-free-call}}
 # The robot's webhook sink. The app refuses *.internal webhook hosts, so it is
 # the edge, which relays /w/<secret> to the robot.
 RIG_ROBOT_WEBHOOK_ORIGIN={{edge}}

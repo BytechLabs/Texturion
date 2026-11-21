@@ -23,7 +23,7 @@ import type { Bindings } from '../env';
 import { dispatchOutbound, sendSystemText } from "../messaging/send";
 import { TELNYX_ENDPOINTS } from "../telnyx/endpoints";
 import { attachHostedOrderDocuments } from "../telnyx/text-enablement";
-import { telnyxDestinations } from "../telnyx/client";
+import { telnyxDestinations, telnyxRequest } from "../telnyx/client";
 import { messageRow, restMatch, stubRoute } from "../test/messaging-support";
 import {
   OWNED_A,
@@ -300,6 +300,21 @@ describe("a direct send site, behaving", () => {
     const result = await sendSystemText(getEnv(rigEnv()), text(OWNED_B));
     expect(result).toEqual({ ok: true, telnyxMessageId: "msg-1" });
     expect(sent).toEqual([`${RIG_TELNYX_API_BASE}/v2/messages`]);
+  });
+
+  it("allows the configured rig IVR on a single direct dial only", async () => {
+    const ivr = "+18005550123";
+    const sent = recordTelnyx();
+    const env = getEnv(rigEnv({ RIG_QA_TOLL_FREE_CALL: ivr }));
+    const dial = { method: "POST", path: "/v2/calls", body: { to: ivr } } as const;
+    await expect(telnyxRequest(env, { ...dial, body: { to: [ivr] } })).rejects.toMatchObject({ status: 403 });
+    await expect(telnyxRequest(env, { ...dial, body: { to: STRANGER } })).rejects.toMatchObject({ status: 403 });
+    await expect(telnyxRequest(env, { ...dial, path: "/v2/calls/ccid/actions/transfer" }))
+      .rejects.toMatchObject({ status: 403 });
+    await expect(sendSystemText(env, text(ivr)))
+      .resolves.toMatchObject({ ok: false, errorCode: RIG_DESTINATION_REFUSED });
+    await telnyxRequest(env, dial);
+    expect(sent).toEqual([`${RIG_TELNYX_API_BASE}/v2/calls`]);
   });
 
   it("sends to anybody outside the rig", async () => {

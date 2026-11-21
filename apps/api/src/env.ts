@@ -1,3 +1,4 @@
+import { isTollFreeDestination } from "@loonext/shared";
 import { z } from "zod";
 
 import { deployPostureRefusals } from "./environments/policy";
@@ -143,6 +144,8 @@ const envSchema = z.object({
    * start with it set: there it means a rig configuration lost its flag.
    */
   RIG_OWNED_E164: z.string().min(1).optional(),
+  /** A single automated toll-free destination for the rig's voice check. */
+  RIG_QA_TOLL_FREE_CALL: z.string().refine(isTollFreeDestination).optional(),
   /**
    * D142 rig mode only: the robot's webhook sink. Customer webhooks are
    * delivered to this origin and nowhere else; unset in rig mode means none

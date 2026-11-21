@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
 import {
+  allowsRigTollFreeTestCall,
   outboundDestinationRefusal,
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
@@ -101,6 +102,7 @@ function withSeams(env: Env, body: unknown): unknown {
  * `transfer`, because one call site sends whichever action it was handed.
  */
 const CALL_PATH = /^\/v2\/calls(?:\/[^/]+\/actions\/[^/]+)?$/;
+const DIAL_PATH = /^\/v2\/calls$/;
 const MESSAGE_PATH = /^\/v2\/messages(?:\/|$)/;
 const VERIFICATION_CODE_SUFFIX = "/verification_codes";
 
@@ -264,7 +266,12 @@ export async function telnyxRequest<T = unknown>(
   // forwards from the rig. A refusal is the 403 the guard would have answered,
   // so each caller takes the path it already has for "Telnyx refused this",
   // and no request leaves.
+  const dialBody = options.body as { to?: unknown; sip_address?: unknown } | undefined;
   for (const destination of telnyxDestinations(options)) {
+    if (
+      DIAL_PATH.test(options.path) && dialBody?.to === destination &&
+      dialBody.sip_address === undefined && allowsRigTollFreeTestCall(env, destination)
+    ) continue;
     const refusal = outboundDestinationRefusal(env, destination);
     if (refusal) {
       throw new TelnyxApiError(

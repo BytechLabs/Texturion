@@ -67,6 +67,18 @@ struct LoonextApp: App {
             .tint(BrandColor.olive)
             .preferredColorScheme(preferredScheme)
             #if LOONEXT_QA
+            .environment(\.openURL, OpenURLAction { url in
+                guard AppConfig.apiURL.host == "127.0.0.1", url.scheme == "tel" else {
+                    return .systemAction
+                }
+                Task {
+                    var request = URLRequest(url: AppConfig.apiURL.appending(path: "__qa/open-url"))
+                    request.httpMethod = "POST"
+                    request.httpBody = Data(url.absoluteString.utf8)
+                    _ = try? await URLSession.shared.data(for: request)
+                }
+                return .handled
+            })
             .task {
                 let environment = ProcessInfo.processInfo.environment
                 if AppConfig.supabaseURL.host == "127.0.0.1", graph.sessionStore.current() == nil,
