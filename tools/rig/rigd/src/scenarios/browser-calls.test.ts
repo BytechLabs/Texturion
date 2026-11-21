@@ -256,18 +256,19 @@ describe("S03, Loonext calls Loonext across workspaces", () => {
   });
 });
 
-function s05World(options: { textBack?: boolean; escalation?: boolean } = {}) {
+function s05World(options: { textBack?: boolean; escalation?: boolean; callerRole?: "ROBOT-1" | "ROBOT-2" } = {}) {
   const world = fakeContext("S05");
+  const callerRole = options.callerRole ?? "ROBOT-1";
   const seen = withLeaseAtChanges(world);
   const pages = withPages(world, {});
-  const rows = withRows(world, [row("QA-W", "ROBOT-1", "s05-session", { outcome: "missed", forward_seconds: 0 })]);
+  const rows = withRows(world, [row("QA-W", callerRole, "s05-session", { outcome: "missed", forward_seconds: 0 })]);
   world.app.pushes.push({ tenant: "QA-W", purpose: "ring", platform: "web", response_class: "accepted", attempted_at: iso(world.time.now) });
   robotOutcome(world, (record) => ({ ...record, answered_at: undefined, judgement: undefined, recording_deleted: undefined }));
   const wait = world.robot.wait.bind(world.robot);
   // The caller hung up: the API texts back and opens the on-call escalation.
   world.robot.wait = async (planId: string) => {
     const record = await wait(planId);
-    if (options.textBack !== false) world.robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Sorry we missed you" });
+    if (options.textBack !== false) world.robot.deliver({ from_role: "DEV-W1", to_role: callerRole, text: "Sorry we missed you" });
     if (options.escalation !== false) {
       world.app.escalationRows.push({
         tenant: "QA-W",
@@ -304,7 +305,7 @@ describe("S05, the caller hangs up while it rings", () => {
     expect(world.did(OWNER, "answer")).toEqual([]);
     expect(world.app.companies.get("QA-W")).toMatchObject({
       on_call_escalate_after_minutes: 10,
-      auto_reply_cooldown_minutes: 0,
+      auto_reply_cooldown_minutes: 30,
       business_hours: hoursClosedAt(world.time.now),
       after_hours_calls: "ring_everyone",
       timezone: "America/Toronto",
@@ -326,6 +327,17 @@ describe("S05, the caller hangs up while it rings", () => {
     const [shift] = world.seen.shifts;
     expect(shift!.undo.at(-1)).toEqual({ kind: "app.remove-on-call", params: { id: shift!.args.id } });
     expect(world.undo).toHaveLength(2);
+  });
+
+  it("uses the other rig caller on a retry so the real cooldown does not hide a text-back", async () => {
+    const world = s05World({ callerRole: "ROBOT-2" });
+    world.ctx.attempt = 2;
+    world.app.companies.set("QA-W", { on_call_escalate_after_minutes: 15, ring_seconds: 30 });
+    await expect(S05.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
+    expect(world.robot.plans).toEqual([
+      expect.objectContaining({ role: "ROBOT-2", to: "DEV-W1" }),
+    ]);
+    expect(world.app.companies.get("QA-W")).toMatchObject({ auto_reply_cooldown_minutes: 30 });
   });
 
   it("names an answered call, a missing text-back, row, push or escalation, and an escalation left narrow", async () => {
