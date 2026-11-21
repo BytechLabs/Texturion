@@ -46,7 +46,7 @@ const call = (path: string, init: RequestInit = {}) =>
 function acceptRequest(name = "  Camille Martin  "): RequestInit {
   return {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: env.APP_ORIGIN },
     body: JSON.stringify({ name }),
   };
 }
@@ -92,6 +92,27 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
   sb.on("POST", "/rest/v1/rpc/api_issue_quote_decision_link", () => "ready");
   return sb;
 }
+
+it.each(["accept", "decline"])("allows the app origin's %s preflight", async (decision) => {
+  const headers = {
+    Origin: env.APP_ORIGIN,
+    "Access-Control-Request-Method": "POST",
+    "Access-Control-Request-Headers": "content-type",
+  };
+  const path = `/q/${TOKEN}/${decision}`;
+
+  const allowed = await call(path, { method: "OPTIONS", headers });
+  expect(allowed.status).toBe(204);
+  expect(allowed.headers.get("access-control-allow-origin")).toBe(env.APP_ORIGIN);
+  expect(allowed.headers.get("access-control-allow-methods")).toBe("POST");
+  expect(allowed.headers.get("access-control-allow-headers")?.toLowerCase()).toBe("content-type");
+
+  const other = await call(path, {
+    method: "OPTIONS",
+    headers: { ...headers, Origin: "https://unrelated.example" },
+  });
+  expect(other.headers.get("access-control-allow-origin")).toBeNull();
+});
 
 it.each([
   { method: "GET", path: `/q/${TOKEN}`, purpose: "quote_view" },
@@ -270,6 +291,7 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe(env.APP_ORIGIN);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
     const [write] = sb.find("POST", "/rest/v1/rpc/api_record_quote_decision");
     expect(write.body).toMatchObject({
@@ -544,9 +566,13 @@ describe("POST /q/:token/decline", () => {
     sb.on("POST", "/rest/v1/rpc/api_record_quote_decision", () => true);
     stubFetch(sb.route);
 
-    const response = await call(`/q/${TOKEN}/decline`, { method: "POST" });
+    const response = await call(`/q/${TOKEN}/decline`, {
+      method: "POST",
+      headers: { Origin: env.APP_ORIGIN },
+    });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe(env.APP_ORIGIN);
     expect(sb.find("POST", "/rest/v1/rpc/api_record_quote_decision")[0]?.body).toMatchObject({
       p_quote_id: QUOTE_ID, p_decision: "declined", p_actor: null,
     });
