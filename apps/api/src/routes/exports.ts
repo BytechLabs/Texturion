@@ -324,19 +324,22 @@ exportsRoutes.post(
 exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
+  const role = c.get("role");
+  const kind = parseWith(z.literal("usage_summary").optional(), c.req.query("kind"));
+  const kinds = collectableKinds(role).filter((allowed) => kind === undefined || allowed === kind);
+  if (kinds.length === 0) return c.json({ data: [], next_cursor: null });
 
   const rows = unwrap<ExportRow[]>(
     await db
       .from("data_exports")
       .select(EXPORT_COLUMNS)
       .eq("company_id", companyId)
-      .in("kind", collectableKinds(c.get("role") as MemberRole | undefined))
+      .in("kind", kinds)
       .order("requested_at", { ascending: false })
       .limit(LIST_LIMIT),
     "data export list",
   );
 
-  const role = c.get("role");
   const data = await Promise.all(
     rows.map(async (row) => ({
       ...exportActions(row, role),

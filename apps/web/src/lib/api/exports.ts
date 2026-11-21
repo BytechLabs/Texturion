@@ -12,11 +12,11 @@ import type { DataExport, Page } from "./types";
  * is no push channel for it. Stops polling the moment nothing is in flight:
  * a settings page that keeps asking forever is a cost with no reader.
  */
-export function useDataExports() {
+export function useDataExports(kind?: "usage_summary") {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: [companyId, "exports"] as const,
-    queryFn: () => apiFetch<Page<DataExport>>("/v1/exports", { companyId }),
+    queryKey: kind ? [companyId, "exports", kind] as const : [companyId, "exports"] as const,
+    queryFn: () => apiFetch<Page<DataExport>>(kind ? `/v1/exports?kind=${kind}` : "/v1/exports", { companyId }),
     // Download links are signed for an hour, so ten minutes leaves them most of it.
     staleTime: 10 * 60_000,
     refetchInterval: (query) => {

@@ -546,10 +546,11 @@ export const settingsEn = {
   exportUsageFrom: "From",
   exportUsageTo: "To",
   exportUsageStart: "Start it",
-  exportUsageAlready:
-    "One is already being put together. It will appear under Data export.",
-  exportUsageStarted: "Being put together now. It will appear under Data export.",
+  exportUsageAlready: "An export is already in progress. You can download it here when it’s ready.",
+  exportUsageStarted: "You can download your export here when it’s ready.",
   exportUsageFailed: "That could not be started.",
+  exportUsageBuilding: "Your export is in progress.",
+  exportUsageBuildFailed: "This export failed. Request a new one above.",
 
   /* Giving up your own access (#538). */
   giveUpAccessTitle: "Give up your own access?",
@@ -1317,12 +1318,11 @@ export const settingsFr: Translated<typeof settingsEn> = {
   exportUsageFrom: "Du",
   exportUsageTo: "Au",
   exportUsageStart: "Lancer",
-  exportUsageAlready:
-    "Un document est déjà en préparation. Il apparaîtra sous Exportation de " +
-    "données.",
-  exportUsageStarted:
-    "En préparation. Il apparaîtra sous Exportation de données.",
+  exportUsageAlready: "Une exportation est déjà en cours. Vous pourrez la télécharger ici dès qu’elle sera prête.",
+  exportUsageStarted: "Vous pourrez télécharger votre exportation ici dès qu’elle sera prête.",
   exportUsageFailed: "Impossible de démarrer cela.",
+  exportUsageBuilding: "Votre exportation est en cours.",
+  exportUsageBuildFailed: "Cette exportation a échoué. Demandez-en une nouvelle ci-dessus.",
 
   giveUpAccessTitle: "Renoncer à votre propre accès ?",
   giveUpAccessKeep: "Garder mon accès",
