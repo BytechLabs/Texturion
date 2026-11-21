@@ -184,6 +184,25 @@ async function checkJourney(page, web, api, telnyx) {
     await inbox.getByText("Made a task from this message.", { exact: true }).waitFor();
     await taskForm.waitFor({ state: "hidden" });
 
+    await inbox.setViewportSize({ width: 320, height: 640 });
+    await inbox.getByRole("button", { name: "Add to message", exact: true }).click();
+    await inbox.getByRole("menuitem", { name: "Quote this job", exact: true }).click();
+    const quote = `Replace the kitchen sink ${marker}`;
+    await inbox.getByRole("textbox", { name: "Amount", exact: true }).fill("129.95");
+    await inbox.getByRole("textbox", { name: "What the work is", exact: true }).fill(quote);
+    await inbox.getByRole("button", { name: "Save draft", exact: true }).click();
+    const row = inbox.getByText(quote, { exact: true }).locator("xpath=../..");
+    const remove = row.getByRole("button", { name: "Delete draft", exact: true });
+    await remove.scrollIntoViewIfNeeded();
+    for (const button of [row.getByRole("button", { name: /^Send for/ }), row.getByRole("button", { name: "Edit draft", exact: true }), remove]) {
+      const box = await button.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 320);
+    }
+    await remove.click();
+    await inbox.getByRole("dialog", { name: "Delete draft", exact: true }).getByRole("button", { name: "Delete draft", exact: true }).click();
+    await row.waitFor({ state: "hidden" });
+    await inbox.setViewportSize({ width: 390, height: 640 });
+
     await composer.waitFor();
     await injectText(api, telnyx, "STOP");
     await inbox.getByText(/This customer texted STOP, so their carrier/).waitFor();
@@ -245,7 +264,7 @@ try {
   } finally {
     await browser.close();
   }
-  console.log("web-journey: live text, idempotent reply, job creation and STOP passed");
+  console.log("web-journey: live text, idempotent reply, job creation, draft quote controls and STOP passed");
 } catch (error) {
   console.error("web-journey failed", error);
   process.exitCode = 1;
