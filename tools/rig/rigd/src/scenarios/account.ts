@@ -545,6 +545,7 @@ async function billingTotals(ctx: ScenarioContext): Promise<ScenarioResult> {
 
     const customer = await ctx.stripe.request<{ id?: string }>("POST", "/v1/customers", {
       name: `Rig S29 ${ctx.nonce}`,
+      email: `rig-s29-${nonceSlug(ctx.nonce)}@example.com`,
       test_clock: clock.id,
       metadata: { rig_nonce: ctx.nonce },
     });

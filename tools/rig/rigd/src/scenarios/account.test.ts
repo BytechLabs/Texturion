@@ -643,6 +643,8 @@ describe("S29, cancel, grace, release and billing", () => {
     const posts = stripe.requests.filter((r) => r.method === "POST" && !r.path.endsWith("/advance"));
     expect(posts.map((r) => r.path)).toEqual(["/v1/test_helpers/test_clocks", "/v1/customers", "/v1/subscriptions", "/v1/billing/meter_events"]);
     for (const post of posts) expect(JSON.stringify(post.params)).toContain(ctx.nonce);
+    expect(posts[1]!.params).toMatchObject({ email: `rig-s29-${ctx.nonce}@example.com`, test_clock: "clock_1" });
+    expect(posts[2]!.params).toMatchObject({ collection_method: "send_invoice" });
     expect(posts[3]!.params).toMatchObject({ event_name: SMS_METER_EVENT, payload: { stripe_customer_id: "cus_1", value: String(S29_SEGMENTS) } });
   });
 
