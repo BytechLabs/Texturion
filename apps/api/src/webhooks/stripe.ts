@@ -33,8 +33,7 @@ import {
 } from "../billing/prepay";
 import { billingRecipients, billingRecipientsByLocale } from "../billing/recipients";
 import { emailLedger, sendLedgered } from "../billing/send-ledgered";
-import { getStripe, stripeCryptoProvider } from '../billing/stripe';
-import type { Stripe } from '../billing/stripe';
+import { getStripe, Stripe, stripeCryptoProvider } from '../billing/stripe';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from '../env';
@@ -54,6 +53,8 @@ import { submitRegistration } from "../telnyx/registration";
 import { enableVoiceForCompany } from "../telnyx/voice";
 import { recordWebhookFailure } from "./retry";
 import { processConnectEvent } from "./stripe-connect";
+
+const VOICE_METER_RETRY_DELAY_MS = 500;
 
 /**
  * Stripe webhook endpoint (SPEC §7 webhook pattern, §9 event table):
@@ -429,20 +430,25 @@ export async function ensureVoiceMeteredItem(
     );
     const stripe = getStripe(env);
     if (existing.length === 0) {
-      await stripe.subscriptionItems.create(
-        { subscription: subscription.id, price: wanted },
-        {
-          // Sub-scoped key: concurrent mirror passes (webhook + confirm race)
-          // collapse to one item instead of two prices on one meter.
-          idempotencyKey: // #134 review: day+price-scoped so a cached Stripe failure or a
-            // plan change never replays a stale result for ~24h.
-            idempotencyKey(
-              companyId,
-              "voice_metered_attach",
-              `${subscription.id}:${wanted}:${new Date().toISOString().slice(0, 10)}`,
-            ),
-        },
-      );
+      const params = { subscription: subscription.id, price: wanted };
+      // Include the price and UTC day so a plan change or yesterday's cached failure can converge.
+      const options = {
+        idempotencyKey: idempotencyKey(
+          companyId,
+          "voice_metered_attach",
+          `${subscription.id}:${wanted}:${new Date().toISOString().slice(0, 10)}`,
+        ),
+      };
+      try {
+        await stripe.subscriptionItems.create(params, options);
+      } catch (error) {
+        if (!(error instanceof Stripe.errors.StripeError) || error.code !== "idempotency_key_in_use") {
+          throw error;
+        }
+        // Stripe does not cache an in-flight conflict. Reuse the key to avoid a second item.
+        await new Promise<void>((resolve) => { setTimeout(resolve, VOICE_METER_RETRY_DELAY_MS); });
+        await stripe.subscriptionItems.create(params, options);
+      }
       console.log(
         `voice metered item attached to subscription ${subscription.id} (company ${companyId}) — D36 convergence`,
       );
