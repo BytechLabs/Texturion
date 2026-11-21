@@ -196,6 +196,27 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
+    func testQuoteAcceptanceRefreshesStripAndAlertsOnce() async throws {
+        let title = "Ada Fixture accepted the quote"
+        try await control("quote")
+        try signIn(notifications: true)
+        try openThread("Ada Fixture")
+        try waitFor(label("Opened, no answer"))
+        shot("792 quote strip before acceptance")
+        try await control("quote-accepted")
+        try await control("quote-accepted")
+        try waitFor(notification(title), timeout: 12)
+        shot("792 foreground quote acceptance alert")
+        try waitFor(label("Accepted"))
+        XCTAssertFalse(label("Opened, no answer").exists)
+        shot("792 open quote strip refreshed from realtime")
+        openNotificationCenter()
+        let titles = springboard.staticTexts.matching(NSPredicate(format: "label == %@", title))
+        try waitFor(titles.firstMatch)
+        XCTAssertEqual(titles.count, 1)
+        shot("792 one quote acceptance in Notification Center")
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
