@@ -231,7 +231,7 @@ export function rigDevices(settings: DeviceSettings): DevicesApi {
 
 /** The app's sign-in screen as a member fills it in, its fields and button found by their English labels. */
 export async function signInOnDevice(
-  device: Pick<AndroidDevice, "launch" | "tapFieldLabelled" | "tapText" | "type">,
+  device: Pick<AndroidDevice, "launch" | "tapFieldLabelled" | "tapText" | "type" | "dismissKeyboard">,
   member: string,
   credentials: { email: string; password: string } | undefined,
 ): Promise<boolean> {
@@ -243,6 +243,7 @@ export async function signInOnDevice(
   ] as const) {
     if (!(await device.tapFieldLabelled(field))) return false;
     await device.type(value);
+    await device.dismissKeyboard();
   }
   return device.tapText("Sign in");
 }

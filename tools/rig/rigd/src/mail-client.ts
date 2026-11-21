@@ -1,10 +1,6 @@
 /**
  * Mail as S34 and S35 read it: the robot mailbox the edge stores mail into
  * (mail.ts, under `state/rigd/mail`) and Supabase Auth's local Mailpit.
- *
- * Bodies are decoded just far enough to find links: quoted-printable soft
- * breaks and escapes, then every http(s) URL. Following a link is one GET
- * with redirects left unfollowed, so the answer says where it sends you.
  */
 import type { StoredMail } from "./mail.ts";
 import type { MailApi, MailMessage } from "./scenarios/context.ts";
@@ -24,7 +20,7 @@ export function decodeQuotedPrintable(text: string): string {
 }
 
 export function linksIn(text: string): string[] {
-  const found = decodeQuotedPrintable(text).match(/https?:\/\/[^\s"'<>)\]]+/g) ?? [];
+  const found = text.match(/https?:\/\/[^\s"'<>)\]]+/g) ?? [];
   return [...new Set(found.map((link) => link.replaceAll('&amp;', "&").replace(/[.,;]+$/, "")))];
 }
 

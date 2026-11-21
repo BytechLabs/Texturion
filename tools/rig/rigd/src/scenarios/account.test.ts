@@ -1127,7 +1127,7 @@ function s34World() {
   const reset = app.sendPasswordReset.bind(app);
   app.sendPasswordReset = async (args: { member: string }) => {
     const status = await reset(args);
-    mail.auth.push(mailTo(memberEmail("qa-w", "technician"), [RESET_LINK], time.now + 2000, "auth-mail-1"));
+    mail.auth.push(mailTo(memberEmail("qa-w", "technician"), [RESET_LINK, "https://loonext.com"], time.now + 2000, "auth-mail-1"));
     return status;
   };
   mail.links.set(RESET_LINK, { status: 303, location: "http://127.0.0.1:3100/reset-password" });

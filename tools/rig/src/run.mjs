@@ -8,6 +8,7 @@
  * so a schema-change deploy can stop it and let it release its lease's undos
  * (deploy.mjs RUN_UNITS); without systemd it is a plain child.
  */
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { TOOLING_ROOT } from "./layout.mjs";
@@ -21,7 +22,12 @@ export function runCommand({ instance, runId, layout, systemd, node = process.ex
   if (runId !== undefined && !RUN_ID.test(runId)) throw new Error("rig run: a run id is letters, digits, - and _");
   const cli = join(root, "tools", "rig", "rigd", "src", "cli.ts");
   const args = [cli, "run", instance, ...(runId === undefined ? [] : ["--run-id", runId])];
-  if (!systemd) return { command: node, args, env: { RIG_HOME: layout.home } };
+  const caFile = join(layout.secrets ?? join(layout.home, "secrets"), "rig-ca.crt");
+  const env = {
+    RIG_HOME: layout.home,
+    ...(existsSync(caFile) ? { NODE_EXTRA_CA_CERTS: caFile } : {}),
+  };
+  if (!systemd) return { command: node, args, env };
   const path = [...new Set([dirname(node), "/usr/local/bin", "/usr/bin", "/bin"])].join(":");
   const stamp = new Date(now).toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14);
   return {
@@ -34,7 +40,7 @@ export function runCommand({ instance, runId, layout, systemd, node = process.ex
       "--quiet",
       "--pipe",
       "--property=TimeoutStopSec=10min",
-      `--setenv=RIG_HOME=${layout.home}`,
+      ...Object.entries(env).map(([name, value]) => `--setenv=${name}=${value}`),
       `--setenv=PATH=${path}`,
       node,
       ...args,
