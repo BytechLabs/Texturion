@@ -442,6 +442,13 @@ export class AndroidDevice {
     await this.adb.inputText(text.replaceAll(' ', "%s"));
   }
 
+  async dismissKeyboard(): Promise<void> {
+    const state = await this.adb.shell("dumpsys", "input_method");
+    if (/\b(?:mInputShown|mIsInputViewShown)=true\b/.test(state)) {
+      await this.adb.shell("input", "keyevent", "KEYCODE_BACK");
+    }
+  }
+
   async #nodes(): Promise<UiNode[]> {
     const path = "/sdcard/rig-ui.xml";
     await this.adb.shell("uiautomator", "dump", path);

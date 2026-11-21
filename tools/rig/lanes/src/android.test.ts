@@ -452,6 +452,14 @@ describe("the device driver's commands (no device has run them)", () => {
     await expect(android.type("a;rm")).rejects.toThrow(/plain text/);
   });
 
+  it.each([true, false])("dismisses the keyboard only when shown (%s)", async (shown) => {
+    const { android, calls } = device({ "dumpsys input_method": `  mInputShown=${shown}` });
+    await android.dismissKeyboard();
+    expect(calls).toEqual(shown
+      ? [`${ADB} shell dumpsys input_method`, `${ADB} shell input keyevent KEYCODE_BACK`]
+      : [`${ADB} shell dumpsys input_method`]);
+  });
+
   it("never repeats a typed password or the PIN in the error of a command that failed", async () => {
     // Node's execFile error names the whole command line, which a verdict's detail would carry to PostHog.
     const failing = (killed: boolean): Exec => async (file, args) => {
