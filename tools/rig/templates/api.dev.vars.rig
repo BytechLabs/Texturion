@@ -45,6 +45,8 @@ FCM_SERVICE_ACCOUNT_JSON={{derived.fcmServiceAccount}}
 # that is not sk_test_ or rk_test_ is refused, and rigd tags what it creates.
 STRIPE_SECRET_KEY={{derived.stripeSecretKey}}
 STRIPE_WEBHOOK_SECRET={{derived.stripeWebhookSecret}}
+STRIPE_OWNER_PORTAL_CONFIG_ID={{secret?:stripe-owner-portal-config-id}}
+STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID={{secret?:stripe-payment-invoices-portal-config-id}}
 STRIPE_STARTER_PRICE_ID={{catalog:STRIPE_STARTER_PRICE_ID}}
 STRIPE_PRO_PRICE_ID={{catalog:STRIPE_PRO_PRICE_ID}}
 STRIPE_STARTER_OVERAGE_PRICE_ID={{catalog:STRIPE_STARTER_OVERAGE_PRICE_ID}}

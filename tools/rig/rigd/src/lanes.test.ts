@@ -701,14 +701,16 @@ describe("the Stripe sandbox", () => {
 
   it("reads the test mode's portal configurations and tax settings, S32's preflight", async () => {
     const { fetch, requests } = fakeFetch({
+      "GET https://api.stripe.com/v1/billing_portal/configurations/bpc_ownerTest": () => json({ active: true }),
       "GET https://api.stripe.com/v1/billing_portal/configurations": () => json({ data: [] }),
       "GET https://api.stripe.com/v1/tax/settings": () => json({ status: "active" }),
     });
     const sandbox = new StripeSandbox({ key: () => "sk_test_x", subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
     await sandbox.request("GET", "/v1/billing_portal/configurations", { is_default: true });
+    await expect(sandbox.request("GET", "/v1/billing_portal/configurations/bpc_ownerTest")).resolves.toEqual({ active: true });
     await sandbox.request("GET", "/v1/tax/settings");
     await expect(sandbox.request("POST", "/v1/billing_portal/configurations")).rejects.toThrow(/not a path the rig uses/);
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
   });
 
   it("deletes a run's subscription or test clock once, and leaves one already gone", async () => {

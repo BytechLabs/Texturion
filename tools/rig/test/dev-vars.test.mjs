@@ -112,6 +112,20 @@ test("rendering resolves every source and points every seam at the edge", () => 
   });
 });
 
+test("renders the configured Stripe test-mode portals and omits absent ones", () => {
+  withStore(fillStore, (store) => {
+    const unset = parseDevVars(renderDevVars(TEMPLATE, context(store)));
+    assert.equal(unset.STRIPE_OWNER_PORTAL_CONFIG_ID, undefined);
+    assert.equal(unset.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID, undefined);
+
+    store.write("stripe-owner-portal-config-id", "bpc_ownerTest");
+    store.write("stripe-payment-invoices-portal-config-id", "bpc_invoiceTest");
+    const configured = parseDevVars(renderDevVars(TEMPLATE, context(store)));
+    assert.equal(configured.STRIPE_OWNER_PORTAL_CONFIG_ID, "bpc_ownerTest");
+    assert.equal(configured.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID, "bpc_invoiceTest");
+  });
+});
+
 test("RIG_OWNED_E164 is the standing numbers: a number held for a scenario is left out", () => {
   withStore(fillStore, (store) => {
     const partition = stubPartition();

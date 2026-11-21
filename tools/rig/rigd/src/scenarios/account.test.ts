@@ -1012,6 +1012,15 @@ describe("S32, sign-up through Checkout and the portal", () => {
     expect(world.stripe.adopted).toEqual([]);
   });
 
+  it("uses the configured owner portal without requiring a default", async () => {
+    const { ctx, stripe } = signUpWorld("S32");
+    stripe.ownerPortalConfigId = "bpc_ownerTest";
+    stripe.answers.set("GET /v1/billing_portal/configurations", { data: [] });
+    stripe.answers.set("GET /v1/billing_portal/configurations/bpc_ownerTest", { active: true });
+    await expect(S32.run(ctx)).resolves.toMatchObject({ outcome: "pass" });
+    expect(stripe.requests.map((request) => request.path)).not.toContain("/v1/billing_portal/configurations");
+  });
+
   it("tags and removes the Checkout objects a run that stopped early finds named afterwards, and leaves an unpaid Checkout alone", async () => {
     const unreturned = signUpWorld("S32");
     unreturned.browser.publicScript.checkout = { returned: false, challenged: false, submitted: true };

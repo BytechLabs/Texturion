@@ -220,6 +220,7 @@ export function buildRig(config: RigdConfig): Rig {
     () =>
       new StripeSandbox({
         key: () => store.read("stripe-secret-key"),
+        ownerPortalConfigId: () => store.readOptional("stripe-owner-portal-config-id"),
         subscriptionIdOf: (tenant) => app().stripeSubscriptionId(tenant),
         checkoutSubscriptionOf: async (ownerEmail) => (await app().workspaceOf({ ownerEmail }))?.stripe_subscription_id ?? null,
         checkoutCustomerOf: async (ownerEmail) => (await app().workspaceOf({ ownerEmail }))?.stripe_customer_id ?? null,
