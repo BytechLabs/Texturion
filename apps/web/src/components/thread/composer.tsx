@@ -602,7 +602,7 @@ export function Composer({
 }) {
   const t = useT();
   const { companyId, userId } = useActiveCompany();
-  const [recoveredSend] = useState(() => {
+  const [recoveredSend, setRecoveredSend] = useState(() => {
     if (noteOnly || loadDraftMode(conversationId) === "note") return null;
     const attempt = loadSendAttempt(userId, conversationId);
     const draft = loadDraft(conversationId);
@@ -846,6 +846,7 @@ export function Composer({
       clearFailedSend(conversationId);
       lastFailedSendRef.current = null;
       setFailedSignature(null);
+      setRecoveredSend(null);
     }
   };
 

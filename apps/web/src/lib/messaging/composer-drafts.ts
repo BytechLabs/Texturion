@@ -277,7 +277,7 @@ interface StoredSendAttempt extends StoredFailedSend {
 }
 
 function sendAttemptKey(userId: string, conversationId: string): string {
-  return SEND_ATTEMPT_PREFIX + userId + ":" + conversationId;
+  return `${SEND_ATTEMPT_PREFIX}${userId}:${conversationId}`;
 }
 
 export function loadSendAttempt(userId: string, conversationId: string): StoredSendAttempt | null {
