@@ -123,7 +123,7 @@ targets:
           LOONEXT_TELEMETRY_ENVIRONMENT: qa
           PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa
           SUPPORTED_PLATFORMS: iphonesimulator
-          CODE_SIGN_ENTITLEMENTS: qa/Simulator.entitlements
+          "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": qa/Simulator.entitlements
           INFOPLIST_FILE: qa/Info.plist
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG LOONEXT_QA"
           LOONEXT_QA_API_URL: http://127.0.0.1:8765
@@ -173,7 +173,7 @@ targets:
         QA:
           PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios.qa.share
           SUPPORTED_PLATFORMS: iphonesimulator
-          CODE_SIGN_ENTITLEMENTS: qa/ShareSimulator.entitlements
+          "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": qa/ShareSimulator.entitlements
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) LOONEXT_QA"
   LoonextTests:
     type: bundle.unit-test
