@@ -117,7 +117,7 @@ export const footerFr: Translated<typeof footerEn> = {
   salons: "Salons",
   contractors: "Entrepreneurs",
 
-  whatsNew: "Nouveaut?s",
+  whatsNew: "Nouveautés",
   developers: "Développeurs",
   compareIndex: "Toutes les comparaisons",
   compareHeymarket: "Loonext vs Heymarket",
