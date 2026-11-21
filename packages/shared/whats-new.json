@@ -400,5 +400,7 @@
       }
     }
   ],
-  "quietReleases": []
+  "quietReleases": [
+    { "date": "2026-11-21", "reason": "The only feature is a marketing page about booked-job text reminders; nothing in the app changed." }
+  ]
 }
