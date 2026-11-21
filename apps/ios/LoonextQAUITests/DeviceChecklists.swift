@@ -212,7 +212,7 @@ final class DeviceChecklists: XCTestCase {
     func testPhotosShareStagesAttachment() async throws {
         try signIn()
         let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
-        photos.launch()
+        photos.activate()
         try enterPhotosSelection(in: photos)
         try selectFixturePhoto(in: photos, newestFirst: false)
         try waitFor(photos.buttons["Share"].firstMatch).tap()

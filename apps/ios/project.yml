@@ -151,7 +151,7 @@ targets:
           NSExtensionAttributes:
             NSExtensionActivationRule: >-
               extensionItems.@count == 1 AND SUBQUERY(extensionItems, $item,
-              $item.attachments.@count BETWEEN {1, 10} AND
+              $item.attachments.@count >= 1 AND $item.attachments.@count <= 10 AND
               SUBQUERY($item.attachments, $attachment,
               ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" OR
               ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" OR
