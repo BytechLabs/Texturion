@@ -411,15 +411,15 @@ export class AppProbe implements AppApi {
     media: { bytes: Uint8Array; contentType: string };
   }): Promise<SendResult> {
     const { tenant } = splitMember(args.member);
-    const conversationId = await this.#conversationWith(tenant, args.toRole);
-    if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.toRole}`);
-    const answer = await this.#answer<{ message?: SentMessage }>(args.member, "POST", "/v1/messages/send", {
+    const [conversationId] = await this.#conversationsWith(tenant, args.toRole, args.fromRole);
+    if (!conversationId) throw new Error(`app probe: ${tenant} has no thread with ${args.toRole} on ${args.fromRole}`);
+    const answer = await this.#answer<SentMessage>(args.member, "POST", "/v1/messages/send", {
       conversation_id: conversationId,
       body: args.body,
       media: [{ content_type: args.media.contentType, base64: Buffer.from(args.media.bytes).toString("base64") }],
     });
     if (answer.status >= 400) return { ok: false, status: answer.status, code: answer.code };
-    return sendResult(answer.status, answer.body?.message);
+    return sendResult(answer.status, answer.body);
   }
 
   async messagesWith(args: { tenant: string; role: string; since: number }): Promise<MessageRow[]> {
@@ -1220,7 +1220,7 @@ export class AppProbe implements AppApi {
     return company?.stripe_subscription_id ?? null;
   }
 
-  async #conversationsWith(tenant: string, role: string): Promise<string[]> {
+  async #conversationsWith(tenant: string, role: string, fromRole?: string): Promise<string[]> {
     const companyId = this.#tenant(tenant).company_id;
     const contacts = await this.#rest<{ id: string }[]>("contacts", {
       company_id: `eq.${companyId}`,
@@ -1231,6 +1231,7 @@ export class AppProbe implements AppApi {
     const conversations = await this.#rest<{ id: string }[]>("conversations", {
       company_id: `eq.${companyId}`,
       contact_id: `in.(${contacts.map((c) => c.id).join(",")})`,
+      ...(fromRole ? { phone_number_id: `eq.${stableUuid(companyId, fromRole)}` } : {}),
       select: "id",
     });
     return conversations.map((conversation) => conversation.id);

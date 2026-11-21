@@ -88,10 +88,10 @@ describe("the app probe's messages", () => {
     expect(JSON.parse(sent.body!)).toMatchObject({ body: "Rig night", quiet_hours_confirmed: true });
   });
 
-  it("sends a picture into the thread with the role, and reads a filed-then-failed send as refused", async () => {
+  it("sends a picture from the requested line and reads the flat result, including a stored failure", async () => {
     const answers = [
-      json({ message: { id: "m-1", status: "queued", error_code: null } }, 201),
-      json({ message: { id: "m-2", status: "failed", error_code: "40008" } }, 201),
+      json({ id: "m-1", status: "queued", error_code: null, attachments: [{ id: "a-1" }] }, 201),
+      json({ id: "m-2", status: "failed", error_code: "40008" }, 201),
       json({ error: { code: "recipient_opted_out" } }, 403),
     ];
     const { probe, requests } = probeWith({ ...THREAD, [`POST ${API}/v1/messages/send`]: () => answers.shift()! });
@@ -104,6 +104,10 @@ describe("the app probe's messages", () => {
     expect(JSON.parse(sent.body!)).toEqual({ conversation_id: "conv-1", body: "Rig pic", media: [{ content_type: "image/jpeg", base64: "AQID" }] });
     expect(sent.headers["x-company-id"]).toBe(COMPANY);
     expect(query(requests.find((r) => r.url.startsWith(rest("contacts")))!)).toMatchObject({ company_id: `eq.${COMPANY}`, phone_e164: "eq.+14165550101" });
+    expect(query(requests.find((r) => r.url.startsWith(rest("conversations")))!)).toMatchObject({
+      company_id: `eq.${COMPANY}`,
+      phone_number_id: `eq.${stableUuid(COMPANY, "DEV-W1")}`,
+    });
   });
 
   it("refuses to send a picture where there is no thread, before any send", async () => {
