@@ -1040,6 +1040,40 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     // Owner (the placer) dropped with no intent → teardown hangs up the customer.
     expect(calls.hangups).toContain("oc-ccid");
   });
+
+  it("settles an answered outbound call once when the customer hangup follows the placer", async () => {
+    const { instance, calls } = makeDO({
+      outboundInitiated: ocCtx(),
+      hangupResult: (ccid) => (ccid === "oc-ccid" ? "dead" : "ok"),
+    });
+    await instance.onTelnyxEvent(ocEvent("started", "call.initiated"));
+    await instance.whenIdle();
+    await instance.onTelnyxEvent(opEvent("placer-answer", "call.answered"));
+    await instance.onTelnyxEvent(ocEvent("customer-answer", "call.answered"));
+    await instance.whenIdle();
+    const answered = await instance.snapshot(OUTBOUND_S);
+    expect(answered?.answered_at).toEqual(expect.any(String));
+
+    await instance.onTelnyxEvent(opEvent("placer-hangup", "call.hangup"));
+    await instance.whenIdle();
+    expect((await instance.snapshot(OUTBOUND_S))?.state).toBe("ended_answered");
+    expect(calls.terminalMerges).toEqual(["synthetic:answered"]);
+
+    await instance.onTelnyxEvent(ocEvent("other-leg", "call.hangup", { call_control_id: "other-ccid" }));
+    await instance.whenIdle();
+    expect(calls.terminalMerges).toEqual(["synthetic:answered"]);
+
+    const customerHangup = ocEvent("customer-hangup", "call.hangup");
+    await instance.onTelnyxEvent(customerHangup);
+    await instance.onTelnyxEvent(customerHangup);
+    await instance.onTelnyxEvent(ocEvent("repeated-hangup", "call.hangup"));
+    await instance.whenIdle();
+    expect(calls.terminalMerges).toEqual(["synthetic:answered", "event"]);
+    expect(calls.terminalMergeEventOpts).toEqual([{
+      outboundSessionId: OUTBOUND_S,
+      outboundAnsweredAtIso: answered?.answered_at,
+    }]);
+  });
 });
 
 /**
