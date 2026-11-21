@@ -113,18 +113,18 @@ export function apiExceptionsFailure(state) {
   if (typeof state.error === "string" && state.error !== "") {
     return `the local API's exceptions could not be read from PostHog: ${state.error}`;
   }
-  const { unexplained_24h: unexplained, defects_24h: defects } = state;
+  const { unexplained_since_deploy: unexplained, defects_since_deploy: defects } = state;
   if (!Array.isArray(unexplained) || !Array.isArray(defects)) {
-    return "rigd's report does not list unexplained_24h and defects_24h";
+    return "rigd's report does not list unexplained_since_deploy and defects_since_deploy";
   }
   const reasons = [];
-  if (unexplained.length > 0) reasons.push(`${unexplained.length} unexplained exception(s) in 24 hours`);
+  if (unexplained.length > 0) reasons.push(`${unexplained.length} unexplained exception(s) since deployment`);
   const byMeans = new Map();
   for (const defect of defects) {
     const means = typeof defect?.means === "string" && defect.means !== "" ? defect.means : "a defect the cron registry names";
     byMeans.set(means, (byMeans.get(means) ?? 0) + 1);
   }
-  for (const [means, count] of byMeans) reasons.push(`defect (${count} exception(s) in 24 hours): ${means}`);
+  for (const [means, count] of byMeans) reasons.push(`defect (${count} exception(s) since deployment): ${means}`);
   return reasons.length === 0 ? null : reasons.join("; ");
 }
 
@@ -307,7 +307,7 @@ export function healthChecks(context) {
 
     async apiExceptions() {
       const report = await readApiExceptions({ stateDir: context.layout.state, store: context.store });
-      if (report.expected_probes_24h?.length) context.published.expected_api_exception_probes = report.expected_probes_24h;
+      if (report.expected_probes_since_deploy?.length) context.published.expected_api_exception_probes = report.expected_probes_since_deploy;
       return apiExceptionsFailure(report);
     },
 

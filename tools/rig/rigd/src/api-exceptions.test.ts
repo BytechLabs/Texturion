@@ -14,13 +14,29 @@ describe(apiExceptionsNow, () => {
   it("reports a read it cannot make as an error, so R00 fails rather than passing on an empty list", async () => {
     const stateDir = mkdtempSync(join(tmpdir(), "rigd-api-exceptions-"));
     dirs.push(stateDir);
+    writeFileSync(join(stateDir, "deployed.json"), JSON.stringify({ at: "2026-11-06T23:00:00.000Z" }));
     const report = await apiExceptionsNow({ stateDir, store: { readOptional: () => undefined } }, Date.UTC(2026, 10, 7));
     expect(report).toEqual({
       at: "2026-11-07T00:00:00.000Z",
+      since: "2026-11-06T23:00:00.000Z",
       error: "posthog-personal-api-key and posthog-project-id are not both in the rig's store",
-      unexplained_24h: [],
-      defects_24h: [],
+      unexplained_since_deploy: [],
+      defects_since_deploy: [],
     });
+  });
+
+  it("requires the current deployment timestamp instead of silently using a rolling history", async () => {
+    const stateDir = mkdtempSync(join(tmpdir(), "rigd-api-exceptions-"));
+    dirs.push(stateDir);
+    const report = await apiExceptionsNow({ stateDir, store: { readOptional: () => undefined } }, Date.UTC(2026, 10, 7));
+    expect(report).toEqual({
+      at: "2026-11-07T00:00:00.000Z",
+      error: "state/deployed.json has no valid deployment time; run rig deploy first",
+      unexplained_since_deploy: [],
+      defects_since_deploy: [],
+    });
+    writeFileSync(join(stateDir, "deployed.json"), JSON.stringify({ at: "not-a-date" }));
+    await expect(apiExceptionsNow({ stateDir, store: { readOptional: () => undefined } }, Date.UTC(2026, 10, 7))).resolves.toMatchObject({ error: expect.stringContaining("valid deployment time") });
   });
 
   it("explains exact probe events and leaves another event with the same fingerprint unexplained", async () => {
@@ -28,6 +44,7 @@ describe(apiExceptionsNow, () => {
     dirs.push(stateDir);
     const rigd = join(stateDir, "rigd");
     mkdirSync(rigd);
+    writeFileSync(join(stateDir, "deployed.json"), JSON.stringify({ at: "2026-11-06T23:00:00.000Z" }));
     const recorded = "0088623f-22d6-46aa-8f82-cc08132fe151";
     const unexpected = "febf744a-62c2-4703-957a-c986aeb56cbb";
     const connect = "1e777ad2-93ea-4fee-9dd7-b877c254acdb";
@@ -51,10 +68,11 @@ describe(apiExceptionsNow, () => {
 
     const report = await apiExceptionsNow({ stateDir, store: { readOptional: () => "example" } }, at);
 
-    expect(report.expected_probes_24h).toEqual([
+    expect(report.expected_probes_since_deploy).toEqual([
       { key: "same-voicemail-fingerprint", probe: "voicemail-download-reset", evidence: "#785" },
       { key: "handled:stripe-connect-refresh", probe: "stripe-test-connect-invalid-account", evidence: "#772" },
     ]);
-    expect(report.unexplained_24h).toEqual(["handled:stripe-connect-refresh", "same-message-error", "same-voicemail-fingerprint"]);
+    expect(report.since).toBe("2026-11-06T23:00:00.000Z");
+    expect(report.unexplained_since_deploy).toEqual(["handled:stripe-connect-refresh", "same-message-error", "same-voicemail-fingerprint"]);
   });
 });

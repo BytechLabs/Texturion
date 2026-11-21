@@ -177,14 +177,14 @@ test("the apiExceptions check reads the exceptions when it runs, and fails on an
     };
     const check = () => healthChecks(context).apiExceptions();
 
-    relay({ unexplained_24h: [], defects_24h: [] });
+    relay({ unexplained_since_deploy: [], defects_since_deploy: [] });
     assert.equal(await check(), null);
 
     const robot = "A number in the rig's group has no phone_numbers row.";
     const standing = "The grace job tried to release a standing number.";
     relay({
-      unexplained_24h: ["k1"],
-      defects_24h: [
+      unexplained_since_deploy: ["k1"],
+      defects_since_deploy: [
         { key: "k2", means: robot },
         { key: "k3", means: robot },
         { key: "k4", means: standing },
@@ -192,17 +192,17 @@ test("the apiExceptions check reads the exceptions when it runs, and fails on an
     });
     assert.equal(
       await check(),
-      `1 unexplained exception(s) in 24 hours; defect (2 exception(s) in 24 hours): ${robot}; ` +
-        `defect (1 exception(s) in 24 hours): ${standing}`,
+      `1 unexplained exception(s) since deployment; defect (2 exception(s) since deployment): ${robot}; ` +
+        `defect (1 exception(s) since deployment): ${standing}`,
     );
 
-    relay({ unexplained_24h: [], defects_24h: [{ key: "k4", means: standing }] });
-    assert.equal(await check(), `defect (1 exception(s) in 24 hours): ${standing}`);
+    relay({ unexplained_since_deploy: [], defects_since_deploy: [{ key: "k4", means: standing }] });
+    assert.equal(await check(), `defect (1 exception(s) since deployment): ${standing}`);
 
-    relay({ unexplained_24h: [] });
-    assert.match(await check(), /does not list unexplained_24h and defects_24h/);
+    relay({ unexplained_since_deploy: [] });
+    assert.match(await check(), /does not list unexplained_since_deploy and defects_since_deploy/);
 
-    relay({ error: "PostHog answered 401 for the HogQL query", unexplained_24h: [], defects_24h: [] });
+    relay({ error: "PostHog answered 401 for the HogQL query", unexplained_since_deploy: [], defects_since_deploy: [] });
     assert.equal(
       await check(),
       "the local API's exceptions could not be read from PostHog: PostHog answered 401 for the HogQL query",
