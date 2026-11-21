@@ -1432,10 +1432,8 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
   it("op answered EARLY-bridges op↔oc (ringback while the customer rings) + stays 'dialing'", () => {
     const { machine, opCcid } = opDialedMachine();
     const r = placerAnswered(machine, opCcid, 2000);
-    // Early bridge: the placer's leg is bridged to the still-ringing customer so
-    // Telnyx relays ringback AND the customer's hangup will tear the placer leg.
     const bridge = r.effects.find((e) => e.kind === "telnyx-bridge");
-    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
+    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust", playRingback: true });
     expect(r.machine?.legs[0].status).toBe("answered");
     expect(r.machine?.state).toBe("dialing"); // not 'answered' until the customer picks up
   });
@@ -1457,7 +1455,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     expect(ocUp.state).toBe("answered");
     const r = placerAnswered(ocUp, opCcid, 2500);
     const bridge = r.effects.find((e) => e.kind === "telnyx-bridge");
-    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
+    expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust", playRingback: false });
   });
 
   it("op answered is idempotent (a re-delivery does not re-bridge)", () => {

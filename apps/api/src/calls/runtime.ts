@@ -126,7 +126,7 @@ export interface SessionRuntime {
      *  fresh 2xx and the replay case (4xx but the GET says alive/answered). */
     answerInbound(ccid: string, clientState: string): Promise<"ok" | "dead">;
     answerVm(ccid: string, clientState: string): Promise<"ok" | "dead">;
-    bridge(memberCcid: string, inboundCcid: string): Promise<"ok" | "dead">;
+    bridge(memberCcid: string, inboundCcid: string, playRingback?: boolean): Promise<"ok" | "dead">;
     bridgeTransfer(memberCcid: string, customerCcid: string, transferId: string): Promise<boolean>;
     /** 4xx-discriminated like answer/bridge (#208 F4): "ok" = the command
      *  landed (or the leg is still alive and its own hangup webhook will
@@ -483,9 +483,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         commandWithDiscrimination(env, ccid, "answer", {
           client_state: clientState,
         }),
-      bridge: (memberCcid, inboundCcid) =>
+      bridge: (memberCcid, inboundCcid, playRingback) =>
         commandWithDiscrimination(env, memberCcid, "bridge", {
           call_control_id: inboundCcid,
+          ...(playRingback ? { play_ringtone: true } : {}),
         }),
       async bridgeTransfer(memberCcid, customerCcid, transferId) {
         try {
