@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.3](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.2...ios-v0.27.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **ios:** load the quote strip when a thread opens ([cb997e7](https://github.com/BytechLabs/Texturion/commit/cb997e773013cd5eba8af968b52fd37308aa5267))
+* **ios:** make Loonext available in the share sheet ([e5aa5a5](https://github.com/BytechLabs/Texturion/commit/e5aa5a52dc91b34ff0cc345e631d33a53c037828))
+
 ## [0.27.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.1...ios-v0.27.2) (2026-11-20)
 
 

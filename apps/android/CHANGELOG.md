@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.3](https://github.com/BytechLabs/Texturion/compare/android-v0.27.2...android-v0.27.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **android:** register contact actions for the rig build ([76c9cc0](https://github.com/BytechLabs/Texturion/commit/76c9cc046be7308d03965dbbaa068a29591caa0d))
+* **android:** use the selected language for TalkBack ([717e4c0](https://github.com/BytechLabs/Texturion/commit/717e4c0fbfcf2f7c52bb039de15fcffec0b16a17))
+
 ## [0.27.2](https://github.com/BytechLabs/Texturion/compare/android-v0.27.1...android-v0.27.2) (2026-11-20)
 
 
