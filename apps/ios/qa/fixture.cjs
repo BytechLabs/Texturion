@@ -21,13 +21,23 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
   created_at: now(), updated_at: now(), done: false, status: "open", allowed_actions: ["complete", "trash"] };
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
-const state = { mode: "online", writes: [], messages: [[], []], company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
   { id: contactID, name: "Ada Fixture", phone_e164: "+14165550101", notes: "Test notes", created_at: now(), updated_at: now() },
   { id: "other-contact", name: "Ben Fixture", phone_e164: "+14165550102", created_at: now(), updated_at: now() },
 ] };
+const voicemailTitle = "Repair the boiler";
+const voicemailTranscript = "The boiler stopped again. Could you come Wednesday morning?";
+const voicemailEvent = {
+  id: "fixture-voicemail-event",
+  conversation_id: threadIDs[0],
+  type: "call_completed",
+  payload: { kind: "voicemail", voicemail_seconds: 5, transcript: voicemailTranscript, caller: "+14165550101" },
+  created_at: now(),
+  voicemail_task: { call_id: call.id, title: voicemailTitle, description: voicemailTranscript },
+};
 
 function message(index, body, direction = "inbound") {
   return { id: randomUUID(), conversation_id: threadIDs[index], body, direction,
@@ -129,6 +139,19 @@ const server = createServer(async (req, res) => {
       await push(index, title, searchParams.has("missed"));
       return json({ ok: true });
     }
+    if (path === "/__qa/long-thread" && req.method === "POST") {
+      const first = "Can u confirm Friday? 🔧 " + "The side door is open, but please call me before you go into the workshop. ".repeat(5);
+      const bodies = [first, "Friday at ten works for me.", "I still need the boiler checked 🙏", "The side door is open."];
+      state.messages[0] = Array.from({ length: 40 }, (_, index) => ({
+        ...message(0, bodies[index] ?? `Boiler update ${index}`, index % 2 === 0 ? "inbound" : "outbound"),
+        created_at: new Date(Date.now() - index * 60_000).toISOString(),
+      }));
+      return json({ count: state.messages[0].length });
+    }
+    if (path === "/__qa/voicemail-event" && req.method === "POST") {
+      state.includeVoicemail = true;
+      return json({ ok: true });
+    }
 
     if (state.mode === "offline") return req.socket.destroy();
     if (state.mode === "revoked") {
@@ -160,13 +183,14 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/numbers") return json(page([line]));
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
-    if (req.method === "PATCH" || path === "/v1/messages/send") {
+    if (req.method === "PATCH" || path === "/v1/messages/send" || (req.method === "POST" && path === "/v1/tasks")) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
       state.writes.push({ path, body, idempotencyKey: req.headers["idempotency-key"] });
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
+      if (path === "/v1/tasks") return json({ ...task, title: body.title, conversation_id: threadIDs[0] }, 201);
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
         const sent = message(index, body.body, "outbound");
@@ -176,6 +200,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
@@ -183,6 +208,8 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });
+    if (path === `/v1/conversations/${threadIDs[0]}/tasks/source` &&
+      searchParams.get("call_id") === call.id) return json(page());
     if (path === "/v1/conversations") {
       return json(page(searchParams.get("pinned") === "only" ? [] : threadIDs.map((_, index) => thread(index))));
     }
@@ -192,8 +219,15 @@ const server = createServer(async (req, res) => {
     if (index !== -1) {
       if (!tail) return json(thread(index));
       if (tail === "messages") return json(page(state.messages[index]));
+      if (tail === "summary" && index === 0 && req.method === "POST") {
+        return json({ lines: state.messages[0].slice(0, 4).map((source, position) => ({
+          section: ["asked", "we_said", "open", "open"][position],
+          text: source.body, message_id: source.id, at: source.created_at,
+        })) });
+      }
       if (tail === "read") return json({ conversation_id: conversationID, user_id: userID, last_read_at: now() });
-      if (["events", "pinned", "tasks", "mentionable-members"].includes(tail)) return json(page());
+      if (tail === "events") return json(page(index === 0 && state.includeVoicemail ? [voicemailEvent] : []));
+      if (["pinned", "tasks", "mentionable-members"].includes(tail)) return json(page());
     }
     if (emptyLists.has(path) || path.endsWith("/activity") || path.endsWith("/linked-tasks")) return json(page());
     console.log(`Unseeded route: ${req.method} ${path}`);

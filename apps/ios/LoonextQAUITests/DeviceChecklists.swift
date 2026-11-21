@@ -7,8 +7,16 @@ final class DeviceChecklists: XCTestCase {
     private let fixture = URL(string: "http://127.0.0.1:8765")!
 
     private struct Write: Decodable {
+        struct Field: Decodable {
+            let text: String?
+
+            init(from decoder: Decoder) {
+                text = try? decoder.singleValueContainer().decode(String.self)
+            }
+        }
+
         let path: String
-        let body: [String: String?]
+        let body: [String: Field]
         let idempotencyKey: String?
     }
 
@@ -235,6 +243,41 @@ final class DeviceChecklists: XCTestCase {
         shot("811 only the selected word was pasted")
     }
 
+    func testLongThreadRecapCitesMessages() async throws {
+        try await control("long-thread")
+        try signIn()
+        try openThread("Ada Fixture")
+        let recap = app.buttons["Recap"].firstMatch
+        if recap.waitForExistence(timeout: 5) {
+            recap.tap()
+        } else {
+            try waitFor(app.buttons["More"].firstMatch).tap()
+            try reveal(label("Catch me up")).tap()
+        }
+        try waitFor(label("Lou's catch-up"))
+        let citation = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Can u confirm Friday?")).firstMatch
+        XCTAssertGreaterThan(try waitFor(citation).label.count, 300)
+        try waitFor(app.buttons["Friday at ten works for me."].firstMatch)
+        try waitFor(app.buttons["I still need the boiler checked 🙏"].firstMatch)
+        try waitFor(app.buttons["The side door is open."].firstMatch)
+        shot("794 catch-up shows four cited messages")
+        try reveal(citation).tap()
+        try waitFor(label("Can u confirm Friday?"))
+    }
+
+    func testCreateTaskFromSavedVoicemail() async throws {
+        try await control("voicemail-event")
+        try signIn()
+        try openThread("Ada Fixture")
+        try reveal(app.buttons["Make a task from this call"].firstMatch).tap()
+        try waitFor(field(value: "Repair the boiler"))
+        try waitFor(field(value: "The boiler stopped again. Could you come Wednesday morning?"))
+        shot("794 task title and description came from the voicemail")
+        try reveal(app.buttons["Create task"].firstMatch).tap()
+        try waitFor(label("Made a task from this call."))
+        try await assertOneWrite(path: "/v1/tasks", field: "source_call_id", value: "test-call")
+    }
+
     private func signIn(notifications: Bool = false) throws {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
@@ -327,7 +370,7 @@ final class DeviceChecklists: XCTestCase {
             try await Task.sleep(for: .milliseconds(250))
         }
         XCTAssertEqual(matching.count, 1)
-        XCTAssertEqual(matching.first?.body[field] ?? nil, value)
+        XCTAssertEqual(matching.first?.body[field]?.text, value)
         if requiresKey { XCTAssertFalse(matching.first?.idempotencyKey?.isEmpty ?? true) }
         try await Task.sleep(for: .seconds(1))
         let (data, _) = try await URLSession.shared.data(from: url)
