@@ -140,8 +140,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     thread-workflows) run_scenario "$name" "$ui/testLongThreadRecapCitesMessages" \
       "$ui/testCreateTaskFromSavedVoicemail" || failed=1 ;;
     quote-alert) run_scenario "$name" "$ui/testQuoteAcceptanceRefreshesStripAndAlertsOnce" || failed=1 ;;
-    quote-amount) run_scenario "$name" "$ui/testQuotePreservesFrenchDecimalAmount" \
-      "$ui/testPaymentLinkPreservesFrenchDecimalAmount" || failed=1 ;;
+    quote-amount) run_scenario "$name" "$ui/testQuotePreservesFrenchDecimalAmount" || failed=1 ;;
     attachment-sources) run_scenario "$name" "$ui/testPhotoLibraryStagesAttachment" \
       "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;

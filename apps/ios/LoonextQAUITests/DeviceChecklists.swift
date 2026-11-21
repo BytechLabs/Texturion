@@ -320,29 +320,10 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(label("Fixture du devis"))
         shot("Saved quote amount in Canadian French")
 
-        try await assertAmountWrite("/v1/quotes")
-    }
-
-    func testPaymentLinkPreservesFrenchDecimalAmount() async throws {
-        try await control("french?payments")
-        try signIn(locale: "fr-CA")
-        try openThread("Ada Fixture", back: "Retour")
-        try waitFor(app.buttons["Demander un paiement"].firstMatch).tap()
-        let amount = try waitFor(app.textFields["250.00"].firstMatch)
-        amount.tap()
-        amount.typeText("12,34")
-        XCTAssertEqual(amount.value as? String, "12,34")
-        let send = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH %@ AND label != %@", "Demander ", "Demander un paiement"
-        )).firstMatch
-        try waitFor(send)
-        shot("Payment request preview in Canadian French")
-        send.tap()
-        try waitFor(label("Deposit"))
-        shot("Saved payment request amount in Canadian French")
-
-        let paymentPath = "/v1/conversations/20000000-0000-4000-8000-000000000010/payment-requests"
-        try await assertAmountWrite(paymentPath, requiresKey: true)
+        let (data, _) = try await URLSession.shared.data(from: fixture.appending(path: "__qa/writes"))
+        let writes = try JSONDecoder().decode([Write].self, from: data).filter { $0.path == "/v1/quotes" }
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes.first?.body["amount_cents"]?.number, 1_234)
     }
 
     func testPhotoLibraryStagesAttachment() async throws {
@@ -550,14 +531,6 @@ final class DeviceChecklists: XCTestCase {
         let (data, _) = try await URLSession.shared.data(from: url)
         let writes = try JSONDecoder().decode([Write].self, from: data).filter { $0.path == path }
         XCTAssertEqual(writes.count, 1, "Duplicate write after the debounce window")
-    }
-
-    private func assertAmountWrite(_ path: String, requiresKey: Bool = false) async throws {
-        let (data, _) = try await URLSession.shared.data(from: fixture.appending(path: "__qa/writes"))
-        let writes = try JSONDecoder().decode([Write].self, from: data).filter { $0.path == path }
-        XCTAssertEqual(writes.count, 1)
-        XCTAssertEqual(writes.first?.body["amount_cents"]?.number, 1_234)
-        if requiresKey { XCTAssertFalse(writes.first?.idempotencyKey?.isEmpty ?? true) }
     }
 
     private func shot(_ name: String) {

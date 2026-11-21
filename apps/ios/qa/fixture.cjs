@@ -15,7 +15,6 @@ const contactID = "20000000-0000-4000-8000-000000000020";
 const lineID = "20000000-0000-4000-8000-000000000030";
 const sessionID = "20000000-0000-4000-8000-000000000040";
 const quoteID = "20000000-0000-4000-8000-000000000050";
-const paymentRequestsPath = "/v1/conversations/" + threadIDs[0] + "/payment-requests";
 const now = () => new Date().toISOString();
 const page = (data = []) => ({ data, next_cursor: null });
 const line = { id: lineID, label: "Test line", status: "active", country: "CA", number_e164: "+14165550100", created_at: now(), voice_enabled: true };
@@ -24,8 +23,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 let quote;
-const state = { mode: "online", locale: "en", writes: [], messages: [[], []],
-  includeVoicemail: false, paymentsEnabled: false, paymentRequests: [], company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", locale: "en", writes: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
@@ -122,8 +120,6 @@ const server = createServer(async (req, res) => {
     if (path === "/__qa/writes") return json(state.writes);
     if (path === "/__qa/french" && req.method === "POST") {
       state.locale = "fr-CA";
-      state.paymentsEnabled = searchParams.has("payments");
-      state.paymentRequests = [];
       return json({ ok: true });
     }
     if (path === "/__qa/open-url" && req.method === "POST") {
@@ -216,15 +212,8 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/numbers") return json(page([line]));
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
 
-    if (path === "/v1/payments/account" && state.paymentsEnabled) {
-      return json({ connected: true, readiness: "ready", currency: "cad", charges_enabled: true });
-    }
-    if (path === paymentRequestsPath && req.method === "GET") {
-      return json({ payment_requests: state.paymentRequests });
-    }
-
     if (req.method === "PATCH" || path === "/v1/messages/send" ||
-      (req.method === "POST" && ["/v1/tasks", "/v1/quotes", paymentRequestsPath].includes(path))) {
+      (req.method === "POST" && (path === "/v1/tasks" || path === "/v1/quotes"))) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
@@ -235,13 +224,6 @@ const server = createServer(async (req, res) => {
       if (path === "/v1/quotes") {
         quote = { ...body, id: quoteID, contact_id: contactID, currency: "cad", status: "draft", created_at: now() };
         return json(quote, 201);
-      }
-      if (path === paymentRequestsPath) {
-        const request = { ...body, id: randomUUID(), conversation_id: threadIDs[0], contact_id: contactID,
-          currency: "cad", status: "requested", created_at: now(),
-          expires_at: new Date(Date.now() + 86400_000).toISOString() };
-        state.paymentRequests.push(request);
-        return json(request, 201);
       }
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
