@@ -216,28 +216,48 @@ final class DeviceChecklists: XCTestCase {
         try enterPhotosSelection(in: photos)
         try selectFixturePhoto(in: photos, newestFirst: false)
         try waitFor(photos.buttons["Share"].firstMatch).tap()
-        let cells = photos.cells.matching(identifier: "shareCell")
+        try await stageSharedPhoto(from: photos, source: "Photos")
+    }
+
+    func testFilesShareStagesAttachment() async throws {
+        try signIn()
+        let files = XCUIApplication(bundleIdentifier: "com.apple.DocumentsApp")
+        files.launch()
+        let browse = files.tabBars.buttons["Browse"].firstMatch
+        if browse.waitForExistence(timeout: 5) { browse.tap() }
+        let onDevice = files.staticTexts["On My iPhone"].firstMatch
+        if !onDevice.exists && browse.exists { browse.tap() }
+        try waitFor(onDevice).tap()
+        try waitFor(files.staticTexts["Loonext"].firstMatch).tap()
+        let photo = files.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "QA Share Fixture")).firstMatch
+        try waitFor(photo).press(forDuration: 1.2)
+        try waitFor(files.buttons["Share"].firstMatch).tap()
+        try await stageSharedPhoto(from: files, source: "Files")
+    }
+
+    private func stageSharedPhoto(from host: XCUIApplication, source: String) async throws {
+        let cells = host.cells.matching(identifier: "shareCell")
         let loonext = cells.matching(NSPredicate(format: "label == %@", "Loonext")).firstMatch
         let more = cells.matching(NSPredicate(format: "label == %@", "More")).firstMatch
         try waitFor(cells.firstMatch)
-        let activities = photos.scrollViews.containing(.cell, identifier: "shareCell").allElementsBoundByIndex.last
+        let activities = host.scrollViews.containing(.cell, identifier: "shareCell").allElementsBoundByIndex.last
         for _ in 0..<4 where !loonext.exists && !more.exists { activities?.swipeLeft() }
         if loonext.exists {
-            tapFrame(of: loonext, in: photos)
+            tapFrame(of: loonext, in: host)
         } else {
-            tapFrame(of: try waitFor(more), in: photos)
-            tapFrame(of: try waitFor(photos.staticTexts["Loonext"].firstMatch), in: photos)
+            tapFrame(of: try waitFor(more), in: host)
+            tapFrame(of: try waitFor(host.staticTexts["Loonext"].firstMatch), in: host)
         }
-        try waitFor(photos.buttons["Save Files"].firstMatch).tap()
-        try waitFor(photos.staticTexts["Open Loonext to choose a conversation."].firstMatch)
-        try waitFor(photos.buttons["Close"].firstMatch).tap()
+        try waitFor(host.buttons["Save Files"].firstMatch).tap()
+        try waitFor(host.staticTexts["Open Loonext to choose a conversation."].firstMatch)
+        try waitFor(host.buttons["Close"].firstMatch).tap()
         app.activate()
         try waitFor(label("Share to a conversation"))
         let textableThread = try waitFor(app.buttons["Ada Fixture"].firstMatch)
         XCTAssertFalse(app.buttons["Ben Fixture"].firstMatch.exists)
         textableThread.tap()
         let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
-        shot("793 Photos share stages into the chosen thread")
+        shot("793 \(source) share stages into the chosen thread")
         remove.tap()
         try await assertNoMessageSend()
     }

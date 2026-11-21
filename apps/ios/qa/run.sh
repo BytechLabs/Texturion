@@ -63,7 +63,12 @@ run_scenario() {
         | grep -Fx 'group.com.loonext.ios.qa' || return 1
     done
     /usr/libexec/PlistBuddy -c 'Print :NSExtension' "$share" > "$output/share-extension.txt" || return 1
-    xcrun simctl addmedia "$QA_SIMULATOR" Loonext/Assets.xcassets/AppIcon.appiconset/icon-1024.png || return 1
+    local photo=Loonext/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+    local documents
+    documents="$(xcrun simctl get_app_container "$QA_SIMULATOR" com.loonext.ios.qa data)/Documents" || return 1
+    mkdir -p "$documents" || return 1
+    cp "$photo" "$documents/QA Share Fixture.png" || return 1
+    xcrun simctl addmedia "$QA_SIMULATOR" "$photo" || return 1
   fi
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
   fixture=$!
@@ -131,7 +136,7 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     copy-and-media) run_scenario "$name" "$ui/testSettingsLabelsAndTaskDeleteCopy" \
       "$ui/testVoicemailPlaybackProgress" "$unit/PermissionStringsTests" "$unit/MediaPlaybackTests" || failed=1 ;;
     attachment-sources) run_scenario "$name" "$ui/testPhotoLibraryStagesAttachment" \
-      "$ui/testPhotosShareStagesAttachment" || failed=1 ;;
+      "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
   esac
 done

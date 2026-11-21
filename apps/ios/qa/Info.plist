@@ -17,6 +17,10 @@
 	<string>$(LOONEXT_QA_SUPABASE_URL)</string>
 	<key>LoonextQASupabasePublishableKey</key>
 	<string>$(LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
