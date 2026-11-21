@@ -8,13 +8,20 @@ final class DeviceChecklists: XCTestCase {
 
     private struct Write: Decodable {
         struct Field: Decodable {
+            struct Media: Decodable {
+                let content_type: String
+                let size_bytes: Int
+            }
+
             let text: String?
             let number: Int?
+            let media: [Media]?
 
             init(from decoder: Decoder) {
                 let value = try? decoder.singleValueContainer()
                 text = try? value?.decode(String.self)
                 number = try? value?.decode(Int.self)
+                media = try? value?.decode([Media].self)
             }
         }
 
@@ -349,16 +356,34 @@ final class DeviceChecklists: XCTestCase {
     }
 
     func testPhotoLibraryStagesAttachment() async throws {
-        try signIn()
-        try openThread("Ada Fixture")
-        try waitFor(app.buttons["Add to message"].firstMatch).tap()
-        try waitFor(app.buttons["Photo library"].firstMatch).tap()
-        try selectFixturePhoto(in: app, newestFirst: true)
-        try waitFor(app.buttons["Add"].firstMatch).tap()
-        let remove = try waitFor(app.buttons["Remove attachment"].firstMatch)
+        let remove = try stagePhotoFromLibrary()
         shot("793 Photo Library stages an attachment")
         remove.tap()
         try await assertNoMessageSend()
+    }
+
+    func testPhotoLibrarySendsAttachment() async throws {
+        _ = try stagePhotoFromLibrary()
+        try await assertNoMessageSend()
+        let prompt = NSPredicate(format: "label == %@ OR placeholderValue == %@", "Text message", "Text message")
+        let multiline = app.textViews.matching(prompt).firstMatch
+        let composer = try waitFor(multiline.exists ? multiline : app.textFields.matching(prompt).firstMatch)
+        composer.tap()
+        let caption = "Photo from the Simulator"
+        composer.typeText(caption)
+        try waitFor(app.buttons["Send message"].firstMatch).tap()
+        try await assertOneWrite(path: "/v1/messages/send", field: "body", value: caption, requiresKey: true)
+        let (data, _) = try await URLSession.shared.data(from: fixture.appending(path: "__qa/writes"))
+        let sent = try JSONDecoder().decode([Write].self, from: data).first { $0.path == "/v1/messages/send" }
+        XCTAssertEqual(sent?.body["conversation_id"]?.text, "20000000-0000-4000-8000-000000000010")
+        let media = try XCTUnwrap(sent?.body["media"]?.media)
+        XCTAssertEqual(media.count, 1)
+        let contentType = try XCTUnwrap(media.first?.content_type)
+        XCTAssertTrue(["image/jpeg", "image/png"].contains(contentType))
+        XCTAssertGreaterThan(media.first?.size_bytes ?? 0, 0)
+        try waitFor(label(caption))
+        try waitFor(app.buttons["Open photo"].firstMatch)
+        shot("Photo message sent to the fixture conversation")
     }
 
     func testPhotosShareStagesAttachment() async throws {
@@ -385,6 +410,16 @@ final class DeviceChecklists: XCTestCase {
         try waitFor(photo).press(forDuration: 1.2)
         try waitFor(files.buttons["Share"].firstMatch).tap()
         try await stageSharedPhoto(from: files, source: "Files")
+    }
+
+    private func stagePhotoFromLibrary() throws -> XCUIElement {
+        try signIn()
+        try openThread("Ada Fixture")
+        try waitFor(app.buttons["Add to message"].firstMatch).tap()
+        try waitFor(app.buttons["Photo library"].firstMatch).tap()
+        try selectFixturePhoto(in: app, newestFirst: true)
+        try waitFor(app.buttons["Add"].firstMatch).tap()
+        return try waitFor(app.buttons["Remove attachment"].firstMatch)
     }
 
     private func stageSharedPhoto(from host: XCUIApplication, source: String) async throws {
