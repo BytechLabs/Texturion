@@ -1880,6 +1880,7 @@ private struct ConversationRow: View {
     let onTap: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
     private var name: String {
         row.contact.name ?? formatPhone(row.contact.phone_e164)
@@ -1910,15 +1911,23 @@ private struct ConversationRow: View {
     }
 
     var body: some View {
+        let largeText = textSize.isAccessibilitySize
+        let contentLayout = largeText
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 11))
+        let detailLayout = largeText
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 6))
+        let tagsLayout = largeText ? detailLayout : AnyLayout(HStackLayout(spacing: 4))
         Button(action: onTap) {
-            HStack(alignment: .center, spacing: 11) {
+            contentLayout {
                 InitialsAvatar(name: name, size: 42)
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
+                    detailLayout {
                         Text(name)
                             .font(.golos(14, weight: row.unread ? .semibold : .medium))
                             .foregroundStyle(BrandColor.ink)
-                            .lineLimit(1)
+                            .lineLimit(largeText ? nil : 1)
                         // #293: normally this row only exists in the Snoozed
                         // view — but it also survives a mid-session return, and
                         // a row that came back with no explanation is what
@@ -1935,7 +1944,7 @@ private struct ConversationRow: View {
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 2)
                                 .background(BrandColor.inset, in: Capsule())
-                                .lineLimit(1)
+                                .lineLimit(largeText ? nil : 1)
                         }
                         // #694: muted by me. It still counts as unread; it only
                         // stops making noise.
@@ -2003,7 +2012,7 @@ private struct ConversationRow: View {
                             .foregroundStyle(outboxBlocked ? BrandColor.destructive : BrandColor.muted600)
                     }
                     if !row.tags.isEmpty || assigneeName != nil {
-                        HStack(spacing: 4) {
+                        tagsLayout {
                             ForEach(row.tags.prefix(3), id: \.id) { tag in
                                 TagChip(tag: tag)
                             }
@@ -2022,14 +2031,14 @@ private struct ConversationRow: View {
                                 Text(assigneeName)
                                     .font(.golos(10.5, weight: .semibold))
                                     .foregroundStyle(BrandColor.muted500)
-                                    .lineLimit(1)
+                                    .lineLimit(largeText ? nil : 1)
                             }
                         }
                         .padding(.top, 2)
                     }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 6) {
+                if !largeText { Spacer() }
+                VStack(alignment: largeText ? .leading : .trailing, spacing: 6) {
                     Text(relativeTime(row.last_message_at))
                         .exactTime(row.last_message_at)
                         .font(.golos(11))
@@ -2040,6 +2049,7 @@ private struct ConversationRow: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 5)
             .contentShape(Rectangle())
         }
