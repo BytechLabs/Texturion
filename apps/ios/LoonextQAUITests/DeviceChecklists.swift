@@ -213,11 +213,7 @@ final class DeviceChecklists: XCTestCase {
         try signIn()
         let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
         photos.launch()
-        let continueButton = photos.buttons["Continue"].firstMatch
-        if continueButton.waitForExistence(timeout: 4) { continueButton.tap() }
-        let decline = springboard.buttons["Don’t Allow"].firstMatch
-        if decline.waitForExistence(timeout: 5) { decline.tap() }
-        try waitFor(photos.buttons["Select"].firstMatch).tap()
+        try enterPhotosSelection(in: photos)
         try selectFixturePhoto(in: photos, newestFirst: false)
         try waitFor(photos.buttons["Share"].firstMatch).tap()
         let loonext = photos.buttons["Loonext"].firstMatch
@@ -237,6 +233,23 @@ final class DeviceChecklists: XCTestCase {
         shot("793 Photos share stages into the chosen thread")
         remove.tap()
         try await assertNoMessageSend()
+    }
+
+    private func enterPhotosSelection(in photos: XCUIApplication) throws {
+        let intro = photos.buttons["Continue"].firstMatch
+        let decline = springboard.buttons.matching(NSPredicate(
+            format: "label IN %@", ["Don’t Allow", "Don't Allow"]
+        )).firstMatch
+        let select = photos.buttons["Select"].firstMatch
+        let cancel = photos.buttons["Cancel"].firstMatch
+        for _ in 0..<4 {
+            if decline.isHittable { decline.tap() }
+            if intro.waitForExistence(timeout: 10) { intro.tap() }
+            if decline.isHittable { decline.tap() }
+            if select.isHittable { select.tap() }
+            if cancel.waitForExistence(timeout: 5) { return }
+        }
+        try waitFor(cancel)
     }
 
     private func selectFixturePhoto(in host: XCUIApplication, newestFirst: Bool) throws {
