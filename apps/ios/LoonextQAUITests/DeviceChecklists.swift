@@ -196,13 +196,38 @@ final class DeviceChecklists: XCTestCase {
         shot("805 voicemail playback advances")
     }
 
-    private func signIn(notifications: Bool = false) throws {
+    func testEnrolledMemberGetsAuthenticatorPrompt() async throws {
+        try await control("account?kind=mfa")
+        launchWithCredentials()
+        try waitFor(label("Enter your code"), timeout: 30)
+        try waitFor(app.textFields["123456"].firstMatch)
+        shot("789 enrolled member enters an authenticator code")
+    }
+
+    func testScheduledDowngradeOffersKeepPro() async throws {
+        try await control("account?kind=downgrade")
+        try signIn()
+        try waitFor(app.buttons["More"].firstMatch).tap()
+        try waitFor(app.buttons["Settings"].firstMatch).tap()
+        try reveal(label("Plan, payment, and invoices")).tap()
+        let keepPro = try reveal(app.buttons["Keep Pro"].firstMatch)
+        try waitFor(label("Starter starts"))
+        shot("808 pending Starter downgrade and Keep Pro")
+        keepPro.tap()
+        try await assertOneWrite(path: "/v1/billing/cancel-plan-change", field: "plan", value: nil)
+    }
+
+    private func launchWithCredentials() {
         app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launchEnvironment["LOONEXT_QA_TEST_EMAIL"] = "qa@example.invalid"
         app.launchEnvironment["LOONEXT_QA_TEST_PASSWORD"] = "Simulator12345"
         app.launch()
         app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_EMAIL")
         app.launchEnvironment.removeValue(forKey: "LOONEXT_QA_TEST_PASSWORD")
+    }
+
+    private func signIn(notifications: Bool = false) throws {
+        launchWithCredentials()
         try waitFor(app.buttons["Conversations"].firstMatch, timeout: 30)
         let allow = app.buttons["Turn on notifications"].firstMatch
         if allow.waitForExistence(timeout: 4) {
@@ -277,7 +302,7 @@ final class DeviceChecklists: XCTestCase {
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200, String(decoding: body, as: UTF8.self))
     }
 
-    private func assertOneWrite(path: String, field: String, value: String, requiresKey: Bool = false) async throws {
+    private func assertOneWrite(path: String, field: String, value: String?, requiresKey: Bool = false) async throws {
         let url = fixture.appending(path: "__qa/writes")
         let deadline = ContinuousClock.now + .seconds(15)
         var matching: [Write] = []

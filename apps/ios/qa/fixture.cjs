@@ -21,7 +21,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
   created_at: now(), updated_at: now(), done: false, status: "open", allowed_actions: ["complete", "trash"] };
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
-const state = { mode: "online", writes: [], messages: [[], []], company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", mfaChallenge: false, writes: [], messages: [[], []], company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
@@ -103,6 +103,15 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (path === "/__qa/account" && req.method === "POST") {
+      const kind = searchParams.get("kind");
+      state.mfaChallenge = kind === "mfa";
+      if (kind === "downgrade") Object.assign(state.company, {
+        plan: "pro", billing_currency: "usd", pending_plan: "starter",
+        pending_plan_effective_at: new Date(Date.now() + 86400_000).toISOString(),
+      });
+      return json({ ok: true });
+    }
     if (path === "/__qa/mode" && req.method === "POST") {
       state.mode = searchParams.get("value");
       if (state.mode !== "online") for (const socket of realtime.clients) socket.terminate();
@@ -146,6 +155,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(first ? 206 : 200, headers);
       return res.end(audio.subarray(start, end + 1));
     }
+    if (path === "/v1/me" && state.mfaChallenge) {
+      return json({ error: { code: "mfa_challenge_required", message: "Confirm your identity." } }, 403);
+    }
     if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: "en",
       company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
@@ -170,6 +182,13 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/billing/pause") return json({ eligible: false, reason: "plan_change_pending" });
+    if (path === "/v1/billing/cancel-plan-change" && req.method === "POST") {
+      state.company.pending_plan = null;
+      state.company.pending_plan_effective_at = null;
+      state.writes.push({ path, body: {} });
+      return json({ pending_plan: null });
+    }
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
