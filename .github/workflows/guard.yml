@@ -169,6 +169,7 @@ jobs:
           EDGE_ORIGIN: ${{ secrets.EDGE_ORIGIN }}
           ROBOT_MAILBOX: ${{ secrets.ROBOT_MAILBOX }}
           NOTIFICATION_PATH_SECRET: ${{ secrets.NOTIFICATION_PATH_SECRET }}
+          RIG_WEB_PUSH_VAPID_PUBLIC_KEY: ${{ vars.RIG_WEB_PUSH_VAPID_PUBLIC_KEY }}
         run: |
           umask 077
           file="$(mktemp --suffix=.json)"
@@ -179,6 +180,7 @@ jobs:
             --arg EDGE_ORIGIN "$EDGE_ORIGIN" \
             --arg ROBOT_MAILBOX "$ROBOT_MAILBOX" \
             --arg NOTIFICATION_PATH_SECRET "$NOTIFICATION_PATH_SECRET" \
+            --arg RIG_WEB_PUSH_VAPID_PUBLIC_KEY "$RIG_WEB_PUSH_VAPID_PUBLIC_KEY" \
             '$ARGS.named | with_entries(select(.value != ""))' > "$file"
           if [ "$(jq 'length' "$file")" -eq 0 ]; then
             echo "::notice title=No guard configuration to send::None of POSTHOG_PROJECT_KEY, EDGE_ORIGIN, ROBOT_MAILBOX or NOTIFICATION_PATH_SECRET is set in the guard environment."

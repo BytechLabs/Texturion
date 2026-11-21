@@ -13,7 +13,7 @@
  * private scalar, and a base64url 16-byte auth secret.
  */
 import type { Env } from "../env";
-import { webPushTransportRestricted } from "../environments/policy";
+import { webPushRoute } from "../environments/policy";
 import { fetchWithDeadline } from "../http/deadline";
 
 /**
@@ -370,7 +370,8 @@ export async function sendWebPush(
       errorBody: "endpoint host is not a known push service",
     };
   }
-  if (webPushTransportRestricted(env, new URL(target.endpoint).hostname)) {
+  const route = webPushRoute(env, new URL(target.endpoint));
+  if (!route) {
     return { ok: false, status: 0, gone: false, transportRestricted: true, errorBody: "" };
   }
   const [authorization, body, topic] = await Promise.all([
@@ -389,11 +390,16 @@ export async function sendWebPush(
     "Content-Encoding": "aes128gcm",
     "Content-Type": "application/octet-stream",
   };
+  if (route.bearer) {
+    headers["X-Web-Push-Authorization"] = authorization;
+    headers.Authorization = `Bearer ${route.bearer}`;
+  }
   if (topic !== null) headers.Topic = topic;
-  const response = await fetchWithDeadline(target.endpoint, {
+  const response = await fetchWithDeadline(route.url, {
     method: "POST",
     headers,
     body: body as BodyInit,
+    ...(route.bearer ? { redirect: "manual" } : {}),
   }, 10_000);
   // On success there's no body we need — drain to release the socket. On a
   // NON-OK response, keep a bounded snippet of the service's error text (#147):

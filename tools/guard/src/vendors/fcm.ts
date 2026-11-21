@@ -124,6 +124,32 @@ async function accessToken(ctx: Ctx, account: ServiceAccount): Promise<string> {
 }
 
 const SEND_PATH = /^\/v1\/projects\/[^/]+\/messages:send$/;
+const WEB_PUSH_PATH = /^\/fcm\/web-push(\/fcm\/send\/[a-zA-Z0-9_:.-]+)$/;
+const VAPID_HEADER = /^vapid t=[a-zA-Z0-9_.-]+, k=([a-zA-Z0-9_-]+)$/;
+const WEB_PUSH_HEADERS = ["content-encoding", "content-type", "topic", "ttl", "urgency"] as const;
+
+/** Chrome accepts Web Push only from the VAPID key bound to its subscription. */
+export async function handleWebPush(ctx: Ctx, request: Request, url: URL): Promise<Response> {
+  const path = WEB_PUSH_PATH.exec(url.pathname)?.[1];
+  if (request.method !== "POST" || !path || url.search) throw new Refusal("fcm.path_refused");
+  const publicKey = ctx.config.webPushPublicKey;
+  if (!publicKey) throw new Refusal("fcm.key_missing");
+  const authorization = request.headers.get("x-web-push-authorization");
+  if (authorization === null || VAPID_HEADER.exec(authorization)?.[1] !== publicKey) {
+    throw new Refusal("fcm.web_push_key_mismatch");
+  }
+  const headers = new Headers({ authorization });
+  for (const name of WEB_PUSH_HEADERS) {
+    const value = request.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  if (headers.get("content-encoding") !== "aes128gcm" ||
+      headers.get("content-type") !== "application/octet-stream") throw new Refusal("request.body_invalid");
+  const body = await request.arrayBuffer();
+  if (body.byteLength === 0 || body.byteLength > 4096) throw new Refusal("request.body_invalid");
+  const response = await ctx.fetch(FCM_ORIGIN + path, { method: "POST", headers, body, redirect: "manual" });
+  return new Response(response.body, { status: response.status });
+}
 
 export async function handleFcm(ctx: Ctx, request: Request, path: string): Promise<Response> {
   if (request.method !== "POST" || !SEND_PATH.test(path)) throw new Refusal("fcm.path_refused");

@@ -25,6 +25,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   /** FA6. `fcm-rig-sender`, Firebase messaging role only. */
   FCM_SERVICE_ACCOUNT_JSON?: string;
+  /** The public VAPID key used by the rig browser's subscriptions. */
+  RIG_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
   /**
    * D146: the production PostHog project's public capture key, for the
    * isolation and key notices. Passed by the deploy workflow, not committed.
@@ -45,6 +47,7 @@ export interface GuardConfig {
   telnyxKey: string | null;
   resendKey: string | null;
   fcmServiceAccount: string | null;
+  webPushPublicKey: string | null;
   posthogProjectKey: string | null;
   edgeOrigin: string | null;
   robotMailbox: string | null;
@@ -75,6 +78,7 @@ export function readConfig(env: Env): GuardConfig {
     telnyxKey: present(env.TELNYX_API_KEY),
     resendKey: present(env.RESEND_API_KEY),
     fcmServiceAccount: present(env.FCM_SERVICE_ACCOUNT_JSON),
+    webPushPublicKey: present(env.RIG_WEB_PUSH_VAPID_PUBLIC_KEY),
     posthogProjectKey: present(env.POSTHOG_PROJECT_KEY),
     edgeOrigin: parseEdgeOrigin(env.EDGE_ORIGIN),
     robotMailbox: present(env.ROBOT_MAILBOX)?.toLowerCase() ?? null,

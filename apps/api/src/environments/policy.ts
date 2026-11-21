@@ -164,9 +164,17 @@ export function rigResendBudgetRefused(env: Env, response: Response): boolean {
     response.status === 429 && response.headers.get("x-rig-refused-by") === "budget.resend_day";
 }
 
-/** The rig VM fences FCM in DNS. Native FCM has a separate route through the guard. */
-export function webPushTransportRestricted(env: Env, host: string): boolean {
-  return deployEnv(env) === "rig" && host === "fcm.googleapis.com";
+/** Chrome's subscription is bound to the VAPID key, so keep its Google audience at the relay. */
+export function webPushRoute(env: Env, endpoint: URL): { url: string; bearer?: string } | null {
+  if (deployEnv(env) !== "rig" || endpoint.hostname !== "fcm.googleapis.com") {
+    return { url: endpoint.href };
+  }
+  if (!env.FCM_API_BASE || endpoint.origin !== "https://fcm.googleapis.com" ||
+      endpoint.username || endpoint.password || endpoint.search || endpoint.hash) return null;
+  return {
+    url: `${env.FCM_API_BASE.replace(/\/+$/, "")}/web-push${endpoint.pathname}`,
+    bearer: env.TELNYX_API_KEY,
+  };
 }
 
 /**

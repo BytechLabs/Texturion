@@ -29,7 +29,7 @@ import { matchEndpoint } from "./telnyx/registry";
 import { handleTelnyx } from "./telnyx/route";
 import { aiNeuronsToday, handleAi } from "./vendors/ai";
 import { handleDiag } from "./vendors/diag";
-import { handleFcm, handleFcmToken } from "./vendors/fcm";
+import { handleFcm, handleFcmToken, handleWebPush } from "./vendors/fcm";
 import { handleResend } from "./vendors/resend";
 
 /**
@@ -111,6 +111,7 @@ export class Guard {
       }
       case GUARD_ROUTES.fcm: {
         await refuseIfKnownUnsafe(ctx);
+        if (rest.startsWith("/web-push/")) return handleWebPush(ctx, request, url);
         return handleFcm(ctx, request, rest);
       }
       case GUARD_ROUTES.fcmToken: {

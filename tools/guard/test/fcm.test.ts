@@ -1,5 +1,6 @@
 import { createVerify, generateKeyPairSync } from "node:crypto";
 
+import { HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { rewriteMessage } from "../src/vendors/fcm";
@@ -29,6 +30,50 @@ function send(h: Harness, message: unknown, path = "/fcm/v1/projects/rig-dummy/m
 }
 
 const fcmCalls = (h: Harness) => h.outbound.filter((item) => item.url.startsWith("https://fcm.googleapis.com/"));
+
+describe("Chrome Web Push", () => {
+  const path = "/fcm/web-push/fcm/send/chrome-token:part";
+  const vapid = "vapid t=header.claims.signature, k=rig-vapid-public";
+
+  function webPush(h: Harness, route = path, authorization = vapid, caller = "rig-api") {
+    return h.guard.handle(new Request(`https://guard.internal${route}`, {
+      method: "POST",
+      headers: {
+        [HEADER.callerClass]: caller,
+        "x-web-push-authorization": authorization,
+        "content-encoding": "aes128gcm",
+        "content-type": "application/octet-stream",
+        ttl: "60",
+        urgency: "high",
+        topic: "test-topic",
+      },
+      body: "ciphertext",
+    }));
+  }
+
+  it("forwards the ciphertext and VAPID authentication to Google's subscription endpoint", async () => {
+    const h = harness({ env: { RIG_WEB_PUSH_VAPID_PUBLIC_KEY: "rig-vapid-public" } });
+    expect((await webPush(h)).status).toBe(200);
+    const [sent] = fcmCalls(h);
+    expect(sent.url).toBe("https://fcm.googleapis.com/fcm/send/chrome-token:part");
+    expect(sent.body).toBe("ciphertext");
+    expect(sent.headers.get("authorization")).toBe(vapid);
+    expect(sent.headers.get("x-web-push-authorization")).toBeNull();
+    expect(sent.headers.get("ttl")).toBe("60");
+    expect(sent.headers.get("topic")).toBe("test-topic");
+  });
+
+  it("refuses an unconfigured key, other credentials, callers and paths", async () => {
+    const missing = harness();
+    const h = harness({ env: { RIG_WEB_PUSH_VAPID_PUBLIC_KEY: "rig-vapid-public" } });
+    await expect(ruleOf(await webPush(missing))).resolves.toBe("fcm.key_missing");
+    await expect(ruleOf(await webPush(h, path, "vapid t=a.b.c, k=other-pub"))).resolves.toBe("fcm.web_push_key_mismatch");
+    await expect(ruleOf(await webPush(h, path, vapid, "robot"))).resolves.toBe("class.not_allowed");
+    await expect(ruleOf(await webPush(h, `${path}?destination=other`))).resolves.toBe("fcm.path_refused");
+    expect(fcmCalls(h)).toEqual([]);
+    expect(fcmCalls(missing)).toEqual([]);
+  });
+});
 
 describe("FCM rewrite", () => {
   it("moves the notification into the Android block and drops iOS and web", () => {

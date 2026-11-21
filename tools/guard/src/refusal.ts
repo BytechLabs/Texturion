@@ -84,6 +84,7 @@ export const RULES = [
   "fcm.key_missing",
   "fcm.path_refused",
   "fcm.target_not_token",
+  "fcm.web_push_key_mismatch",
 
   "ai.binding_missing",
   "ai.model_refused",
