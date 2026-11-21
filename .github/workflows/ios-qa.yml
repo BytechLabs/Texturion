@@ -44,7 +44,7 @@ concurrency:
 jobs:
   simulator:
     runs-on: macos-latest
-    timeout-minutes: 65
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: apps/ios
@@ -132,7 +132,7 @@ jobs:
           xcrun simctl install "$QA_SIMULATOR" "$app"
 
       - name: Run scenario and capture evidence
-        timeout-minutes: 48
+        timeout-minutes: 70
         run: bash qa/run.sh "$QA_SCENARIO"
 
       - name: Upload Simulator evidence

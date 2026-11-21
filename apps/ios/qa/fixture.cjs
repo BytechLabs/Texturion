@@ -23,7 +23,7 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 let quote;
-const state = { mode: "online", role: "owner", locale: "en", stage: "active", writes: [], scheduled: [],
+const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, writes: [], scheduled: [],
   invites: [], messages: [[], []], includeVoicemail: false, company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
@@ -56,7 +56,8 @@ function thread(index) {
   return { id: threadIDs[index], contact_id: contact.id, company_id: companyID, phone_number_id: lineID,
     status: "open", is_spam: false, created_at: latest.created_at, updated_at: latest.created_at,
     last_message_at: latest.created_at, contact, last_message: { ...latest, has_attachments: false },
-    contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text" };
+    contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text",
+    destination_clock: { timezone: "America/Toronto", source: "area_code", quiet: false } };
 }
 
 function broadcast(event, payload, numberID) {
@@ -124,7 +125,9 @@ const server = createServer(async (req, res) => {
       state.role = searchParams.get("role") ?? state.role;
       state.locale = searchParams.get("locale") ?? state.locale;
       state.stage = searchParams.get("stage") ?? state.stage;
+      state.fieldwork = searchParams.has("fieldwork");
       state.company.plan = "pro";
+      if (state.fieldwork) state.contacts[0].notes = "Test notes";
       if (state.stage === "new") {
         state.company.numbers = [line];
         state.invites = [];
@@ -201,6 +204,7 @@ const server = createServer(async (req, res) => {
         for await (const chunk of req) input += chunk;
         const { email, data } = JSON.parse(input);
         state.writes.push({ path, body: { email, locale: data?.locale } });
+        return json({ id: userID, email });
       }
       req.resume();
       return json({ access_token: "simulator-session", refresh_token: "simulator-refresh",
@@ -292,7 +296,17 @@ const server = createServer(async (req, res) => {
       return json(page());
     }
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
-    if (path === "/v1/tasks") return json(page([task]));
+    if (path === "/v1/tasks") {
+      if (!state.fieldwork) return json(page([task]));
+      const due = new Intl.DateTimeFormat("en-CA", { timeZone: state.company.timezone,
+        year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return json(page([{ ...task, due_on: due, lat: 43.6426, lng: -79.3871 }]));
+    }
+    if (path === "/v1/dispatch" && state.fieldwork) {
+      return json({ plan: { revision: 0, timezone: state.company.timezone,
+        members: [{ id: userID, name: "Test Crew" }], days: [], blocks: [],
+        tasks: [{ ...task, scheduled_count: 0, windows: [] }] }, workload: [] });
+    }
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });

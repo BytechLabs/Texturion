@@ -45,6 +45,11 @@ final class CustomerJourneys: XCTestCase {
     func testBookkeeperFrenchLight() async throws { try await bookkeeper(.french, "light") }
     func testBookkeeperFrenchDark() async throws { try await bookkeeper(.french, "dark") }
 
+    func testFieldworkEnglishLight() async throws { try await fieldwork(.english, "light") }
+    func testFieldworkEnglishDark() async throws { try await fieldwork(.english, "dark") }
+    func testFieldworkFrenchLight() async throws { try await fieldwork(.french, "light") }
+    func testFieldworkFrenchDark() async throws { try await fieldwork(.french, "dark") }
+
     private func owner(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -58,12 +63,20 @@ final class CustomerJourneys: XCTestCase {
         let email = "owner-\(suffix.lowercased())@example.invalid"
         try enter("Test Owner", in: app.textFields.firstMatch)
         try enter(email, in: app.textFields.element(boundBy: 1))
-        try enter("Simulator12345", in: app.secureTextFields.firstMatch)
-        try reveal(button(text("Create account", "Créer le compte"))).tap()
-        try waitFor(button(text("Open app.loonext.com", "Ouvrir app.loonext.com")))
-        shot("Owner workspace setup \(suffix)")
+        try fillSignupPassword()
+        let create = try reveal(button(text("Create account", "Créer le compte")))
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: create)
+        let ready = await XCTWaiter.fulfillment(of: [enabled], timeout: 10)
+        XCTAssertEqual(ready, .completed)
+        create.tap()
+        try waitFor(label(text("Check your email", "Vérifiez vos courriels")))
+        shot("Owner email confirmation requested \(suffix)")
         let signup = try await write("/auth/v1/signup", field: "email", value: email)
         XCTAssertEqual(signup.body["locale"]?.text, language.rawValue)
+
+        launch(language, theme, signIn: true)
+        try waitFor(button(text("Open app.loonext.com", "Ouvrir app.loonext.com")), timeout: 30)
+        shot("Owner workspace setup \(suffix)")
 
         try await profile(language, role: "owner", stage: "incomplete")
         try waitFor(button(text("I've done this — refresh", "C'est fait — actualiser"))).tap()
@@ -140,7 +153,13 @@ final class CustomerJourneys: XCTestCase {
         try waitFor(nextMorning).tap()
         let queued = try await write("/v1/scheduled-messages", field: "body", value: scheduled)
         XCTAssertEqual(queued.body["conversation_id"]?.text, conversation)
-        XCTAssertFalse(queued.body["send_at"]?.text?.isEmpty ?? true)
+        XCTAssertFalse(queued.idempotencyKey?.isEmpty ?? true)
+        let sendAt = try XCTUnwrap(queued.body["send_at"]?.text)
+        let sendDate = try XCTUnwrap(ISO8601DateFormatter().date(from: sendAt))
+        var recipientCalendar = Calendar(identifier: .gregorian)
+        recipientCalendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Toronto"))
+        XCTAssertEqual(recipientCalendar.component(.hour, from: sendDate), 8)
+        XCTAssertEqual(recipientCalendar.component(.minute, from: sendDate), 0)
         let writes = try await allWrites()
         XCTAssertFalse(writes.contains { record in
             record.path == "/v1/messages/send" && [note, scheduled].contains(record.body["body"]?.text ?? "")
@@ -158,6 +177,44 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertFalse(button(text("Tasks", "Tâches")).exists)
         XCTAssertFalse(label("Ada Fixture").exists)
         shot("Bookkeeper billing \(language.rawValue)-\(theme)")
+    }
+
+    private func fieldwork(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        earlierWrites = try await allWrites().count
+        try await profile(language, role: "member", stage: "active", fieldwork: true)
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button(text("More", "Plus"))).tap()
+        try waitFor(button("Contacts")).tap()
+        try waitFor(label("Ada Fixture")).tap()
+        let notes = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "value == %@", "Test notes")).firstMatch
+        try enter("!", in: notes)
+        try waitFor(app.navigationBars.buttons.firstMatch).tap()
+        let contact = "/v1/contacts/20000000-0000-4000-8000-000000000020"
+        _ = try await write(contact, field: "notes", value: "!Test notes")
+        try waitFor(label("Ada Fixture")).tap()
+        let savedNotes = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "value == %@", "!Test notes")).firstMatch
+        try reveal(savedNotes)
+        shot("Contact notes persisted \(suffix)")
+
+        app.launch()
+        try waitFor(button(text("Tasks", "Tâches")), timeout: 30).tap()
+        try waitFor(label("Test boiler"))
+        try waitFor(button(text("Calendar view", "Vue calendrier"))).tap()
+        try waitFor(label(text(", 1 task", ", 1 tâche")))
+        shot("Dated task in calendar \(suffix)")
+        try waitFor(button(text("Map view", "Vue carte"))).tap()
+        try waitFor(label(text("1 on the map", "1 sur la carte")))
+        shot("Located task on map \(suffix)")
+        try waitFor(button(text("Planner", "Planificateur"))).tap()
+        try waitFor(label(text("Unscheduled work", "Travail à planifier")))
+        try waitFor(label("Test boiler"))
+        shot("Task in dispatch planner \(suffix)")
     }
 
     private func launch(_ language: Language, _ theme: String, signIn: Bool = false) {
@@ -178,13 +235,14 @@ final class CustomerJourneys: XCTestCase {
         }
     }
 
-    private func profile(_ language: Language, role: String, stage: String) async throws {
+    private func profile(_ language: Language, role: String, stage: String, fieldwork: Bool = false) async throws {
         var url = URLComponents(url: fixture.appending(path: "__qa/profile"), resolvingAgainstBaseURL: false)!
         url.queryItems = [
             URLQueryItem(name: "locale", value: language.rawValue),
             URLQueryItem(name: "role", value: role),
             URLQueryItem(name: "stage", value: stage),
         ]
+        if fieldwork { url.queryItems?.append(URLQueryItem(name: "fieldwork", value: "1")) }
         var request = URLRequest(url: try XCTUnwrap(url.url))
         request.httpMethod = "POST"
         let (_, response) = try await URLSession.shared.data(for: request)
@@ -212,6 +270,16 @@ final class CustomerJourneys: XCTestCase {
     private func enter(_ text: String, in field: XCUIElement) throws {
         try reveal(field).tap()
         field.typeText(text)
+    }
+
+    private func fillSignupPassword() throws {
+        let password = try reveal(app.secureTextFields.firstMatch)
+        password.tap()
+        let suggested = button("GenerateStrongPasswordButton")
+        if !suggested.waitForExistence(timeout: 2) {
+            password.typeText("Simulator12345")
+        }
+        if suggested.waitForExistence(timeout: 2) { suggested.tap() }
     }
 
     private func composer(_ placeholder: String) -> XCUIElement {
