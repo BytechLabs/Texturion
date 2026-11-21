@@ -205,6 +205,7 @@ struct SettingsHome: View {
     let onSignOut: @MainActor () -> Void
     /// Open straight at this section instead of the index.
     var initialSection: SettingsSection? = nil
+    var onSwitchWorkspace: (@MainActor (String) -> Void)? = nil
 
     @State private var path = NavigationPath()
     /// #719: what the search box holds, and the setting a result sent us to.
@@ -241,6 +242,27 @@ struct SettingsHome: View {
             role: role,
             showMessage: { showToast($0) }
         )
+    }
+
+    @ViewBuilder
+    private var workspacePicker: some View {
+        if let onSwitchWorkspace, me.memberships.count > 1 {
+            Menu {
+                Picker(t("shell.workspaces"), selection: Binding(
+                    get: { companyId },
+                    set: { onSwitchWorkspace($0) }
+                )) {
+                    ForEach(me.memberships, id: \.company_id) { membership in
+                        Text(membership.name).tag(membership.company_id)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(t("shell.workspaces"), systemImage: "building.2")
+            }
+            .accessibilityLabel(t("shell.workspaces"))
+            .accessibilityValue(me.memberships.first { $0.company_id == companyId }?.name ?? "")
+        }
     }
 
     var body: some View {
@@ -321,6 +343,7 @@ struct SettingsHome: View {
                 // belongs to "you are signed in as this person" — which is the
                 // thought somebody is having when they hand the phone on.
                 handOverRow
+                workspacePicker
                 // #515: a handover addressed to the reader, above the section
                 // list they may not be able to use. The index is the one
                 // surface every role reaches — it is the whole app for a
@@ -596,6 +619,11 @@ struct SettingsHome: View {
         .background(BrandColor.canvas)
         .navigationTitle(t(section.titleKey))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                workspacePicker.labelStyle(.iconOnly)
+            }
+        }
         .onDisappear {
             if path.isEmpty { settingAnchor = nil }
         }

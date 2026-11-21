@@ -123,7 +123,11 @@ case "$scenario" in
   all|customer-journeys|workspace-switch|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys workspace-switch; do
+if [[ "$scenario" == workspace-switch ]]; then
+  run_scenario workspace-switch LoonextQAUITests/CustomerJourneys/testWorkspace{English,French}{Light,Dark}
+  exit $?
+fi
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -150,7 +154,6 @@ for name in foreground-alerts notification-actions notification-reply-transport 
     attachment-send) run_scenario "$name" "$ui/testPhotoLibrarySendsAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
     customer-journeys) run_scenario "$name" "LoonextQAUITests/CustomerJourneys" || failed=1 ;;
-    workspace-switch) run_scenario "$name" "LoonextQAUITests/CustomerJourneys/testWorkspaceFrenchDark" || failed=1 ;;
   esac
 done
 exit "$failed"

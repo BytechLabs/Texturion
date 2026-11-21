@@ -50,28 +50,37 @@ final class CustomerJourneys: XCTestCase {
     func testFieldworkFrenchLight() async throws { try await fieldwork(.french, "light") }
     func testFieldworkFrenchDark() async throws { try await fieldwork(.french, "dark") }
 
-    func testWorkspaceFrenchDark() async throws {
-        try await profile(.french, role: "member", stage: "active")
-        launch(.french, "dark", signIn: true)
+    func testWorkspaceEnglishLight() async throws { try await workspace(.english, "light") }
+    func testWorkspaceEnglishDark() async throws { try await workspace(.english, "dark") }
+    func testWorkspaceFrenchLight() async throws { try await workspace(.french, "light") }
+    func testWorkspaceFrenchDark() async throws { try await workspace(.french, "dark") }
+
+    private func workspace(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "member", stage: "active")
+        launch(language, theme, signIn: true)
         try waitFor(button("Conversations"), timeout: 30)
-        try await profile(.french, role: "member", stage: "active", multiWorkspace: true)
-        launch(.french, "dark", signIn: true)
+        try await profile(language, role: "member", stage: "active", multiWorkspace: true)
+        launch(language, theme, signIn: true)
         try waitFor(button("Conversations"), timeout: 30)
-        dismissNotificationPrimer(.french)
+        dismissNotificationPrimer(language)
         try waitFor(button("Conversations")).tap()
         try waitFor(label("Ada Fixture"))
-        try waitFor(button("Plus")).tap()
-        shot("Technician workspace with both memberships")
+        try waitFor(button(text("More", "Plus"))).tap()
+        shot("Technician workspace with both memberships \(suffix)")
         try reveal(label("Fixture Books")).tap()
-        try waitFor(label("Paiement et factures"), timeout: 30)
+        try waitFor(label(text("Payment & invoices", "Paiement et factures")), timeout: 30)
         XCTAssertFalse(label("Ada Fixture").exists)
         XCTAssertFalse(button("Conversations").exists)
-        shot("Bookkeeper workspace after switching from the technician inbox")
-        try waitFor(button("Espaces de travail")).tap()
+        shot("Bookkeeper workspace \(suffix)")
+        try waitFor(button(text("Workspaces", "Espaces de travail"))).tap()
         try reveal(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Simulator Fixtures")).firstMatch).tap()
-        try waitFor(button("Conversations"), timeout: 30).tap()
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button("Conversations")).tap()
         try waitFor(label("Ada Fixture"))
-        shot("Technician workspace after switching back")
+        shot("Technician workspace after switching back \(suffix)")
     }
 
     private func owner(_ language: Language, _ theme: String) async throws {

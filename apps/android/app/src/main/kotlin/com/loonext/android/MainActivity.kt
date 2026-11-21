@@ -126,6 +126,7 @@ import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.readShellData
 import com.loonext.android.features.shell.selectedPhoneLine
 import com.loonext.android.features.shell.ShellTab
+import com.loonext.android.features.shell.WorkspaceMenu
 import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
@@ -1271,6 +1272,11 @@ private fun ReadyShell(
                                     settingAnchor = null
                                 } else {
                                     pop()
+                                }
+                            },
+                            actions = {
+                                if (!hasInbox) {
+                                    WorkspaceMenu(hydratedMe.memberships, companyId, root::switchWorkspace)
                                 }
                             },
                         ) { contentModifier ->
