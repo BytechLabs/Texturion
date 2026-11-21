@@ -1,7 +1,7 @@
-import { HEADER } from "@loonext/rig-protocol";
+import { EDGE_PATHS, HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import { lease, N, ready, registerViaEdge, ruleOf } from "./support";
+import { EDGE, lease, N, ready, registerViaEdge, ruleOf } from "./support";
 
 type Listing = { data: Record<string, unknown>[] };
 
@@ -59,6 +59,51 @@ describe("read class", () => {
     await expect(ruleOf(await h.call("/telnyx/v2/recordings"))).resolves.toBe("read.filter_required");
     const response = await h.call("/telnyx/v2/recordings?filter[call_session_id]=s1");
     expect((await response.json<Listing>()).data.map((item) => item.id)).toEqual(["rec-rig"]);
+  });
+
+  it("returns only this run's rig voice delivery evidence even if Telnyx ignores the filters", async () => {
+    const h = await ready();
+    const since = new Date(h.clock.now).toISOString();
+    const listing = "/telnyx/v2/webhook_deliveries";
+    const path = `${listing}?filter[started_at][gte]=${encodeURIComponent(since)}`;
+    await expect(ruleOf(await h.call(path, { caller: "robot" }))).resolves.toBe("read.filter_not_nonprod");
+    await lease(h, "S17");
+    await expect(ruleOf(await h.call(path))).resolves.toBe("read.filter_not_nonprod");
+    await expect(ruleOf(await h.call(listing, { caller: "robot" }))).resolves.toBe("read.filter_required");
+
+    const attempt = (url: string, status: number) => ({
+      started_at: since,
+      http: { request: { url, headers: [["secret", "do not return"]] }, response: { status, body: "do not return" } },
+    });
+    const delivery = {
+      id: "delivery-rig",
+      status: "delivered",
+      started_at: since,
+      webhook: { id: "event-1", event_type: "call.initiated", payload: { connection_id: "conn-voice" } },
+      attempts: [
+        attempt(EDGE + EDGE_PATHS.telnyxVoice, 503),
+        attempt(EDGE + EDGE_PATHS.telnyxVoiceFailover, 200),
+        attempt("https://production.example/calls", 200),
+      ],
+    };
+    h.telnyx.ignoreFilters = true;
+    h.telnyx.lists.webhook_deliveries.push(delivery, {
+      ...delivery,
+      id: "delivery-prod",
+      webhook: { ...delivery.webhook, payload: { connection_id: "conn-prod-voice" } },
+    }, { ...delivery, id: "delivery-old", started_at: new Date(h.clock.now - 1000).toISOString() });
+
+    const response = await h.call(path, { caller: "robot" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ data: [{
+      id: "delivery-rig",
+      status: "delivered",
+      webhook: { id: "event-1", event_type: "call.initiated" },
+      attempts: [
+        { started_at: since, http: { request: { url: EDGE + EDGE_PATHS.telnyxVoice }, response: { status: 503 } } },
+        { started_at: since, http: { request: { url: EDGE + EDGE_PATHS.telnyxVoiceFailover }, response: { status: 200 } } },
+      ],
+    }] });
   });
 
   it("refuses an unfiltered or foreign opt-out list, and keeps only nonprod rows", async () => {

@@ -114,6 +114,7 @@ export const TELNYX_ENDPOINTS = [
   { method: "POST", path: "/v2/porting_orders/:id/actions/confirm", policy: "refused" },
 
   { method: "GET", path: "/v2/recordings", policy: "read" },
+  { method: "GET", path: "/v2/webhook_deliveries", policy: "read" },
   // Addressed by recording id, not call id: the guard reads the recording's
   // leg and allows the delete only when that leg is one it registered.
   { method: "DELETE", path: "/v2/recordings/:id", policy: "leg-command" },

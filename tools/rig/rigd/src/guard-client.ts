@@ -156,6 +156,6 @@ export function toDelivery(item: Record<string, unknown>): WebhookDelivery {
         http_status: typeof http.response?.status === "number" ? http.response.status : null,
         at: typeof attempt.started_at === "string" ? attempt.started_at : null,
       };
-    }),
+    }).toSorted((first, second) => first.at && second.at ? first.at.localeCompare(second.at) : 0),
   };
 }

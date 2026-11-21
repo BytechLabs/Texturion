@@ -1,4 +1,7 @@
+import { EDGE_PATHS } from "@loonext/rig-protocol";
+
 import { Refusal } from "../refusal";
+import { liveLease } from "../state/lease";
 import { liveLeg } from "../state/legs";
 import { forward, relay } from './forward';
 import type { Handler, TelnyxRequest } from './forward';
@@ -17,6 +20,29 @@ interface ReadRule {
   /** Forces filters or refuses before anything is asked of Telnyx. */
   prepare?(request: TelnyxRequest): Promise<void>;
   keep(item: Item, request: TelnyxRequest): Promise<boolean> | boolean;
+  /** Removes fields that are unnecessary for judging a scoped read. */
+  project?(item: Item, request: TelnyxRequest): unknown;
+}
+
+type DeliveryAttempt = {
+  started_at?: unknown;
+  http?: { request?: { url?: unknown }; response?: { status?: unknown } };
+};
+
+type DeliveryWebhook = {
+  id?: unknown;
+  event_type?: unknown;
+  payload?: { connection_id?: unknown };
+};
+
+function voiceAttempts(item: Item, edgeOrigin: string | null) {
+  if (!edgeOrigin || !Array.isArray(item.attempts)) return [];
+  const primary = edgeOrigin + EDGE_PATHS.telnyxVoice;
+  const failover = edgeOrigin + EDGE_PATHS.telnyxVoiceFailover;
+  return (item.attempts as DeliveryAttempt[]).filter((attempt) => {
+    const url = attempt?.http?.request?.url;
+    return url === primary || url === failover;
+  });
 }
 
 function requireOneFilter(request: TelnyxRequest, names: readonly string[]): void {
@@ -59,6 +85,45 @@ export const READ_RULES: Readonly<Record<string, ReadRule>> = {
       return typeof item.call_control_id === "string" && (await liveLeg(request.ctx, item.call_control_id)) !== null;
     },
   },
+  "GET /v2/webhook_deliveries": {
+    async prepare(request) {
+      const lease = await liveLease(request.ctx);
+      const edge = request.ctx.config.edgeOrigin;
+      if (request.caller !== "robot" || lease?.scenario !== "S17" || !edge) {
+        throw new Refusal("read.filter_not_nonprod");
+      }
+      const since = Date.parse(request.query.get("filter[started_at][gte]") ?? "");
+      if (!Number.isFinite(since)) throw new Refusal("read.filter_required");
+      request.query = new URLSearchParams({
+        "filter[started_at][gte]": new Date(Math.max(since, lease.acquired_at)).toISOString(),
+        "filter[attempts][contains]": edge + EDGE_PATHS.telnyxVoice,
+      });
+    },
+    keep(item, request) {
+      const webhook = item.webhook as DeliveryWebhook | undefined;
+      const connectionId = webhook?.payload?.connection_id;
+      const since = Date.parse(request.query.get("filter[started_at][gte]") ?? "");
+      return typeof item.started_at === "string" && Date.parse(item.started_at) >= since &&
+        typeof webhook?.event_type === "string" && webhook.event_type.startsWith("call.") &&
+        typeof connectionId === "string" && request.view.connections.has(connectionId) &&
+        voiceAttempts(item, request.ctx.config.edgeOrigin).length > 0;
+    },
+    project(item, request) {
+      const webhook = item.webhook as DeliveryWebhook;
+      return {
+        id: item.id,
+        status: item.status,
+        webhook: { id: webhook.id, event_type: webhook.event_type },
+        attempts: voiceAttempts(item, request.ctx.config.edgeOrigin).map((attempt) => ({
+          started_at: attempt.started_at,
+          http: {
+            request: { url: attempt.http?.request?.url },
+            response: { status: attempt.http?.response?.status },
+          },
+        })),
+      };
+    },
+  },
   "GET /v2/messaging_optouts": {
     async prepare(request) {
       const profile = request.query.get("filter[messaging_profile_id]");
@@ -83,11 +148,13 @@ export const handleRead: Handler = async (request) => {
   if (Array.isArray(body.data)) {
     const kept: unknown[] = [];
     for (const item of body.data) {
-      if (item && typeof item === "object" && (await rule.keep(item as Item, request))) kept.push(item);
+      if (item && typeof item === "object" && (await rule.keep(item as Item, request))) {
+        kept.push(rule.project ? rule.project(item as Item, request) : item);
+      }
     }
-    return relay(reply, { ...body, data: kept });
+    return relay(reply, rule.project ? { data: kept } : { ...body, data: kept });
   }
-  if (body.data && typeof body.data === "object" && (await rule.keep(body.data as Item, request))) {
+  if (!rule.project && body.data && typeof body.data === "object" && (await rule.keep(body.data as Item, request))) {
     return relay(reply, body);
   }
   throw new Refusal("read.not_in_partition");
