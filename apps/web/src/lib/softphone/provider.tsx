@@ -41,6 +41,7 @@ import {
 } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 import { useActiveCompany } from "@/lib/company/provider";
+import { useRealtimeCallEnded } from "@/lib/realtime/provider";
 
 import { emitRingBeacon } from "./beacons";
 import { setLiveBrowserCall } from "./live-call";
@@ -120,6 +121,7 @@ const REGISTRATION_FAILED_KEY = "shell.registrationFailed" as const;
  *  M2): by the time this elapses the server-dialed op/oc legs have themselves
  *  timed out, so no INVITE is in flight. The normal INVITE arrives in ~1–3s. */
 const PLACEMENT_TIMEOUT_MS = 48_000;
+const RECENT_SESSION_LIMIT = 64;
 
 /** The app's own requests must be quiet this long before the phone registers. */
 const REGISTER_QUIET_MS = 400;
@@ -339,8 +341,8 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // keyed by S (the call_session_id from POST /calls/browser). The op INVITE
   // arrives as an *inbound* SDK call carrying X-Loonext-Session=S; we correlate
   // it here, AUTO-answer it, and reconcile the "Calling…" chip — NEVER showing it
-  // as an incoming ring. Cleared on connect, on a per-placement timeout, or on
-  // cancel. `placementSdkIds` marks the resulting SDK call ids so the active
+  // as an incoming ring. Cleared on connect, timeout, cancellation, or server
+  // end. `placementSdkIds` marks the resulting SDK call ids so the active
   // handler treats them as outbound (session S already known — no resolveByLeg).
   const pendingPlacementsRef = useRef<
     Map<string, { placementId: string; timer: ReturnType<typeof setTimeout> }>
@@ -353,11 +355,31 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // NEVER show it as a spurious inbound ring. Identity-based, so correctness never
   // rests on the 48s>45s timing margin (review M2).
   const registeredPlacementsRef = useRef<Set<string>>(new Set());
+  // The terminal update can beat the authorization response for a new call.
+  const recentlyEndedSessionsRef = useRef(new Set<string>());
   const placementSdkIdsRef = useRef<Set<string>>(new Set());
   const consultationRef = useRef<Consultation | null>(null);
   const finishingConsultRef = useRef(false);
   const consultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [consultation, setConsultation] = useState<Consultation | null>(null);
+
+  const onCallSessionEnded = useCallback((eventCompanyId: string, sessionId: string) => {
+    if (eventCompanyId !== companyRef.current) return;
+    const recent = recentlyEndedSessionsRef.current;
+    recent.add(sessionId);
+    if (recent.size > RECENT_SESSION_LIMIT) {
+      const oldest = recent.values().next().value;
+      if (oldest !== undefined) recent.delete(oldest);
+    }
+    const pending = pendingPlacementsRef.current.get(sessionId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingPlacementsRef.current.delete(sessionId);
+    const message = t("activity.stepEnded");
+    dispatch({ type: "placement_failed", placementId: pending.placementId, message });
+    toast.error(message);
+  }, [t]);
+  useRealtimeCallEnded(onCallSessionEnded);
 
   const updateConsultation = useCallback((next: Consultation | null) => {
     consultationRef.current = next;
@@ -567,6 +589,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               }).catch(() => endLocalConsult(true));
               return;
             }
+            if (opSession && recentlyEndedSessionsRef.current.has(opSession)) return;
             const pending = opSession
               ? pendingPlacementsRef.current.get(opSession)
               : undefined;
@@ -1010,6 +1033,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             t("shell.callStartFailedPleaseRetry"),
             409,
           );
+        }
+        if (recentlyEndedSessionsRef.current.has(sessionId)) {
+          const message = t("activity.stepEnded");
+          dispatch({ type: "error", message });
+          toast.error(message);
+          return;
         }
         const placementId = `placement:${sessionId}`;
         const peer = { name: contactName, number: auth.to };

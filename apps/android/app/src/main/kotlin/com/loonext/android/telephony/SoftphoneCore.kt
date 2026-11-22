@@ -107,6 +107,7 @@ class SoftphoneCore(
 
         /** Honest failure key when the op INVITE never arrives (mirror web). */
         private const val PLACEMENT_UNREACHABLE_KEY = "telephony.placementUnreachable"
+        private const val RECENT_SESSION_LIMIT = 64
         private const val CONSULT_INVITE_TIMEOUT_MS = 28_000L
 
         /** A server that returned no session S can't be correlated to an op
@@ -168,6 +169,9 @@ class SoftphoneCore(
      *  INVITE arrived) — when the op INVITE for one of these lands it is DECLINED
      *  so the DO tears the server-dialed customer leg down. */
     private val cancelledPlacements = mutableSetOf<String>()
+
+    /** A terminal update can arrive before the authorization response gives us the session ID. */
+    private val recentlyEndedSessions = linkedSetOf<String>()
 
     /**
      * §10.1.4 held INVITEs — legs this device received but does NOT present
@@ -483,6 +487,8 @@ class SoftphoneCore(
         // AUTO-answer it and reconcile the "Calling…" chip, NEVER the inbound-ring
         // path (its by-leg resolver is for inbound rings; S is already known here).
         if (headerSession != null) {
+            // The server already ended this session and will tear down its leg.
+            if (headerSession in recentlyEndedSessions) return
             pendingPlacements[headerSession]?.let { pending ->
                 acceptPlacementOpLeg(event.call, headerSession, pending)
                 return
@@ -828,13 +834,24 @@ class SoftphoneCore(
     }
 
     /**
-     * Realtime `call.updated` (calls-v3 §9.1): the payload now carries
-     * `state` (+ `answered_by_user_id`) — any ringing-exit state dismisses
-     * this device's presentation for the session. Silence only; the server
-     * cancels the leg.
+     * Terminal updates finish pending outgoing placements. Ringing-exit updates
+     * silence the inbound presentation while the server cancels the leg.
      */
     fun onCallSessionUpdate(sessionId: String, state: String?) {
         if (sessionId.isBlank()) return
+        if (state?.startsWith("ended_") == true) {
+            recentlyEndedSessions.add(sessionId)
+            if (recentlyEndedSessions.size > RECENT_SESSION_LIMIT) {
+                recentlyEndedSessions.remove(recentlyEndedSessions.first())
+            }
+            pendingPlacements.remove(sessionId)?.let { pending ->
+                pending.timer?.cancel()
+                CallFlowLog.log("place", "placement ended S=${CallFlowLog.tail(sessionId)} state=$state")
+                _state.update {
+                    CallStateMachine.placementFailed(it, pending.placementId, uiText("contactsTasks.phaseEnded"))
+                }
+            }
+        }
         if (!CallWakePolicy.isRingingExit(state)) return
         if (keepTransferRing(sessionId, state)) return
         applyRingingExit(sessionId)
@@ -1162,6 +1179,11 @@ class SoftphoneCore(
                 httpStatus = 409,
                 messageKey = PLACEMENT_NO_SESSION_KEY,
             )
+        }
+        if (session in recentlyEndedSessions) {
+            CallFlowLog.log("place", "placement ended before authorization returned S=${CallFlowLog.tail(session)}")
+            reportUiError(uiText("contactsTasks.phaseEnded"))
+            return
         }
         val placementId = placementId(session)
         val peerName = displayName.ifBlank { auth.to }

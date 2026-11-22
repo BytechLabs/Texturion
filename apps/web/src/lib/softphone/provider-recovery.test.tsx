@@ -91,6 +91,10 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 
 vi.mock("./beacons", () => ({ emitRingBeacon: () => Promise.resolve() }));
+const realtime = vi.hoisted(() => ({ onEnded: (_companyId: string, _sessionId: string) => {} }));
+vi.mock("@/lib/realtime/provider", () => ({
+  useRealtimeCallEnded: (listener: typeof realtime.onEnded) => { realtime.onEnded = listener; },
+}));
 
 const translate = vi.hoisted(() => (key: string) => key);
 // A language change hands the provider a new `t`.
@@ -468,6 +472,42 @@ describe("softphone workspace switch", () => {
 });
 
 describe("placing a call", () => {
+  it("clears only the ended placement, cancels its timeout, and suppresses late invites", async () => {
+    render(tree());
+    const client = await registered(1);
+    emit(client, "telnyx.ready");
+    await act(() => phone!.placeCall({ to: "+16135550199", contactName: "Ari" }));
+    const chip = phone!.activeId;
+    expect(chip).toBe("placement:v3:placed-1");
+
+    act(() => realtime.onEnded("company-2", "v3:placed-1"));
+    act(() => realtime.onEnded("company-1", "v3:unrelated"));
+    expect(phone!.activeId).toBe(chip);
+
+    act(() => realtime.onEnded("company-1", "v3:placed-1"));
+    expect(phone!.calls).toEqual([]);
+    expect(phone!.error).toBe("activity.stepEnded");
+    expect(ring(client, "late-op", "v3:placed-1").state).toBe("ringing");
+    expect(ring(client, "late-op-fork", "v3:placed-1").state).toBe("ringing");
+    expect(phone!.calls).toEqual([]);
+    await act(() => vi.advanceTimersByTimeAsync(48_000));
+    expect(phone!.error).toBe("activity.stepEnded");
+  });
+
+  it("skips creating a placement if the call already ended before authorization returned", async () => {
+    render(tree());
+    const client = await registered(1);
+    emit(client, "telnyx.ready");
+    act(() => realtime.onEnded("company-1", "v3:placed-1"));
+
+    await act(() => phone!.placeCall({ to: "+16135550199", contactName: "Ari" }));
+
+    expect(phone!.calls).toEqual([]);
+    expect(phone!.error).toBe("activity.stepEnded");
+    expect(ring(client, "late-op", "v3:placed-1").state).toBe("ringing");
+    expect(phone!.calls).toEqual([]);
+  });
+
   it("waits for the phone to be registered before asking the server to dial", async () => {
     render(tree());
     const client = await registered(1);

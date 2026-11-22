@@ -479,6 +479,51 @@ class SoftphoneCoreTest {
     }
 
     @Test
+    fun `the server ending a pending placement clears Calling and suppresses late invites`() = runTest {
+        authCallSessionId = "S-op"
+        val h = harness(placementTimeoutMs = 20_000)
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+
+        h.core.onCallSessionUpdate("S-other", "ended_missed")
+        h.core.onCallSessionUpdate("S-op", "answered")
+        assertEquals(CallPhase.CONNECTING, h.core.state.value.calls.single().phase)
+
+        h.core.onCallSessionUpdate("S-op", "ended_missed")
+        assertTrue(h.core.state.value.calls.isEmpty())
+        assertEquals("Call ended", h.core.state.value.error)
+
+        for (id in listOf("op-late", "op-late-fork")) {
+            val op = FakeHandle(id)
+            h.sdk.ring(op, headerSession = "S-op")
+            runCurrent()
+            assertFalse(op.ended)
+            assertNull(op.accepted)
+        }
+        advanceTimeBy(20_001)
+        runCurrent()
+        assertTrue(h.core.state.value.calls.isEmpty())
+        assertEquals("Call ended", h.core.state.value.error)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a placement response arriving after its terminal update stays closed`() = runTest {
+        authCallSessionId = "S-op"
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onCallSessionUpdate("S-op", "ended_missed")
+
+        h.core.placeCall(displayName = "Ari", to = "+15552223333")
+
+        assertTrue(h.core.state.value.calls.isEmpty())
+        assertEquals("Call ended", h.core.state.value.error)
+        h.scope.cancel()
+    }
+
+    @Test
     fun `the op INVITE never arriving times the placement out with an honest error`() = runTest {
         authCallSessionId = "S-op"
         val h = harness(placementTimeoutMs = 20_000)

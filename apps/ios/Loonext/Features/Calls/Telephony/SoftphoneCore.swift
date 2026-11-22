@@ -54,6 +54,7 @@ enum SoftphoneErrorGate {
 @Observable
 final class SoftphoneCore {
     static let maxConcurrentCalls = CallStateMachine.maxConcurrentCalls
+    private static let recentSessionLimit = 64
 
     /// #228 — the reader's language, asked for at the moment a sentence is
     /// needed.
@@ -175,7 +176,7 @@ final class SoftphoneCore {
     /// INVITE landed). When the op INVITE arrives for a cancelled S it is
     /// DECLINED (hung up) so the DO tears down the server-dialed customer.
     @ObservationIgnored private var cancelledPlacements: Set<String> = []
-
+    @ObservationIgnored private var recentlyEndedSessions: [String] = []
 
     init(
         api: any CallsBackend,
@@ -408,6 +409,7 @@ final class SoftphoneCore {
         // Checked before the dedup/ceiling gates so an op leg is never declined
         // as an "over-ceiling" inbound ring.
         if let session = sessionHeader, !session.isEmpty {
+            if recentlyEndedSessions.contains(session) { return }
             if let pending = pendingPlacements[session] {
                 connectPlacement(pending, session: session, handle: handle, callerNumber: callerNumber)
                 return
@@ -769,6 +771,10 @@ final class SoftphoneCore {
                 httpStatus: 409
             )
         }
+        if recentlyEndedSessions.contains(sessionId) {
+            reportUiError(t("contactsTasks.phaseEnded"))
+            return
+        }
         let peer = (name: displayName.isBlank ? auth.to : displayName, number: auth.to)
         // The call currently holding the audio (if any) — held only when the op
         // leg connects (connectPlacement), never eagerly against a placement
@@ -834,15 +840,27 @@ final class SoftphoneCore {
         }
     }
 
+    func onCallSessionEnded(_ sessionId: String) {
+        guard !sessionId.isEmpty else { return }
+        if !recentlyEndedSessions.contains(sessionId) {
+            recentlyEndedSessions.append(sessionId)
+            if recentlyEndedSessions.count > Self.recentSessionLimit { recentlyEndedSessions.removeFirst() }
+        }
+        guard let pending = pendingPlacements.removeValue(forKey: sessionId) else { return }
+        pending.timeout.cancel()
+        state = CallStateMachine.placementFailed(
+            state, placementId: pending.placementId, message: t("contactsTasks.phaseEnded")
+        )
+    }
+
     /// Decline a ringing call / hang up a live one — same SDK verb.
     func hangup(_ id: String) {
         // #213: cancelling a placement that is still "Calling…" (no op INVITE
         // yet). Its chip id is S and there is no SDK call to hang up; mark S
         // cancelled so the op INVITE, when it arrives, is DECLINED (the DO then
         // drops the server-dialed customer), and clear the pending timer + chip.
-        if let pending = pendingPlacements[id] {
+        if let pending = pendingPlacements.removeValue(forKey: id) {
             pending.timeout.cancel()
-            pendingPlacements.removeValue(forKey: id)
             cancelledPlacements.insert(id)
             state = CallStateMachine.dismissed(state, id: id)
             return

@@ -117,6 +117,11 @@ final class CallsManager {
         workspaceNumbers = numbers.map { (companyId, Set($0)) }
     }
 
+    func onCallSessionEnded(_ sessionId: String, companyId: String) {
+        guard core.companyId == companyId else { return }
+        core.onCallSessionEnded(sessionId)
+    }
+
     /// Status-pill tap — force a re-registration now (refused mid-call).
     func retryNow() { core.retryNow() }
 
