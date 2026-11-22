@@ -90,6 +90,8 @@ final class CustomerJourneys: XCTestCase {
         shot("Conversations navigation \(suffix)")
         try waitFor(button(scheduled)).tap()
         try waitFor(app.navigationBars[scheduled])
+        let loadedLabels = [text("Nothing scheduled", "Rien de programmé"), text("Going out", "À envoyer")]
+        try waitFor(app.staticTexts.matching(NSPredicate(format: "label IN %@", loadedLabels)).firstMatch)
         shot("Scheduled navigation \(suffix)")
         try waitFor(button(text("Done", "Terminé"))).tap()
     }

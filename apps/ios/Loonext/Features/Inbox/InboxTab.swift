@@ -1644,6 +1644,8 @@ private struct InboxScheduledLink: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
+        .accessibilityValue(scheduledCount > 0 ? String(scheduledCount) : "")
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 30)
     }

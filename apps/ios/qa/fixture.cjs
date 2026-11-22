@@ -354,7 +354,7 @@ const server = createServer(async (req, res) => {
     if (path === "/v1/scheduled-messages") {
       const conversation = searchParams.get("conversation_id");
       const rows = state.scheduled.filter((row) => !conversation || row.conversation_id === conversation);
-      return json({ ...page(rows), upcoming_count: rows.length, held_count: 0 });
+      return json({ scheduled_messages: rows });
     }
     if (path === "/v1/company") return json(inBillingWorkspace ? billingCompany() : state.company);
     if (path === "/v1/company/ownership") {
