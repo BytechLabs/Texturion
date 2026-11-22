@@ -1,12 +1,14 @@
 "use client";
 
 import { messagePhones } from "@loonext/shared";
+import { Copy } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
 
 import { Dialer } from "@/components/calls/dialer";
 import { Button } from "@/components/ui/button";
+import { phoneCopyOnHover } from "@/components/ui/copyable-phone-number";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -65,22 +67,22 @@ export function MessagePhoneActions({
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-xs" aria-describedby={undefined}>
-        <DialogHeader>
+        <DialogHeader className="group/phone flex-row items-center pr-8">
           <DialogTitle>{formatPhone(number)}</DialogTitle>
+          <Button variant="ghost" size="icon" className={phoneCopyOnHover} aria-label={t("thread.copyPhoneNumber")} onClick={() => void copyNumber()}>
+            <Copy aria-hidden />
+          </Button>
         </DialogHeader>
-        <div className="grid gap-2">
-          {canContact && (
-            <>
-              <Button onClick={() => setDialer(true)}>{t("thread.callWithLoonext")}</Button>
-              <Button asChild variant="outline">
-                <Link href={`/inbox/new?to=${encodeURIComponent(number)}`} onClick={onClose}>
-                  {t("shell.textAction")}
-                </Link>
-              </Button>
-            </>
-          )}
-          <Button variant="outline" onClick={() => void copyNumber()}>{t("thread.copyPhoneNumber")}</Button>
-        </div>
+        {canContact && (
+          <div className="grid gap-2">
+            <Button onClick={() => setDialer(true)}>{t("thread.callWithLoonext")}</Button>
+            <Button asChild variant="outline">
+              <Link href={`/inbox/new?to=${encodeURIComponent(number)}`} onClick={onClose}>
+                {t("shell.textAction")}
+              </Link>
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

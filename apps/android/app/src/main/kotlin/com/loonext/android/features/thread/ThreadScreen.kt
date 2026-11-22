@@ -8,7 +8,6 @@ import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.features.settings.TrashSource
 import com.loonext.android.features.settings.TrashSourceDialog
-import android.content.ClipData
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -105,8 +104,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -197,6 +194,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.UrgentBadge
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
@@ -534,7 +532,6 @@ private fun ThreadLoaded(
     val canLinkPhones = controller.canLinkMessagePhones && !detail.is_spam && detail.spam_suspected_at == null
     val viewerReadOnly = me.memberships.firstOrNull { it.company_id == companyId }?.role == MemberRole.READ_ONLY
     val canContactPhone = detail.viewer_level == "text" && !viewerReadOnly
-    val clipboard = LocalClipboard.current
     var messagePhone by remember { mutableStateOf<String?>(null) }
     val selectMessagePhone: (String) -> Unit = remember { { messagePhone = it } }
 
@@ -1573,10 +1570,9 @@ private fun ThreadLoaded(
         )
     }
     messagePhone?.takeIf { canLinkPhones }?.let { number ->
-        val copyLabel = t("contactsTasks.copyNumber")
         AppSheet(onDismissRequest = { messagePhone = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
-                Text(formatPhone(number), style = MaterialTheme.typography.titleMedium)
+                CopyablePhoneNumber(number, style = MaterialTheme.typography.titleMedium)
                 if (canContactPhone) {
                     TextButton(onClick = {
                         messagePhone = null
@@ -1587,13 +1583,6 @@ private fun ThreadLoaded(
                         onTextPhone(number)
                     }) { Text(t("thread.textPhoneNumber")) }
                 }
-                TextButton(onClick = {
-                    messagePhone = null
-                    scope.launch {
-                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(copyLabel, number)))
-                        onNotice(copiedCopy)
-                    }
-                }) { Text(copyLabel) }
             }
         }
     }
