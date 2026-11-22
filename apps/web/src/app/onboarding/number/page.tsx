@@ -227,7 +227,9 @@ export default function NumberStepPage() {
       }
     >
       <div className="space-y-6">
-        <p className="text-[13px] text-muted-foreground">{t("shell.emergencyCallsUnavailable")}</p>
+        <p className="text-[13px] text-muted-foreground">
+          {t("shell.emergencyCallsUnavailable", { code: "911" })}
+        </p>
         {/* D16 fork (PORTING.md §8.1): new number vs. bring my number. Hidden
             while editing an existing company — porting is a create-time choice. */}
         {!editing && (
