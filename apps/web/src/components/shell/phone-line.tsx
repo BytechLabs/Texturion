@@ -117,7 +117,7 @@ export function PhoneLineNavigation({ children, rail = false }: { children: Reac
             aria-label={switchLabel}
             className={cn(
               "tap-target grid shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              rail ? "h-10 w-full" : "size-9",
+              rail ? "h-10 w-full" : "size-11 lg:h-9 lg:w-7",
             )}
           >
             {rail ? <Phone className="size-5" aria-hidden /> : <ChevronsUpDown className="size-4" aria-hidden />}
@@ -149,7 +149,7 @@ export function PhoneLineNavigation({ children, rail = false }: { children: Reac
           aria-expanded={open}
           aria-controls={groupId}
           onClick={() => setClosedOn(open ? pathname : null)}
-          className="tap-target flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[9px] px-[11px] text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="tap-target flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[9px] px-2.5 text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-10"
         >
           <Phone className="size-4 shrink-0 text-app-muted" strokeWidth={1.75} aria-hidden />
           <span className="min-w-0 flex-1">
@@ -161,7 +161,7 @@ export function PhoneLineNavigation({ children, rail = false }: { children: Reac
         <CopyablePhoneNumber
           number={selected.e164}
           iconOnly
-          className={cn("grid size-9 shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-line-soft", phoneCopyOnHover)}
+          className={cn("grid size-11 shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-line-soft lg:h-9 lg:w-7", phoneCopyOnHover)}
         />
         {lines.length > 1 && switcher}
       </div>

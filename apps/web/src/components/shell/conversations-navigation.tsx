@@ -44,7 +44,7 @@ export function ConversationsNavigation() {
               href={SCHEDULED_HREF}
               aria-current={inScheduled ? "page" : undefined}
               className={cn(
-                "tap-target ml-8 mt-1 inline-flex items-center gap-2 rounded-md px-3 text-sm font-medium",
+                "tap-target ml-8 mt-1 inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium",
                 inScheduled ? "bg-app-tint text-app-olive-deep" : "text-app-muted hover:bg-app-line-soft",
               )}
             >
