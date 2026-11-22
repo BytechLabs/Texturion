@@ -274,6 +274,7 @@ internal fun ContactPanelSheet(
                         consentAt = contact?.consent_at ?: detail.contact.consent_at,
                         consentAttestedBy = contact?.consent_attested_by,
                         memberName = ::memberName,
+                        locale = locale,
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

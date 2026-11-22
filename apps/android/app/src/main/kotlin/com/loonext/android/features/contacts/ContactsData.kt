@@ -467,11 +467,8 @@ fun contactAttribution(
  *  - anything else (attested/import) → "Consent recorded by {member} · Jul 8"
  *    (the attester resolved against GET /v1/members; omitted when unknown).
  *
- * #228: the four sentences live in `ContactsTasksStrings`, copied from web's
- * `appShell.ts`. [locale] is LAST and DEFAULTED for the same reason
- * [contactAttribution]'s is — `ConsentLineTest` pins the English and passes it
- * nothing, the screen passes the reader's language, and `ContactPanelSheet` in
- * the thread feature keeps compiling untouched.
+ * [locale] is the reader's app language. A caller without a reader locale uses
+ * the default language.
  *
  * The DATE suffix is built here rather than in the catalogue: it is a
  * separator and a formatted date, and neither is a sentence.
