@@ -144,6 +144,55 @@ it("returns the same catalogue key when scheduling or rescheduling too far ahead
   }
 });
 
+it("reports the planned destination hour when scheduling or rescheduling a quiet-hours text", async () => {
+  const sb = supabaseStub(env);
+  const destination = { contact_phone_e164: "+16135550142", contacts: { timezone: "UTC" } };
+  sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+  sb.on("GET", "/rest/v1/conversations", () => [destination]);
+  sb.on("GET", "/rest/v1/scheduled_messages", () => ({
+    status: "pending",
+    conversation_id: CONVERSATION_ID,
+    conversations: { ...destination, phone_number_id: null },
+  }));
+  sb.on("POST", "/rest/v1/rpc/api_schedule_message", () => ({ outcome: "quiet_confirmation" }));
+  sb.on("GET", /\/rest\/v1\//, () => []);
+  stubFetch(jwksRoute(auth), sb.route);
+
+  const token = await auth.token();
+  const sendAt = new Date(Date.now() + 3 * 86_400_000);
+  sendAt.setUTCHours(3, 15, 0, 0);
+  const create = {
+    method: "POST",
+    companyId: COMPANY_ID,
+    body: { conversation_id: CONVERSATION_ID, body: "Checking in", send_at: sendAt.toISOString() },
+  };
+  const responses = [
+    await apiRequest(app, env, token, "/v1/scheduled-messages", create),
+    await apiRequest(app, env, token, "/v1/scheduled-messages", {
+      ...create,
+      headers: { "Idempotency-Key": "schedule-quiet-hour" },
+    }),
+    await apiRequest(app, env, token, `/v1/scheduled-messages/${SCHEDULED_ID}`, {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { send_at: sendAt.toISOString() },
+    }),
+  ];
+
+  for (const response of responses) {
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "quiet_hours_confirmation_required",
+        message_key: "apiRefusals.scheduledTextQuietHours",
+        message_vars: { hour: "03" },
+      },
+    });
+  }
+  expect(sb.find("POST", "/rest/v1/rpc/api_schedule_message")).toHaveLength(1);
+  expect(sb.find("PATCH", "/rest/v1/scheduled_messages")).toHaveLength(0);
+});
+
 describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
   async function listAs(role: string) {
     const sb = supabaseStub(env);

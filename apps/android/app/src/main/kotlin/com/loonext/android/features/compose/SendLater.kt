@@ -77,19 +77,21 @@ import kotlin.math.abs
  */
 
 /** What the API said when a send-later was submitted. */
-enum class ScheduleOutcome {
-    Scheduled,
+sealed interface ScheduleOutcome {
+    data object Scheduled : ScheduleOutcome
 
     /**
      * #225: the fire instant lands in the customer's quiet window and nobody
      * has confirmed it yet. Distinct from [Failed] because the remedy is a
      * question, not an error — the retry carries `quiet_hours_confirmed`.
      */
-    NeedsQuietHoursConfirm,
+    data class NeedsQuietHoursConfirm(val localHour: Int?) : ScheduleOutcome
 
     /** Refused or unreachable. The caller has already said so. */
-    Failed,
+    data object Failed : ScheduleOutcome
 }
+
+internal data class ScheduleQuietHoursConfirmation(val sendAt: Instant, val localHour: Int?)
 
 /**
  * The two presets plus the picker, as a bottom sheet.

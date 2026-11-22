@@ -9,6 +9,7 @@ import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
 
 import { apiFetch } from "./client";
+import type { ApiError } from "./error";
 import { useCompanyId } from "@/lib/company/provider";
 
 /**
@@ -56,6 +57,18 @@ export interface ScheduledMessage {
   conversations?: {
     contacts: { name: string | null; phone_e164: string } | null;
   } | null;
+}
+
+export interface QuietHoursConfirmation {
+  sendAt: string;
+  localHour: number | null;
+}
+
+export function scheduledQuietHour(error: ApiError): number | null {
+  const rawHour = error.messageVars?.hour;
+  if (rawHour === undefined || !/^\d{1,2}$/.test(rawHour)) return null;
+  const hour = Number(rawHour);
+  return hour <= 23 ? hour : null;
 }
 
 /** The customer's name, their number, or an honest fallback. */

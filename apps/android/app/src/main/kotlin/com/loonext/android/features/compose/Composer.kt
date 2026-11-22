@@ -760,7 +760,7 @@ fun ThreadComposer(
     // attempt still has something to send.
     var sendLaterOpen by remember { mutableStateOf(false) }
     var pickTimeOpen by remember { mutableStateOf(false) }
-    var quietConfirmFor by remember { mutableStateOf<Instant?>(null) }
+    var quietConfirmFor by remember { mutableStateOf<ScheduleQuietHoursConfirmation?>(null) }
     val canScheduleLater = onScheduleSend != null && !isNote && canSend
 
     /**
@@ -780,7 +780,7 @@ fun ThreadComposer(
         val body = state.text.trim()
         if (body.isEmpty()) return
         scope.launch {
-            when (schedule(body, at.toString(), quietHoursConfirmed)) {
+            when (val outcome = schedule(body, at.toString(), quietHoursConfirmed)) {
                 ScheduleOutcome.Scheduled -> {
                     haptics.confirm()
                     quietConfirmFor = null
@@ -805,7 +805,9 @@ fun ThreadComposer(
                     )
                 }
 
-                ScheduleOutcome.NeedsQuietHoursConfirm -> quietConfirmFor = at
+                is ScheduleOutcome.NeedsQuietHoursConfirm -> {
+                    quietConfirmFor = ScheduleQuietHoursConfirmation(at, outcome.localHour)
+                }
                 // The caller has already said what went wrong, in the API's own
                 // words. A second sentence written here would either repeat it
                 // or contradict it.
@@ -1494,8 +1496,8 @@ fun ThreadComposer(
 
     quietConfirmFor?.let { pending ->
         QuietHoursScheduleDialog(
-            localHour = destinationClock?.local_hour,
-            onConfirm = { scheduleFor(pending, quietHoursConfirmed = true) },
+            localHour = pending.localHour,
+            onConfirm = { scheduleFor(pending.sendAt, quietHoursConfirmed = true) },
             onDismiss = { quietConfirmFor = null },
         )
     }

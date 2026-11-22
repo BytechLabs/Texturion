@@ -63,6 +63,13 @@ data class ThreadNotice(
     val trashLabel: String? = null,
 )
 
+private fun quietHoursOutcome(cause: Exception): ScheduleOutcome.NeedsQuietHoursConfirm? {
+    val error = cause as? ApiException ?: return null
+    if (error.code != ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED) return null
+    val hour = error.messageVars["hour"]?.toIntOrNull()?.takeIf { it in 0..23 }
+    return ScheduleOutcome.NeedsQuietHoursConfirm(hour)
+}
+
 /**
  * The reopen-instantly snapshot (#176): everything the header + timeline need
  * to paint in the first frame, cached under [CacheKeys.thread]. Session-local
@@ -483,9 +490,7 @@ class ThreadController(
         } catch (cause: ApiDecodeException) {
             // A decode failure follows a successful write.
         } catch (cause: Exception) {
-            return if ((cause as? ApiException)?.code == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED) {
-                ScheduleOutcome.NeedsQuietHoursConfirm
-            } else {
+            return quietHoursOutcome(cause) ?: run {
                 notify(cause.userMessageForReader())
                 ScheduleOutcome.Failed
             }
@@ -508,9 +513,7 @@ class ThreadController(
         runCatching { refreshScheduled() }
         ScheduleOutcome.Scheduled
     } catch (cause: Exception) {
-        if ((cause as? ApiException)?.code == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED) {
-            ScheduleOutcome.NeedsQuietHoursConfirm
-        } else {
+        quietHoursOutcome(cause) ?: run {
             runCatching { refreshScheduled() }
             notify(say("thread.scheduledUpdateFailed"))
             ScheduleOutcome.Failed

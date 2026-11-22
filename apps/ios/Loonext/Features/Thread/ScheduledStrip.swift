@@ -58,7 +58,7 @@ private struct ScheduledStripRow: View {
     @State private var expanded = false
     @State private var editing = false
     @State private var pickingTime = false
-    @State private var quietTime: Date?
+    @State private var quietTime: ScheduleQuietHoursConfirmation?
     @State private var saving = false
     @State private var draft = ""
 
@@ -191,13 +191,13 @@ private struct ScheduledStripRow: View {
         .confirmDialog(
             t("thread.quietHoursTitle"),
             item: $quietTime,
-            message: { _ in quietHoursScheduleMessage(localHour: nil, locale: appLocale) },
+            message: { quietHoursScheduleMessage(localHour: $0.localHour, locale: appLocale) },
             confirmLabel: t("thread.scheduleAnyway"),
             cancelLabel: t("thread.pickAnotherTime"),
             tone: .standard,
             onCancel: { pickingTime = true }
-        ) { at in
-            save(at: at, confirmed: true)
+        ) { pending in
+            save(at: pending.sendAt, confirmed: true)
         }
     }
 
@@ -210,8 +210,8 @@ private struct ScheduledStripRow: View {
             switch await onUpdate(body, iso, confirmed) {
             case .scheduled:
                 editing = false
-            case .needsQuietHoursConfirm:
-                quietTime = at
+            case .needsQuietHoursConfirm(let localHour):
+                quietTime = at.map { ScheduleQuietHoursConfirmation(sendAt: $0, localHour: localHour) }
             case .failed:
                 break
             }

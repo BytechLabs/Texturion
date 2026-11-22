@@ -11,6 +11,13 @@ struct ThreadNotice: Identifiable, Sendable {
     var trashLabel: String?
 }
 
+private extension ApiError {
+    var scheduleQuietHoursOutcome: ScheduleOutcome {
+        let hour = messageVars["hour"].flatMap(Int.init).flatMap { (0...23).contains($0) ? $0 : nil }
+        return .needsQuietHoursConfirm(localHour: hour)
+    }
+}
+
 /// State + mutations for one conversation thread, mirroring the Android
 /// ThreadController 1:1. Realtime payloads are treated as ID-only routing
 /// hints — every update refetches through the authed API.
@@ -460,7 +467,7 @@ final class ThreadController {
             return .scheduled
         } catch let error as ApiError
             where error.code == ApiErrorCode.quietHoursConfirmationRequired {
-            return .needsQuietHoursConfirm
+            return error.scheduleQuietHoursOutcome
         } catch {
             notify(error.userMessage)
             return .failed
@@ -485,7 +492,7 @@ final class ThreadController {
             return .scheduled
         } catch let error as ApiError
             where error.code == ApiErrorCode.quietHoursConfirmationRequired {
-            return .needsQuietHoursConfirm
+            return error.scheduleQuietHoursOutcome
         } catch {
             try? await refreshScheduled()
             notify(AppStrings.translate(locale, "thread.scheduledUpdateFailed"))
