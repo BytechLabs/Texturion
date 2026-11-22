@@ -262,6 +262,44 @@ final class ThreadControllerResyncTests: XCTestCase {
         XCTAssertEqual(controller.conversation?.id, conversationId)
     }
 
+    func testOutboundFrameShowsTheFiredTextAndClearsItsSchedule() async throws {
+        let store = seededStore()
+        defer { store.clear() }
+        let state = RouteState()
+        let controller = makeController(store: store, route: { path in
+            if path == "/v1/scheduled-messages" {
+                if state.missedLanded { return #"{"scheduled_messages":[]}"# }
+                return #"""
+                {"scheduled_messages":[{"id":"s1","conversation_id":"conv1","body":"On my way",
+                  "send_at":"2026-07-10T13:00:00Z","clock_timezone":"America/Toronto","status":"pending"}]}
+                """#
+            }
+            if path.hasSuffix("/messages") {
+                return #"""
+                {"data":[{"id":"fired","conversation_id":"conv1","direction":"outbound",
+                  "body":"On my way","status":"delivered","created_at":"2026-07-10T13:00:00Z"}],"next_cursor":null}
+                """#
+            }
+            return makeRoute(detailMessageId: "before-send")(path)
+        })
+        controller.start()
+        let scheduleLoaded = await waitUntil { controller.scheduled.map(\.id) == ["s1"] }
+        XCTAssertTrue(scheduleLoaded)
+
+        state.missedLanded = true
+        controller.onRealtime(RealtimeEvent(event: "message.created", payload: .object([
+            "conversation_id": .string(conversationId),
+            "message_id": .string("fired"),
+            "direction": .string(MessageDirection.outbound),
+        ])))
+
+        let fired = await waitUntil {
+            controller.scheduled.isEmpty && controller.messages.contains { $0.id == "fired" }
+        }
+        XCTAssertTrue(fired)
+        XCTAssertEqual(controller.newInboundTick, 0)
+    }
+
     /// The scrollback-preservation contract: `refreshAfterReconnect` is the
     /// frequent foreground-resync target, so it must MERGE a fresh page 1 (still
     /// healing a missed message) WITHOUT discarding the older pages the user

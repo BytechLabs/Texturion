@@ -76,11 +76,12 @@ function formatE164(e164: string): string {
 }
 
 export const scheduledKeys = {
-  /** Everything queued in the workspace. */
-  all: (companyId: string) => ["scheduled-messages", companyId] as const,
-  /** ...and one thread's slice of it. */
+  all: (companyId: string) => [companyId, "scheduled-messages"] as const,
+  lists: (companyId: string) => [...scheduledKeys.all(companyId), "list"] as const,
+  list: (companyId: string, lineId?: string) =>
+    [...scheduledKeys.lists(companyId), ...(lineId ? [lineId] : [])] as const,
   thread: (companyId: string, conversationId: string) =>
-    ["scheduled-messages", companyId, conversationId] as const,
+    [...scheduledKeys.all(companyId), "thread", conversationId] as const,
 };
 
 /**
@@ -95,7 +96,7 @@ export function useScheduledMessages(conversationId?: string, lineId?: string) {
   return useQuery({
     queryKey: conversationId
       ? scheduledKeys.thread(companyId, conversationId)
-      : [...scheduledKeys.all(companyId), ...(lineId ? ["line", lineId] : [])],
+      : scheduledKeys.list(companyId, lineId),
     queryFn: () =>
       apiFetch<{ scheduled_messages: ScheduledMessage[] }>(
         conversationId

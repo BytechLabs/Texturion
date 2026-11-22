@@ -778,6 +778,7 @@ class ThreadController(
             runCatching { refreshPinned() }
             runCatching { refreshContact() }
             runCatching { refreshBlocked() }
+            if (scheduled.isNotEmpty()) runCatching { refreshScheduled() }
             persistSnapshot()
         }
     }
@@ -794,13 +795,10 @@ class ThreadController(
                 val direction = payloadString(event, "direction")
                 scope.launch {
                     runCatching { refreshMessagesFirstPage() }
-                    if (direction == MessageDirection.INBOUND) {
-                        newInboundTick++
-                        // #233: a customer answering HOLDS anything queued for
-                        // them — the API decides that, and the strip has to
-                        // stop saying "Sending Tue, 8:00 AM" the moment it
-                        // does. An outbound is our own send firing, which the
-                        // same read covers on the next open.
+                    if (direction == MessageDirection.INBOUND) newInboundTick++
+                    if (direction == MessageDirection.INBOUND ||
+                        (direction == MessageDirection.OUTBOUND && scheduled.isNotEmpty())
+                    ) {
                         runCatching { refreshScheduled() }
                     }
                     markRead()

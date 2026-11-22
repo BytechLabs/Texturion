@@ -37,6 +37,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { eventSentence } from "@/components/thread/system-line";
 import { keys } from "@/lib/api/keys";
+import { scheduledKeys } from "@/lib/api/scheduled-messages";
 import type { ConversationEvent } from "@/lib/api/types";
 
 import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
@@ -1311,6 +1312,43 @@ describe("message.created", () => {
   it("asks for nothing when the thread already holds it", async () => {
     await arrive(threadOf(message({ direction: "inbound", status: "received" })));
     expect(limits()).toEqual([]);
+  });
+
+  it("removes a fired text from both its thread and the selected line's scheduled list", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup();
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+
+      const threadKey = scheduledKeys.thread(COMPANY, CONVERSATION);
+      const lineKey = scheduledKeys.list(COMPANY, "n1");
+      const otherThreadKey = scheduledKeys.thread(COMPANY, "other-thread");
+      const queued = { scheduled_messages: [{ id: "schedule-1", status: "pending" }] };
+      const sent = { scheduled_messages: [] };
+      const thread = await watch(queryClient, threadKey, queued);
+      const line = await watch(queryClient, lineKey, queued);
+      const otherThread = await watch(queryClient, otherThreadKey, queued);
+      thread.fetcher.mockResolvedValue(sent);
+      line.fetcher.mockResolvedValue(sent);
+
+      emit(numberTopic("n1"), "message.created", {
+        conversation_id: CONVERSATION,
+        message_id: MESSAGE_ID,
+        direction: "outbound",
+      });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(queryClient.getQueryData(threadKey)).toEqual(sent);
+      expect(queryClient.getQueryData(lineKey)).toEqual(sent);
+      expect(otherThread.fetcher).not.toHaveBeenCalled();
+      thread.unsubscribe();
+      line.unsubscribe();
+      otherThread.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

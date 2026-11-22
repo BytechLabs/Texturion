@@ -14,6 +14,8 @@ import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
 import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.ScheduledMessage
+import com.loonext.android.core.model.ScheduledMessagePage
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.realtime.RealtimeEvent
@@ -85,6 +87,9 @@ class ThreadControllerTest {
     @Volatile
     private var serverDetail: ConversationDetail =
         detailWith(listOf(msg("m2", T2)), nextCursor = OLDER_CURSOR)
+
+    @Volatile
+    private var scheduledPage = ScheduledMessagePage()
 
     /** #718: every message read that named an anchor or a direction, as its raw query. */
     private val anchoredQueries = java.util.concurrent.CopyOnWriteArrayList<String>()
@@ -170,6 +175,14 @@ class ThreadControllerTest {
                         path == "/v1/conversations/c1/messages" &&
                         url.queryParameter("cursor") == OLDER_CURSOR ->
                         MockResponse(code = 200, body = respJson.encodeToString(olderPage))
+
+                    request.method == "GET" && path == "/v1/conversations/c1/messages" &&
+                        url.queryParameter("cursor") == null ->
+                        MockResponse(code = 200, body = respJson.encodeToString(serverDetail.messages))
+
+                    request.method == "GET" && path == "/v1/scheduled-messages" &&
+                        url.queryParameter("conversation_id") == "c1" ->
+                        MockResponse(code = 200, body = respJson.encodeToString(scheduledPage))
 
                     // #247's catch-up. Held open by [summaryGate] when a test
                     // needs the in-flight window to be observable at all —
@@ -501,6 +514,39 @@ class ThreadControllerTest {
         )
 
         awaitUntil { eventFetches.get() > before }
+    }
+
+    @Test
+    fun `an outbound frame shows the fired text and clears its schedule`() {
+        val scheduled = ScheduledMessage(
+            id = "s1", conversation_id = "c1", body = "On my way", send_at = T2,
+            clock_timezone = "America/Toronto", status = "pending",
+        )
+        scheduledPage = ScheduledMessagePage(listOf(scheduled))
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.scheduled == listOf(scheduled) }
+
+        val fired = msg("m-fired", T2).copy(
+            direction = MessageDirection.OUTBOUND,
+            body = scheduled.body,
+            status = MessageStatus.DELIVERED,
+        )
+        serverDetail = detailWith(listOf(fired), nextCursor = null)
+        scheduledPage = ScheduledMessagePage()
+        controller.onRealtime(
+            RealtimeEvent(
+                "message.created",
+                buildJsonObject {
+                    put("conversation_id", "c1")
+                    put("message_id", fired.id)
+                    put("direction", fired.direction)
+                },
+            ),
+        )
+
+        awaitUntil { controller.scheduled.isEmpty() && fired.id in ids(controller) }
+        assertEquals(0, controller.newInboundTick)
     }
 
     /**

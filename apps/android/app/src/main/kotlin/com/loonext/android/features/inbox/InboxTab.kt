@@ -975,6 +975,7 @@ private class InboxController(
         realtimeJob?.cancel()
         realtimeJob = scope.launch {
             delay(250)
+            if (scheduled.isNotEmpty()) refreshScheduled()
             val seq = loadSeq
             runCatching {
                 val page = fetchPage(cursor = null, pinned = "exclude")
@@ -1005,6 +1006,7 @@ private class InboxController(
     /** Reconnect: trim to page 1 and refetch (SPEC §8). */
     fun refreshAfterReconnect() {
         reload(showLoading = false)
+        if (scheduled.isNotEmpty()) refreshScheduled()
     }
 
     /** Clear the unread dot locally the moment a thread opens. */

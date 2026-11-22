@@ -731,6 +731,7 @@ final class InboxController {
         realtimeTask = Task {
             try? await Task.sleep(for: .milliseconds(250))
             if Task.isCancelled { return }
+            if !scheduled.isEmpty { refreshScheduled() }
             let seq = loadSeq
             guard let page = try? await fetchPage(cursor: nil, pinned: "exclude") else { return }
             let pinnedPage = try? await fetchPage(cursor: nil, pinned: "only")
@@ -759,7 +760,8 @@ final class InboxController {
     /// Reconnect: trim to page 1 and refetch (SPEC §8).
     @discardableResult
     func refreshAfterReconnect() -> Task<Void, Never> {
-        reload(showLoading: false)
+        if !scheduled.isEmpty { refreshScheduled() }
+        return reload(showLoading: false)
     }
 
     /// Pull-to-refresh: the same first-page refetch as the reconnect path,
