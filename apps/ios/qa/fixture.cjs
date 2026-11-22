@@ -118,6 +118,30 @@ function billingCompany() {
   return { ...state.company, id: billingCompanyID, name: "Fixture Books", subscription_status: "active", numbers: [] };
 }
 
+function fieldworkPlan(firstDay, edits = []) {
+  const timezone = state.company.timezone;
+  const dateFormat = new Intl.DateTimeFormat("en-CA", { timeZone: timezone,
+    year: "numeric", month: "2-digit", day: "2-digit" });
+  const offsetFormat = new Intl.DateTimeFormat("en", { timeZone: timezone, timeZoneName: "longOffset" });
+  const today = dateFormat.format(new Date());
+  const dateAt = (index) => new Date(Date.parse(`${firstDay || today}T00:00:00Z`) + index * 86_400_000)
+    .toISOString().slice(0, 10);
+  const instant = (date, time) => {
+    const offset = offsetFormat.formatToParts(new Date(`${date}T${time}Z`))
+      .find((part) => part.type === "timeZoneName").value.replace("GMT", "");
+    return new Date(`${date}T${time}${offset || "+00:00"}`).toISOString();
+  };
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = dateAt(index);
+    return { date, start: instant(date, "00:00:00"), end: instant(dateAt(index + 1), "00:00:00"),
+      opens_at: instant(date, "09:00:00"), closes_at: instant(date, "17:00:00"), closed: false };
+  });
+  const blocks = edits.filter((edit) => !edit.remove).map((edit) => ({ ...edit, address_confirmed: !!edit.confirm_address }));
+  return { plan: { revision: 0, timezone, members: [{ id: userID, name: "Test Crew" }], days, blocks,
+    tasks: [{ ...task, due_on: today, dispatch_estimate: 60, scheduled_count: blocks.length, windows: [] }] },
+    workload: [], conflicts: [], notify: [userID] };
+}
+
 const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/port-requests", "/v1/text-enablements",
   "/v1/notifications", "/v1/company/setting-choices", "/v1/templates"]);
 const createPaths = new Set(["/v1/tasks", "/v1/scheduled-messages", "/v1/numbers/provision", "/v1/invites", "/v1/quotes", paymentRequestsPath]);
@@ -410,10 +434,13 @@ const server = createServer(async (req, res) => {
         year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       return json(page([{ ...task, due_on: due, lat: 43.6426, lng: -79.3871 }]));
     }
-    if (path === "/v1/dispatch" && state.fieldwork) {
-      return json({ plan: { revision: 0, timezone: state.company.timezone,
-        members: [{ id: userID, name: "Test Crew" }], days: [], blocks: [],
-        tasks: [{ ...task, scheduled_count: 0, windows: [] }] }, workload: [] });
+    if (path === "/v1/dispatch" && state.fieldwork) return json(fieldworkPlan(searchParams.get("day")));
+    if (path === "/v1/dispatch/preview" && state.fieldwork && req.method === "POST") {
+      let input = "";
+      for await (const chunk of req) input += chunk;
+      const body = JSON.parse(input);
+      state.writes.push({ path, body });
+      return json(fieldworkPlan(body.day, body.blocks));
     }
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);

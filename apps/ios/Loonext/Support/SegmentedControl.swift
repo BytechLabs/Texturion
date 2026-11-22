@@ -40,6 +40,7 @@ struct SegmentedControl<Value: Hashable>: View {
     var horizontalPadding: CGFloat?
     var minSegmentWidth: CGFloat?
     var minSegmentHeight: CGFloat?
+    var labelLines: Int
     /// What VoiceOver says for the whole group, such as "Theme".
     var label: String?
 
@@ -52,6 +53,7 @@ struct SegmentedControl<Value: Hashable>: View {
         horizontalPadding: CGFloat? = nil,
         minSegmentWidth: CGFloat? = nil,
         minSegmentHeight: CGFloat? = nil,
+        labelLines: Int = 1,
         onSelect: @escaping @MainActor (Value) -> Void
     ) {
         self.options = options
@@ -62,6 +64,7 @@ struct SegmentedControl<Value: Hashable>: View {
         self.horizontalPadding = horizontalPadding
         self.minSegmentWidth = minSegmentWidth
         self.minSegmentHeight = minSegmentHeight
+        self.labelLines = labelLines
         self.onSelect = onSelect
     }
 
@@ -109,6 +112,7 @@ struct SegmentedControl<Value: Hashable>: View {
 
     private func segmentLabel(_ option: SegmentedOption<Value>, isSelected: Bool) -> some View {
         let tight = size == .compact
+        let minHeight: CGFloat = tight ? 32 : 36
         return HStack(spacing: 5) {
             if let systemImage = option.systemImage {
                 Image(systemName: systemImage)
@@ -118,14 +122,18 @@ struct SegmentedControl<Value: Hashable>: View {
                 Text(title)
                     .font(.golos(tight ? 12 : 12.5, weight: .semibold))
                     .monospacedDigit()
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(labelLines)
             }
         }
         .foregroundStyle(isSelected ? BrandColor.paper : BrandColor.muted700)
         .frame(maxWidth: fill ? CGFloat.infinity : nil)
         .padding(.horizontal, horizontalPadding ?? (tight ? 12 : 14))
         .padding(.vertical, tight ? 7 : 9)
-        .frame(minWidth: minSegmentWidth, minHeight: minSegmentHeight ?? (tight ? 32 : 36))
+        .frame(
+            minWidth: minSegmentWidth,
+            minHeight: minSegmentHeight ?? (labelLines > 1 ? 44 : minHeight)
+        )
         .background(isSelected ? BrandColor.ink : Color.clear, in: Capsule())
         .contentShape(Capsule())
     }

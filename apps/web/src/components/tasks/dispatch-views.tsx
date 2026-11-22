@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowUp, CalendarClock, Lock, Navigation, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarClock, GripVertical, Lock, Navigation, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { MemberAvatar } from "@/components/inbox/member-avatar";
 import { useT } from "@/i18n/provider";
-import { formatScheduleDay, formatScheduledTime, zonedWallClock } from "@/lib/format/time";
+import { formatScheduleDay, formatScheduledTime, instantFromZonedWallClock, zonedWallClock } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { blocksOnDay } from "./dispatch-data";
@@ -16,9 +16,21 @@ import { useTaskDrawer } from "./use-task-drawer";
 
 const RouteMap = dynamic(() => import("./dispatch-map").then((module) => module.DispatchMap), { ssr: false });
 const HOUR = 3_600_000;
-const MIME = "application/x-loonext-task";
+const MINUTE = 60_000;
+const SLOT = 15 * MINUTE;
+const MIME = "application/x-loonext-dispatch";
 const panel = "rounded-xl border bg-card text-card-foreground";
 const note = "text-sm text-app-muted";
+
+interface DraggedWork {
+  task: DispatchTask;
+  block?: DispatchBlock;
+}
+
+function shiftTime(date: string, time: string, timezone: string) {
+  const instant = instantFromZonedWallClock(`${date}T${time}`, timezone);
+  return instant.ok ? Date.parse(instant.iso) : null;
+}
 
 function taskForBlock(plan: DispatchPlan, block: DispatchBlock) {
   return plan.tasks.find((task) => task.id === block.task_id);
@@ -28,39 +40,110 @@ function timeSpan(plan: DispatchPlan, block: DispatchBlock, locale: string) {
   return `${formatScheduledTime(block.starts_at, locale, plan.timezone)}–${formatScheduledTime(block.ends_at, locale, plan.timezone)}`;
 }
 
-export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
+export function DispatchSchedule({ plan, day, focused, editable, onSelect, onStageBlock }: {
   plan: DispatchPlan;
   day: DispatchDay;
   focused: string;
   editable: boolean;
   onSelect: (task: DispatchTask, block?: DispatchBlock, assignee?: string, time?: string) => void;
+  onStageBlock: (task: DispatchTask, block: DispatchBlock) => void;
 }) {
   const t = useT();
   const { openTask } = useTaskDrawer();
   const id = useId();
+  const dragged = useRef<DraggedWork | null>(null);
+  const resizeOrigin = useRef<{ x: number; laneWidth: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ assignee: string; start: number } | null>(null);
+  const [resize, setResize] = useState<{ id: string; end: number } | null>(null);
   const dayStart = Date.parse(day.start);
   const dayEnd = Date.parse(day.end);
   const blocks = blocksOnDay(plan, day.date);
   const unplanned = plan.tasks.filter((task) => !task.done && task.scheduled_count === 0).slice(0, 200);
-  const first = Math.max(dayStart, Math.min(Date.parse(day.opens_at ?? day.start), ...blocks.map((b) => Date.parse(b.starts_at))));
-  const last = Math.min(dayEnd, Math.max(Date.parse(day.closes_at ?? day.end), ...blocks.map((b) => Date.parse(b.ends_at))));
+  const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
+  const shifts = plan.members.flatMap((member) => {
+    const shift = member.shifts?.[String(weekday)];
+    return shift?.start && shift.end ? [{
+      start: shiftTime(day.date, shift.start, plan.timezone),
+      end: shiftTime(day.date, shift.end, plan.timezone),
+    }] : [];
+  });
+  const starts = [...shifts.flatMap(({ start }) => start ?? []), ...blocks.map((block) => Date.parse(block.starts_at))];
+  const ends = [...shifts.flatMap(({ end }) => end ?? []), ...blocks.map((block) => Date.parse(block.ends_at))];
+  if (day.opens_at) starts.push(Date.parse(day.opens_at));
+  if (day.closes_at) ends.push(Date.parse(day.closes_at));
+  const closed = day.closed && starts.length === 0 && ends.length === 0;
+  const first = Math.max(dayStart, starts.length > 0 ? Math.min(...starts) : dayStart);
+  const last = Math.min(dayEnd, ends.length > 0 ? Math.max(...ends) : dayEnd);
   const range = Math.max(HOUR, last - first);
   const hours = Array.from({ length: Math.ceil(range / HOUR) }, (_, index) => first + index * HOUR);
   const labelStep = hours.length > 12 ? 2 : 1;
   const percent = (ms: number) => 100 * (ms - first) / range;
+
+  function startDrag(event: React.DragEvent, item: DraggedWork) {
+    dragged.current = item;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(MIME, item.task.id);
+  }
+
+  function finishDrag() {
+    dragged.current = null;
+    setDropTarget(null);
+  }
+
+  function slotAt(event: React.DragEvent<HTMLDivElement>) {
+    const lane = event.currentTarget.getBoundingClientRect();
+    const slot = Math.floor((event.clientX - lane.left) / lane.width * range / SLOT);
+    const lastSlot = Math.ceil((last - first) / SLOT) - 1;
+    return first + Math.max(0, Math.min(lastSlot, slot)) * SLOT;
+  }
+
+  function drop(event: React.DragEvent<HTMLDivElement>, assignee: string) {
+    const item = dragged.current;
+    if (!editable || !item || event.dataTransfer.getData(MIME) !== item.task.id) return;
+    event.preventDefault();
+    const start = slotAt(event);
+    finishDrag();
+    const length = item.block
+      ? Date.parse(item.block.ends_at) - Date.parse(item.block.starts_at)
+      : (item.task.dispatch_estimate ?? 0) * MINUTE;
+    const starts_at = new Date(start).toISOString();
+    if (length <= 0) {
+      const wall = zonedWallClock(starts_at, plan.timezone);
+      const time = wall && `${String(wall.hour).padStart(2, "0")}:${String(wall.minute).padStart(2, "0")}`;
+      onSelect(item.task, undefined, assignee, time ?? undefined);
+      return;
+    }
+    const booking = item.block ?? {
+      id: crypto.randomUUID(), task_id: item.task.id, visit: false, locked: false, address_confirmed: false,
+    };
+    onStageBlock(item.task, {
+      ...booking, assignee_id: assignee, starts_at, ends_at: new Date(start + length).toISOString(),
+    });
+  }
+
+  function resizedEnd(block: DispatchBlock, x: number) {
+    const origin = resizeOrigin.current;
+    if (!origin) return null;
+    const start = Date.parse(block.starts_at);
+    const end = Date.parse(block.ends_at) + Math.round((x - origin.x) / origin.laneWidth * range / SLOT) * SLOT;
+    return Math.max(start + 5 * MINUTE, Math.min(end, dayEnd, start + 12 * HOUR));
+  }
 
   return (
     <div className="grid items-start gap-3 lg:grid-cols-[minmax(230px,1fr)_minmax(0,3fr)]">
       <section className={panel} aria-labelledby={`${id}-queue`}>
         <h2 id={`${id}-queue`} className="border-b px-4 py-3 text-sm font-semibold">{t("tasks.dispatchQueue")}</h2>
         {unplanned.length === 0 && <p className={cn(note, "p-4")}>{t("tasks.dispatchQueueEmpty")}</p>}
-        <ul className="max-h-120 divide-y overflow-y-auto">
+        <ul className="max-h-44 divide-y overflow-y-auto lg:max-h-120">
           {unplanned.map((task) => (
             <li key={task.id} className="flex items-center gap-2 px-4 py-2">
               <div className="min-w-0 flex-1">
-                <button type="button" className="min-h-8 max-w-full text-left text-sm font-medium hover:underline"
-                  draggable={editable} onDragStart={(event) => event.dataTransfer.setData(MIME, task.id)}
-                  onClick={() => openTask(task.id)}>{task.title}</button>
+                <button type="button" className="flex min-h-8 max-w-full items-center gap-1.5 text-left text-sm font-medium hover:underline"
+                  draggable={editable && !closed} onDragStart={(event) => startDrag(event, { task })} onDragEnd={finishDrag}
+                  onClick={() => openTask(task.id)}>
+                  {editable && !closed && <GripVertical className="size-4 shrink-0 cursor-grab text-app-muted" aria-hidden />}
+                  {task.title}
+                </button>
                 <p className="text-xs text-app-muted">{task.dispatch_estimate === null
                   ? t("tasks.dispatchEstimateMissing") : t("tasks.dispatchDurationValue", { minutes: task.dispatch_estimate })}</p>
               </div>
@@ -71,7 +154,9 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
         </ul>
         {plan.queue_truncated && <p className={cn(note, "border-t p-4")}>{t("tasks.dispatchQueueLimit")}</p>}
       </section>
-      <section
+      {closed ? <section className={cn(panel, "p-4")} aria-label={t("tasks.schedule")}>
+        <p className={note}>{t("tasks.dispatchClosedDay")}</p>
+      </section> : <section
         className={cn(panel, "overflow-x-auto")}
         aria-label={t("tasks.schedule")}
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The timeline needs keyboard scrolling.
@@ -94,38 +179,65 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
                 <span>{member.name ?? t("tasks.teammate")}</span>
               </h3>
               <div className="relative min-h-24 grow border-l" onDragOver={(event) => {
-                if (editable && event.dataTransfer.types.includes(MIME)) event.preventDefault();
-              }} onDrop={(event) => {
-                if (!editable) return;
-                const item = unplanned.find((task) => task.id === event.dataTransfer.getData(MIME));
-                if (!item) return;
-                event.preventDefault();
-                const rect = event.currentTarget.getBoundingClientRect();
-                const at = first + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * range;
-                const wall = zonedWallClock(new Date(Math.floor(at / 900_000) * 900_000).toISOString(), plan.timezone);
-                const time = wall && `${String(wall.hour).padStart(2, "0")}:${String(wall.minute).padStart(2, "0")}`;
-                onSelect(item, undefined, member.id, time ?? undefined);
-              }}>
+                if (editable && dragged.current && event.dataTransfer.types.includes(MIME)) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTarget({ assignee: member.id, start: slotAt(event) });
+                }
+              }} onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null);
+              }} onDrop={(event) => drop(event, member.id)}>
                 {hours.map((hour) => <div key={hour} aria-hidden className="absolute inset-y-0 border-l" style={{ left: `${percent(hour)}%` }} />)}
+                {dropTarget?.assignee === member.id && <div aria-hidden className="pointer-events-none absolute inset-y-0 z-3 border-l-2 border-primary"
+                  style={{ left: `${percent(dropTarget.start)}%` }}>
+                  <span className="rounded-r bg-primary px-1.5 py-0.5 text-xs whitespace-nowrap text-primary-foreground">
+                    {formatScheduledTime(new Date(dropTarget.start).toISOString(), t.locale, plan.timezone)}
+                  </span>
+                </div>}
                 {blocks.filter((item) => item.assignee_id === member.id).map((item, index) => {
                   const task = taskForBlock(plan, item);
                   if (!task) return null;
                   const left = Math.max(0, percent(Date.parse(item.starts_at)));
-                  const right = Math.min(100, percent(Date.parse(item.ends_at)));
-                  return <button key={item.id} type="button"
-                    className="absolute z-1 min-h-9 min-w-28 overflow-hidden rounded-md border bg-secondary px-1.5 text-left text-xs text-secondary-foreground hover:bg-accent hover:text-accent-foreground focus-visible:z-2 focus-visible:outline-2 focus-visible:outline-ring"
-                    title={`${task.title} · ${timeSpan(plan, item, t.locale)}${item.locked ? ` · ${t("tasks.dispatchLocked")}` : ""}`}
-                    style={{ left: `min(${left}%, calc(100% - 7rem))`, width: `${right - left}%`, top: index % 2 ? 49 : 8 }}
-                    onClick={() => editable ? onSelect(task, item) : openTask(task.id)}>
-                    <span className="flex items-center gap-1 truncate">{item.locked && <Lock className="size-3 shrink-0" aria-hidden />}{task.title}</span>
-                    <span className="block truncate">{formatScheduledTime(item.starts_at, t.locale, plan.timezone)}</span>
-                  </button>;
+                  const end = resize?.id === item.id ? resize.end : Date.parse(item.ends_at);
+                  const right = Math.min(100, percent(end));
+                  const movable = editable && !item.locked;
+                  const shown = { ...item, ends_at: new Date(end).toISOString() };
+                  return <div key={item.id} className="absolute z-1 flex min-h-9 min-w-24 rounded-md border bg-secondary text-secondary-foreground focus-within:z-2"
+                    style={{ left: `min(${left}%, calc(100% - 6rem))`, width: `${right - left}%`, top: index % 2 ? 49 : 8 }}>
+                    <button type="button" className={cn("min-w-0 flex-1 overflow-hidden rounded-l-md px-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring", movable && "cursor-grab")}
+                      title={`${task.title} · ${timeSpan(plan, shown, t.locale)}${item.locked ? ` · ${t("tasks.dispatchLocked")}` : ""}`}
+                      draggable={movable} onDragStart={(event) => startDrag(event, { task, block: item })} onDragEnd={finishDrag}
+                      onClick={() => editable ? onSelect(task, item) : openTask(task.id)}>
+                      <span className="flex items-center gap-1 truncate">{item.locked && <Lock className="size-3 shrink-0" aria-hidden />}{task.title}</span>
+                      <span className="block truncate">{timeSpan(plan, shown, t.locale)}</span>
+                    </button>
+                    {movable && <button type="button" aria-label={t("tasks.dispatchResizeBlock", { title: task.title })}
+                      className="grid w-6 shrink-0 touch-none cursor-ew-resize place-items-center rounded-r-md border-l text-app-muted hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                      onClick={(event) => { if (event.detail === 0) onSelect(task, item); }}
+                      onPointerDown={(event) => {
+                        if (!event.isPrimary || event.button !== 0) return;
+                        resizeOrigin.current = { x: event.clientX, laneWidth: event.currentTarget.parentElement?.parentElement?.clientWidth ?? 1 };
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }} onPointerMove={(event) => {
+                        const next = resizedEnd(item, event.clientX);
+                        if (next !== null) setResize({ id: item.id, end: next });
+                      }} onPointerUp={(event) => {
+                        const next = resizedEnd(item, event.clientX);
+                        resizeOrigin.current = null;
+                        setResize(null);
+                        if (next !== null && next !== Date.parse(item.ends_at)) {
+                          onStageBlock(task, { ...item, ends_at: new Date(next).toISOString() });
+                        }
+                      }} onLostPointerCapture={() => { resizeOrigin.current = null; setResize(null); }}>
+                      <GripVertical className="size-3.5" aria-hidden />
+                    </button>}
+                  </div>;
                 })}
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

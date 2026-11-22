@@ -12,6 +12,7 @@ on:
           - customer-journeys
           - workspace-switch
           - for-you
+          - planner
           - foreground-alerts
           - notification-actions
           - notification-reply-transport

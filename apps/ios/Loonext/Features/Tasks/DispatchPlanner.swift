@@ -58,6 +58,8 @@ private struct DispatchDay: Decodable, Sendable {
     let start: String
     let end: String
     let opens_at: String?
+    let closes_at: String?
+    let closed: Bool?
 }
 
 private struct DispatchCell: Decodable, Sendable {
@@ -173,22 +175,15 @@ private struct DispatchRequest: Encodable, Sendable {
 private struct DispatchSelection: Identifiable {
     let task: String
     let block: String?
-    var id: String { block ?? task }
+    var assignee: String? = nil
+    var start: Date? = nil
+    var id: String { [block ?? task, start.map(dispatchISO) ?? "", assignee ?? ""].joined(separator: "/") }
 }
 
 private enum DispatchPane: String, CaseIterable {
     case schedule, workload, routes, myDay
 
     var key: String { "contactsTasks.\(rawValue)" }
-
-    var icon: String {
-        switch self {
-        case .schedule: "calendar"
-        case .workload: "square.grid.2x2"
-        case .routes: "map"
-        case .myDay: "person"
-        }
-    }
 }
 
 private func dispatchInstant(_ value: String) -> Date {
@@ -255,11 +250,12 @@ struct DispatchPlanner: View {
                 }
                 SegmentedControl(
                     options: DispatchPane.allCases.map {
-                        SegmentedOption($0, systemImage: $0.icon, accessibilityLabel: text($0.key))
+                        SegmentedOption($0, title: text($0.key))
                     },
                     selected: pane,
                     size: .compact,
-                    fill: true,
+                    horizontalPadding: 4,
+                    labelLines: 2,
                     onSelect: { pane = $0 }
                 )
                 DatePicker(text("contactsTasks.dispatchDate"), selection: Binding(
@@ -409,6 +405,33 @@ struct DispatchPlanner: View {
         details.filter { $0.id != next.id } + [next]
     }
 
+    private func stageBlock(_ block: DispatchBlock, task: DispatchTask, previous: DispatchPlan) {
+        var edit = DispatchEdit(block: block, task: task)
+        edit.reschedule = previous.blocks.contains { $0.id == block.id && $0.locked }
+        stage(edits.filter { $0.id != block.id } + [edit], details)
+    }
+
+    private func place(_ payload: String, assignee: String, start: Date, plan: DispatchPlan, previous: DispatchPlan) -> Bool {
+        guard editable, !busy else { return false }
+        let booking = plan.blocks.first { "block:\($0.id)" == payload && !$0.locked }
+        guard let task = plan.tasks.first(where: { task in
+            if let booking { return task.id == booking.task_id }
+            return "task:\(task.id)" == payload && !task.done && task.scheduled_count == 0
+        }) else { return false }
+        let duration = booking.map { dispatchInstant($0.ends_at).timeIntervalSince(dispatchInstant($0.starts_at)) }
+            ?? task.dispatch_estimate.map { Double($0 * 60) }
+        guard let duration, duration > 0 else {
+            selection = DispatchSelection(task: task.id, block: nil, assignee: assignee, start: start)
+            slots = nil
+            return true
+        }
+        let next = DispatchBlock(id: booking?.id ?? UUID().uuidString.lowercased(), task_id: task.id, assignee_id: assignee,
+            starts_at: dispatchISO(start), ends_at: dispatchISO(start.addingTimeInterval(duration)),
+            visit: booking?.visit ?? false, locked: false, address_confirmed: booking?.address_confirmed ?? false)
+        stageBlock(next, task: task, previous: previous)
+        return true
+    }
+
     @ViewBuilder
     private func content(base: DispatchPayload, current: DispatchPayload) -> some View {
         let plan = current.plan
@@ -421,7 +444,8 @@ struct DispatchPlanner: View {
                let task = plan.tasks.first(where: { $0.id == selection.task }), let day = plan.day(today) {
                 let booking = blocks.first { $0.id == selection.block }
                 DispatchEditor(
-                    plan: plan, day: day, task: task, booking: booking, worker: worker, zone: zone, slots: slots, busy: busy,
+                    plan: plan, day: day, task: task, booking: booking, worker: worker,
+                    initialAssignee: selection.assignee, initialStart: selection.start, zone: zone, slots: slots, busy: busy,
                     onFind: { find, details, focus in
                         run {
                             var body = request(nil, replaceDetail(details))
@@ -449,23 +473,40 @@ struct DispatchPlanner: View {
             }
             let pending = plan.tasks.filter { !$0.done && $0.scheduled_count == 0 }
             SectionLabel(text("contactsTasks.dispatchQueue"))
-            if pending.isEmpty { Text(text("contactsTasks.dispatchQueueEmpty")) }
-            ForEach(pending.prefix(200)) { task in
-                taskRow(task, nil, allowEdit: editable)
-            }
-            ForEach(plan.members.sorted { $0.id == worker && $1.id != worker }) { member in
-                HStack(spacing: 8) {
-                    InitialsAvatar(name: member.name, size: 22, memberId: member.id)
-                        .accessibilityHidden(true)
-                    SectionLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
-                }
-                let bookings = blocks.filter { $0.assignee_id == member.id }
-                if bookings.isEmpty { Text(text("contactsTasks.dispatchNoBookings")) }
-                ForEach(bookings) { block in
-                    if let task = plan.tasks.first(where: { $0.id == block.task_id }) {
-                        taskRow(task, block, allowEdit: editable)
+            let dragEnabled = editable && !busy && plan.day(today) != nil
+            if pending.isEmpty {
+                Text(text("contactsTasks.dispatchQueueEmpty"))
+            } else if pending.count == 1, let task = pending.first {
+                taskRow(task, nil, allowEdit: editable, dragEnabled: dragEnabled)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(pending.prefix(200)) { task in
+                            taskRow(task, nil, allowEdit: editable, dragEnabled: dragEnabled)
+                        }
                     }
                 }
+                .frame(height: 168)
+            }
+            if let day = plan.day(today) {
+                DispatchTimeline(plan: plan, day: day, blocks: blocks, worker: worker,
+                    editable: editable && !busy, onTask: { task in
+                        dismiss()
+                        onTask(task)
+                    }, onEdit: { task, block in
+                        selection = DispatchSelection(task: task.id, block: block.id)
+                        slots = nil
+                    },
+                    onPlace: { payload, assignee, start in
+                        place(payload, assignee: assignee, start: start, plan: plan, previous: base.plan)
+                    }, onResize: { task, block, end in
+                        let next = DispatchBlock(id: block.id, task_id: block.task_id, assignee_id: block.assignee_id,
+                            starts_at: block.starts_at, ends_at: dispatchISO(end), visit: block.visit,
+                            locked: block.locked, address_confirmed: block.address_confirmed)
+                        stageBlock(next, task: task, previous: base.plan)
+                    })
+            } else {
+                Text(text("contactsTasks.dispatchNoBookings"))
             }
         case .workload:
             workload(current)
@@ -482,12 +523,18 @@ struct DispatchPlanner: View {
     }
 
     @ViewBuilder
-    private func taskRow(_ task: DispatchTask, _ block: DispatchBlock?, allowEdit: Bool = false) -> some View {
-        PaperCard {
+    private func taskRow(_ task: DispatchTask, _ block: DispatchBlock?, allowEdit: Bool = false, dragEnabled: Bool = false) -> some View {
+        let row = PaperCard {
             VStack(alignment: .leading, spacing: 6) {
-                Button(task.title) {
+                Button {
                     dismiss()
                     onTask(task.id)
+                } label: {
+                    if dragEnabled {
+                        Label(task.title, systemImage: "line.3.horizontal")
+                    } else {
+                        Text(task.title)
+                    }
                 }
                 .font(.headline)
                 if let block {
@@ -515,6 +562,11 @@ struct DispatchPlanner: View {
             .font(.subheadline)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
+        }
+        if dragEnabled {
+            row.draggable("task:\(task.id)")
+        } else {
+            row
         }
     }
 
@@ -716,6 +768,248 @@ struct DispatchPlanner: View {
     }
 }
 
+private struct DispatchTimelineScale {
+    static let secondsPerSlot: TimeInterval = 900
+    static let pointsPerSlot: CGFloat = 28
+
+    let first: Date
+    let last: Date
+    let dayEnd: Date
+
+    var count: Int { max(1, Int(ceil(last.timeIntervalSince(first) / Self.secondsPerSlot))) }
+    var width: CGFloat { CGFloat(count) * Self.pointsPerSlot }
+
+    init?(plan: DispatchPlan, day: DispatchDay, blocks: [DispatchBlock]) {
+        let start = dispatchInstant(day.start)
+        dayEnd = dispatchInstant(day.end)
+        let zone = TimeZone(identifier: plan.timezone) ?? .current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let weekday = String(calendar.component(.weekday, from: start) - 1)
+        let shifts = plan.members.compactMap { $0.shifts?[weekday] }.filter { $0.start != nil && $0.end != nil }
+        func local(_ clock: String?) -> Date? {
+            guard let clock else { return nil }
+            let parts = clock.split(separator: ":").compactMap { Int($0) }
+            guard parts.count == 2 else { return nil }
+            return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: start)
+        }
+        let starts = [day.opens_at.map(dispatchInstant)].compactMap { $0 }
+            + blocks.map { dispatchInstant($0.starts_at) } + shifts.compactMap { local($0.start) }
+        let ends = [day.closes_at.map(dispatchInstant)].compactMap { $0 }
+            + blocks.map { dispatchInstant($0.ends_at) } + shifts.compactMap { local($0.end) }
+        if day.closed == true && starts.isEmpty { return nil }
+        first = max(start, starts.min() ?? start)
+        last = min(dayEnd, ends.max() ?? dayEnd)
+    }
+
+    func date(_ slot: Int) -> Date {
+        first.addingTimeInterval(Double(slot) * Self.secondsPerSlot)
+    }
+
+    func x(_ date: Date) -> CGFloat {
+        CGFloat(date.timeIntervalSince(first) / Self.secondsPerSlot) * Self.pointsPerSlot
+    }
+}
+
+@MainActor
+private struct DispatchTimeline: View {
+    let plan: DispatchPlan
+    let day: DispatchDay
+    let blocks: [DispatchBlock]
+    let worker: String?
+    let editable: Bool
+    let onTask: (String) -> Void
+    let onEdit: (DispatchTask, DispatchBlock) -> Void
+    let onPlace: (String, String, Date) -> Bool
+    let onResize: (DispatchTask, DispatchBlock, Date) -> Void
+
+    @Environment(\.appLocale) private var locale
+
+    var body: some View {
+        SectionLabel(text("contactsTasks.schedule"))
+        if let scale = DispatchTimelineScale(plan: plan, day: day, blocks: blocks), !plan.members.isEmpty {
+            if blocks.isEmpty {
+                Text(text("contactsTasks.dispatchNoBookings"))
+                    .font(.subheadline)
+                    .foregroundStyle(BrandColor.muted700)
+            }
+            ScrollView(.horizontal) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ruler(scale)
+                    ForEach(plan.members.sorted { $0.id == worker && $1.id != worker }) { member in
+                        HStack(spacing: 8) {
+                            InitialsAvatar(name: member.name, size: 22, memberId: member.id)
+                                .accessibilityHidden(true)
+                            SectionLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
+                        }
+                        lane(member, scale: scale)
+                    }
+                }
+                .frame(width: scale.width, alignment: .leading)
+            }
+        } else {
+            Text(text(day.closed == true ? "contactsTasks.dispatchClosedDay" : "contactsTasks.dispatchNoBookings"))
+                .font(.subheadline)
+                .foregroundStyle(BrandColor.muted700)
+        }
+    }
+
+    private func ruler(_ scale: DispatchTimelineScale) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(stride(from: 0, to: scale.count, by: 4)), id: \.self) { slot in
+                Text(time(scale.date(slot)))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 4 * DispatchTimelineScale.pointsPerSlot, alignment: .leading)
+            }
+        }
+        .frame(width: scale.width, alignment: .leading)
+        .clipped()
+    }
+
+    private func lane(_ member: DispatchMember, scale: DispatchTimelineScale) -> some View {
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                ForEach(0..<scale.count, id: \.self) { slot in
+                    let start = scale.date(slot)
+                    DispatchTimelineSlot(label: time(start), editable: editable) { payload in
+                        onPlace(payload, member.id, start)
+                    }
+                }
+            }
+            ForEach(blocks.filter { $0.assignee_id == member.id }) { block in
+                if let task = plan.tasks.first(where: { $0.id == block.task_id }) {
+                    DispatchTimelineBlock(task: task, block: block, scale: scale, editable: editable, time: time,
+                        onTask: { onTask(task.id) }, onEdit: { onEdit(task, block) },
+                        onResize: { onResize(task, block, $0) })
+                }
+            }
+        }
+        .frame(width: scale.width, height: 78, alignment: .topLeading)
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
+        .accessibilityIdentifier("dispatch-lane-\(member.id)")
+    }
+
+    private func text(_ key: String) -> String { AppStrings.translate(locale, key) }
+
+    private func time(_ date: Date) -> String {
+        TimestampFormat.clock(date, locale: locale, timeZone: TimeZone(identifier: plan.timezone) ?? .current)
+    }
+}
+
+private struct DispatchTimelineSlot: View {
+    let label: String
+    let editable: Bool
+    let onDrop: (String) -> Bool
+
+    @State private var targeted = false
+
+    var body: some View {
+        if editable {
+            slot.dropDestination(for: String.self) { values, _ in
+                guard let payload = values.first else { return false }
+                return onDrop(payload)
+            } isTargeted: {
+                targeted = $0
+            }
+        } else {
+            slot
+        }
+    }
+
+    private var slot: some View {
+        Rectangle()
+            .fill(targeted ? BrandColor.insetDeep : .clear)
+            .overlay(alignment: .leading) { Rectangle().fill(BrandColor.insetDeep).frame(width: 1) }
+            .overlay(alignment: .topLeading) {
+                if targeted {
+                    Text(label).font(.caption2.weight(.semibold)).fixedSize()
+                        .padding(.horizontal, 3).padding(.vertical, 2)
+                        .background(BrandColor.insetDeep, in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+            .frame(width: DispatchTimelineScale.pointsPerSlot, height: 78)
+            .contentShape(Rectangle())
+            .accessibilityHidden(true)
+    }
+}
+
+private struct DispatchTimelineBlock: View {
+    let task: DispatchTask
+    let block: DispatchBlock
+    let scale: DispatchTimelineScale
+    let editable: Bool
+    let time: (Date) -> String
+    let onTask: () -> Void
+    let onEdit: () -> Void
+    let onResize: (Date) -> Void
+
+    @Environment(\.appLocale) private var locale
+    @State private var resizing: Date?
+
+    private var start: Date { dispatchInstant(block.starts_at) }
+    private var end: Date { dispatchInstant(block.ends_at) }
+    private var movable: Bool { editable && !block.locked }
+
+    var body: some View {
+        if movable {
+            tile.draggable("block:\(block.id)")
+        } else {
+            tile
+        }
+    }
+
+    private var tile: some View {
+        let left = max(0, scale.x(start))
+        let right = min(scale.width, scale.x(resizing ?? end))
+        return HStack(spacing: 0) {
+            Button(action: onTask) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title).font(.caption.weight(.semibold)).lineLimit(1)
+                    Text("\(time(start)) – \(time(resizing ?? end))").font(.caption2.monospacedDigit()).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.leading, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if editable {
+                resizeControl
+            }
+        }
+        .foregroundStyle(BrandColor.ink)
+        .frame(width: max(104, right - left))
+        .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 7))
+        .offset(x: min(left, max(0, scale.width - 104)), y: 12)
+    }
+
+    private var resizeControl: some View {
+        Button(action: onEdit) {
+            Image(systemName: movable ? "line.3.horizontal" : "lock")
+                .font(.caption.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppStrings.translate(locale,
+            movable ? "contactsTasks.dispatchResizeBlock" : "contactsTasks.dispatchEditBlock"))
+        .simultaneousGesture(DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                guard movable else { return }
+                let slots = (value.translation.width / DispatchTimelineScale.pointsPerSlot).rounded()
+                let next = end.addingTimeInterval(Double(slots) * DispatchTimelineScale.secondsPerSlot)
+                resizing = max(start.addingTimeInterval(300), min(next, scale.dayEnd, start.addingTimeInterval(43_200)))
+            }
+            .onEnded { _ in
+                let next = resizing
+                resizing = nil
+                if let next, next != end { onResize(next) }
+            })
+    }
+}
+
 private struct DispatchShiftEditor: View {
     let members: [DispatchMember]
     let date: Date
@@ -873,6 +1167,7 @@ private struct DispatchEditor: View {
     @State private var locked: Bool
 
     init(plan: DispatchPlan, day: DispatchDay, task: DispatchTask, booking: DispatchBlock?, worker: String?,
+         initialAssignee: String?, initialStart: Date?,
          zone: TimeZone, slots: [DispatchBlock]?, busy: Bool, onFind: @escaping (DispatchSlot, DispatchDetail, Date) -> Void,
          onSave: @escaping (DispatchEdit, DispatchDetail) -> Void, onDetails: @escaping (DispatchDetail) -> Void,
          onRemove: @escaping () -> Void) {
@@ -888,8 +1183,8 @@ private struct DispatchEditor: View {
         self.onDetails = onDetails
         self.onRemove = onRemove
         _id = State(initialValue: booking?.id ?? UUID().uuidString.lowercased())
-        _who = State(initialValue: booking?.assignee_id ?? task.assigned_user_id ?? worker ?? "")
-        _start = State(initialValue: dispatchInstant(booking?.starts_at ?? day.opens_at ?? day.start))
+        _who = State(initialValue: booking?.assignee_id ?? initialAssignee ?? task.assigned_user_id ?? worker ?? "")
+        _start = State(initialValue: initialStart ?? dispatchInstant(booking?.starts_at ?? day.opens_at ?? day.start))
         _duration = State(initialValue: booking.map {
             String(Int(dispatchInstant($0.ends_at).timeIntervalSince(dispatchInstant($0.starts_at)) / 60))
         } ?? task.dispatch_estimate.map(String.init) ?? "")

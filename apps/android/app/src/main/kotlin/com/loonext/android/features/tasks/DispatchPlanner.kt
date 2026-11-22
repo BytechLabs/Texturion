@@ -5,23 +5,24 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.ViewKanban
+import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -116,7 +117,14 @@ internal data class DispatchBlock(
 )
 
 @Serializable
-internal data class DispatchDay(val date: String, val start: String, val end: String, val opens_at: String?)
+internal data class DispatchDay(
+    val date: String,
+    val start: String,
+    val end: String,
+    val opens_at: String?,
+    val closes_at: String? = null,
+    val closed: Boolean = false,
+)
 
 @Serializable
 internal data class DispatchCell(val date: String, val assignee_id: String, val booked: Double, val available: Double?, val overloaded: Boolean? = null)
@@ -169,6 +177,13 @@ private data class DispatchEdit(
 
 @Serializable
 private data class DispatchDetail(val task_id: String, val updated_at: String, val estimate: Int?, val windows: List<DispatchWindow>)
+
+private data class DispatchSelection(
+    val taskId: String,
+    val blockId: String? = null,
+    val assignee: String? = null,
+    val start: Instant? = null,
+)
 
 @Serializable
 private data class DispatchSlot(
@@ -238,7 +253,7 @@ internal fun DispatchPlanner(
     var slots by remember { mutableStateOf<List<DispatchBlock>?>(null) }
     var route by remember { mutableStateOf<DispatchRoute?>(null) }
     var person by remember { mutableStateOf<String?>(null) }
-    var editor by remember { mutableStateOf<Pair<String, String?>?>(initialTask?.let { it to null }) }
+    var editor by remember { mutableStateOf(initialTask?.let { DispatchSelection(it) }) }
     var busy by remember { mutableStateOf(false) }
     var review by remember { mutableStateOf(false) }
     var shiftOpen by remember { mutableStateOf(false) }
@@ -312,12 +327,16 @@ internal fun DispatchPlanner(
         }
         SegmentedControl(
             segments = listOf(
-                Segment(DispatchPane.Schedule, t("contactsTasks.schedule"), Icons.Outlined.CalendarMonth),
-                Segment(DispatchPane.Workload, t("contactsTasks.workload"), Icons.Outlined.ViewKanban),
-                Segment(DispatchPane.Routes, t("contactsTasks.routes"), Icons.Outlined.Map),
-                Segment(DispatchPane.MyDay, t("contactsTasks.myDay"), Icons.Outlined.Person),
+                Segment(DispatchPane.Schedule, t("contactsTasks.schedule")),
+                Segment(DispatchPane.Workload, t("contactsTasks.workload")),
+                Segment(DispatchPane.Routes, t("contactsTasks.routes")),
+                Segment(DispatchPane.MyDay, t("contactsTasks.myDay")),
             ),
-            selected = pane, onSelect = { pane = it }, iconOnly = true,
+            selected = pane,
+            onSelect = { pane = it },
+            fill = true,
+            labelPadding = 4.dp,
+            labelLines = 2,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             PaperIconButton(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, t("contactsTasks.dispatchPreviousDay"),
@@ -389,11 +408,11 @@ internal fun DispatchPlanner(
 
             when (pane) {
                 DispatchPane.Schedule -> {
-                    val target = editor?.let { pick -> plan.tasks.firstOrNull { it.id == pick.first } }
-                    val booking = plan.blocks.find { it.id == editor?.second }
+                    val target = plan.tasks.find { it.id == editor?.taskId }
+                    val booking = plan.blocks.find { it.id == editor?.blockId }
                     if (target != null && day != null && editable) {
-                        androidx.compose.runtime.key(target.id, booking?.id, day.date) {
-                            DispatchBlockEditor(plan, day, target, booking, worker, slots, busy,
+                        androidx.compose.runtime.key(editor, day.date) {
+                            DispatchBlockEditor(plan, day, target, booking, worker, editor?.assignee, editor?.start, slots, busy,
                                 findSlots = { slot, detail, focus -> perform {
                                     val next = details.filterNot { it.task_id == detail.task_id } + detail
                                     val result: DispatchPayload = api.post("/v1/dispatch/preview",
@@ -420,31 +439,51 @@ internal fun DispatchPlanner(
                         }
                     }
                     val queue = plan.tasks.filter { !it.done && it.scheduled_count == 0 }
+                    val dragEnabled = editable && !busy && day != null
+                    fun stageBlock(task: DispatchTask, block: DispatchBlock) {
+                        val change = block.edit(task, base.plan.blocks.any { it.id == block.id && it.locked })
+                        stage(edits.filterNot { it.id == block.id } + change, details)
+                    }
                     SectionHeader(t("contactsTasks.dispatchQueue"), count = queue.size)
                     if (queue.isEmpty()) EmptyState(t("contactsTasks.dispatchQueueEmpty"), size = EmptyStateSize.Panel)
-                    queue.take(200).forEach { task ->
-                        DispatchTaskRow(task, null, plan.timezone, onTask, editable) {
-                            editor = task.id to null
-                            slots = null
-                        }
-                    }
-                    val members = plan.members.sortedBy { it.id != worker }
-                    for (member in members) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TaskAvatar(member.name, size = 22.dp, memberId = member.id)
-                            SectionHeader(member.name ?: t("contactsTasks.dispatchAssignee"))
-                        }
-                        val bookings = blocks.filter { it.assignee_id == member.id }
-                        if (bookings.isEmpty()) EmptyState(t("contactsTasks.dispatchNoBookings"), size = EmptyStateSize.Panel)
-                        for (block in bookings) plan.tasks.find { it.id == block.task_id }?.let { task ->
-                            DispatchTaskRow(task, block, plan.timezone, onTask, editable) {
-                                editor = task.id to block.id
-                                slots = null
+                    if (queue.isNotEmpty()) {
+                        Column(Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
+                            queue.take(200).forEach { task ->
+                                DispatchTaskRow(task, null, plan.timezone, onTask, editable, dragEnabled) {
+                                    editor = DispatchSelection(task.id)
+                                    slots = null
+                                }
                             }
                         }
+                    }
+                    if (day != null) DispatchTimeline(
+                        plan = plan, day = day, blocks = blocks, firstWorker = worker, editable = editable && !busy,
+                        onTask = onTask,
+                        onEdit = { task, block -> editor = DispatchSelection(task.id, block.id); slots = null },
+                        onPlace = { payload, assignee, start ->
+                            val moving = blocks.find { "block:${it.id}" == payload && !it.locked }
+                            val task = moving?.let { block -> plan.tasks.find { it.id == block.task_id } }
+                                ?: queue.find { "task:${it.id}" == payload }
+                            if (task == null) false else {
+                                val length = moving?.let { Duration.between(Instant.parse(it.starts_at), Instant.parse(it.ends_at)) }
+                                    ?: task.dispatch_estimate?.let { Duration.ofMinutes(it.toLong()) }
+                                if (length == null) {
+                                    editor = DispatchSelection(task.id, assignee = assignee, start = start)
+                                    slots = null
+                                } else {
+                                    val block = moving?.copy(assignee_id = assignee, starts_at = start.toString(), ends_at = start.plus(length).toString())
+                                        ?: DispatchBlock(UUID.randomUUID().toString(), task.id, assignee, start.toString(), start.plus(length).toString(),
+                                            visit = false, locked = false, address_confirmed = false)
+                                    stageBlock(task, block)
+                                }
+                                true
+                            }
+                        },
+                        onResize = { task, block, end ->
+                            stageBlock(task, block.copy(ends_at = end.toString()))
+                        },
+                    ) else {
+                        Text(t("contactsTasks.dispatchNoBookings"))
                     }
                 }
                 DispatchPane.Workload -> {
@@ -675,13 +714,20 @@ internal fun DispatchTaskRow(
     timezone: String,
     onTask: (String) -> Unit,
     editable: Boolean,
+    dragEnabled: Boolean = false,
     onEdit: () -> Unit,
 ) {
     val locale = LocalAppLocale.current
     val uri = LocalUriHandler.current
-    PaperCard(Modifier.fillMaxWidth()) {
+    PaperCard(Modifier.fillMaxWidth().dispatchDrag("task:${task.id}", dragEnabled)) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-            TextButton(onClick = { onTask(task.id) }) { Text(task.title) }
+            TextButton(onClick = { onTask(task.id) }) {
+                if (dragEnabled) {
+                    Icon(Icons.Outlined.DragHandle, contentDescription = null)
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text(task.title)
+            }
             if (block != null) {
                 Text(clock(block.starts_at, timezone, locale) + " – " + clock(block.ends_at, timezone, locale),
                     style = MaterialTheme.typography.bodySmall)
@@ -720,6 +766,8 @@ private fun DispatchBlockEditor(
     task: DispatchTask,
     block: DispatchBlock?,
     worker: String?,
+    initialAssignee: String?,
+    initialStart: Instant?,
     slots: List<DispatchBlock>?,
     busy: Boolean,
     findSlots: (DispatchSlot, DispatchDetail, String) -> Unit,
@@ -737,9 +785,9 @@ private fun DispatchBlockEditor(
         offsets.firstOrNull()?.let(stamp::toInstant)
     }.getOrNull()
 
-    var who by remember { mutableStateOf(block?.assignee_id ?: task.assigned_user_id ?: worker) }
+    var who by remember { mutableStateOf(block?.assignee_id ?: initialAssignee ?: task.assigned_user_id ?: worker) }
     var date by remember { mutableStateOf(day.date) }
-    var start by remember { mutableStateOf(time(block?.starts_at ?: day.opens_at)) }
+    var start by remember { mutableStateOf(time(block?.starts_at ?: initialStart?.toString() ?: day.opens_at)) }
     var duration by remember { mutableStateOf(block?.let {
         Duration.between(Instant.parse(it.starts_at), Instant.parse(it.ends_at)).toMinutes().toString()
     } ?: task.dispatch_estimate?.toString().orEmpty()) }

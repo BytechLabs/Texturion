@@ -60,6 +60,11 @@ final class CustomerJourneys: XCTestCase {
     func testForYouFrenchLight() async throws { try await forYou(.french, "light") }
     func testForYouFrenchDark() async throws { try await forYou(.french, "dark") }
 
+    func testPlannerEnglishLight() async throws { try await planner(.english, "light") }
+    func testPlannerEnglishDark() async throws { try await planner(.english, "dark") }
+    func testPlannerFrenchLight() async throws { try await planner(.french, "light") }
+    func testPlannerFrenchDark() async throws { try await planner(.french, "dark") }
+
     private func forYou(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -121,6 +126,26 @@ final class CustomerJourneys: XCTestCase {
         try verify(7)
         try reveal(options(90).element(boundBy: 1)).tap()
         try verify(90)
+    }
+
+    private func planner(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "member", stage: "active", fieldwork: true)
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button(text("Tasks", "Tâches"))).tap()
+        try waitFor(button(text("Planner", "Planificateur"))).tap()
+        let pending = try waitFor(button("Test boiler"))
+        let lane = app.descendants(matching: .any)["dispatch-lane-20000000-0000-4000-8000-000000000002"].firstMatch
+        try waitFor(lane)
+        XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
+        shot("Planner schedule \(suffix)")
+        pending.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).press(
+            forDuration: 0.6, thenDragTo: lane.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)))
+        try waitFor(button(text("Change duration", "Modifier la durée")))
+        shot("Planner staged work \(suffix)")
     }
 
     private func workspace(_ language: Language, _ theme: String) async throws {
