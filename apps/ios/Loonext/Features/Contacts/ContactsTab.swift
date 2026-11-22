@@ -209,10 +209,6 @@ struct ContactsTab: View {
         case ContactActionId.call:
             Haptics.tap()
             callFromList(contact)
-        case ContactActionId.copyNumber:
-            Haptics.tap()
-            UIPasteboard.general.string = contact.phone_e164
-            notice = t("recordMenu.numberCopied")
         case ContactActionId.optOut:
             listConfirmOptOut = contact
         case ContactActionId.optIn:
@@ -1090,7 +1086,7 @@ private struct ContactRow: View {
                         )
                     }
                 }
-                Text(sub.visible)
+                CopyablePhoneNumber(number: contact.phone_e164, label: sub.visible)
                     .spokenAs(sub)
                     .font(.golos(11.5))
                     .monospacedDigit()

@@ -43,7 +43,7 @@ function hasCopyAction(source: string, number: string) {
     `phoneNumber={${number}}`,
     `phoneNumber: ${number}`,
     `phoneNumber = ${number}`,
-    `phoneNumberCopyMenu(${number})`,
+    `phoneNumberCopyOnHold(${number})`,
     `UIPasteboard.general.string = ${number}`,
     `clipboard.writeText(${number})`,
     `copyToClipboard(${number})`,
@@ -99,5 +99,5 @@ it("requires a copy action for directly rendered phone numbers on all clients", 
 it("distinguishes a display-only label from a copy of the full number", () => {
   expect(hasCopyAction("{formatPhone(call.number)}", "call.number")).toBe(false);
   expect(hasCopyAction("<CopyablePhoneNumber number={call.number} iconOnly />", "call.number")).toBe(true);
-  expect(hasCopyAction("Button().phoneNumberCopyMenu(call.number)", "call.number")).toBe(true);
+  expect(hasCopyAction("Button().phoneNumberCopyOnHold(call.number)", "call.number")).toBe(true);
 });

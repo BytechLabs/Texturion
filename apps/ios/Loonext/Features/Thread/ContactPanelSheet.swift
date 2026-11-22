@@ -36,7 +36,6 @@ struct ContactPanelSheet: View {
     /// cannot add one.
     var onAddLeadSource: (@MainActor () -> Void)? = nil
 
-    @State private var copied = false
     @State private var leadSources: [LeadSource] = []
 
     @Environment(\.appLocale) private var appLocale
@@ -83,9 +82,6 @@ struct ContactPanelSheet: View {
             leadSources.contains { $0.archived_at == nil } && detail.lead_source_id == nil
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // #717: the header says who, their number and how long they
-                // have been a customer; the action row calls, copies and opens
-                // the contact as a labelled link, never a corner icon.
                 RecordHeader {
                     InitialsAvatar(name: displayName, size: 44)
                 } content: {
@@ -103,7 +99,10 @@ struct ContactPanelSheet: View {
                         try await controller.saveContactField("name", value)
                     }
                     .id("\(detail.contact_id)|name")
-                    Text(contact?.opted_out == true ? "\(phone) · \(optedOut)" : phone)
+                    CopyablePhoneNumber(
+                        number: detail.contact.phone_e164,
+                        label: contact?.opted_out == true ? "\(phone) · \(optedOut)" : phone
+                    )
                         .font(.golos(13))
                         .monospacedDigit()
                         .foregroundStyle(BrandColor.muted500)
@@ -133,20 +132,6 @@ struct ContactPanelSheet: View {
                         .controlSize(.small)
                         .disabled(calling)
                     }
-                    Button {
-                        UIPasteboard.general.string = detail.contact.phone_e164
-                        copied = true
-                    } label: {
-                        Label(
-                            AppStrings.translate(
-                                appLocale,
-                                copied ? "thread.numberCopied" : "contactsTasks.copyNumber"
-                            ),
-                            systemImage: copied ? "checkmark" : "doc.on.doc"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                     RecordOpenLink(
                         label: AppStrings.translate(appLocale, "thread.openContact")
                     ) {

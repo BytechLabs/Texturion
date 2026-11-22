@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Icon
@@ -32,8 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +40,7 @@ import com.loonext.android.core.model.ContactPhone
 import com.loonext.android.ui.common.ActionGroup
 import com.loonext.android.ui.common.RecordAction
 import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -78,7 +76,6 @@ fun PhoneList(
     onMakePrimary: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val clipboard = LocalClipboardManager.current
     var adding by remember { mutableStateOf(false) }
     var draftLabel by remember { mutableStateOf("") }
     var draftPhone by remember { mutableStateOf("") }
@@ -101,19 +98,12 @@ fun PhoneList(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                    Text(
-                        listOfNotNull(entry.label, formatPhone(entry.phone_e164)).joinToString(" · "),
+                    CopyablePhoneNumber(
+                        number = entry.phone_e164,
+                        label = listOfNotNull(entry.label, formatPhone(entry.phone_e164)).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                     )
                     if (entry.opted_out) Text(t("contactsTasks.phoneOptedOut"), style = MaterialTheme.typography.labelSmall)
-                }
-                IconButton(onClick = { clipboard.setText(AnnotatedString(entry.phone_e164)) }) {
-                    Icon(
-                        Icons.Outlined.ContentCopy,
-                        contentDescription = t("contactsTasks.copyNumber"),
-                        modifier = Modifier.size(IconSize.Small),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
                 var actionsOpen by remember(entry.id) { mutableStateOf(false) }
                 Box {

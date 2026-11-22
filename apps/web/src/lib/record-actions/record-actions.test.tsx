@@ -106,15 +106,15 @@ describe("#712 conversation", () => {
     buildConversationActions({ ...base, viewer: { canWrite, canDelete } });
 
   expectOneList("owner on an inbox row", build(true, true), [
-    "open", "open-new-tab", "copy-number", "mark-unread", "assign", "close", "pin", "snooze",
+    "open", "open-new-tab", "mark-unread", "assign", "close", "pin", "snooze",
     "follow-up", "mute", "follow", "spam", "block", "delete",
   ]);
   expectOneList("member on an inbox row (no records.delete)", build(true, false), [
-    "open", "open-new-tab", "copy-number", "mark-unread", "assign", "close", "pin", "snooze",
+    "open", "open-new-tab", "mark-unread", "assign", "close", "pin", "snooze",
     "follow-up", "mute", "follow", "spam", "block",
   ]);
   expectOneList("read-only on an inbox row", build(false, false), [
-    "open", "open-new-tab", "copy-number", "mark-unread", "snooze", "follow-up", "mute", "follow",
+    "open", "open-new-tab", "mark-unread", "snooze", "follow-up", "mute", "follow",
   ]);
 
   const header = buildConversationActions({
@@ -239,10 +239,10 @@ describe("#712 call", () => {
     run: noopRun() as Parameters<typeof buildCallActions>[0]["run"],
   };
   expectOneList("owner", buildCallActions({ ...base, canDelete: true }), [
-    "call-back", "text", "copy-number", "contact", "details", "delete-voicemail", "delete-call",
+    "call-back", "text", "contact", "details", "delete-voicemail", "delete-call",
   ]);
   expectOneList("member (no records.delete)", buildCallActions({ ...base, canDelete: false }), [
-    "call-back", "text", "copy-number", "contact", "details",
+    "call-back", "text", "contact", "details",
   ]);
   expectOneList(
     "member on a call from a withheld number",
@@ -260,7 +260,7 @@ describe("#712 call", () => {
   expectOneList(
     "owner on a call with no voicemail",
     buildCallActions({ ...base, canDelete: true, hasVoicemail: false }),
-    ["call-back", "text", "copy-number", "contact", "details", "delete-call"],
+    ["call-back", "text", "contact", "details", "delete-call"],
   );
 });
 
@@ -327,17 +327,17 @@ describe("#712 contact", () => {
   expectOneList(
     "owner",
     buildContactActions({ ...base, viewer: { canBlock: true, canDelete: true } }),
-    ["open", "text", "call", "copy-number", "block", "opt-out", "delete"],
+    ["open", "text", "call", "block", "opt-out", "delete"],
   );
   expectOneList(
     "member",
     buildContactActions({ ...base, viewer: { canBlock: true, canDelete: false } }),
-    ["open", "text", "call", "copy-number", "block", "opt-out"],
+    ["open", "text", "call", "block", "opt-out"],
   );
   expectOneList(
     "read-only",
     buildContactActions({ ...base, viewer: { canBlock: false, canDelete: false } }),
-    ["open", "text", "call", "copy-number", "opt-out"],
+    ["open", "text", "call", "opt-out"],
   );
   expectOneList(
     "owner on a contact who sent STOP: a note, not a button",
@@ -347,7 +347,7 @@ describe("#712 contact", () => {
       carrierEnforced: true,
       viewer: { canBlock: true, canDelete: true },
     }),
-    ["open", "text", "call", "copy-number", "block", "carrier-stop", "delete"],
+    ["open", "text", "call", "block", "carrier-stop", "delete"],
   );
   expectOneList(
     "owner on a contact opted out in the office: can opt back in",
@@ -356,7 +356,7 @@ describe("#712 contact", () => {
       optedOut: true,
       viewer: { canBlock: true, canDelete: true },
     }),
-    ["open", "text", "call", "copy-number", "block", "opt-in", "delete"],
+    ["open", "text", "call", "block", "opt-in", "delete"],
   );
 });
 

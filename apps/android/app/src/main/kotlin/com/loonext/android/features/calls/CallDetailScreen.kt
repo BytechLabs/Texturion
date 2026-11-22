@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,8 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,7 +46,7 @@ import com.loonext.android.features.tasks.LinkedSourceTask
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.VoicemailTranscript
-import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.rememberCacheFirst
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -313,18 +310,9 @@ private fun DetailValue(text: String) {
 
 @Composable
 private fun CopyablePhoneValue(number: String) {
-    val clipboard = LocalClipboardManager.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            formatPhone(number),
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        IconButton(onClick = { clipboard.setText(AnnotatedString(number)) }) {
-            Icon(
-                Icons.Outlined.ContentCopy,
-                contentDescription = t("shell.copyNumber"),
-            )
-        }
-    }
+    CopyablePhoneNumber(
+        number,
+        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+        color = MaterialTheme.colorScheme.onSurface,
+    )
 }

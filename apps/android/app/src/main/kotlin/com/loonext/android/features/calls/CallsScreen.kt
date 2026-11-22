@@ -1,6 +1,7 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.copyPhoneNumberOnHold
 import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.RefreshBox
 import com.loonext.android.ui.common.EmptyState
@@ -14,8 +15,6 @@ import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import com.loonext.android.ui.common.CallActionId
 import com.loonext.android.ui.common.CallActionsInput
 import com.loonext.android.ui.common.RecordAction
@@ -381,7 +380,6 @@ fun CallsScreen(
     val canDelete = canDeleteRecords(
         me.memberships.firstOrNull { it.company_id == companyId }?.role,
     )
-    val clipboard = LocalClipboardManager.current
     val snackbar = remember { SnackbarHostState() }
     var deletingCall by remember(companyId) { mutableStateOf<Call?>(null) }
     fun editLogs(edit: (List<Call>) -> List<Call>) {
@@ -636,10 +634,6 @@ fun CallsScreen(
                                                             CallActionId.DETAILS -> onOpenCall(call.call_session_id)
                                                             CallActionId.CALL_BACK -> callBack(call)
                                                             CallActionId.TEXT -> messageCall(call)
-                                                            CallActionId.COPY_NUMBER -> {
-                                                                clipboard.setText(AnnotatedString(call.caller_e164.orEmpty()))
-                                                                say(AppStrings.translate(logLocale, "recordMenu.numberCopied", emptyMap()))
-                                                            }
                                                             CallActionId.DELETE_VOICEMAIL -> delete(call, voicemail = true)
                                                             CallActionId.DELETE_CALL -> deletingCall = call
                                                         }
@@ -1166,7 +1160,10 @@ internal fun CallRow(
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).copyPhoneNumberOnHold(
+                                call.caller_e164.takeIf { call.contact_name.isNullOrBlank() && call.caller_name.isNullOrBlank() },
+                                onOpen,
+                            ),
                         )
                         Timestamp(
                             call.started_at,

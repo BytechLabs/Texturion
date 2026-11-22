@@ -15,9 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
@@ -63,7 +61,6 @@ internal fun ContactRecordMenu(
     onDeleted: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val locale = LocalAppLocale.current
@@ -110,10 +107,6 @@ internal fun ContactRecordMenu(
                 ContactActionId.CALL ->
                     if (softphone.hasMicPermission()) placeCall()
                     else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                ContactActionId.COPY_NUMBER -> {
-                    clipboard.setText(AnnotatedString(contact.phone_e164))
-                    onMessage(AppStrings.translate(locale, "recordMenu.numberCopied"))
-                }
                 ContactActionId.OPT_OUT -> confirmOptOut = true
                 ContactActionId.OPT_IN -> scope.launch {
                     try {

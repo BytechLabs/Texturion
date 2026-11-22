@@ -2,7 +2,6 @@
 
 import {
   Ban,
-  Copy,
   ExternalLink,
   MessageSquareText,
   Phone,
@@ -59,7 +58,6 @@ export interface ContactActionsInput {
     open: () => void;
     text: () => void;
     call: () => void;
-    copyNumber: () => void | Promise<void>;
     askBlock: () => void;
     unblock: () => void;
     askOptOut: () => void;
@@ -97,14 +95,6 @@ export function buildContactActions(input: ContactActionsInput): RecordAction[] 
       allowed: true,
       disabled: input.calling,
       onSelect: run.call,
-    },
-    {
-      id: "copy-number",
-      label: t("recordMenu.copyNumber"),
-      icon: Copy,
-      group: "primary",
-      allowed: true,
-      onSelect: run.copyNumber,
     },
     input.blocked
       ? {
@@ -213,14 +203,6 @@ export function useContactActions({
       // whether or not one exists yet.
       text: () => navigate(`/inbox/new?contact=${contact.id}`),
       call: () => place({ contactId: contact.id, contactName: name }),
-      copyNumber: async () => {
-        try {
-          await navigator.clipboard.writeText(contact.phone_e164);
-          toast.success(t("thread.numberCopied"));
-        } catch {
-          toast.error(t("thread.copyFailed"));
-        }
-      },
       askBlock: () => setConfirmBlock(true),
       unblock: blockedNumber.unblock,
       askOptOut: () => setConfirmOptOut(true),

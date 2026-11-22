@@ -121,7 +121,7 @@ func recordActionSymbol(_ id: String) -> String {
     case "block": return "hand.raised"
     case "unblock", "opt-in": return "arrow.uturn.backward"
     case "opt-out": return "nosign"
-    case "copy-text", "copy-number": return "doc.on.doc"
+    case "copy-text": return "doc.on.doc"
     case "select-text": return "text.cursor"
     case "copy-link": return "link"
     case "retry": return "arrow.clockwise"
@@ -142,16 +142,14 @@ extension View {
     func recordContextMenu(
         _ actions: [RecordAction],
         exactTime: String? = nil,
-        copyNumber: String? = nil,
         onSelect: @escaping @MainActor (_ actionId: String, _ subId: String?) -> Void
     ) -> some View {
-        if actions.visible.isEmpty && copyNumber == nil {
+        if actions.visible.isEmpty {
             self
         } else {
             environment(\.recordMenuOwnsLongPress, true)
                 .contextMenu {
                     RecordMenuContent(actions: actions, exactTime: exactTime, onSelect: onSelect)
-                    if let copyNumber { CopyPhoneNumberAction(number: copyNumber) }
                 }
         }
     }

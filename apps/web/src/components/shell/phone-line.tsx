@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Copy, Phone } from "lucide-react";
+import { Check, ChevronDown, ChevronsUpDown, Phone } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useId, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   DropdownMenu,
@@ -10,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCopyPhoneNumber } from "@/components/ui/copyable-phone-number";
+import { CopyablePhoneNumber, phoneCopyOnHover } from "@/components/ui/copyable-phone-number";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
@@ -82,36 +83,16 @@ export function usePhoneLine() {
   return useContext(PhoneLineContext);
 }
 
-export function PhoneLinePicker({ rail = false, className }: { rail?: boolean; className?: string }) {
+export function PhoneLineNavigation({ children, rail = false }: { children: ReactNode; rail?: boolean }) {
   const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const { lines, selected, select } = usePhoneLine();
-  const copyPhoneNumber = useCopyPhoneNumber();
+  const groupId = useId();
+  const [closedOn, setClosedOn] = useState<string | null>(null);
+  const open = closedOn !== pathname;
 
-  if (!selected) return null;
-  const label = t("shell.phoneLineNamed", { name: selected.name });
-  const trigger = (
-    <button
-      type="button"
-      aria-label={rail ? label : `${label}${selected.name === selected.number ? "" : `, ${selected.number}`}`}
-      className={cn(
-        "flex h-10 w-full items-center gap-2.5 rounded-[9px] text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        rail ? "justify-center" : "px-[11px]",
-      )}
-    >
-      <Phone className={cn("shrink-0 text-app-muted", rail ? "size-5" : "size-4")} strokeWidth={1.75} aria-hidden />
-      {!rail && (
-        <>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-medium">{selected.name}</span>
-            {selected.name !== selected.number && <span className="block truncate text-[11px] text-app-muted">{selected.number}</span>}
-          </span>
-          <ChevronDown className="size-3.5 shrink-0" aria-hidden />
-        </>
-      )}
-    </button>
-  );
+  if (!selected) return children;
 
   function choose(id: string) {
     if (id === selected?.id) return;
@@ -127,33 +108,64 @@ export function PhoneLinePicker({ rail = false, className }: { rail?: boolean; c
     }
   }
 
-  return (
-    <div className={className}>
-      <DropdownMenu>
-        {rail ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="right">{label}</TooltipContent>
-          </Tooltip>
-        ) : <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>}
-        <DropdownMenuContent side={rail ? "right" : "bottom"} align="start" className="w-56">
-          {lines.map((line) => (
-            <DropdownMenuItem key={line.id} onSelect={() => choose(line.id)} aria-current={line.id === selected.id ? "true" : undefined}>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate">{line.name}</span>
-                {line.name !== line.number && <span className="block truncate text-xs text-muted-foreground">{line.number}</span>}
-              </span>
-              {line.id === selected.id && <Check className="size-4" aria-hidden />}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuItem onSelect={() => void copyPhoneNumber(selected.e164)}>
-            <Copy className="size-4" aria-hidden />
-            {t("shell.copyNumber", { number: selected.number })}
+  const switchLabel = t("shell.switchNumber");
+  const switcher = (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger
+            aria-label={switchLabel}
+            className={cn(
+              "tap-target grid shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              rail ? "h-10 w-full" : "size-9",
+            )}
+          >
+            {rail ? <Phone className="size-5" aria-hidden /> : <ChevronsUpDown className="size-4" aria-hidden />}
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side={rail ? "right" : "top"}>{rail ? `${switchLabel} · ${selected.name}` : switchLabel}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent side={rail ? "right" : "bottom"} align="start" className="w-56">
+        {lines.map((line) => (
+          <DropdownMenuItem key={line.id} onSelect={() => choose(line.id)} aria-current={line.id === selected.id ? "true" : undefined}>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{line.name}</span>
+              {line.name !== line.number && <span className="block truncate text-xs text-muted-foreground">{line.number}</span>}
+            </span>
+            {line.id === selected.id && <Check className="size-4" aria-hidden />}
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  if (rail) return <div className="space-y-px">{lines.length > 1 && switcher}{children}</div>;
+
+  return (
+    <div>
+      <div className="group/phone mb-1 flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={groupId}
+          onClick={() => setClosedOn(open ? pathname : null)}
+          className="tap-target flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[9px] px-[11px] text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Phone className="size-4 shrink-0 text-app-muted" strokeWidth={1.75} aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold">{selected.name}</span>
+            {selected.name !== selected.number && <span className="block truncate text-[11px] text-app-muted">{selected.number}</span>}
+          </span>
+          <ChevronDown className={cn("size-3.5 shrink-0", !open && "-rotate-90")} aria-hidden />
+        </button>
+        <CopyablePhoneNumber
+          number={selected.e164}
+          iconOnly
+          className={cn("grid size-9 shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-line-soft", phoneCopyOnHover)}
+        />
+        {lines.length > 1 && switcher}
+      </div>
+      <div id={groupId} hidden={!open}>{children}</div>
     </div>
   );
 }

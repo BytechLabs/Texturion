@@ -239,29 +239,13 @@ private struct NumberCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: display) {
+        SettingsCard(title: display, phoneNumber: released ? nil : number.number_e164) {
             HStack(spacing: 8) {
                 statusPill
                 if let source = number.source {
                     Text(sourceLabel(source))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if let e164 = number.number_e164, !released {
-                    Button {
-                        copyToClipboard(e164)
-                        scope.showMessage(
-                            AppStrings.translate(appLocale, "settingsMore.numberCopied")
-                        )
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "settingsMore.copyNumber")
-                    )
                 }
             }
 

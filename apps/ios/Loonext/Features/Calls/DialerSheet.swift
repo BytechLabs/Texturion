@@ -149,7 +149,7 @@ struct DialerSheet: View {
                 .padding(.top, 12 * scale)
                 .padding(.bottom, 2)
                 .monospacedDigit()
-                .phoneNumberCopyMenu(dialable)
+                .phoneNumberCopyOnHold(dialable)
 
             if dialable == nil && digits.filter(\.isNumber).count >= 10 {
                 Text(t("apiRefusals.outboundDestination"))
@@ -210,7 +210,7 @@ struct DialerSheet: View {
                                     )
                             }
                             .buttonStyle(.plain)
-                            .phoneNumberCopyMenu(number.number_e164)
+                            .phoneNumberCopyOnHold(number.number_e164)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -412,7 +412,7 @@ struct DialerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .phoneNumberCopyMenu(match.number)
+        .phoneNumberCopyOnHold(match.number)
     }
 
     /// The matched contact name. Empty otherwise — the fixed-height slot holds

@@ -131,20 +131,11 @@ struct AccountSheet: View {
             ForEach(Array(activeNumbers.enumerated()), id: \.element.id) { index, number in
                 if index > 0 { RowDivider() }
                 HStack(spacing: 12) {
-                    Text(formatPhone(number.number_e164))
+                    CopyablePhoneNumber(number: number.number_e164)
                         .font(.golos(13.5, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(BrandColor.ink)
                     Spacer()
-                    Button {
-                        UIPasteboard.general.string = number.number_e164 ?? ""
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.scaled(IconSize.standard))
-                            .foregroundStyle(BrandColor.muted500)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(AppStrings.translate(appLocale, "shell.copyNumber"))
                 }
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)

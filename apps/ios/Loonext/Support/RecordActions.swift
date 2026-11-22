@@ -89,7 +89,6 @@ struct RecordViewer: Equatable, Sendable {
 
 enum ConversationActionId {
     static let open = "open"
-    static let copyNumber = "copy-number"
     static let markRead = "mark-read"
     static let markUnread = "mark-unread"
     static let catchUp = "catch-up"
@@ -126,7 +125,6 @@ struct ConversationSurface: Equatable, Sendable {
     let hasCatchUp: Bool
     /// Phones only: a task can start from the conversation sheet.
     let hasNewTask: Bool
-    var canCopyNumber: Bool = false
 }
 
 struct ConversationActionsInput: Sendable {
@@ -168,10 +166,6 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
     list.append(RecordAction(
         id: ConversationActionId.open, labelKey: "recordMenu.open",
         group: .primary, allowed: surface.canOpen
-    ))
-    list.append(RecordAction(
-        id: ConversationActionId.copyNumber, labelKey: "recordMenu.copyNumber",
-        group: .primary, allowed: surface.canCopyNumber
     ))
 
     list.append(
@@ -345,7 +339,6 @@ func messageActions(_ message: Message, viewer: RecordViewer) -> [RecordAction] 
 enum CallActionId {
     static let callBack = "call-back"
     static let text = "text"
-    static let copyNumber = "copy-number"
     static let contact = "contact"
     static let addContact = "add-contact"
     static let task = "task"
@@ -381,10 +374,6 @@ func callActions(_ input: CallActionsInput) -> [RecordAction] {
         RecordAction(
             id: CallActionId.text, labelKey: "recordMenu.text",
             group: .primary, allowed: input.hasConversation || hasNumber
-        ),
-        RecordAction(
-            id: CallActionId.copyNumber, labelKey: "recordMenu.copyNumber",
-            group: .primary, allowed: hasNumber
         ),
         RecordAction(
             id: CallActionId.contact, labelKey: "shell.callActionContact",
@@ -479,7 +468,6 @@ enum ContactActionId {
     static let open = "open"
     static let text = "text"
     static let call = "call"
-    static let copyNumber = "copy-number"
     static let unblock = "unblock"
     static let block = "block"
     static let optIn = "opt-in"
@@ -506,9 +494,6 @@ func contactActions(_ input: ContactActionsInput) -> [RecordAction] {
         ),
         RecordAction(id: ContactActionId.text, labelKey: "recordMenu.text", group: .primary),
         RecordAction(id: ContactActionId.call, labelKey: "recordMenu.call", group: .primary),
-        RecordAction(
-            id: ContactActionId.copyNumber, labelKey: "recordMenu.copyNumber", group: .primary
-        ),
         input.blocked == true
             ? RecordAction(
                 id: ContactActionId.unblock, labelKey: "recordMenu.unblock",

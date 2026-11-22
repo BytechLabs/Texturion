@@ -157,6 +157,12 @@ final class CustomerJourneys: XCTestCase {
         let inbox = button("Conversations")
         for _ in 0..<3 where !inbox.isSelected { inbox.tap() }
         XCTAssertTrue(inbox.isSelected)
+        shot("Conversations navigation \(suffix)")
+        let scheduledLink = button(text("Scheduled", "Programmés"))
+        try waitFor(scheduledLink).tap()
+        try waitFor(app.navigationBars[text("Scheduled", "Programmés")])
+        shot("Scheduled navigation \(suffix)")
+        try waitFor(button(text("Done", "Terminé"))).tap()
         let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Ada Fixture")).firstMatch
         try waitFor(row).coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
         try waitFor(label("Test thread history"))

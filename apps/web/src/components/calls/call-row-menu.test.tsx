@@ -77,7 +77,6 @@ describe("#712 the call row's menus", () => {
     expect(fromButton).toEqual([
       "call-back",
       "text",
-      "copy-number",
       "contact",
       "task",
       "details",
@@ -109,7 +108,6 @@ describe("#712 the call row's menus", () => {
     expect(listed()).toEqual([
       "call-back",
       "text",
-      "copy-number",
       "contact",
       "task",
       "details",

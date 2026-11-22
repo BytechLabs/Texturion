@@ -42,26 +42,15 @@ struct PhoneList: View {
                     Image(systemName: "phone")
                         .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
-                    Button {
-                        Haptics.tap()
-                        UIPasteboard.general.string = entry.phone_e164
-                    } label: {
-                        HStack(spacing: 6) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(line(for: entry))
-                                if entry.opted_out == true {
-                                    Text(AppStrings.translate(appLocale, "contactsTasks.phoneOptedOut"))
-                                        .foregroundStyle(BrandColor.muted500)
-                                }
-                            }
-                            Image(systemName: "doc.on.doc")
+                    VStack(alignment: .leading, spacing: 2) {
+                        CopyablePhoneNumber(number: entry.phone_e164, label: line(for: entry))
+                        if entry.opted_out == true {
+                            Text(AppStrings.translate(appLocale, "contactsTasks.phoneOptedOut"))
                                 .foregroundStyle(BrandColor.muted500)
                         }
-                        .font(.golos(13))
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(AppStrings.translate(appLocale, "contactsTasks.copyNumber"))
+                    .font(.golos(13))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     Menu {
                         if let onText {
                             Button(AppStrings.translate(appLocale, "contactsTasks.phoneText")) { onText(entry.phone_e164) }

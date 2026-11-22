@@ -229,7 +229,7 @@ private struct NotificationRow: View {
                     .font(.golos(13, weight: row.unread ? .bold : .semibold))
                     .foregroundStyle(BrandColor.ink)
                     .lineLimit(2)
-                    .phoneNumberCopyMenu((row.contact?.phone_e164).flatMap { phone in
+                    .phoneNumberCopyOnHold((row.contact?.phone_e164).flatMap { phone in
                         summaryFor(row, appLocale).contains(formatPhone(phone)) ? phone : nil
                     })
                     .multilineTextAlignment(.leading)

@@ -22,7 +22,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -44,7 +43,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextDecoration
@@ -294,9 +292,7 @@ private fun NumberCard(
     held: HeldNumbers?,
     onChanged: () -> Unit,
 ) {
-    val context = LocalContext.current
     val locale = LocalAppLocale.current
-    val haptics = rememberHaptics()
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canRelease = SettingsRoleGate.canReleaseNumber(scope.role)
     val released = number.status == NumberStatus.RELEASED
@@ -315,8 +311,7 @@ private fun NumberCard(
         ?: number.requested_area_code?.let { t("settingsMore.areaCodeIs", "areaCode" to it) }
         ?: t("settingsMore.yourNumber")
 
-    val clipLabel = t("settingsMore.phoneNumberClipLabel")
-    SettingsCard(title = display) {
+    SettingsCard(title = display, phoneNumber = number.number_e164?.takeUnless { released }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             NumberStatusPill(number)
             Spacer(Modifier.width(8.dp))
@@ -330,23 +325,6 @@ private fun NumberCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            Spacer(Modifier.weight(1f))
-            val e164 = number.number_e164
-            if (e164 != null && !released) {
-                IconButton(onClick = {
-                    haptics.tap()
-                    copyToClipboard(context, clipLabel, e164)
-                    scope.showMessage(
-                        AppStrings.translate(locale, "settingsMore.numberCopied"),
-                    )
-                }) {
-                    Icon(
-                        Icons.Filled.ContentCopy,
-                        contentDescription = t("settingsMore.copyNumber"),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
 

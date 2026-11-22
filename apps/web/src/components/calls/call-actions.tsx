@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Copy,
   Info,
   ListPlus,
   MessageSquareText,
@@ -101,7 +100,6 @@ export interface CallActionsInput {
   run: {
     callBack: () => void;
     text: () => void;
-    copyNumber: () => void | Promise<void>;
     openContact?: () => void;
     addContact?: () => void;
     makeTask?: () => void;
@@ -132,14 +130,6 @@ export function buildCallActions(input: CallActionsInput): RecordAction[] {
       group: "primary",
       allowed: (input.messageHref ?? null) !== null,
       onSelect: run.text,
-    },
-    {
-      id: "copy-number",
-      label: t("recordMenu.copyNumber"),
-      icon: Copy,
-      group: "primary",
-      allowed: input.callerE164 !== null,
-      onSelect: run.copyNumber,
     },
     {
       id: "contact",
@@ -289,14 +279,6 @@ export function useCallActions({
       addContact: onAddContact,
       makeTask: onMakeTask,
       openDetails: () => detailsHref && navigate(detailsHref),
-      copyNumber: async () => {
-        try {
-          await navigator.clipboard.writeText(callerE164 ?? "");
-          toast.success(t("thread.numberCopied"));
-        } catch {
-          toast.error(t("thread.copyFailed"));
-        }
-      },
       deleteVoicemail: () =>
         deleteVoicemail.mutate(callId, {
           onSuccess: () =>
