@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.referral.ReferralShare
 
 /**
@@ -59,34 +61,33 @@ import com.loonext.android.core.referral.ReferralShare
  */
 @Composable
 fun ReferralShareBlock(link: String?, code: String) {
-    var note by remember { mutableStateOf(ReferralShare.NOTE) }
+    val locale = LocalAppLocale.current
+    val defaultNote = t(ReferralShare.NOTE_KEY)
+    var note by remember { mutableStateOf(defaultNote) }
     var copied by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val text = ReferralShare.shareText(note, link, code)
-    // #228: the words are `ReferralShare`'s and stay there — they are asserted
-    // against the shared TypeScript by `ReferralShareTest`, so a copy in the
-    // Android catalogue would be a second source for one sentence. Built here
-    // rather than inline so what reaches `Text` is a value, not a template.
-    val linkLine = "${ReferralShare.LINK_NOTE} ${link ?: code}"
+    val text = ReferralShare.shareText(note, link, code, locale)
+    val chooserTitle = t(ReferralShare.TITLE_KEY)
+    val linkNote = t(ReferralShare.LINK_NOTE_KEY)
 
     OutlinedTextField(
         value = note,
         onValueChange = { note = it },
-        label = { Text(ReferralShare.DRAFT_LABEL) },
+        label = { Text(t(ReferralShare.DRAFT_LABEL_KEY)) },
         minLines = 3,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(6.dp))
     Text(
-        linkLine,
+        "$linkNote ${link ?: code}",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { shareReferral(context, text) }) {
-            Text(ReferralShare.ACTION)
+        Button(onClick = { shareReferral(context, text, chooserTitle) }) {
+            Text(t(ReferralShare.ACTION_KEY))
         }
         OutlinedButton(
             onClick = {
@@ -94,7 +95,7 @@ fun ReferralShareBlock(link: String?, code: String) {
                 copied = true
             },
         ) {
-            Text(if (copied) ReferralShare.COPIED else ReferralShare.COPY)
+            Text(t(if (copied) ReferralShare.COPIED_KEY else ReferralShare.COPY_KEY))
         }
     }
 }
@@ -106,11 +107,11 @@ fun ReferralShareBlock(link: String?, code: String) {
  * otherwise crash the settings screen — a stripped fleet tablet is rare and a
  * crash is not the honest response to it.
  */
-internal fun shareReferral(context: Context, text: String) {
+internal fun shareReferral(context: Context, text: String, title: String) {
     val send = Intent(Intent.ACTION_SEND)
         .setType("text/plain")
         .putExtra(Intent.EXTRA_TEXT, text)
     runCatching {
-        context.startActivity(Intent.createChooser(send, ReferralShare.TITLE))
+        context.startActivity(Intent.createChooser(send, title))
     }
 }
