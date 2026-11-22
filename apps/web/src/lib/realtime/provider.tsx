@@ -4,7 +4,7 @@ import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { useQueryClient } from '@tanstack/react-query';
 import type { Query } from '@tanstack/react-query';
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { changesSomething, findListRow, listApplyConversation, listSetUnread, snippetFromMessage, threadPatchMessage } from '@/lib/api/cache';
@@ -60,6 +60,19 @@ export const REALTIME_FED: ReadonlySet<string> = new Set([
 ]);
 
 const RESYNC_STALE_AFTER_MS = 5 * 60_000;
+
+type CallEndedListener = (companyId: string, sessionId: string) => void;
+const CallEndedContext = createContext<Set<CallEndedListener> | null>(null);
+
+export function useRealtimeCallEnded(listener: CallEndedListener) {
+  const listeners = useContext(CallEndedContext);
+  useEffect(() => {
+    listeners?.add(listener);
+    return () => {
+      listeners?.delete(listener);
+    };
+  }, [listeners, listener]);
+}
 
 /** Which of a company's queries a resync or a rejoin backfill refetches. */
 export function resyncPredicate(
@@ -226,6 +239,7 @@ const NUMBER_LIST_RETRY_DELAYS_MS = [1000, 4000, 12_000];
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
+  const callEndedListeners = useRef(new Set<CallEndedListener>()).current;
   // undefined on a server that predates the field or after a failed read:
   // both mean "no statement", and the socket opens as it always did.
   const meCompany = useMeCompany();
@@ -793,7 +807,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       refreshSoon(keys.conversations.detail(companyId, event.conversation_id));
     }
 
-    function handleCallUpdated() {
+    function handleCallUpdated(payload: { call_session_id?: unknown; state?: unknown } | undefined) {
+      if (disposed) return;
+      const sessionId = payload?.call_session_id;
+      const state = payload?.state;
+      if (typeof sessionId === "string" && sessionId && typeof state === "string" && state.startsWith("ended_")) {
+        for (const listener of callEndedListeners) listener(companyId, sessionId);
+      }
       // #133: the calls read model changed (new session, outcome merge). The
       // /calls surface is a plain server list — refetch it whole rather than
       // patching rows; the [companyId, "calls"] prefix intentionally covers
@@ -1100,9 +1120,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         .on("broadcast", { event: "task.changed" }, ({ payload }) =>
           handleTaskChanged(payload as TaskChangedEvent),
         )
-        // #133: {call_id, conversation_id} — ID-only like everything else, and
-        // the handler needs neither: the calls list refetches whole.
-        .on("broadcast", { event: "call.updated" }, handleCallUpdated)
+        .on("broadcast", { event: "call.updated" }, ({ payload }) => handleCallUpdated(payload))
         // #607: {conversation_id, payment_request_id, type} — ID-only like the
         // rest, and the handler needs only the conversation.
         .on("broadcast", { event: "payment.updated" }, ({ payload }) =>
@@ -1305,7 +1323,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       for (const { channel } of channels) void supabase.removeChannel(channel);
     };
   // oxlint-disable-next-line react/exhaustive-effect-dependencies -- a failed join schedules a rebuild of the same topics.
-  }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration]);
+  }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration, callEndedListeners]);
 
-  return children;
+  return <CallEndedContext.Provider value={callEndedListeners}>{children}</CallEndedContext.Provider>;
 }

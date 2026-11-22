@@ -653,6 +653,39 @@ final class TelephonyMappingTests: XCTestCase {
         XCTAssertTrue(core.state.calls.isEmpty, "no ring UI for a cancelled placement")
     }
 
+    func testTerminalUpdateClearsOnlyItsPendingPlacementAndSuppressesLateInvites() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+        backend.nextSessionId = sessionA
+        try await core.placeCall(displayName: "Ari", to: "+15552223333")
+
+        core.onCallSessionEnded(sessionB)
+        XCTAssertEqual(.connecting, core.state.calls.first?.phase)
+
+        core.onCallSessionEnded(sessionA)
+        XCTAssertTrue(core.state.calls.isEmpty)
+        XCTAssertEqual("Call ended", core.state.error)
+        for id in ["op-late", "op-late-fork"] {
+            let op = FakeHandle(id: id, callControlId: id)
+            sdk.ring(op, name: "Ari", sessionHeader: sessionA)
+            XCTAssertFalse(op.ended)
+            XCTAssertFalse(op.answered)
+        }
+        XCTAssertTrue(core.state.calls.isEmpty)
+    }
+
+    func testTerminalUpdateBeforeAuthorizationDoesNotCreateAPlacement() async throws {
+        let (core, _, backend) = makeCore()
+        try await startReady(core)
+        backend.nextSessionId = sessionA
+        core.onCallSessionEnded(sessionA)
+
+        try await core.placeCall(displayName: "Ari", to: "+15552223333")
+
+        XCTAssertTrue(core.state.calls.isEmpty)
+        XCTAssertEqual("Call ended", core.state.error)
+    }
+
     func testConnectingAnOutboundWhileOnACallHoldsTheFirst() async throws {
         let (core, sdk, backend) = makeCore()
         try await startReady(core)

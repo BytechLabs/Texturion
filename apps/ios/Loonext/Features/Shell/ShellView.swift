@@ -327,6 +327,11 @@ struct ShellView: View {
         }
         .task(id: companyId) {
             for await event in await graph.realtime.events() {
+                if event.event == "call.updated",
+                   event.payload["state"]?.stringValue?.hasPrefix("ended_") == true,
+                   let sessionId = event.payload["call_session_id"]?.stringValue {
+                    CallsManager.peek()?.onCallSessionEnded(sessionId, companyId: companyId)
+                }
                 let myRead = event.event.hasPrefix("read.") &&
                     event.payload["user_id"]?.stringValue == hydratedMe.user_id
                 if myRead || ["message.", "conversation.", "task.", "call."].contains(where: {

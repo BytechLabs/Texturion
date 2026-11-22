@@ -43,7 +43,7 @@ import type { ConversationEvent } from "@/lib/api/types";
 import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
 import { REORDER_WINDOW_MS } from "./sequence";
 import { useForYouNotificationsRealtime } from "./for-you-notifications";
-import { RealtimeProvider } from "./provider";
+import { RealtimeProvider, useRealtimeCallEnded } from "./provider";
 import type * as ApiClient from "@/lib/api/client";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
@@ -203,7 +203,15 @@ function ForYouListener() {
   return null;
 }
 
-function setup({ listener = false }: { listener?: boolean } = {}) {
+function CallEndedListener({ onEnded }: { onEnded: (companyId: string, sessionId: string) => void }) {
+  useRealtimeCallEnded(onEnded);
+  return null;
+}
+
+function setup({ listener = false, onCallEnded }: {
+  listener?: boolean;
+  onCallEnded?: (companyId: string, sessionId: string) => void;
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -219,7 +227,10 @@ function setup({ listener = false }: { listener?: boolean } = {}) {
   // a re-render here is to let the effect re-read `visibleNumbers`.
   const tree = () => (
     <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>{listener ? <ForYouListener /> : null}</RealtimeProvider>
+      <RealtimeProvider>
+        {listener ? <ForYouListener /> : null}
+        {onCallEnded ? <CallEndedListener onEnded={onCallEnded} /> : null}
+      </RealtimeProvider>
     </QueryClientProvider>
   );
   const view = render(tree());
@@ -811,6 +822,19 @@ describe("the subscribed event set", () => {
       expect(new Set(events)).toEqual(new Set(REALTIME_EVENTS));
     }
   });
+});
+
+it("forwards only terminal call updates with a session to the softphone listener", async () => {
+  const onCallEnded = vi.fn();
+  const { emit } = setup({ onCallEnded });
+  await flush();
+
+  emit(COMPANY_TOPIC, "call.updated", { call_session_id: "call-1", state: "answered" });
+  emit(COMPANY_TOPIC, "call.updated", { state: "ended_missed" });
+  expect(onCallEnded).not.toHaveBeenCalled();
+
+  emit(COMPANY_TOPIC, "call.updated", { call_session_id: "call-1", state: "ended_missed" });
+  expect(onCallEnded).toHaveBeenCalledExactlyOnceWith(COMPANY, "call-1");
 });
 
 it("refreshes the affected quote list, outstanding quotes, and timeline", async () => {
