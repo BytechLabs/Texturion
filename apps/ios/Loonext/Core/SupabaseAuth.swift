@@ -118,7 +118,7 @@ struct SupabaseAuth: Sendable {
 
     /// Best-effort server-side revocation; local sign-out never depends on it.
     func signOut(accessToken: String) async {
-        _ = try? await request("logout", body: [:], bearer: accessToken)
+        _ = try? await request("logout?scope=local", body: [:], bearer: accessToken)
     }
 
     // MARK: - Error classification (#166)

@@ -56,11 +56,13 @@ const WEB_OWNER = "apps/web/src/lib/auth/end-session.ts";
 const NATIVE = [
   {
     file: "apps/android/app/src/main/kotlin/com/loonext/android/features/shell/RootViewModel.kt",
+    authFile: "apps/android/app/src/main/kotlin/com/loonext/android/core/auth/SupabaseAuth.kt",
     needs: "revokeThisSession",
     marker: "authManager.signOut()",
   },
   {
     file: "apps/ios/Loonext/Features/Shell/RootViewModel.swift",
+    authFile: "apps/ios/Loonext/Core/SupabaseAuth.swift",
     needs: "revokeThisSession",
     marker: "authManager.signOut()",
   },
@@ -123,12 +125,8 @@ for (const file of sources(WEB_ROOT)) {
     );
   }
   if (owner !== null) {
-    if (!/auth\.signOut\(/.test(owner)) {
-      problems.push(
-        `${WEB_OWNER} no longer calls auth.signOut(). Every caller delegates to it, ` +
-          `so a sign-out that does not end the local session leaves somebody signed ` +
-          `in believing they are not.`,
-      );
+    if (!/auth\.signOut\(\s*\{\s*scope:\s*["']local["']\s*,?\s*\}\s*\)/.test(owner)) {
+      problems.push(`${WEB_OWNER} must use auth.signOut with local scope to preserve other devices.`);
     }
     if (!/apiFetch<[^>]*>\(\s*"\/v1\/sessions\/revoke"/.test(owner)) {
       problems.push(
@@ -149,7 +147,7 @@ for (const file of sources(WEB_ROOT)) {
   }
 }
 
-for (const { file, needs, marker } of NATIVE) {
+for (const { file, authFile, needs, marker } of NATIVE) {
   let source;
   try {
     source = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
@@ -176,6 +174,11 @@ for (const { file, needs, marker } of NATIVE) {
         `softphone credential is never swept, and the access token on that handset ` +
         `keeps working for the rest of its life.`,
     );
+  }
+
+  const auth = stripComments(readFileSync(authFile, "utf8").replaceAll("\r\n", "\n"));
+  if (!/request\(\s*"logout\?scope=local"\s*,/.test(auth)) {
+    problems.push(`${authFile} must use local Auth logout scope to preserve other devices.`);
   }
 }
 

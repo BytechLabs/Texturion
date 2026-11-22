@@ -216,7 +216,7 @@ class SupabaseAuth(
     /** Best-effort server-side revocation; local sign-out never depends on it. */
     suspend fun signOut(accessToken: String) {
         try {
-            request("logout", buildJsonObject {}, bearer = accessToken)
+            request("logout?scope=local", buildJsonObject {}, bearer = accessToken)
         } catch (_: ApiException) {
             // Token already dead server-side — that IS signed out.
         }
