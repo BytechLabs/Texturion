@@ -173,6 +173,7 @@ export function buildRig(config: RigdConfig): Rig {
           notifications: () => page.notifications(),
           waitForText: (text, ms) => page.waitForText(text, ms),
           enablePush: () => page.enablePush(),
+          pushEndpoint: () => page.pushEndpoint(),
           hear: (hearOptions) => page.hear({ margins: loadMargins(marginsFile), ...hearOptions }),
           mark: (name) => page.mark(name),
         };

@@ -38,12 +38,46 @@ document.querySelector("form").addEventListener("submit", (event) => {
 });
 </script>`;
 
-const pushPage = (works: boolean) => `<!doctype html><meta charset="utf-8"><title>notifications</title>
-<div><p>Email</p><button>Turn on</button></div>
-<div class="card"><div><p>Push on this device</p><p>Get a buzz for new texts.</p></div><button id="push">Turn on</button></div>
+const pushLabels = {
+  en: {
+    title: "Push on this device",
+    on: "Turn on",
+    off: "Turn off",
+    orientation: "One inbox, the whole crew",
+    skip: "Skip",
+  },
+  "fr-CA": {
+    title: "Alertes push sur cet appareil",
+    on: "Activer",
+    off: "Désactiver",
+    orientation: "Une boîte de réception, toute l'équipe",
+    skip: "Passer",
+  },
+};
+
+const pushPage = (
+  labels: (typeof pushLabels)[keyof typeof pushLabels],
+  works: boolean,
+  enabled: boolean,
+  showOrientation: boolean,
+) => `<!doctype html><meta charset="utf-8"><title>notifications</title>
+<div><p>Email</p><button>${labels.on}</button></div>
+<div class="card" id="push-card" ${showOrientation ? 'aria-hidden="true"' : ""}>
+  <div><p>${labels.title}</p></div>
+  <button id="push" hidden>${enabled ? labels.off : labels.on}</button>
+</div>
+${showOrientation ? `<div role="dialog" aria-labelledby="orientation">
+  <h2 id="orientation">${labels.orientation}</h2><button id="skip">${labels.skip}</button>
+</div>` : ""}
 <script>
-document.getElementById("push").addEventListener("click", () => {
-  if (${works}) setTimeout(() => { document.getElementById("push").textContent = "Turn off"; }, 200);
+document.getElementById("skip")?.addEventListener("click", (event) => {
+  event.target.closest("[role=dialog]").remove();
+  document.getElementById("push-card").removeAttribute("aria-hidden");
+});
+const button = document.getElementById("push");
+setTimeout(() => { button.hidden = false; }, 150);
+button.addEventListener("click", () => {
+  if (${works}) setTimeout(() => { button.textContent = ${JSON.stringify(labels.off)}; }, 200);
 });
 </script>`;
 
@@ -51,6 +85,9 @@ let server: Server;
 let origin: string;
 let logins = 0;
 let pushWorks = true;
+let pushEnabled = false;
+let showOrientation = false;
+let pushLocale: keyof typeof pushLabels = "en";
 const dir = mkdtempSync(join(tmpdir(), "rig-lane-signin-"));
 
 beforeAll(async () => {
@@ -63,7 +100,7 @@ beforeAll(async () => {
     } else if (!signedIn) {
       response.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname)}` }).end();
     } else if (url.pathname === "/settings/notifications") {
-      response.writeHead(200, { "content-type": "text/html" }).end(pushPage(pushWorks));
+      response.writeHead(200, { "content-type": "text/html" }).end(pushPage(pushLabels[pushLocale], pushWorks, pushEnabled, showOrientation));
     } else {
       response.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>app</title><p>Signed in at ${url.pathname}</p>`);
     }
@@ -120,15 +157,31 @@ describe("a member's browser profile", () => {
     }
   });
 
-  it("turns push on from the settings card, and says so when the browser cannot", async () => {
-    const browser = lane("profiles-push");
+  it.each(["en", "fr-CA"] as const)("turns push on from the %s settings after the first-run dialog and delayed loading", async (locale) => {
+    const browser = lane(`profiles-push-${locale}`);
     try {
       const page = await browser.open("qa-w-owner", "qa-w-owner", "/inbox");
+      pushLocale = locale;
       pushWorks = true;
+      pushEnabled = false;
+      showOrientation = true;
       await expect(page.enablePush()).resolves.toBe(true);
+      pushEnabled = true;
+      showOrientation = false;
+      await expect(page.enablePush()).resolves.toBe(true);
+      expect(new URL(page.page.url()).pathname).toBe("/inbox");
+    } finally {
+      await browser.closeAll();
+    }
+  });
+
+  it("returns false when the browser cannot turn on push", async () => {
+    const browser = lane("profiles-push-unavailable");
+    try {
+      const page = await browser.open("qa-w-owner", "qa-w-owner", "/inbox");
+      pushEnabled = false;
       pushWorks = false;
       await expect(page.enablePush()).resolves.toBe(false);
-      expect(new URL(page.page.url()).pathname).toBe("/inbox");
     } finally {
       await browser.closeAll();
     }

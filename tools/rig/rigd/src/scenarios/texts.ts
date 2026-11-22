@@ -3,7 +3,7 @@
  * S24 and S25. Every body carries the attempt's nonce, so a check never
  * matches a text from another run.
  */
-import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll } from './context.ts';
+import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll, prepareWebPush } from './context.ts';
 import type { ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 /** Every rig number has an Ontario area code, so the destination's clock is Toronto's. */
@@ -84,19 +84,10 @@ export const S20: ScenarioRunner = {
 export const S21: ScenarioRunner = {
   id: "S21",
   async run(ctx) {
-    // Chrome, because a push attempt needs somewhere to push to and Chromium has no push service.
-    const page = await ctx.browser.open("qa-w-owner", "qa-w-owner", "/inbox", { push: true });
-    // The owner's browser subscribes through the app's own control when nothing else has.
-    if ((await ctx.app.pushTargets({ member: "qa-w-owner" })) === 0) {
-      if (!(await page.enablePush())) {
-        return infra(
-          "push-target",
-          "qa-w-owner has no push subscription or device token, and the browser could not subscribe: Web Push needs Google Chrome (RIG_CHROME_BIN), and Chromium has no push service",
-        );
-      }
-      const saved = await poll(ctx, async () => (await ctx.app.pushTargets({ member: "qa-w-owner" })) > 0, 10_000);
-      if (!saved) return fail("push_subscription_not_saved", "the page subscribed to push but the API kept no subscription");
-    }
+    const member = "qa-w-owner";
+    const page = await ctx.browser.open(member, member, "/inbox", { push: true });
+    const pushSetup = await prepareWebPush(ctx, page, member);
+    if (pushSetup) return pushSetup;
     const since = ctx.now();
     const body = `Rig S21 inbound ${ctx.nonce}`;
     await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: body, scenario: ctx.scenario });

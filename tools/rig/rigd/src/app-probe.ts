@@ -181,6 +181,16 @@ export class AppProbe implements AppApi {
     return subscriptions.length + tokens.length;
   }
 
+  async hasWebPushSubscription(args: { member: string; endpoint: string }): Promise<boolean> {
+    const subscriptions = await this.#rest<{ id: string }[]>("push_subscriptions", {
+      user_id: `eq.${subjectOf(await this.#session(args.member))}`,
+      endpoint: `eq.${args.endpoint}`,
+      select: "id",
+      limit: "1",
+    });
+    return subscriptions.length > 0;
+  }
+
   async pushTokens(args: { member: string }): Promise<string[]> {
     const rows = await this.#rest<{ token: string }[]>("device_push_tokens", {
       user_id: `eq.${await this.#userIdOf(args.member)}`,

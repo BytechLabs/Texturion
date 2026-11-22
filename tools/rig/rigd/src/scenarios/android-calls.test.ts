@@ -550,7 +550,9 @@ function d08World() {
   const world = fakeContext("D08");
   const { app, browser, robot } = world;
   browser.script.canPush = true;
-  browser.script.onPush = (member) => app.targets.set(member, 1);
+  const endpoint = "https://push.example.test/current-browser";
+  browser.script.pushEndpoint = endpoint;
+  browser.script.onPush = (member) => app.webPushEndpoints.set(member, endpoint);
   // An earlier call's outcome card, still in the profile.
   browser.script.notifications = [{ title: "Missed call", body: "Rig caller called and nobody picked up.", tag: "loonext:call:earlier" }];
   const rings = { shows: true, replaced: true };
@@ -583,6 +585,7 @@ describe("D08, a background tab and Web Push", () => {
       return setRingAudience(args);
     };
     expect((await D08.run(ctx)).outcome).toBe("pass");
+    expect(browser.opened[0]).toMatchObject({ path: "/inbox", push: true });
     expect(browser.actions).toEqual(["qa-a-dispatcher enable push", "qa-a-dispatcher background"]);
     expect(undo).toEqual([
       { kind: "app.ring-audience", params: { tenant: "QA-A", role: "DEV-A1", member: "qa-a-dispatcher", level: null } },
@@ -608,8 +611,9 @@ describe("D08, a background tab and Web Push", () => {
     expect(world.undo).toEqual([]);
   });
 
-  it("fails a subscription the API never kept", async () => {
+  it("rejects a stale target when the current subscription was never saved", async () => {
     const world = d08World();
+    world.app.webPushEndpoints.set("qa-a-dispatcher", "https://push.example.test/stale-browser");
     world.browser.script.onPush = () => undefined;
     await expect(D08.run(world.ctx)).resolves.toMatchObject({ failure_class: "push_subscription_not_saved" });
     expect(world.robot.plans).toEqual([]);

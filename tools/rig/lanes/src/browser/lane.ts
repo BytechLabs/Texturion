@@ -38,9 +38,11 @@ export const SELECTORS = {
   loginPassword: 'input[type="password"]',
   loginSubmit: 'form button[type="submit"]',
   /** The push card on /settings/notifications (components/notifications/permission-card.tsx). */
-  pushCard: "Push on this device",
-  pushTurnOn: { role: "button", name: "Turn on" },
-  pushTurnOff: { role: "button", name: "Turn off" },
+  pushCard: /Push on this device|Alertes push sur cet appareil/,
+  pushTurnOn: /^(?:Turn on|Activer)$/,
+  pushTurnOff: /^(?:Turn off|Désactiver)$/,
+  orientationTitle: /^(?:One inbox, the whole crew|Une boîte de réception, toute l['’]équipe)$/,
+  orientationSkip: /^(?:Skip|Passer)$/,
   /** The call bar's controls (apps/web/src/i18n/sections/shell.ts, English). */
   putOnHold: { role: "button", name: "Put on hold" },
   resume: { role: "button", name: /^Resume call with / },
@@ -548,9 +550,19 @@ export class MemberPage {
     try {
       await tab.goto(new URL("/settings/notifications", this.#origin).toString());
       const card = tab.locator("div").filter({ hasText: SELECTORS.pushCard }).filter({ has: tab.getByRole("button") }).last();
-      const off = card.getByRole(SELECTORS.pushTurnOff.role, { name: SELECTORS.pushTurnOff.name, exact: true });
+      const on = card.getByRole("button", { name: SELECTORS.pushTurnOn });
+      const off = card.getByRole("button", { name: SELECTORS.pushTurnOff });
+      const choices = on.or(off);
+      const orientation = tab.getByRole("dialog", { name: SELECTORS.orientationTitle });
+      const skip = orientation.getByRole("button", { name: SELECTORS.orientationSkip });
+      await choices.or(skip).first().waitFor({ timeout: PUSH_TIMEOUT_MS });
+      if (await skip.isVisible()) {
+        await skip.click({ timeout: PUSH_TIMEOUT_MS });
+        await orientation.waitFor({ state: "hidden", timeout: PUSH_TIMEOUT_MS });
+      }
+      await choices.waitFor({ timeout: PUSH_TIMEOUT_MS });
       if (await off.isVisible()) return true;
-      await card.getByRole(SELECTORS.pushTurnOn.role, { name: SELECTORS.pushTurnOn.name, exact: true }).click({ timeout: PUSH_TIMEOUT_MS });
+      await on.click({ timeout: PUSH_TIMEOUT_MS });
       await off.waitFor({ timeout: PUSH_TIMEOUT_MS });
       return true;
     } catch {
@@ -558,6 +570,13 @@ export class MemberPage {
     } finally {
       await tab.close().catch(() => undefined);
     }
+  }
+
+  pushEndpoint(): Promise<string | null> {
+    return this.page.evaluate(async () => {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      return (await registration?.pushManager?.getSubscription())?.endpoint ?? null;
+    });
   }
 
   mark(name: string): Promise<void> {
