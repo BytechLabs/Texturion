@@ -149,9 +149,9 @@ export function PhoneLineNavigation({ children, rail = false }: { children: Reac
           aria-expanded={open}
           aria-controls={groupId}
           onClick={() => setClosedOn(open ? pathname : null)}
-          className="tap-target flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[9px] px-2.5 text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-10"
+          className="tap-target flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-[9px] px-2.5 text-left text-app-ink-soft hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-10 lg:gap-1.5 lg:px-2"
         >
-          <Phone className="size-4 shrink-0 text-app-muted" strokeWidth={1.75} aria-hidden />
+          <Phone className="size-4 shrink-0 text-app-muted lg:hidden" strokeWidth={1.75} aria-hidden />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-semibold">{selected.name}</span>
             {selected.name !== selected.number && <span className="block truncate text-[11px] text-app-muted">{selected.number}</span>}
