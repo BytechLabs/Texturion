@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +47,10 @@ import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
 import com.loonext.android.features.thread.sendAtOf
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.CenteredLoading
+import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberHaptics
 
 /**
@@ -77,6 +82,8 @@ import com.loonext.android.ui.common.rememberHaptics
 @Composable
 fun ScheduledSheet(
     rows: List<ScheduledMessage>,
+    loadState: LoadState<Unit>,
+    onRetry: () -> Unit,
     onOpenConversation: (String) -> Unit,
     onCancel: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -96,15 +103,21 @@ fun ScheduledSheet(
         )
         lineMenu?.invoke()
         if (rows.isEmpty()) {
-            // Reassurance IS the honest empty answer: the question this sheet
-            // exists to settle is "is something about to go out that I don't
-            // know about", and "no" is a complete reply.
-            Text(
-                ScheduledSend.copy("nothing_scheduled"),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
-            )
+            when (loadState) {
+                LoadState.Loading -> CenteredLoading(Modifier.height(88.dp))
+                is LoadState.Failed -> LoadError(
+                    message = loadState.message,
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    variant = LoadErrorVariant.Inline,
+                )
+                is LoadState.Ready -> Text(
+                    ScheduledSend.copy("nothing_scheduled"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+                )
+            }
             return@AppSheet
         }
 

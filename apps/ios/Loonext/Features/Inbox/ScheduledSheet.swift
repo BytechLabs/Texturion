@@ -27,6 +27,8 @@ import SwiftUI
 @MainActor
 struct ScheduledSheet: View {
     let rows: [ScheduledMessage]
+    let loadState: LoadState<Void>
+    let onRetry: @MainActor () -> Void
     let onOpenConversation: @MainActor (String) -> Void
     let onCancel: @MainActor (String) -> Void
     var lineMenu: PhoneLineMenu? = nil
@@ -41,17 +43,23 @@ struct ScheduledSheet: View {
         NavigationStack {
             Group {
                 if rows.isEmpty {
-                    // Reassurance IS the honest empty answer: the question this
-                    // sheet exists to settle is "is something about to go out
-                    // that I don't know about", and "no" is a complete reply.
-                    EmptyState(
-                        title: AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
-                        description: ScheduledSend.copyLine(
-                            "nothing_scheduled", locale: appLocale
-                        ),
-                        systemImage: "calendar.badge.clock",
-                        fill: true
-                    )
+                    switch loadState {
+                    case .loading:
+                        ProgressView()
+                            .accessibilityLabel(AppStrings.translate(appLocale, "common.loading"))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .failed(let message):
+                        LoadError(message: message, onRetry: onRetry)
+                    case .ready:
+                        EmptyState(
+                            title: AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
+                            description: ScheduledSend.copyLine(
+                                "nothing_scheduled", locale: appLocale
+                            ),
+                            systemImage: "calendar.badge.clock",
+                            fill: true
+                        )
+                    }
                 } else {
                     List {
                         if !held.isEmpty {
