@@ -54,8 +54,11 @@ class CallForegroundService : Service() {
         private const val EXTRA_TEXT = "text"
         private const val EXTRA_SINCE = "since"
 
+        private var startRequested = false
+
         /** Hold the process + mic for a call, and post/UPDATE its notification.
          *  Idempotent — call it again to change the title/status. */
+        @Synchronized
         fun start(
             context: Context,
             title: String,
@@ -68,7 +71,7 @@ class CallForegroundService : Service() {
                     .putExtra(EXTRA_TITLE, title)
                     .putExtra(EXTRA_TEXT, text ?: deviceCopy("telephony.callInProgress"))
                     .putExtra(EXTRA_SINCE, sinceMs ?: 0L)
-                context.startForegroundService(intent)
+                if (context.startForegroundService(intent) != null) startRequested = true
             }
         }
 
@@ -80,8 +83,14 @@ class CallForegroundService : Service() {
          * being dropped and the notification stuck. Destroying the service removes
          * its foreground notification.
          */
+        @Synchronized
         fun stop(context: Context) {
-            runCatching { context.stopService(Intent(context, CallForegroundService::class.java)) }
+            if (!startRequested) return
+
+            runCatching {
+                context.stopService(Intent(context, CallForegroundService::class.java))
+                startRequested = false
+            }
         }
     }
 
