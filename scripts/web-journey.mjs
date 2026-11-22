@@ -100,6 +100,70 @@ function waitForRealtime(page) {
   });
 }
 
+async function checkShortPaymentActions(inbox, api) {
+  const threadUrl = new URL(inbox.url());
+  const conversationId = threadUrl.pathname.split("/").at(-1);
+  const payment = await inbox.context().newPage();
+  try {
+    const quotesUrl = new URL("/v1/quotes", api);
+    quotesUrl.searchParams.set("conversation_id", conversationId);
+    const now = new Date().toISOString();
+    const quotes = ["Replace the sink", "Install the faucet"].map((description) => ({
+      id: randomUUID(),
+      conversation_id: conversationId,
+      contact_id: randomUUID(),
+      amount_cents: 12_995,
+      currency: "cad",
+      description,
+      status: "accepted",
+      effective_status: "accepted",
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      sent_at: now,
+      viewed_at: now,
+      decided_at: now,
+      created_at: now,
+    }));
+    await payment.route(quotesUrl.href, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: { data: quotes } });
+    });
+    await payment.route(new URL("/v1/payments/account", api).href, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        json: { ...(await response.json()), connected: true, readiness: "ready", currency: "cad" },
+      });
+    });
+    await payment.setViewportSize({ width: 320, height: 560 });
+    await payment.goto(threadUrl.href);
+    await payment.getByText("Install the faucet", { exact: true }).waitFor();
+    await payment.getByRole("button", { name: "Ask for payment", exact: true }).last().click();
+    const amount = payment.getByLabel("Amount", { exact: true });
+    await amount.fill("17.43");
+    const amountBox = await amount.boundingBox();
+    assert.ok(amountBox, "The payment amount is visible");
+    await payment.mouse.move(amountBox.x + amountBox.width / 2, amountBox.y + amountBox.height / 2);
+    await payment.mouse.wheel(0, 360);
+
+    const submit = payment.getByRole("button", { name: "Ask for $17.43", exact: true });
+    const cancel = payment.getByRole("button", { name: "Cancel", exact: true });
+    // A Playwright click can scroll the hidden page frame.
+    for (const button of [submit, cancel]) {
+      await payment.waitForFunction((element) => {
+        const bounds = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(
+          bounds.x + bounds.width / 2, bounds.y + bounds.height / 2,
+        ));
+      }, await button.elementHandle(), { timeout: 5000 });
+    }
+    await cancel.click();
+    await payment.getByLabel("What for").waitFor({ state: "hidden" });
+  } finally {
+    await payment.unrouteAll({ behavior: "wait" });
+    await payment.close();
+  }
+}
+
 async function checkJourney(page, web, api, telnyx) {
   const marker = randomUUID().slice(0, 8);
   const inbound = `Can you look at the kitchen sink? ${marker}`;
@@ -201,6 +265,7 @@ async function checkJourney(page, web, api, telnyx) {
     await remove.click();
     await inbox.getByRole("dialog", { name: "Delete draft", exact: true }).getByRole("button", { name: "Delete draft", exact: true }).click();
     await row.waitFor({ state: "hidden" });
+    await checkShortPaymentActions(inbox, api);
     await inbox.setViewportSize({ width: 390, height: 640 });
 
     await composer.waitFor();
@@ -264,7 +329,7 @@ try {
   } finally {
     await browser.close();
   }
-  console.log("web-journey: live text, idempotent reply, job creation, draft quote controls and STOP passed");
+  console.log("web-journey: live text, idempotent reply, job creation, draft quote controls, short-screen payment actions and STOP passed");
 } catch (error) {
   console.error("web-journey failed", error);
   process.exitCode = 1;
