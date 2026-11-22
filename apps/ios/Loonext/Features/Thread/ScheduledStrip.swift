@@ -82,6 +82,8 @@ private struct ScheduledStripRow: View {
                         .font(.caption)
                         .lineLimit(expanded ? nil : 2)
                         .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 

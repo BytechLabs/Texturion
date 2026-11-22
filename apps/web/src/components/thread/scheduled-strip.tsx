@@ -54,7 +54,7 @@ export function ScheduledStrip({ conversationId, clock }: {
   if (rows.length === 0) return null;
 
   return (
-    <ul className="mx-auto flex max-w-[42rem] flex-col gap-1 px-1 pb-1.5">
+    <ul className="mx-auto flex w-full max-w-[42rem] flex-col gap-1 px-1 pb-1.5">
       {rows.map((row) => (
         <ScheduledRow
           key={row.id}
@@ -128,7 +128,7 @@ function ScheduledRow({
         <button
           type="button"
           aria-expanded={expanded}
-          className={cn("block w-full text-left", expanded ? "whitespace-pre-wrap break-words" : "truncate")}
+          className={cn("block min-h-11 w-full text-left md:min-h-8", expanded ? "whitespace-pre-wrap break-words" : "truncate")}
           onClick={() => setExpanded(!expanded)}
         >
           <span className="font-medium text-foreground">

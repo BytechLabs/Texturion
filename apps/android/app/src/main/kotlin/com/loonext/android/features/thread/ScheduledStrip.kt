@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -175,18 +177,25 @@ private fun ScheduledRow(
                 .size(IconSize.Small),
         )
         Column(Modifier.weight(1f)) {
-            Text(
-                buildString {
-                    append(if (held) t("thread.scheduledWaiting") else sendAtOf(row, locale))
-                    append(" — ")
-                    append(row.body)
-                },
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.clickable { expanded = !expanded },
-                maxLines = if (expanded) Int.MAX_VALUE else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button) { expanded = !expanded },
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    buildString {
+                        append(if (held) t("thread.scheduledWaiting") else sendAtOf(row, locale))
+                        append(" — ")
+                        append(row.body)
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             // The reason, in the API's own words. Not paraphrased here: three
             // clients paraphrasing one sentence is how one of them ends up
             // saying nothing at all.
