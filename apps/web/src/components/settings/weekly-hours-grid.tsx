@@ -4,11 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
+import { formatWallWeekday } from "@/lib/format/time";
 import { WEEKDAY_ORDER } from '@/lib/settings/business-hours-form';
 import type { DayFormState } from '@/lib/settings/business-hours-form';
-
-const MONDAY_UTC = Date.UTC(2024, 0, 1);
-const DAY_MS = 86_400_000;
 
 /**
  * The seven-row week, extracted so the workspace's hours and a single line's
@@ -36,11 +34,11 @@ export function WeeklyHoursGrid({
   onChange: (weekday: string, patch: Partial<DayFormState>) => void;
 }) {
   const t = useT();
-  const weekday = new Intl.DateTimeFormat(t.locale, { weekday: "long", timeZone: "UTC" });
   return (
     <div className="space-y-3">
       {days.map((day) => {
-        const label = weekday.format(MONDAY_UTC + DAY_MS * WEEKDAY_ORDER.indexOf(day.weekday));
+        const weekdayIndex = WEEKDAY_ORDER.indexOf(day.weekday) + 1;
+        const label = formatWallWeekday(`2024-01-0${weekdayIndex}`, t.locale);
         return (
           <div
             key={day.weekday}

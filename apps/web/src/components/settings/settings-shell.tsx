@@ -32,6 +32,7 @@ export function SettingsShell({
   return (
     <div className="mx-auto flex w-full max-w-5xl gap-8 px-4 py-8 md:px-6 lg:gap-10">
       <aside
+        aria-label={t("settingsMore.settingsHeading")}
         className={cn(
           "w-full shrink-0 lg:block lg:w-52",
           atIndex ? "block" : "hidden",

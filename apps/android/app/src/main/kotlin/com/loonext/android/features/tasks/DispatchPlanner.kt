@@ -2,15 +2,15 @@ package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -714,14 +714,15 @@ internal fun DispatchTaskRow(
 ) {
     val locale = LocalAppLocale.current
     val uri = LocalUriHandler.current
-    PaperCard(Modifier.fillMaxWidth().dispatchDrag("task:${task.id}", dragEnabled)) {
+    PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-            TextButton(onClick = { onTask(task.id) }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 if (dragEnabled) {
-                    Icon(Icons.Outlined.DragHandle, contentDescription = null)
-                    Spacer(Modifier.width(5.dp))
+                    Box(Modifier.size(44.dp).dispatchDrag("task:${task.id}", true), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.DragHandle, contentDescription = null)
+                    }
                 }
-                Text(task.title)
+                TextButton(onClick = { onTask(task.id) }) { Text(task.title) }
             }
             if (block != null) {
                 Text(clock(block.starts_at, timezone, locale) + " – " + clock(block.ends_at, timezone, locale),

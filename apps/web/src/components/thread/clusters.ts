@@ -3,6 +3,7 @@ import { format, isSameDay, isSameYear, subDays } from "date-fns";
 import { makeTranslate } from "@/i18n/translate";
 import type { Translate } from "@/i18n/translate";
 import type { ConversationEvent, Message } from "@/lib/api/types";
+import { browserTimezone, getFormatter } from "@/lib/format/time";
 
 /**
  * Pure thread-timeline builder (G5): messages group into clusters (same
@@ -45,7 +46,7 @@ export function dayDividerLabel(date: Date, now: Date = new Date(), t: Translate
   if (isSameDay(date, subDays(now, 1))) return t("thread.dayYesterday");
   const sameYear = isSameYear(date, now);
   if (t.locale !== "en") {
-    return date.toLocaleDateString(t.locale, { day: "numeric", month, year: sameYear ? undefined : "numeric" });
+    return getFormatter(t.locale, browserTimezone(), { day: "numeric", month, year: sameYear ? undefined : "numeric" }).format(date);
   }
   if (month === "long") return format(date, sameYear ? "MMMM d" : "MMMM d, yyyy");
   return format(date, sameYear ? "MMM d" : "MMM d yyyy");
