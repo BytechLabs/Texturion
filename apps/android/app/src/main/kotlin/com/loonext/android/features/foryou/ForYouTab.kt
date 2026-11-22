@@ -450,7 +450,7 @@ fun ForYouTab(
         is LoadState.Failed -> Column(modifier) {
             if (linePicker != null) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
-                    ScreenTitle(t("inbox.forYouTitle"))
+                    ForYouTitle()
                     linePicker()
                 }
             }
@@ -728,7 +728,7 @@ internal fun ForYouList(
 
         item(key = "title") {
             Column(Modifier.padding(top = 15.dp)) {
-                ScreenTitle(t("inbox.forYouTitle"))
+                ForYouTitle()
                 if (total > 0 || lineFiltered || scheduleDecisions == null) {
                     val summary = when (total) {
                         0 -> if (lineFiltered) "inbox.forYouLineEmpty" else "inbox.forYouAllCaughtUp"
@@ -1531,7 +1531,7 @@ private fun ForYouSkeleton(modifier: Modifier, linePicker: (@Composable () -> Un
             SkeletonBlock(44.dp, 44.dp, shape = CircleShape)
         }
         Spacer(Modifier.height(15.dp))
-        if (linePicker == null) SkeletonBlock(168.dp, 30.dp) else ScreenTitle(t("inbox.forYouTitle"))
+        if (linePicker == null) SkeletonBlock(168.dp, 30.dp) else ForYouTitle()
         Spacer(Modifier.height(9.dp))
         SkeletonBlock(236.dp, 12.dp)
         linePicker?.invoke()
@@ -1540,6 +1540,11 @@ private fun ForYouSkeleton(modifier: Modifier, linePicker: (@Composable () -> Un
         Spacer(Modifier.height(14.dp))
         PaperCard(Modifier.fillMaxWidth()) { SkeletonList(rows = 2) }
     }
+}
+
+@Composable
+private fun ForYouTitle() {
+    ScreenTitle(t("inbox.forYouTitle"))
 }
 
 /**
