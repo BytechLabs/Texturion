@@ -1086,12 +1086,14 @@ private struct ContactRow: View {
                         )
                     }
                 }
-                CopyablePhoneNumber(number: contact.phone_e164, label: sub.visible)
-                    .spokenAs(sub)
+                Text(sub.visible)
                     .font(.golos(11.5))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted400)
                     .lineLimit(1)
+                    .frame(minHeight: 44, alignment: .topLeading)
+                    .spokenAs(sub)
+                    .phoneNumberCopyOnHold(contact.phone_e164)
             }
             Spacer(minLength: 8)
             // Decorative doorway glyph — the whole row opens the contact.
@@ -1101,7 +1103,7 @@ private struct ContactRow: View {
                 .frame(width: 34, height: 34)
                 .background(BrandColor.inset, in: Circle())
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, 8)
         .padding(.horizontal, 15)
     }
 }
