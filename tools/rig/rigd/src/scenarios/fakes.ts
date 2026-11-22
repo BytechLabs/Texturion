@@ -5,7 +5,7 @@
  * the runner name the failure.
  */
 import type { GuardHealth, LeaseActivity } from "@loonext/rig-protocol";
-import type { CallTestId, CheckoutRun, DeviceState, HostdHealth, NetworkShape, NumberChoice, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
+import type { CallTestId, CheckoutRun, DeviceState, HearOptions, HostdHealth, NetworkShape, NumberChoice, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Detection, InboxMessage, RobotApi, SinkDelivery, Surface } from "@loonext/rig-robot";
 import { signUpNumberKey } from "../app-probe.ts";
 import type { UndoAction } from "../lease.ts";
@@ -593,6 +593,7 @@ export class FakeBrowser implements BrowserApi {
   readonly opened: { member: string; surface: Surface; path?: string; push?: boolean }[] = [];
   readonly publicPages: string[] = [];
   readonly actions: string[] = [];
+  readonly hearingOptions: HearOptions[] = [];
   script: FakePageScript = { ringsAfterMs: 1500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true, clearsAfterMs: 500 };
   /** What the public flows answer. */
   publicScript = {
@@ -609,7 +610,7 @@ export class FakeBrowser implements BrowserApi {
   async open(member: string, surface: Surface, path?: string, options?: { push?: boolean }): Promise<MemberPageApi> {
     this.opened.push({ member, surface, path, ...(options?.push ? { push: true } : {}) });
     const {script} = this;
-    const {actions} = this;
+    const {actions, hearingOptions} = this;
     return {
       async waitForPhoneReady() {},
       async waitForRing(timeoutMs) {
@@ -663,7 +664,8 @@ export class FakeBrowser implements BrowserApi {
       async notifications() {
         return script.notifications ?? [];
       },
-      async hear(): Promise<PageHearing> {
+      async hear(options: HearOptions = {}): Promise<PageHearing> {
+        hearingOptions.push(options);
         const heard = script.heard ?? null;
         return {
           detection: {
