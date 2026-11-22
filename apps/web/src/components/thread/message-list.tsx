@@ -208,8 +208,8 @@ export function MessageList({
   }, [events, allMessagesLoaded, oldestLoadedMessageAt, hasNewer, newestLoadedMessageAt]);
 
   const allItems: ThreadItem[] = useMemo(
-    () => buildThreadItems(messages, visibleEvents),
-    [messages, visibleEvents],
+    () => buildThreadItems(messages, visibleEvents, undefined, t),
+    [messages, visibleEvents, t],
   );
   // §5.1: the filter is a cheap client-side view over already-built items —
   // no refetch. All-on is the full stream; toggling a kind off narrows it.

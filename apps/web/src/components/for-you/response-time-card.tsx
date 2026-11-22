@@ -189,7 +189,7 @@ export function ResponseTimeCard() {
               {/* The median, large and tabular. Optically nudged rather than
                   mathematically centred against the icon.
                   *Applying: Optical Corrections.* */}
-              <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
+              <span className="shrink-0 whitespace-nowrap text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
                 {formatResponseTime(report.data.median_seconds)}
               </span>
               <span className="text-[13px] text-app-muted-2">

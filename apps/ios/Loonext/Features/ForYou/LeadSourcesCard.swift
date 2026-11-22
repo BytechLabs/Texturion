@@ -176,13 +176,8 @@ private struct LeadSourceRow: View {
         HStack(spacing: 10) {
             Text(name)
                 .font(.callout)
-                .lineLimit(1)
-                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(muted ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
-                // The original 104 at ordinary sizes, untouched — it holds
-                // "Word of mouth" and "Don't know" in full, and a proportional
-                // width tried on Android was NARROWER and truncated both. A fix
-                // for the largest setting must not make the common one worse.
                 .frame(maxWidth: roomy ? 104 : .infinity, alignment: .leading)
             if roomy {
                 GeometryReader { geo in

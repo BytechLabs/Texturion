@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ConversationEvent, Message } from "@/lib/api/types";
+import { makeTranslate } from "@/i18n/translate";
 
 import { buildThreadItems, dayDividerLabel } from "./clusters";
 
@@ -129,6 +130,13 @@ describe("buildThreadItems dividers", () => {
     expect(dayDividerLabel(new Date("2025-06-12T10:00:00Z"), NOW)).toBe(
       "Jun 12 2025",
     );
+  });
+
+  it("labels relative and absolute dates in Canadian French", () => {
+    const t = makeTranslate("fr-CA");
+    expect(dayDividerLabel(NOW, NOW, t)).toBe("Aujourd'hui");
+    expect(dayDividerLabel(new Date("2026-06-30T18:00:00Z"), NOW, t)).toBe("Hier");
+    expect(dayDividerLabel(new Date("2025-06-12T18:00:00Z"), NOW, t)).toBe("12 juin 2025");
   });
 });
 

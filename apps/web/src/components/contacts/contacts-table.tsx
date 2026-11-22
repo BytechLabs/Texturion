@@ -140,6 +140,16 @@ function ContactRowView({
   }, []);
   useEffect(() => cancelHover, [cancelHover]);
 
+  // A CSV import or note edit does not count as conversation activity.
+  const activity = contact.last_activity_at ? (
+    <Timestamp at={contact.last_activity_at} style="short" />
+  ) : (
+    <>
+      <span aria-hidden>–</span>
+      <span className="sr-only">{t("contacts.noTextingActivity")}</span>
+    </>
+  );
+
   return (
     <ContactRowMenu contact={contact}>
       <TableRow
@@ -180,7 +190,7 @@ function ContactRowView({
             onCheckedChange={(on) => onToggle(contact.id, on === true)}
           />
         </TableCell>
-        <TableCell className="font-medium">
+        <TableCell className="font-medium whitespace-normal">
           <span className="flex flex-wrap items-center gap-2">
             <Link
               href={href}
@@ -215,25 +225,19 @@ function ContactRowView({
           {contact.business_name && (
             <div className="text-xs text-muted-foreground">{contact.business_name}</div>
           )}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs font-normal tabular-nums text-muted-foreground md:hidden">
+            <CopyablePhoneNumber number={contact.phone_e164} />
+            <span className="ml-auto">
+              <span className="sr-only">{t("contacts.fieldLastActivity")} </span>
+              {activity}
+            </span>
+          </div>
         </TableCell>
-        <TableCell className="tabular-nums text-muted-foreground">
+        <TableCell className="hidden tabular-nums text-muted-foreground md:table-cell">
           <CopyablePhoneNumber number={contact.phone_e164} />
         </TableCell>
-        <TableCell className="text-right tabular-nums text-muted-foreground">
-          {/* Conversation activity (G6), never updated_at — a
-              CSV re-import or notes edit must not read as a
-              fresh text (G10). Timestamps recede to the muted
-              colour: tertiary fails contrast on card. */}
-          {contact.last_activity_at ? (
-            <Timestamp at={contact.last_activity_at} style="short" />
-          ) : (
-            <>
-              <span aria-hidden>–</span>
-              <span className="sr-only">
-                {t("contacts.noTextingActivity")}
-              </span>
-            </>
-          )}
+        <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">
+          {activity}
         </TableCell>
       </TableRow>
     </ContactRowMenu>
@@ -359,8 +363,8 @@ export function ContactsTable({
                 />
               </TableHead>
               <TableHead>{t("contacts.fieldName")}</TableHead>
-              <TableHead>{t("contacts.fieldNumber")}</TableHead>
-              <TableHead className="text-right">
+              <TableHead className="hidden md:table-cell">{t("contacts.fieldNumber")}</TableHead>
+              <TableHead className="hidden text-right md:table-cell">
                 {t("contacts.fieldLastActivity")}
               </TableHead>
             </TableRow>

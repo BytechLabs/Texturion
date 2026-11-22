@@ -30,7 +30,7 @@ export function PageHeader({
     <header className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", className)}>
       <div className="mr-auto min-w-0">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-2xl font-semibold tracking-tight text-app-ink">
+          <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight text-app-ink">
             {title}
           </h1>
           {status}

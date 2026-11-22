@@ -263,29 +263,31 @@ export default function HistorySettingsPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-t px-4 py-3">
           <p className="text-xs text-muted-foreground">
             {t("appShell.historyRetention")}
           </p>
-          {canDelete && (
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/trash">
-                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                {t("trash.navLink")}
-              </Link>
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            {canDelete && (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/trash">
+                  <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                  {t("trash.navLink")}
+                </Link>
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void exportCsv()}
+              disabled={exporting || entries.length === 0}
+            >
+              <Download className="size-4" strokeWidth={1.75} aria-hidden />
+              {exporting
+                ? t("appShell.historyExporting")
+                : t("appShell.historyExportCsv")}
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void exportCsv()}
-            disabled={exporting || entries.length === 0}
-          >
-            <Download className="size-4" strokeWidth={1.75} aria-hidden />
-            {exporting
-              ? t("appShell.historyExporting")
-              : t("appShell.historyExportCsv")}
-          </Button>
+          </div>
         </div>
       </SettingsCard>
 

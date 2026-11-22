@@ -1,6 +1,7 @@
-import { differenceInCalendarDays, format, isSameYear } from "date-fns";
-
+import type { Translate } from "@/i18n/translate";
 import type { GalleryItem, GallerySource } from "@/lib/api/types";
+
+import { dayDividerLabel } from "./clusters";
 
 /**
  * Client-side view logic for the attachments gallery (§5.2): the Images | Files
@@ -38,15 +39,8 @@ export function sourceLabel(source: GallerySource): string {
  * already sorted (created_at, id) DESC by the API, so consecutive items with the
  * same heading form one contiguous group.
  */
-export function dateGroupLabel(iso: string, now: Date = new Date()): string {
-  const date = new Date(iso);
-  // Calendar-day delta in local time, honoring the passed `now` (date-fns
-  // isToday/isYesterday ignore a reference date and read the wall clock).
-  const days = differenceInCalendarDays(now, date);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (isSameYear(date, now)) return format(date, "MMMM d");
-  return format(date, "MMMM d, yyyy");
+export function dateGroupLabel(iso: string, now: Date = new Date(), t?: Translate): string {
+  return dayDividerLabel(new Date(iso), now, t, "long");
 }
 
 export interface GalleryDateGroup {
@@ -61,10 +55,11 @@ export interface GalleryDateGroup {
 export function groupByDate(
   items: GalleryItem[],
   now: Date = new Date(),
+  t?: Translate,
 ): GalleryDateGroup[] {
   const groups: GalleryDateGroup[] = [];
   for (const item of items) {
-    const label = dateGroupLabel(item.created_at, now);
+    const label = dateGroupLabel(item.created_at, now, t);
     const last = groups[groups.length - 1];
     if (last?.label === label) {
       last.items.push(item);

@@ -18,6 +18,8 @@
 import type { Translated } from "../translated";
 
 export const threadEn = {
+  dayToday: "Today",
+  dayYesterday: "Yesterday",
   /* #228 — how many parts a text will send in. ONE and MANY are separate
      keys, never one sentence with an "s" appended: French agrees the
      noun with the count (1 partie, 2 parties). The tooltip pair is
@@ -855,6 +857,8 @@ export const threadEn = {
  * and a translated keyword is a keyword that does nothing.
  */
 export const threadFr: Translated<typeof threadEn> = {
+  dayToday: "Aujourd'hui",
+  dayYesterday: "Hier",
   mmsSegments: "MMS · envoyé en {count} parties",
   sentInOnePart: "Envoyé en 1 partie",
   sentInParts: "Envoyé en {count} parties",

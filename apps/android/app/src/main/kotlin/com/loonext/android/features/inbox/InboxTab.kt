@@ -933,7 +933,7 @@ private class InboxController(
         scope.launch {
             try {
                 repo.cancelScheduledMessage(companyId, id)
-                notify(ScheduledSend.copy("canceled_confirmation"))
+                notify(ScheduledSend.copy("canceled_confirmation", locale))
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {

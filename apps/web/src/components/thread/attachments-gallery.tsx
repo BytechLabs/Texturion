@@ -61,7 +61,7 @@ export function AttachmentsGallery({
   const fileCount = items.length - imageCount;
 
   const tabItems = useMemo(() => itemsForTab(items, tab), [items, tab]);
-  const groups = useMemo(() => groupByDate(tabItems), [tabItems]);
+  const groups = useMemo(() => groupByDate(tabItems, undefined, t), [tabItems, t]);
 
   const hasNext = gallery.hasNextPage ?? false;
 
