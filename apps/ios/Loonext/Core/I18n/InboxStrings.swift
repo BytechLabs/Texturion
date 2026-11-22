@@ -51,6 +51,10 @@ enum InboxStrings {
         en: [
             // --- The list's own chrome (InboxTab.swift) ----------------------
             "inbox.title": "Inbox",
+            "inbox.displayOptions": "Display options",
+            "inbox.displayPreview": "Preview",
+            "inbox.displayCompact": "Compact",
+            "inbox.displayTags": "Tags: {tags}",
             "inbox.composeAria": "New message",
             "inbox.scheduledOneAria": "1 text waiting to send",
             "inbox.scheduledManyAria": "{count} texts waiting to send",
@@ -529,6 +533,10 @@ enum InboxStrings {
         frCA: [
             // --- The list's own chrome (InboxTab.swift) ----------------------
             "inbox.title": "Boîte de réception",
+            "inbox.displayOptions": "Options d’affichage",
+            "inbox.displayPreview": "Aperçu",
+            "inbox.displayCompact": "Compact",
+            "inbox.displayTags": "Étiquettes : {tags}",
             "inbox.composeAria": "Nouveau texto",
             "inbox.scheduledOneAria": "1 texto en attente d'envoi",
             "inbox.scheduledManyAria": "{count} textos en attente d'envoi",

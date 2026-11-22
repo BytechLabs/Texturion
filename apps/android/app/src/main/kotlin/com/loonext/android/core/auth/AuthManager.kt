@@ -31,6 +31,7 @@ class AppPrefs(private val context: Context) {
     private object Keys {
         val ACTIVE_COMPANY = stringPreferencesKey("active_company_id")
         val THEME = stringPreferencesKey("theme") // system | light | dark
+        val INBOX_COMPACT = booleanPreferencesKey("inbox_compact")
         // #289: full-size photos wait for Wi-Fi. Device-scoped, not
         // workspace-scoped — it is about THIS phone's data plan, and the same
         // person on a laptop has a different answer.
@@ -68,6 +69,9 @@ class AppPrefs(private val context: Context) {
 
     val theme: Flow<String> =
         context.appPrefs.data.map { it[Keys.THEME] ?: "system" }
+
+    val inboxCompact: Flow<Boolean> =
+        context.appPrefs.data.map { it[Keys.INBOX_COMPACT] ?: false }
 
     /**
      * #289: wait for Wi-Fi before fetching a FULL-SIZE photo. Default off —
@@ -109,6 +113,10 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setTheme(theme: String) {
         context.appPrefs.edit { it[Keys.THEME] = theme }
+    }
+
+    suspend fun setInboxCompact(compact: Boolean) {
+        context.appPrefs.edit { it[Keys.INBOX_COMPACT] = compact }
     }
 
     /**

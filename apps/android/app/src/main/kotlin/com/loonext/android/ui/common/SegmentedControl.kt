@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
 /** One choice in a [SegmentedControl]. [badge] draws a quiet [CountPill] after the label. */
@@ -62,6 +63,8 @@ fun <T> SegmentedControl(
     size: SegmentedSize = SegmentedSize.Md,
     fill: Boolean = false,
     iconOnly: Boolean = false,
+    labelPadding: Dp = 11.dp,
+    labelLines: Int = 1,
 ) {
     val haptics = rememberHaptics()
     Row(
@@ -99,7 +102,7 @@ fun <T> SegmentedControl(
                         },
                     )
                     .semantics { if (iconOnly) contentDescription = spoken }
-                    .padding(horizontal = if (iconOnly) 16.dp else 11.dp),
+                    .padding(horizontal = if (iconOnly) 16.dp else labelPadding),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -117,7 +120,7 @@ fun <T> SegmentedControl(
                         color = content,
                         fontSize = if (size == SegmentedSize.Md) 13.sp else 12.sp,
                         fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
+                        maxLines = labelLines,
                         overflow = TextOverflow.Ellipsis,
                     )
                     segment.badge?.let { count ->

@@ -25,6 +25,11 @@ import type { Translated } from "../translated";
 export const inboxEn = {
   // --- The list pane's own chrome (inbox-pane.tsx) --------------------------
   title: "Inbox",
+  displayOptions: "Display options",
+  displayPreview: "Preview",
+  displayCompact: "Compact",
+  displayListOnly: "List only",
+  searchShortPlaceholder: "Search conversations",
   newConversationAria: "New conversation",
   newAction: "New",
   /** #732: the inbox's main action, named like New task and New contact. */
@@ -548,6 +553,11 @@ export const inboxEn = {
 export const inboxFr: Translated<typeof inboxEn> = {
   // --- The list pane's own chrome -------------------------------------------
   title: "Boîte de réception",
+  displayOptions: "Options d’affichage",
+  displayPreview: "Aperçu",
+  displayCompact: "Compact",
+  displayListOnly: "Liste seule",
+  searchShortPlaceholder: "Rechercher",
   newConversationAria: "Nouvelle conversation",
   newAction: "Nouveau",
   newTextAction: "Nouveau texto",

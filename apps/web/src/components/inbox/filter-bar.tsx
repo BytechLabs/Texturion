@@ -80,39 +80,8 @@ export function FilterBar({
 
   return (
     <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
-      <InboxSearch filters={filters} onChange={onChange} />
-      {/* Elevated segment (mockup .segment): a pill track with the selected tab
-          lifted to a white pill. Behavior unchanged — these are the real inbox
-          segments (Open/Mine/All/Closed), just crafted. */}
       <div className="flex items-center gap-1">
-        <SegmentedControl
-          fill
-          ariaLabel={t("inbox.statusTablistAria")}
-          disabled={searching}
-          value={segment}
-          onChange={(id) => onChange(applySegment(filters, id))}
-          options={INBOX_SEGMENTS.map(({ id, labelKey }) => {
-            const countLabel = id === "open" ? formatOpenCount(openCount) : "";
-            return {
-              value: id,
-              label: t(labelKey),
-              // Quiet stone count on Open only, shown when > 0, capped 9+ (#64:
-              // petrol in this region is reserved for the compose action).
-              badge:
-                countLabel === "" ? undefined : (
-                  <CountPill
-                    aria-label={
-                      openCount > OPEN_COUNT_CAP
-                        ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
-                        : t("inbox.openCountAria", { count: openCount })
-                    }
-                  >
-                    {countLabel}
-                  </CountPill>
-                ),
-            };
-          })}
-        />
+        <InboxSearch filters={filters} onChange={onChange} />
         <FilterPopover filters={filters} lines={lines} onChange={onChange} disabled={searching} />
         <SavedViewsMenu
           compact
@@ -129,6 +98,32 @@ export function FilterBar({
           shareNote={t("inbox.viewShareNote")}
         />
       </div>
+      <SegmentedControl
+        fill
+        className="w-full [&>button]:min-w-0 [&>button]:px-1"
+        ariaLabel={t("inbox.statusTablistAria")}
+        disabled={searching}
+        value={segment}
+        onChange={(id) => onChange(applySegment(filters, id))}
+        options={INBOX_SEGMENTS.map(({ id, labelKey }) => {
+          const countLabel = id === "open" ? formatOpenCount(openCount) : "";
+          return {
+            value: id,
+            label: t(labelKey),
+            badge: countLabel === "" ? undefined : (
+              <CountPill
+                aria-label={
+                  openCount > OPEN_COUNT_CAP
+                    ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
+                    : t("inbox.openCountAria", { count: openCount })
+                }
+              >
+                {countLabel}
+              </CountPill>
+            ),
+          };
+        })}
+      />
       {/* #711: only while something is applied. */}
       {hasActiveFilters(filters) && (
         <ChipRow filters={filters} lines={lines} onChange={onChange} disabled={searching} />
@@ -207,9 +202,10 @@ function InboxSearch({
     <SearchField
       ref={inputRef}
       data-inbox-search
+      containerClassName="min-w-0 flex-1"
       value={searchText}
       onValueChange={setSearch}
-      placeholder={t("inbox.searchPlaceholder")}
+      placeholder={t("inbox.searchShortPlaceholder")}
       aria-label={t("inbox.searchAria")}
       clearLabel={t("inbox.clearSearchAria")}
     />

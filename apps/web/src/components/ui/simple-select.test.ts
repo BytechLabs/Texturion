@@ -25,6 +25,8 @@ const RADIO_MENU = /\bDropdownMenuRadioGroup\b/;
 
 /** A menu of radio items is a record's own menu, not a form field. */
 const RADIO_MENU_EXCEPTIONS: Record<string, string> = {
+  "components/inbox/display-menu.tsx":
+    "the inbox display menu combines a density choice and a desktop layout toggle",
   "components/shell/member-menu.tsx":
     "the account menu theme choice, inside a menu of actions",
   "components/tasks/task-status-picker.tsx":

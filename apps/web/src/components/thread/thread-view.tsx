@@ -226,7 +226,7 @@ function ThreadPlaceholder({ row, backHref }: { row: ConversationListItem; backH
           asChild
           variant="ghost"
           size="icon-sm"
-          className="md:hidden"
+          className="md:hidden lg:group-data-[full-list=true]/inbox:inline-flex"
           aria-label={t("thread.backToInbox")}
         >
           <Link href={backHref}>

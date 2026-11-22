@@ -18,6 +18,13 @@ final class AccessibilityAuditUITests: XCTestCase {
     // MARK: Inbox, thread and composer
 
     func testInbox() throws { try audit("inbox") }
+    func testCompactInbox() throws {
+        for theme in ["light", "dark"] {
+            try audit("inbox", theme: theme, compactInbox: true)
+            try audit("inbox", theme: theme, canadianFrench: true, compactInbox: true)
+        }
+    }
+
 
     func testLargestTextInboxGivesCustomerIdentityRoom() throws {
         for theme in ["light", "dark"] {
@@ -403,7 +410,8 @@ final class AccessibilityAuditUITests: XCTestCase {
         _ surface: String,
         contentSize: String? = nil,
         theme: String? = nil,
-        canadianFrench: Bool = false
+        canadianFrench: Bool = false,
+        compactInbox: Bool = false
     ) throws {
         let app = XCUIApplication()
         app.launchArguments += ["-a11yAuditSurface", surface]
@@ -440,10 +448,21 @@ final class AccessibilityAuditUITests: XCTestCase {
             priority.tap()
             XCTAssertEqual(sort.value as? String, "Priorité")
         }
+        if compactInbox {
+            let title = canadianFrench ? "Options d’affichage" : "Display options"
+            let display = app.buttons[title].firstMatch
+            XCTAssertTrue(display.waitForExistence(timeout: 10))
+            display.tap()
+            let compact = app.buttons["Compact"].firstMatch
+            XCTAssertTrue(compact.waitForExistence(timeout: 10))
+            compact.tap()
+            XCTAssertEqual(display.value as? String, "Compact")
+        }
 
         let label = (contentSize == nil ? surface : "\(surface) at large text")
             + (theme.map { " (\($0))" } ?? "")
             + (canadianFrench ? " fr-CA" : "")
+            + (compactInbox ? " compact" : "")
         // Kept for a person to look at; CI exports every attachment.
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = label

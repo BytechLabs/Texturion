@@ -1322,6 +1322,7 @@ final class InboxController {
 
 @MainActor
 private struct InboxList: View {
+    @AppStorage("inbox_compact") private var compact = false
     let graph: AppGraph
     let companyId: String
     let me: Me
@@ -1479,7 +1480,7 @@ private struct InboxList: View {
         let outboxStatuses = Dictionary(grouping: queue, by: \.conversationId)
             .mapValues { rows in rows.contains(where: \.blocked) }
         VStack(spacing: 0) {
-            InboxTitleRow(scheduledCount: controller.scheduled.count) {
+            InboxTitleRow(scheduledCount: controller.scheduled.count, compact: $compact) {
                 controller.refreshScheduled()
                 scheduledSheetOpen = true
             }
@@ -1529,6 +1530,7 @@ private struct InboxList: View {
                 case .ready:
                     ConversationListPane(
                         controller: controller,
+                        compact: compact,
                         outboxStatuses: outboxStatuses,
                         selection: $selection,
                         onOpen: { id in
@@ -1633,12 +1635,13 @@ private struct InboxList: View {
 /// same row the screen does.
 private struct InboxTitleRow: View {
     let scheduledCount: Int
+    @Binding var compact: Bool
     let onOpenScheduled: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
             Spacer(minLength: 0)
             Button(action: onOpenScheduled) {
@@ -1652,6 +1655,17 @@ private struct InboxTitleRow: View {
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
+
+            SelectField(
+                options: [
+                    SelectOption(false, title: AppStrings.translate(appLocale, "inbox.displayPreview")),
+                    SelectOption(true, title: AppStrings.translate(appLocale, "inbox.displayCompact")),
+                ],
+                selected: compact,
+                label: AppStrings.translate(appLocale, "inbox.displayOptions"),
+                triggerIcon: compact ? "list.bullet" : "rectangle.grid.1x2",
+                onSelect: { compact = $0 }
+            )
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -1688,6 +1702,7 @@ private struct InboxStatusTabs: View {
             selected: selected,
             size: .compact,
             fill: false,
+            horizontalPadding: 6,
             onSelect: onSelect
         )
     }
@@ -1696,6 +1711,7 @@ private struct InboxStatusTabs: View {
 @MainActor
 private struct ConversationListPane: View {
     let controller: InboxController
+    let compact: Bool
     let outboxStatuses: [String: Bool]
     @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
@@ -1800,7 +1816,9 @@ private struct ConversationListPane: View {
         // be worse than the tedium this replaces.
         let selecting = !controller.bulkSelection.isEmpty
         let picked = controller.bulkSelection.isRowSelected(row.id)
-        return ConversationRow(row: row, assigneeName: assigneeName(row), outboxBlocked: outboxStatuses[row.id]) {
+        return ConversationRow(
+            row: row, assigneeName: assigneeName(row), outboxBlocked: outboxStatuses[row.id], compact: compact
+        ) {
             if selecting {
                 controller.toggleBulkSelected(row.id)
             } else {
@@ -1901,6 +1919,7 @@ private struct ConversationRow: View {
     /// like yours; web and Android both show it, so the row does too.
     var assigneeName: String?
     var outboxBlocked: Bool? = nil
+    var compact = false
     let onTap: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -1938,14 +1957,14 @@ private struct ConversationRow: View {
         let largeText = textSize.isAccessibilitySize
         let contentLayout = largeText
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: 11))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         let detailLayout = largeText
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
             : AnyLayout(HStackLayout(spacing: 6))
         let tagsLayout = largeText ? detailLayout : AnyLayout(HStackLayout(spacing: 4))
         Button(action: onTap) {
             contentLayout {
-                InitialsAvatar(name: name, size: 42)
+                InitialsAvatar(name: name, size: compact ? 32 : 40)
                 VStack(alignment: .leading, spacing: 2) {
                     detailLayout {
                         Text(name)
@@ -2026,7 +2045,7 @@ private struct ConversationRow: View {
                             Text(snippet)
                                 .font(.golos(12))
                                 .foregroundStyle(BrandColor.muted600)
-                                .lineLimit(2)
+                                .lineLimit(compact && !largeText ? 1 : 2)
                         }
                     }
                     if let outboxBlocked {
@@ -2035,7 +2054,7 @@ private struct ConversationRow: View {
                             .font(.golos(11, weight: .semibold))
                             .foregroundStyle(outboxBlocked ? BrandColor.destructive : BrandColor.muted600)
                     }
-                    if !row.tags.isEmpty || assigneeName != nil {
+                    if !compact && (!row.tags.isEmpty || assigneeName != nil) {
                         tagsLayout {
                             ForEach(row.tags.prefix(3), id: \.id) { tag in
                                 TagChip(tag: tag)
@@ -2072,18 +2091,18 @@ private struct ConversationRow: View {
                         AttentionDot()
                     }
                 }
+                .padding(.top, largeText ? 0 : 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 5)
+            .padding(.vertical, compact ? 2 : 6)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // Announce read/unread to VoiceOver — the AttentionDot that conveys it
         // to sighted users isn't otherwise exposed, so read and unread
         // conversations sounded identical. Matches NotificationsView.
-        .accessibilityValue(
-            row.unread ? AppStrings.translate(appLocale, "inbox.rowStateUnread") : ""
-        )
+        .accessibilityValue(accessibilityValue)
         .accessibilityHint(
             assigneeName.map {
                 AppStrings.translate(
@@ -2091,6 +2110,17 @@ private struct ConversationRow: View {
                 )
             } ?? ""
         )
+    }
+
+    private var accessibilityValue: String {
+        var values: [String] = []
+        if row.unread { values.append(AppStrings.translate(appLocale, "inbox.rowStateUnread")) }
+        if compact, !row.tags.isEmpty {
+            values.append(AppStrings.translate(
+                appLocale, "inbox.displayTags", ["tags": row.tags.map(\.name).joined(separator: ", ")]
+            ))
+        }
+        return values.joined(separator: ". ")
     }
 }
 
@@ -2634,17 +2664,18 @@ func inboxRowsFixture() -> some View {
 @MainActor
 private struct InboxAuditScreen: View {
     @Environment(\.appLocale) private var appLocale
+    @State private var compact = false
 
     var body: some View {
         VStack(spacing: 0) {
-            InboxTitleRow(scheduledCount: 2, onOpenScheduled: {})
+            InboxTitleRow(scheduledCount: 2, compact: $compact, onOpenScheduled: {})
             inboxSearchField(.constant(""), locale: appLocale)
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
             ListFilterRow(filterCount: 2, onFilter: {}) {
                 InboxStatusTabs(selected: .open, onSelect: { _ in })
             }
-            inboxFixtureList()
+            inboxFixtureList(compact: compact)
         }
         .background(BrandColor.canvas)
         .mainAction(
@@ -2655,7 +2686,7 @@ private struct InboxAuditScreen: View {
 }
 
 @MainActor
-private func inboxFixtureList() -> some View {
+private func inboxFixtureList(compact: Bool) -> some View {
     VStack(spacing: 0) {
         List {
             ConversationRow(
@@ -2670,8 +2701,11 @@ private func inboxFixtureList() -> some View {
                     ]
                 ),
                 assigneeName: "You",
+                compact: compact,
                 onTap: {}
             )
+            .listRowBackground(BrandColor.paper)
+            .listRowSeparatorTint(BrandColor.inset)
             ConversationRow(
                 row: previewListItem(
                     id: "c2",
@@ -2680,10 +2714,14 @@ private func inboxFixtureList() -> some View {
                     unread: false,
                     snippet: "thanks, payment sent."
                 ),
+                compact: compact,
                 onTap: {}
             )
+            .listRowBackground(BrandColor.paper)
+            .listRowSeparatorTint(BrandColor.inset)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 }
 

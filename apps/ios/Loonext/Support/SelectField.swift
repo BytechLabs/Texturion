@@ -38,6 +38,8 @@ struct SelectField<Value: Hashable>: View {
     /// Draw the chosen option's detail under the field. Off where the field sits in a
     /// crowded row and the detail is in the open list only.
     var showsDetail: Bool
+    /// A header choice uses the paper icon button and speaks the selected value.
+    var triggerIcon: String?
     let onSelect: @MainActor (Value) -> Void
     @Environment(\.appLocale) private var appLocale
 
@@ -47,6 +49,7 @@ struct SelectField<Value: Hashable>: View {
         label: String,
         enabled: Bool = true,
         showsDetail: Bool = true,
+        triggerIcon: String? = nil,
         onSelect: @escaping @MainActor (Value) -> Void
     ) {
         self.options = options
@@ -54,6 +57,7 @@ struct SelectField<Value: Hashable>: View {
         self.label = label
         self.enabled = enabled
         self.showsDetail = showsDetail
+        self.triggerIcon = triggerIcon
         self.onSelect = onSelect
     }
 
@@ -63,7 +67,9 @@ struct SelectField<Value: Hashable>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if options.contains(where: { $0.copyValue != nil }) {
+            if let triggerIcon {
+                iconMenu(triggerIcon)
+            } else if options.contains(where: { $0.copyValue != nil }) {
                 HStack(spacing: 8) {
                     phoneMenu
                     if let number = chosen?.copyValue {
@@ -85,23 +91,39 @@ struct SelectField<Value: Hashable>: View {
         }
     }
 
-    private var picker: some View {
-        Picker(
-            label,
-            selection: Binding(get: { selected }, set: { next in onSelect(next) })
-        ) {
-            ForEach(options.indices, id: \.self) { index in
-                Text(options[index].title)
-                    .tag(options[index].value)
-                    .disabled(options[index].isDisabled)
-            }
+    private var selection: Binding<Value> {
+        Binding(get: { selected }, set: { next in onSelect(next) })
+    }
+
+    private var pickerOptions: some View {
+        ForEach(options.indices, id: \.self) { index in
+            Text(options[index].title)
+                .tag(options[index].value)
+                .disabled(options[index].isDisabled)
         }
+    }
+
+    private var picker: some View {
+        Picker(label, selection: selection) { pickerOptions }
         .pickerStyle(.menu)
         .labelsHidden()
         .tint(BrandColor.olive)
         .frame(minHeight: 44, alignment: .leading)
         .disabled(!enabled)
         .accessibilityLabel(label)
+    }
+
+    private func iconMenu(_ systemImage: String) -> some View {
+        Menu {
+            Picker(label, selection: selection) { pickerOptions }
+                .pickerStyle(.inline)
+        } label: {
+            PaperIconButton.icon(systemImage: systemImage, foreground: BrandColor.muted700)
+                .contentShape(Circle())
+        }
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+        .accessibilityValue(chosen?.title ?? "")
     }
 
     private var phoneMenu: some View {

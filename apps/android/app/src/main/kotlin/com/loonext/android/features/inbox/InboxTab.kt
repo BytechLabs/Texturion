@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -54,6 +55,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ViewStream
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.NotificationsOff
@@ -83,6 +85,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -169,6 +172,8 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.UrgentBadge
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.SelectField
+import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.formatPhone
@@ -1474,6 +1479,8 @@ private fun InboxList(
     onSelectPhoneLine: ((String?) -> Unit)? = null,
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
+    val compact by graph.prefs.inboxCompact.collectAsState(initial = false)
+    val scope = rememberCoroutineScope()
     val outboxRows by remember(graph) { graph.outbox.rows }.collectAsState(initial = emptyList())
     val outboxStatuses = remember(outboxRows, companyId, me.user_id) {
         outboxRows.filter { row ->
@@ -1593,15 +1600,14 @@ private fun InboxList(
                     unreadCount = controller.pinnedRows.count { it.unread } +
                         controller.rows.count { it.unread },
                     scheduledCount = controller.scheduled.size,
-                    onSearch = { searchOpen = true },
+                    compact = compact,
+                    onDisplayChange = { value -> scope.launch { graph.prefs.setInboxCompact(value) } },
                     onScheduled = {
                         controller.refreshScheduled()
                         scheduledSheetOpen = true
                     },
                 )
                 Spacer(Modifier.height(14.dp))
-                // #711: ONE row for the tabs, Filter and Views, and the applied
-                // filters under it only while any is on.
                 InboxFilterRow(
                     controller = controller,
                     lineLabel = controller.lineId?.let(lines::get),
@@ -1611,6 +1617,7 @@ private fun InboxList(
                         me.memberships.firstOrNull { it.company_id == companyId }?.role,
                         Capability.SETTINGS_MANAGE,
                     ),
+                    onSearch = { searchOpen = true },
                     onFilter = { filterSheetOpen = true },
                 )
                 InboxActiveFilters(controller, lines)
@@ -1659,6 +1666,7 @@ private fun InboxList(
                         ) {
                             ConversationListPane(
                                 controller = controller,
+                                compact = compact,
                                 outboxStatuses = outboxStatuses,
                                 meUserId = me.user_id,
                                 viewer = RecordViewer.of(
@@ -1730,7 +1738,8 @@ private fun InboxHeader(
      * furniture, and this one exists to say "something IS coming".
      */
     scheduledCount: Int,
-    onSearch: () -> Unit,
+    compact: Boolean,
+    onDisplayChange: (Boolean) -> Unit,
     onScheduled: () -> Unit,
 ) {
     Row(
@@ -1753,6 +1762,17 @@ private fun InboxHeader(
             }
         }
         Spacer(Modifier.width(8.dp))
+        SelectField(
+            options = listOf(
+                SelectOption(false, t("inbox.displayPreview")),
+                SelectOption(true, t("inbox.displayCompact")),
+            ),
+            selected = compact,
+            onSelect = onDisplayChange,
+            label = t("inbox.displayOptions"),
+            triggerIcon = Icons.Outlined.ViewStream,
+        )
+        Spacer(Modifier.width(8.dp))
         PaperIconButton(
             icon = Icons.Outlined.Schedule,
             contentDescription = when (scheduledCount) {
@@ -1761,12 +1781,6 @@ private fun InboxHeader(
                 else -> t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
             },
             onClick = onScheduled,
-        )
-        Spacer(Modifier.width(8.dp))
-        PaperIconButton(
-            icon = Icons.Outlined.Search,
-            contentDescription = t("inbox.searchAria"),
-            onClick = onSearch,
         )
     }
 }
@@ -1906,6 +1920,7 @@ internal fun GroupedRow(
 @Composable
 private fun ConversationListPane(
     controller: InboxController,
+    compact: Boolean,
     outboxStatuses: Map<String, Boolean>,
     meUserId: String,
     viewer: RecordViewer,
@@ -1988,7 +2003,7 @@ private fun ConversationListPane(
                     onLongClick = { controller.toggleSelected(row.id) },
                     selected = controller.selection.isRowSelected(row.id),
                     selecting = selecting,
-                ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id]) }
+                ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) }
             }
             if (controller.rows.isNotEmpty()) {
                 item(key = "rest-header") {
@@ -2012,7 +2027,7 @@ private fun ConversationListPane(
                 onLongClick = { controller.toggleSelected(row.id) },
                 selected = controller.selection.isRowSelected(row.id),
                 selecting = selecting,
-            ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id]) }
+            ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) }
         }
         if (controller.loadingMore) {
             item(key = "loading-more") {
@@ -2089,6 +2104,7 @@ private fun SwipeableConversationRow(
     controller: InboxController,
     assigneeName: String?,
     outboxBlocked: Boolean?,
+    compact: Boolean,
 ) {
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
@@ -2121,21 +2137,34 @@ private fun SwipeableConversationRow(
         } else {
             null
         },
-    ) { ConversationRow(row, assigneeName, outboxBlocked) }
+    ) { ConversationRow(row, assigneeName, outboxBlocked, compact) }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ConversationRow(row: ConversationListItem, assigneeName: String?, outboxBlocked: Boolean? = null) {
+private fun ConversationRow(
+    row: ConversationListItem,
+    assigneeName: String?,
+    outboxBlocked: Boolean? = null,
+    compact: Boolean = false,
+) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
-    val readState = if (row.unread) t("inbox.rowStateUnread") else t("inbox.rowStateRead")
+    val rowState = listOfNotNull(
+        t(if (row.unread) "inbox.rowStateUnread" else "inbox.rowStateRead"),
+        assigneeName?.takeIf { compact }?.let { t("inbox.rowAssignedToTitle", "name" to it) },
+        if (compact && row.tags.isNotEmpty()) {
+            t("inbox.displayTags", "tags" to row.tags.joinToString { it.name })
+        } else null,
+    ).joinToString(". ")
     Row(
         Modifier
             .fillMaxWidth()
             // Unread was carried ONLY by the coral dot, so TalkBack read a read
             // and an unread conversation identically — the single most important
             // piece of state on the inbox row was invisible to screen readers.
-            .semantics { stateDescription = readState }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .semantics { stateDescription = rowState }
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 16.dp, vertical = if (compact) 8.dp else 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         // 42dp squircle avatar; unread = coral dot ringed in paper (spec 20).
@@ -2147,7 +2176,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
             // wrap; the literal keeps this pixel-identical at the default setting.
             InitialsAvatar(
                 name = name,
-                size = 42.dp,
+                size = if (compact) 32.dp else 40.dp,
                 shape = RoundedCornerShape(15.dp),
                 glyph = 12.5.sp,
             )
@@ -2162,7 +2191,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                 ) { AttentionDot(size = 9.dp) }
             }
         }
-        Spacer(Modifier.width(11.dp))
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             // Past large text the time drops under the name, which may wrap, so neither is cut.
             val largeText = LocalDensity.current.fontScale > 1.3f
@@ -2227,7 +2256,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
             // that is only text. The clip shows whenever there is an attachment,
             // including alongside a caption, where the label alone would not
             // appear at all.
-            Row(
+            if (snippet.isNotEmpty() || row.last_outbound_failed_at != null) Row(
                 Modifier.padding(top = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -2258,7 +2287,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                     snippet,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = if (compact && !largeText) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -2284,13 +2313,14 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                     row.snooze_note?.takeIf { it.isNotBlank() }
                         ?.let { "$back · $it" } ?: back
                 }
-            if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null ||
+            if ((!compact && (row.tags.isNotEmpty() || assigneeName != null)) || row.is_spam ||
                 snoozeLabel != null || row.muted
             ) {
-                Row(
+                FlowRow(
                     Modifier.padding(top = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     // #694: muted by me. It still counts as unread; it only
                     // stops making noise.
@@ -2309,8 +2339,8 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                             content = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    row.tags.take(3).forEach { tag -> TagChip(tag) }
-                    if (row.tags.size > 3) {
+                    if (!compact) row.tags.take(3).forEach { tag -> TagChip(tag) }
+                    if (!compact && row.tags.size > 3) {
                         Text(
                             t("inbox.tagOverflow", "count" to (row.tags.size - 3).toString()),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
@@ -2324,7 +2354,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                             content = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (assigneeName != null) {
+                    if (!compact && assigneeName != null) {
                         Text(
                             assigneeName,
                             style = MaterialTheme.typography.labelSmall.copy(
@@ -3383,13 +3413,17 @@ private fun InboxFilterRow(
     controller: InboxController,
     lineLabel: String?,
     canShare: Boolean,
+    onSearch: () -> Unit,
     onFilter: () -> Unit,
 ) {
     var saveOpen by remember { mutableStateOf(false) }
     val selection = controller.currentSelection
     val matching = controller.savedViews.firstOrNull { viewMatchesSelection(it.filters, selection) }
-    ListFilterRow(
+    InboxListControls(
+        selected = controller.tab,
+        onSelect = controller::selectTab,
         filterCount = controller.activeFilterCount,
+        onSearch = onSearch,
         onFilter = onFilter,
         views = ListViews(
             entries = controller.savedViews.map { view ->
@@ -3411,13 +3445,7 @@ private fun InboxFilterRow(
             onShare = controller::shareView,
             onDelete = controller::deleteView,
         ),
-    ) {
-        SegmentedControl(
-            segments = InboxStatusTab.entries.map { Segment(it, t(it.labelKey)) },
-            selected = controller.tab,
-            onSelect = controller::selectTab,
-        )
-    }
+    )
     if (saveOpen) {
         SaveViewSheet(
             controller = controller,
@@ -3426,6 +3454,33 @@ private fun InboxFilterRow(
             onDismiss = { saveOpen = false },
         )
     }
+}
+
+@Composable
+private fun InboxListControls(
+    selected: InboxStatusTab,
+    onSelect: (InboxStatusTab) -> Unit,
+    filterCount: Int,
+    onSearch: () -> Unit,
+    onFilter: () -> Unit,
+    views: ListViews?,
+) {
+    ListFilterRow(filterCount = filterCount, onFilter = onFilter, views = views) {
+        TextButton(onClick = onSearch, modifier = Modifier.heightIn(min = 44.dp)) {
+            Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(IconSize.Default))
+            Spacer(Modifier.width(8.dp))
+            Text(t("inbox.displaySearch"))
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+    SegmentedControl(
+        segments = InboxStatusTab.entries.map { Segment(it, t(it.labelKey)) },
+        selected = selected,
+        onSelect = onSelect,
+        fill = true,
+        labelPadding = 4.dp,
+        labelLines = 2,
+    )
 }
 
 /** #711: the applied filters as removable chips, only while any is on. */
@@ -3554,26 +3609,25 @@ private fun SaveViewSheet(
  */
 @Composable
 internal fun InboxAuditBody(rows: List<ConversationListItem>, views: ListViews? = null) {
+    var compact by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
         Spacer(Modifier.height(8.dp))
         InboxHeader(
             unreadCount = rows.count { it.unread },
             scheduledCount = 2,
-            onSearch = {},
+            compact = compact,
+            onDisplayChange = { compact = it },
             onScheduled = {},
         )
         Spacer(Modifier.height(14.dp))
-        ListFilterRow(
+        InboxListControls(
+            selected = InboxStatusTab.Open,
+            onSelect = {},
             filterCount = 1,
+            onSearch = {},
             onFilter = {},
             views = views,
-        ) {
-            SegmentedControl(
-                segments = InboxStatusTab.entries.map { Segment(it, t(it.labelKey)) },
-                selected = InboxStatusTab.Open,
-                onSelect = {},
-            )
-        }
+        )
         Spacer(Modifier.height(14.dp))
         rows.forEachIndexed { index, row ->
             GroupedRow(
@@ -3582,7 +3636,7 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>, views: ListViews? 
                 modifier = rowActionsModifier("Mark read", "Close", {}, {}),
                 onClick = {},
             ) {
-                ConversationRow(row, assigneeName = if (index == 0) "Dana" else null)
+                ConversationRow(row, assigneeName = if (index == 0) "Dana" else null, compact = compact)
             }
         }
     }

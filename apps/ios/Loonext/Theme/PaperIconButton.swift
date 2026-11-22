@@ -14,14 +14,17 @@ struct PaperIconButton: View {
         Button {
             action()
         } label: {
-            Image(systemName: systemImage)
-                // Scaled, so the glyph grows with the reader's font setting.
-                .font(.scaled(IconSize.standard, weight: .medium))
-                .foregroundStyle(foreground)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(BrandColor.paper))
+            Self.icon(systemImage: systemImage, foreground: foreground)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+
+    static func icon(systemImage: String, foreground: Color) -> some View {
+        Image(systemName: systemImage)
+            .font(.scaled(IconSize.standard, weight: .medium))
+            .foregroundStyle(foreground)
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(BrandColor.paper))
     }
 }
