@@ -295,6 +295,7 @@ private struct ThreadBody: View {
     private func messagePhoneSheet(_ number: String) -> some View {
         NavigationStack {
             List {
+                CopyablePhoneNumber(number: number, minimumHeight: 44)
                 if canContactPhone {
                     Button(AppStrings.translate(appLocale, "thread.callWithLoonext")) {
                         afterMessagePhoneDismiss = {
@@ -308,13 +309,8 @@ private struct ThreadBody: View {
                         messagePhone = nil
                     }
                 }
-                Button(AppStrings.translate(appLocale, "contactsTasks.copyNumber")) {
-                    UIPasteboard.general.string = number
-                    controller.markCopied()
-                    messagePhone = nil
-                }
             }
-            .navigationTitle(formatPhone(number))
+            .navigationTitle(AppStrings.translate(appLocale, "shell.numberLabel"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -2033,7 +2029,7 @@ private struct ConversationSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .phoneNumberCopyMenu(detail.contact.phone_e164)
+        .phoneNumberCopyOnHold(detail.contact.phone_e164)
     }
 
     private var statusSection: some View {

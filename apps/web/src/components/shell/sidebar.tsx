@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { useConfirmLeaving } from "@/lib/softphone/leave-call";
 
 import {
+  CalendarClock,
   CalendarDays,
   Check,
   CheckSquare,
@@ -49,7 +50,7 @@ import { cn } from "@/lib/utils";
 
 import { InitialsAvatar } from "./initials-avatar";
 import { MemberMenu } from "./member-menu";
-import { PhoneLinePicker } from "./phone-line";
+import { PhoneLineNavigation } from "./phone-line";
 import { isNavActive, ROLE_LABEL_KEYS } from "./nav";
 import {
   useForYouNavCount,
@@ -84,6 +85,7 @@ interface NavRow {
 const FOR_YOU: NavRow = { labelKey: "shell.navForYou", href: "/for-you", icon: Zap, needs: "conversations.read" };
 const LOU: NavRow = { labelKey: "shell.navLou", href: "/lou", icon: Sparkles, needs: "conversations.read" };
 const MESSAGES: NavRow = { labelKey: "shell.navMessages", href: "/inbox", icon: InboxIcon, needs: "conversations.read" };
+const SCHEDULED: NavRow = { labelKey: "shell.navScheduled", href: "/inbox/scheduled", icon: CalendarClock, needs: "conversations.read" };
 const CALLS: NavRow = { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" };
 const TASKS: NavRow = { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" };
 const PLANNER: NavRow = { labelKey: "shell.navPlanner", href: "/tasks/planner", icon: CalendarDays, needs: "conversations.read" };
@@ -245,12 +247,12 @@ export function Sidebar({
   const roleLabel = roleLabelKey ? t(roleLabelKey) : role;
   const navRows = navRowsFor(role);
   const canRead = roleHasCapability(role, "conversations.read");
-  const [phoneOpen, setPhoneOpen] = useState(true);
-  const phoneGroup = useId();
 
   function renderRow(row: NavRow) {
     const inTaskShortcut = pathname.startsWith("/tasks/planner") || pathname.startsWith("/tasks/views/");
-    const active = isNavActive(pathname, row.href) && (row !== TASKS || !inTaskShortcut);
+    const active = isNavActive(pathname, row.href)
+      && (row !== TASKS || !inTaskShortcut)
+      && (row !== MESSAGES || pathname !== SCHEDULED.href);
     return <NavItem key={row.href} row={row} active={active} count={navCounts[row.href]} collapsed={collapsed} t={t} />;
   }
 
@@ -444,23 +446,17 @@ export function Sidebar({
                 {renderRow(FOR_YOU)}
                 {renderRow(LOU)}
                 <SidebarDivider rail={collapsed} />
-                {!collapsed && (
-                  <button
-                    type="button"
-                    aria-expanded={phoneOpen}
-                    aria-controls={phoneGroup}
-                    onClick={() => setPhoneOpen((open) => !open)}
-                    className="flex h-8 items-center justify-between rounded-[9px] px-[11px] text-xs font-semibold text-app-muted hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {t("shell.phoneLine")}
-                    <ChevronDown className={cn("size-3.5", !phoneOpen && "-rotate-90")} aria-hidden />
-                  </button>
-                )}
-                <div id={phoneGroup} hidden={!phoneOpen && !collapsed} className="space-y-px">
-                  <PhoneLinePicker rail={collapsed} />
-                  {renderRow(MESSAGES)}
-                  {renderRow(CALLS)}
-                </div>
+                <PhoneLineNavigation rail={collapsed}>
+                  <ul className={cn("space-y-px", !collapsed && "ml-4")}>
+                    <li>
+                      {renderRow(MESSAGES)}
+                      <ul className={cn(!collapsed && "ml-4")}>
+                        <li>{renderRow(SCHEDULED)}</li>
+                      </ul>
+                    </li>
+                    <li>{renderRow(CALLS)}</li>
+                  </ul>
+                </PhoneLineNavigation>
                 <SidebarDivider rail={collapsed} />
                 <TaskNavigation collapsed={collapsed} taskLink={renderRow(TASKS)} plannerLink={renderRow(PLANNER)} pathname={pathname} />
                 {renderRow(CONTACTS)}

@@ -60,9 +60,10 @@ image.
   Active slot = 46dp paper circle w/ ink icon; idle = paper @ 52%; coral dot on
   For you and More indicates items needing attention. Content fades out behind
   the pill (130dp gradient). Icons carry accessible names. Use dots for badges.
-- Conversations shares one phone line across Messages, Scheduled, Calls and
-  Voicemail. Tasks includes Planner and saved views. Lou starts at the workspace
-  level and Activity has its own line filter. More opens a sheet over the current
+- Conversations shares one number across Messages, Scheduled, Calls and
+  Voicemail. The Scheduled entry is labeled under Messages. Press and hold the
+  displayed number to copy it. Tasks includes Planner and saved views. Lou
+  starts at the workspace level and Activity has its own line filter. More opens a sheet over the current
   screen with profile, workspace switching, Notifications, Contacts, Trash,
   Settings and Sign out.
 - **Icon buttons**: 44dp paper circles w/ 17dp stroke icons, subtle shadow.

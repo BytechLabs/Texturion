@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
+import { ChevronLeft, Clock, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
@@ -42,6 +42,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { RecordHeader } from "@/components/ui/record-header";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useContactActions } from "@/components/contacts/contact-record-actions";
@@ -396,20 +397,6 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   });
 
   const named = Boolean(contact.name?.trim());
-  const copyNumber = (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={t("appShell.contactCopyNumberAria")}
-      onClick={() => {
-        void navigator.clipboard.writeText(contact.phone_e164);
-        toast.success(t("appShell.contactNumberCopied"));
-      }}
-    >
-      <Copy strokeWidth={1.75} />
-    </Button>
-  );
-
   return (
     // #740: who they are on the left, what happened on the right. On a phone
     // the two columns are one: the header, then a control that picks Details,
@@ -423,12 +410,11 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             // The name leads, as in every list and on the phones; a contact
             // with no name is titled by its number.
             <div className="flex flex-wrap items-center gap-2">
-              <p
-                className={cn("text-xl font-medium", !named && "tabular-nums")}
-              >
-                {contactDisplayName(contact, t)}
-              </p>
-              {!named && copyNumber}
+              {named ? (
+                <p className="text-xl font-medium">{contactDisplayName(contact, t)}</p>
+              ) : (
+                <CopyablePhoneNumber number={contact.phone_e164} className="text-xl font-medium tabular-nums" />
+              )}
               {contact.opted_out && (
                 <Badge
                   variant="outline"
@@ -446,12 +432,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           }
           meta={
             named ? (
-              <div className="flex items-center gap-1">
-                <p className="text-sm text-app-muted tabular-nums">
-                  {formatPhone(contact.phone_e164)}
-                </p>
-                {copyNumber}
-              </div>
+              <CopyablePhoneNumber number={contact.phone_e164} className="text-sm text-app-muted tabular-nums" />
             ) : undefined
           }
           actions={

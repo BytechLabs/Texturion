@@ -268,7 +268,7 @@ struct NumberPickerSheet: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(pending)
-                    .phoneNumberCopyMenu(number.phone_number)
+                    .phoneNumberCopyOnHold(number.phone_number)
                     Divider()
                 }
                 Button(AppStrings.translate(appLocale, "settingsMore.refreshList")) {

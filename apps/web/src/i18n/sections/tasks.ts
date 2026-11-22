@@ -1285,7 +1285,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
   // -------------------------------------------------------------------------
   // /scheduled — tout ce que l'espace de travail a mis en file.
   // -------------------------------------------------------------------------
-  scheduledTitle: "Planifiés",
+  scheduledTitle: "Programmés",
   scheduledOneWaiting: "1 texto en attente",
   scheduledManyWaiting: "{count} textos en attente",
   scheduledLoadFailed: "Impossible de charger ce qui est planifié.",

@@ -1,6 +1,8 @@
 package com.loonext.android.features.inbox
 
 import com.loonext.android.ui.common.PaperIconButton
+import com.loonext.android.ui.common.copyPhoneNumberOnHold
+import com.loonext.android.ui.common.CountPill
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.InitialsAvatar
@@ -99,7 +101,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -123,7 +124,6 @@ import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.followUpPresets
 import com.loonext.android.core.snooze.snoozePresets
 import com.loonext.android.core.time.TimestampFormat
-import com.loonext.android.features.settings.copyToClipboard
 import com.loonext.android.ui.common.ConversationActionId
 import com.loonext.android.ui.common.ConversationActionsInput
 import com.loonext.android.ui.common.ConversationSurface
@@ -1310,7 +1310,6 @@ private class InboxController(
                     hasGallery = false,
                     hasCatchUp = false,
                     hasNewTask = false,
-                    canCopyNumber = row.contact.phone_e164.isNotBlank(),
                 ),
                 assignChoices = listOf(
                     RecordSubAction(UNASSIGNED_CHOICE, labelKey = "recordMenu.unassigned"),
@@ -1346,7 +1345,6 @@ private class InboxController(
         actionId: String,
         subId: String?,
         onOpen: (String) -> Unit,
-        onCopyNumber: (String) -> Unit,
     ) {
         clearSelection()
         fun call(block: suspend () -> Unit) {
@@ -1361,10 +1359,6 @@ private class InboxController(
         }
         when (actionId) {
             ConversationActionId.OPEN -> onOpen(row.id)
-            ConversationActionId.COPY_NUMBER -> {
-                onCopyNumber(row.contact.phone_e164)
-                notify(say("recordMenu.numberCopied"))
-            }
             ConversationActionId.MARK_READ, ConversationActionId.MARK_UNREAD -> toggleRead(row)
             ConversationActionId.CLOSE, ConversationActionId.REOPEN -> toggleStatus(row)
             ConversationActionId.ASSIGN -> call {
@@ -1595,17 +1589,17 @@ private fun InboxList(
                     .fillMaxSize()
                     .padding(horizontal = 18.dp),
             ) {
-                Spacer(Modifier.height(8.dp))
+                InboxScheduledLink(
+                    scheduledCount = controller.scheduled.size,
+                ) {
+                    controller.refreshScheduled()
+                    scheduledSheetOpen = true
+                }
                 InboxHeader(
                     unreadCount = controller.pinnedRows.count { it.unread } +
                         controller.rows.count { it.unread },
-                    scheduledCount = controller.scheduled.size,
                     compact = compact,
                     onDisplayChange = { value -> scope.launch { graph.prefs.setInboxCompact(value) } },
-                    onScheduled = {
-                        controller.refreshScheduled()
-                        scheduledSheetOpen = true
-                    },
                 )
                 Spacer(Modifier.height(14.dp))
                 InboxFilterRow(
@@ -1728,19 +1722,33 @@ private fun InboxList(
  */
 private const val UNREAD_BADGE_TRANSITION = "unreadBadge"
 
+@Composable
+private fun InboxScheduledLink(scheduledCount: Int, onClick: () -> Unit) {
+    val label = when (scheduledCount) {
+        0 -> t("inbox.scheduledTitle")
+        1 -> t("inbox.scheduledOneAria")
+        else -> t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
+    }
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .padding(start = 12.dp)
+            .semantics { contentDescription = label },
+    ) {
+        Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(IconSize.Default))
+        Spacer(Modifier.width(8.dp))
+        Text(t("inbox.scheduledTitle"))
+        if (scheduledCount > 0) CountPill(scheduledCount, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InboxHeader(
     unreadCount: Int,
-    /**
-     * #233: how many texts the workspace has queued. Zero withholds the
-     * control entirely — an icon that opens an empty list on most days is
-     * furniture, and this one exists to say "something IS coming".
-     */
-    scheduledCount: Int,
     compact: Boolean,
     onDisplayChange: (Boolean) -> Unit,
-    onScheduled: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth(),
@@ -1771,16 +1779,6 @@ private fun InboxHeader(
             onSelect = onDisplayChange,
             label = t("inbox.displayOptions"),
             triggerIcon = Icons.Outlined.ViewStream,
-        )
-        Spacer(Modifier.width(8.dp))
-        PaperIconButton(
-            icon = Icons.Outlined.Schedule,
-            contentDescription = when (scheduledCount) {
-                0 -> t("inbox.scheduledTitle")
-                1 -> t("inbox.scheduledOneAria")
-                else -> t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
-            },
-            onClick = onScheduled,
         )
     }
 }
@@ -2003,7 +2001,11 @@ private fun ConversationListPane(
                     onLongClick = { controller.toggleSelected(row.id) },
                     selected = controller.selection.isRowSelected(row.id),
                     selecting = selecting,
-                ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) }
+                ) {
+                    SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) {
+                        if (selecting) controller.toggleSelected(row.id) else onOpen(row.id)
+                    }
+                }
             }
             if (controller.rows.isNotEmpty()) {
                 item(key = "rest-header") {
@@ -2027,7 +2029,11 @@ private fun ConversationListPane(
                 onLongClick = { controller.toggleSelected(row.id) },
                 selected = controller.selection.isRowSelected(row.id),
                 selecting = selecting,
-            ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) }
+            ) {
+                SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id], compact) {
+                    if (selecting) controller.toggleSelected(row.id) else onOpen(row.id)
+                }
+            }
         }
         if (controller.loadingMore) {
             item(key = "loading-more") {
@@ -2105,6 +2111,7 @@ private fun SwipeableConversationRow(
     assigneeName: String?,
     outboxBlocked: Boolean?,
     compact: Boolean,
+    onClick: () -> Unit,
 ) {
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
@@ -2137,7 +2144,7 @@ private fun SwipeableConversationRow(
         } else {
             null
         },
-    ) { ConversationRow(row, assigneeName, outboxBlocked, compact) }
+    ) { ConversationRow(row, assigneeName, outboxBlocked, compact, onClick) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -2147,6 +2154,7 @@ private fun ConversationRow(
     assigneeName: String?,
     outboxBlocked: Boolean? = null,
     compact: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
     val rowState = listOfNotNull(
@@ -2204,7 +2212,10 @@ private fun ConversationRow(
                     ),
                     maxLines = if (largeText) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = nameModifier,
+                    modifier = nameModifier.copyPhoneNumberOnHold(
+                        row.contact.phone_e164.takeIf { row.contact.name.isNullOrBlank() },
+                        onClick,
+                    ),
                 )
             }
             val flagAndTime: @Composable () -> Unit = {
@@ -3238,8 +3249,6 @@ private fun BulkSelectionBar(
     val loadedIds = controller.rows.map { it.id }
     val running = controller.bulkRunning
     val locale = LocalAppLocale.current
-    val context = LocalContext.current
-    val clipboardLabel = t("settingsMore.phoneNumberClipLabel")
     var menuOpen by remember { mutableStateOf(false) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
         loadedIds.isNotEmpty() &&
@@ -3294,9 +3303,7 @@ private fun BulkSelectionBar(
                             onDismiss = { menuOpen = false },
                             actions = controller.actionsFor(single, viewer),
                             onSelect = { actionId, subId ->
-                                controller.runRowAction(single, actionId, subId, onOpen) {
-                                    copyToClipboard(context, clipboardLabel, it)
-                                }
+                                controller.runRowAction(single, actionId, subId, onOpen)
                             },
                         )
                     } else DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -3612,12 +3619,11 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>, views: ListViews? 
     var compact by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
         Spacer(Modifier.height(8.dp))
+        InboxScheduledLink(scheduledCount = 2, onClick = {})
         InboxHeader(
             unreadCount = rows.count { it.unread },
-            scheduledCount = 2,
             compact = compact,
             onDisplayChange = { compact = it },
-            onScheduled = {},
         )
         Spacer(Modifier.height(14.dp))
         InboxListControls(

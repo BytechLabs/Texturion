@@ -57,13 +57,13 @@ final class RecordActionsTests: XCTestCase {
             blocked: nil,
             optOut: nil,
             surface: ConversationSurface(
-                canOpen: true, hasGallery: false, hasCatchUp: false, hasNewTask: false, canCopyNumber: true
+                canOpen: true, hasGallery: false, hasCatchUp: false, hasNewTask: false
             )
         ).visibleIds
         XCTAssertEqual(
             ids,
             [
-                "open", "copy-number", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
+                "open", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
                 "mute", "follow", "spam", "delete",
             ]
         )
@@ -253,17 +253,17 @@ final class RecordActionsTests: XCTestCase {
         }
         XCTAssertEqual(
             list(MemberRole.owner, voicemail: true),
-            ["call-back", "text", "copy-number", "contact", "delete-voicemail", "delete-call"]
+            ["call-back", "text", "contact", "delete-voicemail", "delete-call"]
         )
         XCTAssertEqual(
             list(MemberRole.owner, voicemail: false),
-            ["call-back", "text", "copy-number", "contact", "delete-call"]
+            ["call-back", "text", "contact", "delete-call"]
         )
         XCTAssertEqual(
-            list(MemberRole.member, voicemail: true), ["call-back", "text", "copy-number", "contact"]
+            list(MemberRole.member, voicemail: true), ["call-back", "text", "contact"]
         )
         XCTAssertEqual(
-            list(MemberRole.readOnly, voicemail: true), ["call-back", "text", "copy-number", "contact"]
+            list(MemberRole.readOnly, voicemail: true), ["call-back", "text", "contact"]
         )
     }
 
@@ -322,25 +322,25 @@ final class RecordActionsTests: XCTestCase {
     func testAContactOffersOpenTextCallCopyThenBlockOptOutAndDeleteLast() {
         XCTAssertEqual(
             contact(MemberRole.owner),
-            ["open", "text", "call", "copy-number", "block", "opt-out", "delete"]
+            ["open", "text", "call", "block", "opt-out", "delete"]
         )
         XCTAssertEqual(
             contact(MemberRole.member),
-            ["open", "text", "call", "copy-number", "block", "opt-out"]
+            ["open", "text", "call", "block", "opt-out"]
         )
         XCTAssertEqual(
-            contact(MemberRole.readOnly), ["open", "text", "call", "copy-number", "opt-out"]
+            contact(MemberRole.readOnly), ["open", "text", "call", "opt-out"]
         )
     }
 
     func testAContactOptedOutByACarrierStopCanOnlyBeToldNeverReOptedIn() {
         XCTAssertEqual(
             contact(MemberRole.owner, optedOut: true, carrier: true),
-            ["open", "text", "call", "copy-number", "block", "carrier-stop", "delete"]
+            ["open", "text", "call", "block", "carrier-stop", "delete"]
         )
         XCTAssertEqual(
             contact(MemberRole.owner, optedOut: true, carrier: false),
-            ["open", "text", "call", "copy-number", "block", "opt-in", "delete"]
+            ["open", "text", "call", "block", "opt-in", "delete"]
         )
         let unknown = contact(MemberRole.owner, blocked: nil)
         XCTAssertFalse(unknown.contains("block") || unknown.contains("unblock"))

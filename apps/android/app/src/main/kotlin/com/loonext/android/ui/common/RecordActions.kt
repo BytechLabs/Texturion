@@ -93,7 +93,6 @@ data class RecordViewer(val canWrite: Boolean, val canDelete: Boolean) {
 
 object ConversationActionId {
     const val OPEN = "open"
-    const val COPY_NUMBER = "copy-number"
     const val MARK_READ = "mark-read"
     const val MARK_UNREAD = "mark-unread"
     const val CATCH_UP = "catch-up"
@@ -127,7 +126,6 @@ data class ConversationSurface(
     val hasCatchUp: Boolean,
     /** Phones only: a task can start from the conversation sheet. */
     val hasNewTask: Boolean,
-    val canCopyNumber: Boolean = false,
 )
 
 data class ConversationActionsInput(
@@ -166,10 +164,6 @@ fun conversationActions(input: ConversationActionsInput): List<RecordAction> {
     val surface = input.surface
     return listOf(
         RecordAction(ConversationActionId.OPEN, "recordMenu.open", ActionGroup.PRIMARY, allowed = surface.canOpen),
-        RecordAction(
-            ConversationActionId.COPY_NUMBER, "recordMenu.copyNumber", ActionGroup.PRIMARY,
-            allowed = surface.canCopyNumber,
-        ),
 
         if (input.unread) {
             RecordAction(ConversationActionId.MARK_READ, "recordMenu.markRead", ActionGroup.STATE)
@@ -326,7 +320,6 @@ fun messageActions(message: Message, viewer: RecordViewer): List<RecordAction> {
 object CallActionId {
     const val CALL_BACK = "call-back"
     const val TEXT = "text"
-    const val COPY_NUMBER = "copy-number"
     const val CONTACT = "contact"
     const val ADD_CONTACT = "add-contact"
     const val TASK = "task"
@@ -358,10 +351,6 @@ fun callActions(input: CallActionsInput): List<RecordAction> = listOf(
     RecordAction(
         CallActionId.TEXT, "recordMenu.text", ActionGroup.PRIMARY,
         allowed = input.hasConversation || !input.callerE164.isNullOrBlank(),
-    ),
-    RecordAction(
-        CallActionId.COPY_NUMBER, "recordMenu.copyNumber", ActionGroup.PRIMARY,
-        allowed = !input.callerE164.isNullOrBlank(),
     ),
     RecordAction(
         CallActionId.CONTACT, "shell.callActionContact", ActionGroup.PRIMARY,
@@ -451,7 +440,6 @@ object ContactActionId {
     const val OPEN = "open"
     const val TEXT = "text"
     const val CALL = "call"
-    const val COPY_NUMBER = "copy-number"
     const val UNBLOCK = "unblock"
     const val BLOCK = "block"
     const val OPT_IN = "opt-in"
@@ -474,7 +462,6 @@ fun contactActions(input: ContactActionsInput): List<RecordAction> = listOf(
     RecordAction(ContactActionId.OPEN, "recordMenu.open", ActionGroup.PRIMARY, allowed = input.canOpen),
     RecordAction(ContactActionId.TEXT, "recordMenu.text", ActionGroup.PRIMARY),
     RecordAction(ContactActionId.CALL, "recordMenu.call", ActionGroup.PRIMARY),
-    RecordAction(ContactActionId.COPY_NUMBER, "recordMenu.copyNumber", ActionGroup.PRIMARY),
     if (input.blocked == true) {
         RecordAction(ContactActionId.UNBLOCK, "recordMenu.unblock", ActionGroup.DANGER, allowed = input.canBlock)
     } else {

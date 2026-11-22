@@ -326,13 +326,13 @@ class CallsLogicTest {
         val linked = call(outcome = "answered", callerE164 = "+14155550101")
             .copy(conversation_id = "conv-1", contact_id = "con-1")
         assertEquals(
-            listOf("call-back", "text", "copy-number", "contact", "task", "details", "delete-call"),
+            listOf("call-back", "text", "contact", "task", "details", "delete-call"),
             ids(linked, canDelete = true),
         )
         // An unsaved number offers Add contact in place of Contact; a miss has no task.
         val bare = call(outcome = "missed", callerE164 = "+14155550101")
         assertEquals(
-            listOf("call-back", "text", "copy-number", "add-contact", "details"),
+            listOf("call-back", "text", "add-contact", "details"),
             ids(bare),
         )
         // No number and no thread: Details is all that is left.

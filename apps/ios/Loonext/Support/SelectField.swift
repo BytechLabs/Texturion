@@ -41,7 +41,6 @@ struct SelectField<Value: Hashable>: View {
     /// A header choice uses the paper icon button and speaks the selected value.
     var triggerIcon: String?
     let onSelect: @MainActor (Value) -> Void
-    @Environment(\.appLocale) private var appLocale
 
     init(
         options: [SelectOption<Value>],
@@ -71,13 +70,8 @@ struct SelectField<Value: Hashable>: View {
                 iconMenu(triggerIcon)
             } else if options.contains(where: { $0.copyValue != nil }) {
                 HStack(spacing: 8) {
+                    CopyablePhoneNumber(number: chosen?.copyValue, label: chosen?.title ?? label, minimumHeight: 44)
                     phoneMenu
-                    if let number = chosen?.copyValue {
-                        CopyPhoneNumberAction(number: number)
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.plain)
-                            .frame(minHeight: 44)
-                    }
                 }
             } else {
                 picker
@@ -141,22 +135,15 @@ struct SelectField<Value: Hashable>: View {
                 }
                 .disabled(option.isDisabled)
             }
-            Menu {
-                ForEach(options.indices, id: \.self) { index in
-                    let option = options[index]
-                    if let number = option.copyValue {
-                        CopyPhoneNumberAction(number: number, label: option.title)
-                    }
-                }
-            } label: {
-                Label(AppStrings.translate(appLocale, "contactsTasks.copyNumber"), systemImage: "doc.on.doc")
-            }
         } label: {
-            Label(chosen?.title ?? label, systemImage: "chevron.up.chevron.down")
+            Image(systemName: "chevron.up.chevron.down")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .tint(BrandColor.olive)
         .frame(minHeight: 44, alignment: .leading)
         .disabled(!enabled)
         .accessibilityLabel(label)
+        .accessibilityValue(chosen?.title ?? "")
     }
 }

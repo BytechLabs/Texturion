@@ -1418,7 +1418,7 @@ private struct RecentCallRow: View {
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
-        .phoneNumberCopyMenu(call.caller_e164.flatMap { name == formatPhone($0) ? $0 : nil })
+        .phoneNumberCopyOnHold(call.caller_e164.flatMap { name == formatPhone($0) ? $0 : nil })
     }
 }
 
@@ -1465,7 +1465,7 @@ private struct PersonRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .phoneNumberCopyMenu(phoneNumber)
+        .phoneNumberCopyOnHold(phoneNumber)
         // Same as the inbox + notification rows: the AttentionDot is the only
         // unread signal, and it is invisible to VoiceOver.
         .accessibilityValue(
@@ -1769,7 +1769,7 @@ private struct SpamReviewRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .phoneNumberCopyMenu(item.contact?.name == nil ? item.contact?.phone_e164 : nil)
+            .phoneNumberCopyOnHold(item.contact?.name == nil ? item.contact?.phone_e164 : nil)
 
             HStack(spacing: 10) {
                 Button(AppStrings.translate(appLocale, "inbox.forYouNotSpam")) {

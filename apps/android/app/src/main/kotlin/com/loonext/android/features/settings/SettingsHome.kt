@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.Devices
@@ -108,13 +107,12 @@ import com.loonext.android.ui.common.previewCompany
 import com.loonext.android.ui.common.previewMe
 import com.loonext.android.ui.common.previewUsage
 import com.loonext.android.ui.common.SkeletonBlock
-import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.rememberShimmerBrush
-import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Duration
 import java.time.Instant
@@ -337,7 +335,6 @@ fun SettingsHome(
     // label — is read from here, because `t` is a composable read and none of
     // them happen during one.
     val locale = LocalAppLocale.current
-    val clipLabel = t("settingsMore.phoneNumberClipLabel")
     val settingsScope = remember(graph, companyId, me, role) {
         SettingsScope(
             graph = graph,
@@ -419,12 +416,6 @@ fun SettingsHome(
                         usage = usage,
                         onOpen = onOpenSection,
                         onOpenSetting = onOpenSetting,
-                        onCopyNumber = { number ->
-                            copyToClipboard(context, clipLabel, number)
-                            settingsScope.showMessage(
-                                AppStrings.translate(locale, "settingsMore.numberCopied"),
-                            )
-                        },
                         // #515: the handover addressed to the reader. A slot
                         // rather than a scope parameter so the index stays a
                         // pure layout that previews without an AppGraph.
@@ -542,7 +533,6 @@ internal fun SettingsIndex(
     unsentCount: suspend () -> Int,
     usage: Usage?,
     onOpen: (SettingsSection) -> Unit,
-    onCopyNumber: (String) -> Unit,
     ownershipPrompt: @Composable () -> Unit = {},
     onOpenSetting: (SettingsSection, String) -> Unit = { target, _ -> onOpen(target) },
 ) {
@@ -560,7 +550,7 @@ internal fun SettingsIndex(
             .padding(top = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 13.dp),
     ) {
-        IdentityCard(company, me, role, onCopyNumber)
+        IdentityCard(company, me, role)
         // Directly under the identity card and above everything else: tight
         // spacing because it belongs to "you are signed in as this person", which
         // is the thought somebody is having when they hand the phone on.
@@ -684,9 +674,7 @@ private fun IdentityCard(
     company: CompanyView,
     me: Me,
     role: String?,
-    onCopyNumber: (String) -> Unit,
 ) {
-    val haptics = rememberHaptics()
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primary,
@@ -732,33 +720,15 @@ private fun IdentityCard(
             if (number != null) {
                 Spacer(Modifier.width(8.dp))
                 Surface(
-                    onClick = {
-                        haptics.tap()
-                        onCopyNumber(number)
-                    },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.touchTarget(),
                 ) {
-                    Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            formatPhone(number),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            Icons.Outlined.ContentCopy,
-                            contentDescription = t("settingsMore.copyNumber"),
-                            modifier = Modifier.size(IconSize.Small),
-                        )
-                    }
+                    CopyablePhoneNumber(
+                        number = number,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                    )
                 }
             }
         }
@@ -1086,7 +1056,6 @@ private fun SettingsIndexPreview() {
                 onHandOver = {},
                 unsentCount = { 0 },
                 onOpen = {},
-                onCopyNumber = {},
             )
         }
     }

@@ -939,8 +939,7 @@ final class InboxController {
                     canOpen: true,
                     hasGallery: false,
                     hasCatchUp: false,
-                    hasNewTask: false,
-                    canCopyNumber: !row.contact.phone_e164.isBlank
+                    hasNewTask: false
                 ),
                 assignChoices: assignChoices,
                 snoozeChoices: snoozePresets(locale: locale).map {
@@ -986,9 +985,6 @@ final class InboxController {
         switch actionId {
         case ConversationActionId.open:
             onOpen(row.id)
-        case ConversationActionId.copyNumber:
-            copyToClipboard(row.contact.phone_e164)
-            notify(AppStrings.translate(locale, "recordMenu.numberCopied"))
         case ConversationActionId.markRead, ConversationActionId.markUnread:
             toggleRead(row)
         case ConversationActionId.close, ConversationActionId.reopen:
@@ -1480,10 +1476,11 @@ private struct InboxList: View {
         let outboxStatuses = Dictionary(grouping: queue, by: \.conversationId)
             .mapValues { rows in rows.contains(where: \.blocked) }
         VStack(spacing: 0) {
-            InboxTitleRow(scheduledCount: controller.scheduled.count, compact: $compact) {
+            InboxScheduledLink(scheduledCount: controller.scheduled.count) {
                 controller.refreshScheduled()
                 scheduledSheetOpen = true
             }
+            InboxTitleRow(compact: $compact)
 
             searchField(controller)
                 .padding(.horizontal, 18)
@@ -1630,13 +1627,32 @@ private struct InboxList: View {
     }
 }
 
-/// The inbox's title row: the heading and, only while something is queued, the
-/// scheduled-sends button. A view of its own so the accessibility audit draws the
-/// same row the screen does.
-private struct InboxTitleRow: View {
+private struct InboxScheduledLink: View {
     let scheduledCount: Int
-    @Binding var compact: Bool
     let onOpenScheduled: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        Button(action: onOpenScheduled) {
+            HStack(spacing: 8) {
+                Label(AppStrings.translate(appLocale, "inbox.scheduledTitle"), systemImage: "clock")
+                    .font(.golos(13, weight: .semibold))
+                if scheduledCount > 0 { CountPill(scheduledCount) }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
+        .accessibilityValue(scheduledCount > 0 ? String(scheduledCount) : "")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 30)
+    }
+}
+
+private struct InboxTitleRow: View {
+    @Binding var compact: Bool
 
     @Environment(\.appLocale) private var appLocale
 
@@ -1644,18 +1660,6 @@ private struct InboxTitleRow: View {
         HStack(spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
             Spacer(minLength: 0)
-            Button(action: onOpenScheduled) {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(BrandColor.muted500)
-                    if scheduledCount > 0 { CountPill(scheduledCount) }
-                }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .accessibilityLabel(AppStrings.translate(appLocale, "inbox.scheduledTitle"))
-
             SelectField(
                 options: [
                     SelectOption(false, title: AppStrings.translate(appLocale, "inbox.displayPreview")),
@@ -1668,7 +1672,6 @@ private struct InboxTitleRow: View {
             )
         }
         .padding(.horizontal, 18)
-        .padding(.top, 8)
         .padding(.bottom, 10)
     }
 }
@@ -1971,6 +1974,7 @@ private struct ConversationRow: View {
                             .font(.golos(14, weight: row.unread ? .semibold : .medium))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(largeText ? nil : 1)
+                            .phoneNumberCopyOnHold(row.contact.name == nil ? row.contact.phone_e164 : nil)
                         // #293: normally this row only exists in the Snoozed
                         // view — but it also survives a mid-session return, and
                         // a row that came back with no explanation is what
@@ -2567,7 +2571,7 @@ private struct SearchResultsPane: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .phoneNumberCopyMenu(contact.phone_e164)
+            .phoneNumberCopyOnHold(contact.phone_e164)
 
             if contact.conversation != nil {
                 Button {
@@ -2668,7 +2672,8 @@ private struct InboxAuditScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            InboxTitleRow(scheduledCount: 2, compact: $compact, onOpenScheduled: {})
+            InboxScheduledLink(scheduledCount: 2, onOpenScheduled: {})
+            InboxTitleRow(compact: $compact)
             inboxSearchField(.constant(""), locale: appLocale)
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)

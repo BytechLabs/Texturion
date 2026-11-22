@@ -467,7 +467,7 @@ private struct NewConversationLoaded: View {
                         )
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
-                        .phoneNumberCopyMenu(selectedContact.name == nil ? recipientNumber : nil)
+                        .phoneNumberCopyOnHold(selectedContact.name == nil ? recipientNumber : nil)
                         Button {
                             onContactChange(nil)
                         } label: {
@@ -571,7 +571,7 @@ private struct NewConversationLoaded: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .phoneNumberCopyMenu(contact.phone_e164)
+                    .phoneNumberCopyOnHold(contact.phone_e164)
                     if contact.id != contactMatches.last?.id {
                         RowDivider()
                     }

@@ -360,7 +360,6 @@ class IssueEvidenceScreenshotTest {
         onHandOver = {},
         unsentCount = { 0 },
         onOpen = {},
-        onCopyNumber = {},
     )
 
     // --- 5. settings-search -----------------------------------------------------------

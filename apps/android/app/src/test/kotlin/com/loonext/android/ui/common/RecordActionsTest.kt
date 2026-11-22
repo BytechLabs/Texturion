@@ -61,12 +61,12 @@ class RecordActionsTest {
             blocked = null,
             optOut = null,
             surface = ConversationSurface(
-                canOpen = true, hasGallery = false, hasCatchUp = false, hasNewTask = false, canCopyNumber = true,
+                canOpen = true, hasGallery = false, hasCatchUp = false, hasNewTask = false,
             ),
         ).visibleIds()
         assertEquals(
             listOf(
-                "open", "copy-number", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
+                "open", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
                 "mute", "follow", "spam", "delete",
             ),
             ids,
@@ -192,12 +192,12 @@ class RecordActionsTest {
             ),
         ).visibleIds()
         assertEquals(
-            listOf("call-back", "text", "copy-number", "contact", "delete-voicemail", "delete-call"),
+            listOf("call-back", "text", "contact", "delete-voicemail", "delete-call"),
             list(MemberRole.OWNER, voicemail = true),
         )
-        assertEquals(listOf("call-back", "text", "copy-number", "contact", "delete-call"), list(MemberRole.OWNER, voicemail = false))
-        assertEquals(listOf("call-back", "text", "copy-number", "contact"), list(MemberRole.MEMBER, voicemail = true))
-        assertEquals(listOf("call-back", "text", "copy-number", "contact"), list(MemberRole.READ_ONLY, voicemail = true))
+        assertEquals(listOf("call-back", "text", "contact", "delete-call"), list(MemberRole.OWNER, voicemail = false))
+        assertEquals(listOf("call-back", "text", "contact"), list(MemberRole.MEMBER, voicemail = true))
+        assertEquals(listOf("call-back", "text", "contact"), list(MemberRole.READ_ONLY, voicemail = true))
     }
 
     private fun task(role: String, canOpen: Boolean, hasAccess: Boolean = true) = taskActions(
@@ -234,24 +234,24 @@ class RecordActionsTest {
     @Test
     fun `a contact offers open, text, call, copy, then block, opt out and delete last`() {
         assertEquals(
-            listOf("open", "text", "call", "copy-number", "block", "opt-out", "delete"),
+            listOf("open", "text", "call", "block", "opt-out", "delete"),
             contact(MemberRole.OWNER),
         )
         assertEquals(
-            listOf("open", "text", "call", "copy-number", "block", "opt-out"),
+            listOf("open", "text", "call", "block", "opt-out"),
             contact(MemberRole.MEMBER),
         )
-        assertEquals(listOf("open", "text", "call", "copy-number", "opt-out"), contact(MemberRole.READ_ONLY))
+        assertEquals(listOf("open", "text", "call", "opt-out"), contact(MemberRole.READ_ONLY))
     }
 
     @Test
     fun `a contact opted out by a carrier STOP can only be told, never re-opted in`() {
         assertEquals(
-            listOf("open", "text", "call", "copy-number", "block", "carrier-stop", "delete"),
+            listOf("open", "text", "call", "block", "carrier-stop", "delete"),
             contact(MemberRole.OWNER, optedOut = true, carrier = true),
         )
         assertEquals(
-            listOf("open", "text", "call", "copy-number", "block", "opt-in", "delete"),
+            listOf("open", "text", "call", "block", "opt-in", "delete"),
             contact(MemberRole.OWNER, optedOut = true, carrier = false),
         )
         assertFalse("block" in contact(MemberRole.OWNER, blocked = null) || "unblock" in contact(MemberRole.OWNER, blocked = null))

@@ -1,6 +1,7 @@
 package com.loonext.android.features.contacts
 
 import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.copyPhoneNumberOnHold
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.showUndo
@@ -1360,7 +1361,7 @@ internal fun ContactRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp).spokenAs(meta),
+                modifier = Modifier.padding(top = 2.dp).spokenAs(meta).copyPhoneNumberOnHold(contact.phone_e164, onClick),
             )
         }
         Box(

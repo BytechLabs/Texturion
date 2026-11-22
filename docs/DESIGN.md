@@ -115,8 +115,9 @@ ratios, which fail only when something is genuinely wrong.
 
 ## G3. App architecture & navigation
 
-- The signed-in sidebar groups Search, For you and Lou above Phone line.
-  Messages, Scheduled, Calls and Voicemail follow the selected number.
+- The signed-in sidebar groups Search, For you and Lou above the selected number.
+  The number expands Messages and Calls, with Scheduled under Messages. Calls
+  and its voicemail view follow the same number.
   Tasks, Planner, saved task views and Contacts use workspace data. The
   icon rail has the same order and opens Planner and saved views from Task
   shortcuts. Trash and the sidebar toggle are in the footer.

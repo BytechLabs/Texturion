@@ -6,7 +6,6 @@ import {
   Ban,
   BellOff,
   ChevronDown,
-  Copy,
   Info,
   MoreHorizontal,
   TriangleAlert,
@@ -14,7 +13,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 import { avatarInitials, contactRepeatBadge, isFlaggedUrgent, URGENT_BADGE_LABEL } from '@loonext/shared';
 
@@ -25,6 +23,7 @@ import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber, phoneCopyOnHover } from "@/components/ui/copyable-phone-number";
 import {
   DropdownMenu,
   DropdownMenuChoiceItem,
@@ -155,15 +154,6 @@ export function ThreadHeader({
   // it, so the crew reads one mark in both places and it clears in both at once.
   const urgent = isFlaggedUrgent(conversation);
 
-  const copyPhone = async () => {
-    try {
-      await navigator.clipboard.writeText(phone);
-      toast.success(t("thread.numberCopied"));
-    } catch {
-      toast.error(t("thread.copyFailed"));
-    }
-  };
-
   const snoozedUntil = conversation.snoozed_until ?? null;
   const snoozeKind = (conversation.snooze_kind ?? null);
 
@@ -233,7 +223,7 @@ export function ThreadHeader({
       </span>
 
       {/* Name (tap → contact panel) + number with a copy button. */}
-      <div className="min-w-0 flex-1">
+      <div className="group/phone min-w-0 flex-1">
         {/* #505: BESIDE the name, never under it. A second line would make the
             header a reading surface, and reading is the contact panel's job —
             the panel spends a whole line on "Customer since March 2026 · 7
@@ -336,26 +326,19 @@ export function ThreadHeader({
               nothing, and finding it gone from the inbox again an hour later —
               a state the product knows about and did not tell you. */}
           {conversation.contact.name === null ? (
-            <button
-              type="button"
-              onClick={onToggleContactPanel}
-              className="truncate text-[12.5px] text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t("thread.addAName")}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onToggleContactPanel}
+                className="truncate text-[12.5px] text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t("thread.addAName")}
+              </button>
+              <CopyablePhoneNumber number={phone} iconOnly className={cn("size-6 shrink-0 justify-center text-app-muted-2 hover:text-app-ink", phoneCopyOnHover)} />
+            </>
           ) : (
-            <span className="truncate text-[12.5px] tabular-nums text-app-muted">
-              {formatPhone(phone)}
-            </span>
+            <CopyablePhoneNumber number={phone} className="min-h-6 text-[12.5px] tabular-nums text-app-muted" />
           )}
-          <button
-            type="button"
-            onClick={() => { void copyPhone(); }}
-            aria-label={t("thread.copyPhoneAria")}
-            className="tap-target shrink-0 rounded p-0.5 text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
-          </button>
         </div>
       </div>
 

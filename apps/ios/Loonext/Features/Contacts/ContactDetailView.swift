@@ -334,9 +334,6 @@ struct ContactDetailView: View {
         case ContactActionId.call:
             Haptics.tap()
             callWithMicPreflight(contact)
-        case ContactActionId.copyNumber:
-            Haptics.tap()
-            UIPasteboard.general.string = contact.phone_e164
         case ContactActionId.block:
             confirmBlock = true
         case ContactActionId.unblock:
@@ -550,19 +547,10 @@ struct ContactDetailView: View {
                 .kerning(-0.2)
                 .foregroundStyle(BrandColor.ink)
             HStack(spacing: 6) {
-                Text(formatPhone(contact.phone_e164))
+                CopyablePhoneNumber(number: contact.phone_e164)
                     .font(.golos(12.5))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted500)
-                Button {
-                    UIPasteboard.general.string = contact.phone_e164
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.scaled(IconSize.small))
-                        .foregroundStyle(BrandColor.muted400)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(t("contactsTasks.copyNumber"))
                 if contact.opted_out {
                     Text(t("contactsTasks.optedOut"))
                         .font(.golos(11, weight: .semibold))

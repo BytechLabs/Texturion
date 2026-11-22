@@ -272,29 +272,10 @@ struct CallDetailView: View {
                         .font(.golos(12))
                         .foregroundStyle(BrandColor.muted500)
                     Spacer(minLength: 8)
-                    if let copyValue = row.copyValue {
-                        Button {
-                            Haptics.tap()
-                            UIPasteboard.general.string = copyValue
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(row.value)
-                                Image(systemName: "doc.on.doc")
-                                    .font(.scaled(IconSize.small, weight: .medium))
-                            }
-                            .font(.golos(14))
-                            .foregroundStyle(BrandColor.ink)
-                            .multilineTextAlignment(.trailing)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(row.value)
-                        .accessibilityHint(t("shell.copyNumber"))
-                    } else {
-                        Text(row.value)
-                            .font(.golos(14))
-                            .foregroundStyle(BrandColor.ink)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    CopyablePhoneNumber(number: row.copyValue, label: row.value)
+                        .font(.golos(14))
+                        .foregroundStyle(BrandColor.ink)
+                        .multilineTextAlignment(.trailing)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

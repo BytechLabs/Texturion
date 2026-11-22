@@ -301,7 +301,6 @@ class AccessibilityAuditTest(private val fontScale: Float) {
                     onHandOver = {},
                     unsentCount = { 0 },
                     onOpen = {},
-                    onCopyNumber = {},
                 )
             }
         }

@@ -130,6 +130,9 @@ private struct ScheduledSheetRow: View {
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
+                            .phoneNumberCopyOnHold((row.conversations?.contacts).flatMap { contact in
+                                (contact.name?.trimmingCharacters(in: .whitespaces) ?? "").isEmpty ? contact.phone_e164 : nil
+                            })
                         Spacer(minLength: 0)
                         Text(
                             row.isHeld
@@ -174,10 +177,7 @@ private struct ScheduledSheetRow: View {
         // long-press menu both run it.
         .recordContextMenu(
             scheduledActions(allowedActions: row.allowed_actions),
-            exactTime: TimestampFormat.exact(row.send_at, locale: appLocale),
-            copyNumber: (row.conversations?.contacts).flatMap { contact in
-                (contact.name?.trimmingCharacters(in: .whitespaces) ?? "").isEmpty ? contact.phone_e164 : nil
-            }
+            exactTime: TimestampFormat.exact(row.send_at, locale: appLocale)
         ) { actionId, _ in
             switch actionId {
             case ScheduledActionId.open:

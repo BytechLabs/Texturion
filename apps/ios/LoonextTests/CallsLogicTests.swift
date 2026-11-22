@@ -373,12 +373,12 @@ final class CallsLogicTests: XCTestCase {
             conversationId: "conv-1", contactId: "con-1"
         )
         XCTAssertEqual(
-            ["call-back", "text", "copy-number", "contact", "task", "details", "delete-call"],
+            ["call-back", "text", "contact", "task", "details", "delete-call"],
             ids(linked, canDelete: true)
         )
         // An unsaved number offers Add contact in place of Contact; a miss has no task.
         XCTAssertEqual(
-            ["call-back", "text", "copy-number", "add-contact", "details"],
+            ["call-back", "text", "add-contact", "details"],
             ids(call(outcome: "missed", callerE164: "+14155550101"))
         )
         // No number and no thread: Details is all that is left.

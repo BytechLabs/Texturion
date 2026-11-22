@@ -42,7 +42,6 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.QuestionMark
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -77,9 +76,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -128,6 +125,7 @@ import com.loonext.android.features.tasks.NewTaskSheetHost
 import com.loonext.android.features.tasks.LinkedOwner
 import com.loonext.android.features.tasks.LinkedTasksList
 import com.loonext.android.features.tasks.ReferenceRepository
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.spokenAs
@@ -370,7 +368,6 @@ private fun ContactDetailBody(
     onOpenTask: ((String) -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val haptics = rememberHaptics()
     // #228: the permission-result callback below is not composition.
@@ -527,7 +524,6 @@ private fun ContactDetailBody(
                 }
             }
             ContactActionId.CALL -> startCall()
-            ContactActionId.COPY_NUMBER -> clipboard.setText(AnnotatedString(contact.phone_e164))
             ContactActionId.BLOCK -> confirmBlock = true
             ContactActionId.UNBLOCK -> blockedSender?.let { blocked ->
                 runAction {
@@ -574,27 +570,11 @@ private fun ContactDetailBody(
                 )
             },
             meta = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        formatPhone(contact.phone_e164),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    IconButton(
-                        onClick = {
-                            haptics.tap()
-                            clipboard.setText(AnnotatedString(contact.phone_e164))
-                        },
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Icon(
-                            Icons.Outlined.ContentCopy,
-                            contentDescription = t("contactsTasks.copyNumber"),
-                            modifier = Modifier.size(IconSize.Small),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                CopyablePhoneNumber(
+                    contact.phone_e164,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 // #410: how long they have been a customer, and how often.
                 // Quiet metadata under the number rather than a section of its
                 // own — two facts do not earn a heading.

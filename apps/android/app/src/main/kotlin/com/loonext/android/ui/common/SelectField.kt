@@ -84,25 +84,28 @@ fun <T> SelectField(
                 onClick = { open = true },
             )
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(if (fillWidth) Modifier.weight(1f) else Modifier) {
-                    SelectTrigger(
-                        text = text,
-                        label = label,
-                        enabled = enabled,
-                        fillWidth = fillWidth,
-                        onClick = { open = true },
-                    )
-                }
-                chosen?.copyValue?.let { CopyPhoneNumberButton(it) }
-            }
+            SelectTrigger(
+                text = text,
+                label = label,
+                enabled = enabled,
+                fillWidth = fillWidth,
+                copyValue = chosen?.copyValue?.takeIf { enabled },
+                onClick = { open = true },
+            )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->
+                val choose = {
+                    open = false
+                    if (option.value != selected) onSelect(option.value)
+                }
                 DropdownMenuItem(
                     text = {
                         Column {
-                            Text(option.label)
+                            Text(
+                                option.label,
+                                modifier = Modifier.copyPhoneNumberOnHold(option.copyValue?.takeIf { option.enabled }, choose),
+                            )
                             if (option.description != null) {
                                 Text(
                                     option.description,
@@ -112,28 +115,20 @@ fun <T> SelectField(
                             }
                         }
                     },
-                    trailingIcon = if (option.value == selected || option.copyValue != null) {
+                    trailingIcon = if (option.value == selected) {
                         {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                option.copyValue?.let { CopyPhoneNumberButton(it) }
-                                if (option.value == selected) {
-                                    Icon(
-                                        Icons.Outlined.Check,
-                                        contentDescription = t("contactsTasks.selected"),
-                                        modifier = Modifier.size(IconSize.Default),
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Outlined.Check,
+                                contentDescription = t("contactsTasks.selected"),
+                                modifier = Modifier.size(IconSize.Default),
+                            )
                         }
                     } else {
                         null
                     },
                     enabled = option.enabled,
                     modifier = Modifier.heightIn(min = 48.dp),
-                    onClick = {
-                        open = false
-                        if (option.value != selected) onSelect(option.value)
-                    },
+                    onClick = choose,
                 )
             }
         }
@@ -147,6 +142,7 @@ internal fun SelectTrigger(
     label: String?,
     enabled: Boolean,
     fillWidth: Boolean,
+    copyValue: String? = null,
     onClick: () -> Unit,
 ) {
     OutlinedButton(
@@ -165,7 +161,7 @@ internal fun SelectTrigger(
                 text,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f, fill = false).copyPhoneNumberOnHold(copyValue, onClick),
             )
             Spacer(Modifier.width(8.dp))
             Icon(

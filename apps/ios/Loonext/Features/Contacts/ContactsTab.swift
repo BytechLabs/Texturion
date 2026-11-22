@@ -209,10 +209,6 @@ struct ContactsTab: View {
         case ContactActionId.call:
             Haptics.tap()
             callFromList(contact)
-        case ContactActionId.copyNumber:
-            Haptics.tap()
-            UIPasteboard.general.string = contact.phone_e164
-            notice = t("recordMenu.numberCopied")
         case ContactActionId.optOut:
             listConfirmOptOut = contact
         case ContactActionId.optIn:
@@ -1091,11 +1087,13 @@ private struct ContactRow: View {
                     }
                 }
                 Text(sub.visible)
-                    .spokenAs(sub)
                     .font(.golos(11.5))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted400)
                     .lineLimit(1)
+                    .frame(minHeight: 44, alignment: .topLeading)
+                    .spokenAs(sub)
+                    .phoneNumberCopyOnHold(contact.phone_e164)
             }
             Spacer(minLength: 8)
             // Decorative doorway glyph — the whole row opens the contact.
@@ -1105,7 +1103,7 @@ private struct ContactRow: View {
                 .frame(width: 34, height: 34)
                 .background(BrandColor.inset, in: Circle())
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, 8)
         .padding(.horizontal, 15)
     }
 }

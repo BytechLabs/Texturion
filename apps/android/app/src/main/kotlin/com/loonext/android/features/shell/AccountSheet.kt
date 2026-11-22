@@ -3,13 +3,10 @@ package com.loonext.android.features.shell
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.features.settings.roleLabelIn
 import com.loonext.android.core.i18n.LocalAppLocale
-import android.content.ClipData
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.Segment
 import com.loonext.android.ui.common.SegmentedControl
 import com.loonext.android.ui.common.PaperCard
-import android.content.ClipboardManager
-import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -40,7 +37,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
@@ -61,7 +57,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -85,7 +80,7 @@ import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.previewMe
@@ -163,17 +158,11 @@ internal fun AccountSheetContent(
     onSignOut: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     val haptics = rememberHaptics()
     val compact = isCompactHeight()
     val membership = me.memberships.firstOrNull { it.company_id == companyId }
     val company = me.company
     val workspaceName = membership?.name ?: company?.name
-    // Read here rather than inside the copy lambda: `t` is @Composable and the
-    // tap handler is not, and the clipboard's own label is the one string on
-    // this sheet that a person reads OUTSIDE the app (Android 13+ shows it in
-    // the paste toast).
-    val clipLabel = t("shell.clipPhoneNumber")
 
     Column(
         // #180: rows must stay reachable at ANY viewport height. When the
@@ -233,7 +222,7 @@ internal fun AccountSheetContent(
                         }
                         activeNumbers.firstOrNull()?.number_e164?.let { number ->
                             Spacer(Modifier.width(8.dp))
-                            NumberChip(number, onCopy = { copy(context, it, clipLabel) })
+                            NumberChip(number)
                         }
                     }
                     // Extra workspace numbers stay copyable (rare, stacked).
@@ -243,10 +232,7 @@ internal fun AccountSheetContent(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             activeNumbers.drop(1).forEach { number ->
-                                NumberChip(
-                                    number.number_e164!!,
-                                    onCopy = { copy(context, it, clipLabel) },
-                                )
+                                NumberChip(number.number_e164!!)
                             }
                         }
                     }
@@ -417,37 +403,18 @@ internal fun AccountSheetContent(
         }
 }
 
-/** Pill number chip on the ink tile — tap to copy. */
 @Composable
-private fun NumberChip(numberE164: String, onCopy: (String) -> Unit) {
-    val haptics = rememberHaptics()
+private fun NumberChip(numberE164: String) {
     Surface(
-        onClick = {
-            haptics.tap()
-            onCopy(numberE164)
-        },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
         contentColor = MaterialTheme.colorScheme.onPrimary,
     ) {
-        Row(
-            Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                formatPhone(numberE164),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                Icons.Outlined.ContentCopy,
-                contentDescription = t("shell.copyNumber"),
-                modifier = Modifier.size(IconSize.Small),
-            )
-        }
+        CopyablePhoneNumber(
+            number = numberE164,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold),
+        )
     }
 }
 
@@ -535,10 +502,6 @@ private fun Chevron() {
  * translated string and is passed in rather than written here: this is a plain
  * function with no composition to read the reader's language from.
  */
-private fun copy(context: Context, text: String, label: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
-}
 
 /**
  * #180 responsive proof: the You sheet — the founder's clip example — laid out

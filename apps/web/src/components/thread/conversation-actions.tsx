@@ -10,7 +10,6 @@ import {
   BellRing,
   CalendarClock,
   CircleCheck,
-  Copy,
   ExternalLink,
   Images,
   Mail,
@@ -115,7 +114,6 @@ export interface ConversationActionsInput {
   run: {
     open: () => void;
     openInNewTab: () => void;
-    copyNumber?: () => void | Promise<void>;
     markRead: () => void;
     markUnread: () => void;
     catchUp: () => void;
@@ -211,14 +209,6 @@ export function buildConversationActions(
       group: "primary",
       allowed: surface.openHref !== undefined,
       onSelect: run.openInNewTab,
-    },
-    {
-      id: "copy-number",
-      label: t("recordMenu.copyNumber"),
-      icon: Copy,
-      group: "primary",
-      allowed: surface.openHref !== undefined && run.copyNumber !== undefined,
-      onSelect: run.copyNumber,
     },
 
     // ---- state ------------------------------------------------------------
@@ -689,16 +679,6 @@ export function useConversationActions({
       open: () => openHref && navigate(openHref),
       openInNewTab: () =>
         openHref && window.open(openHref, "_blank", "noopener"),
-      copyNumber: conversation.contact.phone_e164?.trim()
-        ? async () => {
-            try {
-              await navigator.clipboard.writeText(conversation.contact.phone_e164);
-              toast.success(t("thread.numberCopied"));
-            } catch {
-              toast.error(t("thread.copyFailed"));
-            }
-          }
-        : undefined,
       markRead: () =>
         markRead.mutate(conversation.id, {
           onError: (e) => onApiError(e, t("thread.markUnreadFailed")),

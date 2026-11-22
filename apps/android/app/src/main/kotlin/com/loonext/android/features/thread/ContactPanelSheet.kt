@@ -39,7 +39,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Phone
@@ -54,9 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,6 +72,7 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.ChoiceChip
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.spokenTimeOf
@@ -127,8 +125,6 @@ internal fun ContactPanelSheet(
         members.firstOrNull { it.user_id == userId }?.display_name?.ifBlank { null }
 
     val locale = LocalAppLocale.current
-    val clipboard = LocalClipboardManager.current
-    var copied by remember { mutableStateOf(false) }
     var leadSources by remember { mutableStateOf<List<LeadSource>>(emptyList()) }
     LaunchedEffect(detail.id) {
         leadSources = runCatching { controller.leadSources() }.getOrDefault(emptyList())
@@ -170,8 +166,9 @@ internal fun ContactPanelSheet(
                     )
                 },
                 meta = {
-                    Text(
-                        if (contact?.opted_out == true) {
+                    CopyablePhoneNumber(
+                        number = detail.contact.phone_e164,
+                        label = if (contact?.opted_out == true) {
                             "${formatPhone(detail.contact.phone_e164)} · " +
                                 t("thread.optedOut")
                         } else {
@@ -206,26 +203,6 @@ internal fun ContactPanelSheet(
                             Spacer(Modifier.width(6.dp))
                             Text(t("contactsTasks.call"))
                         }
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            clipboard.setText(AnnotatedString(detail.contact.phone_e164))
-                            copied = true
-                        },
-                    ) {
-                        Icon(
-                            if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
-                            contentDescription = null,
-                            modifier = Modifier.size(IconSize.Default),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            if (copied) {
-                                t("thread.numberCopied")
-                            } else {
-                                t("contactsTasks.copyNumber")
-                            },
-                        )
                     }
                     if (onOpenContact != null) {
                         Spacer(Modifier.weight(1f))

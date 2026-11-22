@@ -45,6 +45,7 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { RecordContextMenu } from "@/components/ui/record-menu";
+import { CopyablePhoneNumber, phoneCopyOnHover } from "@/components/ui/copyable-phone-number";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
@@ -147,12 +148,21 @@ export function CallRow({ call }: { call: Call }) {
           {/* #734: the name is the row's one link, stretched over the row, so
               a tap anywhere opens the call's details and the keyboard has one
               stop for it. The controls below sit above it (z-[1]). */}
-          <Link
-            href={`/calls/${call.call_session_id}`}
-            className="truncate text-[14px] font-medium text-app-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
-          >
-            {name}
-          </Link>
+          <span className="group/phone flex min-w-0 items-center gap-1">
+            <Link
+              href={`/calls/${call.call_session_id}`}
+              className="truncate text-[14px] font-medium text-app-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+            >
+              {name}
+            </Link>
+            {!call.contact_name && !call.caller_name && call.caller_e164 && (
+              <CopyablePhoneNumber
+                number={call.caller_e164}
+                iconOnly
+                className={cn("relative z-[1] size-6 shrink-0 justify-center text-app-muted", phoneCopyOnHover)}
+              />
+            )}
+          </span>
           <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
             <Timestamp at={call.started_at} style="short" />
           </span>

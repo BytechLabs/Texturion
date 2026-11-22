@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { CalendarClock, SquarePen } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import {
   useParams,
@@ -101,21 +101,10 @@ export function InboxPane({
   return (
     <div className="flex h-full min-h-0 flex-col bg-app-ground">
       <ConversationsNavigation />
-      {/* #715 / #732: the page's one main action, in the header every page
-          shares. Scheduled is a view of this inbox. */}
       <PageHeader
         className="px-4 pb-2 pt-4"
         title={t("inbox.title")}
-        secondary={
-          <>
-            <Button asChild size="icon-sm" variant="ghost" className="size-11 md:size-8">
-              <Link href="/inbox/scheduled" aria-label={t("shell.navScheduled")} title={t("shell.navScheduled")}>
-                <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
-              </Link>
-            </Button>
-            {displayMenu}
-          </>
-        }
+        secondary={displayMenu}
         primary={
           <Button asChild size="sm">
             <Link href={inboxHref({ conversationId: "new", listQuery: currentQuery })}>

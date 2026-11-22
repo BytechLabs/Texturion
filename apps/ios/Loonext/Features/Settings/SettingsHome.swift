@@ -488,24 +488,13 @@ struct SettingsHome: View {
             }
             Spacer(minLength: 8)
             if let number = activeNumber(company) {
-                Button {
-                    copyToClipboard(number)
-                    showToast(t("settingsMore.numberCopied"))
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(formatPhone(number))
-                            .font(.golos(11, weight: .semibold))
-                            .monospacedDigit()
-                        Image(systemName: "doc.on.doc")
-                            .font(.scaled(IconSize.small))
-                    }
+                CopyablePhoneNumber(number: number)
+                    .font(.golos(11, weight: .semibold))
+                    .monospacedDigit()
                     .foregroundStyle(BrandColor.paper)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(BrandColor.paper.opacity(0.1), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(t("settingsMore.copyNumber"))
             }
         }
         .padding(16)

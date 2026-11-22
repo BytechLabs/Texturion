@@ -8,6 +8,8 @@ import { useT } from "@/i18n/provider";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
+export const phoneCopyOnHover = "[@media(hover:hover)]:opacity-0 group-hover/phone:opacity-100 group-focus-within/phone:opacity-100";
+
 export function useCopyPhoneNumber() {
   const t = useT();
   return async (number: string) => {
@@ -43,13 +45,13 @@ export function CopyablePhoneNumber({
   return (
     <button
       type="button"
-      className={cn("tap-target inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
+      className={cn("group/phone tap-target inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
       aria-label={`${copyLabel}: ${label}`}
       title={copyLabel}
       onClick={(event) => { void copy(event); }}
     >
       {!iconOnly && label}
-      <Copy className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+      <Copy className={cn("size-3.5 shrink-0", !iconOnly && phoneCopyOnHover)} strokeWidth={1.75} aria-hidden />
     </button>
   );
 }

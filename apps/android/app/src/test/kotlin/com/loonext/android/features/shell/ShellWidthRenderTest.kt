@@ -1,5 +1,6 @@
 package com.loonext.android.features.shell
 
+import android.content.ClipboardManager
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -20,13 +21,16 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -92,6 +96,11 @@ class ShellWidthRenderTest {
             }
         }
         compose.onNodeWithContentDescription("Conversations").assertIsSelected()
+        compose.onNodeWithText("Service", substring = true).performTouchInput { longClick() }
+        compose.runOnIdle {
+            val clipboard = compose.activity.getSystemService(ClipboardManager::class.java)
+            assertEquals("+14165550101", clipboard?.primaryClip?.getItemAt(0)?.text?.toString())
+        }
         compose.onNodeWithText("Service", substring = true).performClick()
         compose.onNodeWithText("Sales", substring = true).performClick()
         compose.onNodeWithText("Calls").assertIsSelected()

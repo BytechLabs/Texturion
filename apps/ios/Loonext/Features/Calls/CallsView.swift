@@ -376,10 +376,6 @@ struct CallsView: View {
             taskRequestId = call.id
         case CallActionId.details:
             AppRouter.shared.openCallSessionId = call.call_session_id
-        case CallActionId.copyNumber:
-            Haptics.tap()
-            UIPasteboard.general.string = call.caller_e164
-            showNotice(t("recordMenu.numberCopied"))
         case CallActionId.deleteVoicemail:
             Haptics.tap()
             deleteRecord(call, kind: .voicemail)
@@ -1142,6 +1138,7 @@ private struct CallRowSummary: View {
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .lineLimit(largeText ? nil : 1)
+                        .phoneNumberCopyOnHold(call.contact_name == nil && call.caller_name == nil ? call.caller_e164 : nil)
                     HStack(spacing: 6) {
                         Image(systemName: directionIcon)
                             .font(.scaled(IconSize.small, weight: .medium))

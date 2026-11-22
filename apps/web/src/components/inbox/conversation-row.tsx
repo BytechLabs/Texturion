@@ -31,6 +31,7 @@ import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { inboxHref } from "@/lib/inbox/thread-href";
 import { trackThreadLinkFocus, useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { RecordContextMenu } from "@/components/ui/record-menu";
+import { CopyablePhoneNumber, phoneCopyOnHover } from "@/components/ui/copyable-phone-number";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
@@ -259,7 +260,7 @@ function ConversationRowView({
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
+        <span className="group/phone flex items-baseline justify-between gap-2">
           <Link
             href={href}
             ref={link}
@@ -278,6 +279,13 @@ function ConversationRowView({
           >
             {name}
           </Link>
+          {(!conversation.contact.name || !snippet) && conversation.contact.phone_e164 && (
+            <CopyablePhoneNumber
+              number={conversation.contact.phone_e164}
+              iconOnly
+              className={cn("relative z-[1] mr-auto size-6 shrink-0 justify-center text-app-muted", phoneCopyOnHover)}
+            />
+          )}
           <span aria-hidden className="flex shrink-0 items-center gap-1.5">
             {unread && <span className="size-1.5 rounded-full bg-primary" />}
             {/* #414 ask 2 — "visibly flagged in the inbox". A fourth quiet
