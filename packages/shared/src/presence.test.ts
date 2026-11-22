@@ -108,6 +108,11 @@ describe("#302 presenceFor — who is really here", () => {
     const viewers = presenceFor([entry({ display_name: "   " })], opts());
     expect(viewers[0].display_name).toBe("A teammate");
   });
+
+  it("uses the reader locale for an unnamed teammate", () => {
+    const viewers = presenceFor([entry({ display_name: "   " })], opts({ locale: "fr-CA" }));
+    expect(presenceLabel(viewers, "fr-CA")).toBe("Un membre de l’équipe est aussi là");
+  });
 });
 
 describe("#302 presenceLabel — the one line the crew reads", () => {
@@ -148,5 +153,20 @@ describe("#302 presenceLabel — the one line the crew reads", () => {
     expect(
       presenceLabel([viewer("Sam", true), viewer("Dale", true), viewer("Ann", true)]),
     ).toBe("3 people are replying…");
+  });
+
+  it("localizes every viewing and replying count in Canadian French", () => {
+    const sam = viewer("Sam");
+    const dale = viewer("Dale");
+    const ann = viewer("Ann");
+    expect(presenceLabel([], "fr-CA")).toBeNull();
+    expect(presenceLabel([sam], "fr-CA")).toBe("Sam est aussi là");
+    expect(presenceLabel([sam, dale], "fr-CA")).toBe("Sam et Dale sont aussi là");
+    expect(presenceLabel([sam, dale, ann], "fr-CA")).toBe("3 membres de l’équipe sont aussi là");
+    expect(presenceLabel([viewer("Sam", true), dale], "fr-CA")).toBe("Sam rédige une réponse…");
+    expect(presenceLabel([viewer("Sam", true), viewer("Dale", true), ann], "fr-CA"))
+      .toBe("Sam et Dale rédigent une réponse…");
+    expect(presenceLabel([sam, dale, ann].map((person) => ({ ...person, typing: true })), "fr-CA"))
+      .toBe("3 personnes rédigent une réponse…");
   });
 });

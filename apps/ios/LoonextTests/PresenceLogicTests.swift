@@ -95,13 +95,16 @@ final class PresenceLogicTests: XCTestCase {
         )
     }
 
-    private func viewers(_ entries: [PresenceEntry], healthy: Bool = true) -> [PresenceViewer] {
+    private func viewers(
+        _ entries: [PresenceEntry], healthy: Bool = true, locale: String? = nil
+    ) -> [PresenceViewer] {
         viewersOf(
             entries: entries,
             conversationId: conv,
             selfUserId: me,
             now: now,
-            healthy: healthy
+            healthy: healthy,
+            locale: locale
         )
     }
 
@@ -165,5 +168,38 @@ final class PresenceLogicTests: XCTestCase {
             presenceLabel([v("Sam", true), v("Dale", true), v("Ann", true)]),
             "3 people are replying…"
         )
+    }
+
+    func testCanadianFrenchNamesAndCountsThePeopleOnTheThread() {
+        let locale = "fr-CA"
+        func viewer(_ name: String, typing: Bool = false) -> PresenceViewer {
+            PresenceViewer(userId: name.lowercased(), displayName: name, typing: typing)
+        }
+        let sam = viewer("Sam")
+        let dale = viewer("Dale")
+        let ann = viewer("Ann")
+        XCTAssertNil(presenceLabel([], locale: locale))
+        XCTAssertEqual(presenceLabel([sam], locale: locale), "Sam est aussi là")
+        XCTAssertEqual(presenceLabel([sam, dale], locale: locale), "Sam et Dale sont aussi là")
+        XCTAssertEqual(
+            presenceLabel([viewer("{second}"), dale], locale: locale),
+            "{second} et Dale sont aussi là"
+        )
+        XCTAssertEqual(
+            presenceLabel([sam, dale, ann], locale: locale),
+            "3 membres de l’équipe sont aussi là"
+        )
+        XCTAssertEqual(
+            presenceLabel([viewer("Sam", typing: true), dale], locale: locale),
+            "Sam rédige une réponse…"
+        )
+        XCTAssertEqual(
+            presenceLabel([viewer("Sam", typing: true), viewer("Dale", typing: true), ann], locale: locale),
+            "Sam et Dale rédigent une réponse…"
+        )
+        let typing = ["Sam", "Dale", "Ann"].map { viewer($0, typing: true) }
+        XCTAssertEqual(presenceLabel(typing, locale: locale), "3 personnes rédigent une réponse…")
+        let unnamed = viewers([entry(name: "   ")], locale: locale)
+        XCTAssertEqual(presenceLabel(unnamed, locale: locale), "Un membre de l’équipe est aussi là")
     }
 }

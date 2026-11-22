@@ -27,6 +27,9 @@
  * connection.
  */
 
+import { presenceCopy } from "./i18n/presence";
+import type { Locale } from "./locale";
+
 /** One teammate's presence on one conversation, as broadcast. */
 export interface PresenceEntry {
   /** Who. The presence key too, so one person on two devices collapses. */
@@ -99,6 +102,7 @@ export function presenceFor(
     selfUserId: string;
     now: number;
     healthy: boolean;
+    locale?: Locale;
   },
 ): Viewer[] {
   if (!options.healthy) return [];
@@ -130,7 +134,7 @@ export function presenceFor(
     .toSorted((a, b) => b.entry.at - a.entry.at)
     .map(({ entry, typing }) => ({
       user_id: entry.user_id,
-      display_name: entry.display_name.trim() || "A teammate",
+      display_name: entry.display_name.trim() || presenceCopy[options.locale ?? "en"].unnamed,
       typing,
     }));
 }
@@ -146,19 +150,20 @@ export function presenceFor(
  * Returns null when there is nothing to say, so a caller renders nothing rather
  * than an empty strip that reserves space for an absence.
  */
-export function presenceLabel(viewers: readonly Viewer[]): string | null {
+export function presenceLabel(viewers: readonly Viewer[], locale: Locale = "en"): string | null {
   if (viewers.length === 0) return null;
 
+  const copy = presenceCopy[locale];
   const typing = viewers.filter((viewer) => viewer.typing);
-  if (typing.length === 1) return `${typing[0].display_name} is replying…`;
+  if (typing.length === 1) return copy.replyingOne(typing[0].display_name);
   if (typing.length === 2) {
-    return `${typing[0].display_name} and ${typing[1].display_name} are replying…`;
+    return copy.replyingTwo(typing[0].display_name, typing[1].display_name);
   }
-  if (typing.length > 2) return `${typing.length} people are replying…`;
+  if (typing.length > 2) return copy.replyingMany(typing.length);
 
-  if (viewers.length === 1) return `${viewers[0].display_name} is also here`;
+  if (viewers.length === 1) return copy.viewingOne(viewers[0].display_name);
   if (viewers.length === 2) {
-    return `${viewers[0].display_name} and ${viewers[1].display_name} are also here`;
+    return copy.viewingTwo(viewers[0].display_name, viewers[1].display_name);
   }
-  return `${viewers.length} teammates are also here`;
+  return copy.viewingMany(viewers.length);
 }

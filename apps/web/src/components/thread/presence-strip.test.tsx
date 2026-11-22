@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { LocaleProvider } from "@/i18n/provider";
+
 import { PresenceStrip } from "./presence-strip";
 
 /**
@@ -28,6 +30,16 @@ describe("#302 PresenceStrip", () => {
   it("says who is here", () => {
     const html = renderToStaticMarkup(<PresenceStrip viewers={[viewer("Sam")]} />);
     expect(html).toContain("Sam is also here");
+  });
+
+  it("announces the reader's Canadian French copy", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider userLocale="fr-CA">
+        <PresenceStrip viewers={[viewer("Sam", true), viewer("Dale", true)]} />
+      </LocaleProvider>,
+    );
+    expect(html).toContain("Sam et Dale rédigent une réponse…");
+    expect(html).toContain('aria-live="polite"');
   });
 
   it("announces politely rather than interrupting", () => {

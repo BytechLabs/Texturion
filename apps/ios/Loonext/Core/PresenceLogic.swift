@@ -120,7 +120,8 @@ func viewersOf(
     conversationId: String,
     selfUserId: String,
     now: Int,
-    healthy: Bool
+    healthy: Bool,
+    locale: String? = nil
 ) -> [PresenceViewer] {
     guard healthy else { return [] }
 
@@ -147,27 +148,41 @@ func viewersOf(
             let name = pair.entry.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             return PresenceViewer(
                 userId: pair.entry.userId,
-                displayName: name.isEmpty ? "A teammate" : name,
+                displayName: name.isEmpty ? AppStrings.translate(locale, "thread.presenceUnnamed") : name,
                 typing: pair.typing
             )
         }
 }
 
 /// The one line the crew reads. Port of the shared `presenceLabel`.
-func presenceLabel(_ viewers: [PresenceViewer]) -> String? {
+func presenceLabel(_ viewers: [PresenceViewer], locale: String? = nil) -> String? {
     if viewers.isEmpty { return nil }
 
     let typing = viewers.filter { $0.typing }
     switch typing.count {
     case 0: break
-    case 1: return "\(typing[0].displayName) is replying…"
-    case 2: return "\(typing[0].displayName) and \(typing[1].displayName) are replying…"
-    default: return "\(typing.count) people are replying…"
+    case 1:
+        return AppStrings.translate(locale, "thread.presenceReplyingOne", ["name": typing[0].displayName])
+    case 2:
+        return AppStrings.translate(
+            locale,
+            "thread.presenceReplyingTwo",
+            ["first": typing[0].displayName, "second": typing[1].displayName]
+        )
+    default:
+        return AppStrings.translate(locale, "thread.presenceReplyingMany", ["count": String(typing.count)])
     }
 
     switch viewers.count {
-    case 1: return "\(viewers[0].displayName) is also here"
-    case 2: return "\(viewers[0].displayName) and \(viewers[1].displayName) are also here"
-    default: return "\(viewers.count) teammates are also here"
+    case 1:
+        return AppStrings.translate(locale, "thread.presenceViewingOne", ["name": viewers[0].displayName])
+    case 2:
+        return AppStrings.translate(
+            locale,
+            "thread.presenceViewingTwo",
+            ["first": viewers[0].displayName, "second": viewers[1].displayName]
+        )
+    default:
+        return AppStrings.translate(locale, "thread.presenceViewingMany", ["count": String(viewers.count)])
     }
 }
