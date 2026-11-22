@@ -81,6 +81,17 @@ final class CustomerJourneys: XCTestCase {
         try waitFor(button("Conversations")).tap()
         try waitFor(label("Ada Fixture"))
         shot("Technician workspace after switching back \(suffix)")
+        try captureConversationNavigation(language, suffix: suffix)
+    }
+
+    private func captureConversationNavigation(_ language: Language, suffix: String) throws {
+        let text = language.label
+        let scheduled = text("Scheduled", "Programmés")
+        shot("Conversations navigation \(suffix)")
+        try waitFor(button(scheduled)).tap()
+        try waitFor(app.navigationBars[scheduled])
+        shot("Scheduled navigation \(suffix)")
+        try waitFor(button(text("Done", "Terminé"))).tap()
     }
 
     private func owner(_ language: Language, _ theme: String) async throws {
@@ -157,12 +168,7 @@ final class CustomerJourneys: XCTestCase {
         let inbox = button("Conversations")
         for _ in 0..<3 where !inbox.isSelected { inbox.tap() }
         XCTAssertTrue(inbox.isSelected)
-        shot("Conversations navigation \(suffix)")
-        let scheduledLink = button(text("Scheduled", "Programmés"))
-        try waitFor(scheduledLink).tap()
-        try waitFor(app.navigationBars[text("Scheduled", "Programmés")])
-        shot("Scheduled navigation \(suffix)")
-        try waitFor(button(text("Done", "Terminé"))).tap()
+        try captureConversationNavigation(language, suffix: suffix)
         let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Ada Fixture")).firstMatch
         try waitFor(row).coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
         try waitFor(label("Test thread history"))
