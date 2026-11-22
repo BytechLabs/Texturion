@@ -334,6 +334,16 @@ final class PaymentsLogicTests: XCTestCase {
         )
     }
 
+    func testBusinessTypeAndRoleFollowTheReaderLanguage() {
+        XCTAssertEqual(payoutRequirementCopy("business_type"), "Business type")
+        XCTAssertEqual(payoutRequirementCopy("business_type", "fr-CA"), "Type d'entreprise")
+        for person in ["individual", "representative"] {
+            let requirement = "\(person).relationship.title"
+            XCTAssertEqual(payoutRequirementCopy(requirement), "Your role in the business")
+            XCTAssertEqual(payoutRequirementCopy(requirement, "fr-CA"), "Votre fonction dans l'entreprise")
+        }
+    }
+
     /// Stripe adds requirement keys without telling anybody. An outstanding
     /// requirement nobody can see is the state where an owner concludes the
     /// product is broken, so an ugly sentence beats a silent one.

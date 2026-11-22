@@ -82,6 +82,8 @@ object PaymentsStrings : AppStrings.Section {
         "payments.reqBankAccount" to "Your bank account details",
         "payments.reqWebsite" to "Your website or a description of what you do",
         "payments.reqWorkKind" to "What kind of work you do",
+        "payments.reqBusinessType" to "Business type",
+        "payments.reqBusinessRole" to "Your role in the business",
         "payments.reqOwnerId" to "Photo ID for the business owner",
         "payments.reqOwnerIdSecond" to "A second document for the business owner",
         "payments.reqOwnerSin" to "The owner's SIN or SSN",
@@ -150,6 +152,8 @@ object PaymentsStrings : AppStrings.Section {
         "payments.reqWebsite" to
             "Votre site web ou une description de ce que vous faites",
         "payments.reqWorkKind" to "Le type de travail que vous faites",
+        "payments.reqBusinessType" to "Type d'entreprise",
+        "payments.reqBusinessRole" to "Votre fonction dans l'entreprise",
         "payments.reqOwnerId" to
             "Une pièce d'identité avec photo du propriétaire de l'entreprise",
         "payments.reqOwnerIdSecond" to

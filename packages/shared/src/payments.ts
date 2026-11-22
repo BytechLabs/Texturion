@@ -372,26 +372,26 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
  * rather than being dropped — an outstanding requirement nobody can see is the
  * state where an owner concludes the product is broken.
  *
- * #228: the twelve we recognise are KEYS; the fallback stays a sentence and is
- * never translated, because it is Stripe's own identifier tidied up rather than
- * anything we wrote. Exactly one of the two fields is set, and the caller reads
- * whichever it is — the same shape `ApiException.messageKey` uses for the
- * server's own sentences.
+ * Recognised requirements use catalogue keys. Exactly one of the two fields is
+ * set, following the same convention as `ApiException.messageKey`.
  */
 const PAYOUT_REQUIREMENT_KEYS = {
   external_account: "payments.reqBankAccount",
   "business_profile.url": "payments.reqWebsite",
   "business_profile.mcc": "payments.reqWorkKind",
+  business_type: "payments.reqBusinessType",
   "individual.verification.document": "payments.reqOwnerId",
   "individual.verification.additional_document": "payments.reqOwnerIdSecond",
   "individual.id_number": "payments.reqOwnerSin",
   "individual.address.line1": "payments.reqOwnerAddress",
   "individual.dob.day": "payments.reqOwnerDob",
+  "individual.relationship.title": "payments.reqBusinessRole",
   "company.tax_id": "payments.reqBusinessNumber",
   "company.verification.document": "payments.reqBusinessDocument",
   "tos_acceptance.date": "payments.reqTos",
   "tos_acceptance.ip": "payments.reqTos",
   "representative.verification.document": "payments.reqSignatoryId",
+  "representative.relationship.title": "payments.reqBusinessRole",
 } as const;
 
 /** Every catalogue key this module can name for a Stripe requirement. */

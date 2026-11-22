@@ -186,6 +186,17 @@ class PaymentsTest {
     }
 
     @Test
+    fun `business type and business role follow the reader language`() {
+        assertEquals("Business type", Payments.requirementCopy("business_type"))
+        assertEquals("Type d'entreprise", Payments.requirementCopy("business_type", "fr-CA"))
+        for (person in listOf("individual", "representative")) {
+            val requirement = "$person.relationship.title"
+            assertEquals("Your role in the business", Payments.requirementCopy(requirement))
+            assertEquals("Votre fonction dans l'entreprise", Payments.requirementCopy(requirement, "fr-CA"))
+        }
+    }
+
+    @Test
     fun `an identifier nobody wrote copy for is still shown`() {
         // Dropping it would leave an owner with an outstanding requirement they
         // cannot see, which is the state where somebody concludes the product is

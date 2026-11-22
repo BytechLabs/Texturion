@@ -364,15 +364,18 @@ object Payments {
         "external_account" to "payments.reqBankAccount",
         "business_profile.url" to "payments.reqWebsite",
         "business_profile.mcc" to "payments.reqWorkKind",
+        "business_type" to "payments.reqBusinessType",
         "individual.verification.document" to "payments.reqOwnerId",
         "individual.verification.additional_document" to "payments.reqOwnerIdSecond",
         "individual.id_number" to "payments.reqOwnerSin",
         "individual.address.line1" to "payments.reqOwnerAddress",
         "individual.dob.day" to "payments.reqOwnerDob",
+        "individual.relationship.title" to "payments.reqBusinessRole",
         "company.tax_id" to "payments.reqBusinessNumber",
         "company.verification.document" to "payments.reqBusinessDocument",
         "tos_acceptance.date" to "payments.reqTos",
         "tos_acceptance.ip" to "payments.reqTos",
         "representative.verification.document" to "payments.reqSignatoryId",
+        "representative.relationship.title" to "payments.reqBusinessRole",
     )
 }
