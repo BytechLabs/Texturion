@@ -50,6 +50,39 @@ final class CustomerJourneys: XCTestCase {
     func testFieldworkFrenchLight() async throws { try await fieldwork(.french, "light") }
     func testFieldworkFrenchDark() async throws { try await fieldwork(.french, "dark") }
 
+    func testWorkspaceEnglishLight() async throws { try await workspace(.english, "light") }
+    func testWorkspaceEnglishDark() async throws { try await workspace(.english, "dark") }
+    func testWorkspaceFrenchLight() async throws { try await workspace(.french, "light") }
+    func testWorkspaceFrenchDark() async throws { try await workspace(.french, "dark") }
+
+    private func workspace(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "member", stage: "active")
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        try await profile(language, role: "member", stage: "active", multiWorkspace: true)
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button("Conversations")).tap()
+        try waitFor(label("Ada Fixture"))
+        try waitFor(button(text("More", "Plus"))).tap()
+        shot("Technician workspace with both memberships \(suffix)")
+        try reveal(label("Fixture Books")).tap()
+        try waitFor(label(text("Payment & invoices", "Paiement et factures")), timeout: 30)
+        XCTAssertFalse(label("Ada Fixture").exists)
+        XCTAssertFalse(button("Conversations").exists)
+        shot("Bookkeeper workspace \(suffix)")
+        try reveal(label(text("Workspaces", "Espaces de travail"))).tap()
+        try reveal(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Simulator Fixtures")).firstMatch).tap()
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button("Conversations")).tap()
+        try waitFor(label("Ada Fixture"))
+        shot("Technician workspace after switching back \(suffix)")
+    }
+
     private func owner(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -261,7 +294,13 @@ final class CustomerJourneys: XCTestCase {
         }
     }
 
-    private func profile(_ language: Language, role: String, stage: String, fieldwork: Bool = false) async throws {
+    private func profile(
+        _ language: Language,
+        role: String,
+        stage: String,
+        fieldwork: Bool = false,
+        multiWorkspace: Bool = false
+    ) async throws {
         var url = URLComponents(url: fixture.appending(path: "__qa/profile"), resolvingAgainstBaseURL: false)!
         url.queryItems = [
             URLQueryItem(name: "locale", value: language.rawValue),
@@ -269,6 +308,7 @@ final class CustomerJourneys: XCTestCase {
             URLQueryItem(name: "stage", value: stage),
         ]
         if fieldwork { url.queryItems?.append(URLQueryItem(name: "fieldwork", value: "1")) }
+        if multiWorkspace { url.queryItems?.append(URLQueryItem(name: "multi_workspace", value: "1")) }
         var request = URLRequest(url: try XCTUnwrap(url.url))
         request.httpMethod = "POST"
         let (_, response) = try await URLSession.shared.data(for: request)

@@ -471,7 +471,8 @@ struct ShellView: View {
             companyId: companyId,
             me: hydratedMe,
             onSignOut: { root.signOut() },
-            initialSection: .billing
+            initialSection: .billing,
+            onSwitchWorkspace: { root.switchWorkspace($0) }
         )
     }
 

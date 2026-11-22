@@ -126,6 +126,7 @@ import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.readShellData
 import com.loonext.android.features.shell.selectedPhoneLine
 import com.loonext.android.features.shell.ShellTab
+import com.loonext.android.features.shell.WorkspaceMenu
 import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
@@ -1275,6 +1276,14 @@ private fun ReadyShell(
                             },
                         ) { contentModifier ->
                             Column(contentModifier) {
+                                if (!hasInbox) {
+                                    WorkspaceMenu(
+                                        memberships = hydratedMe.memberships,
+                                        companyId = companyId,
+                                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                                        onSwitchWorkspace = root::switchWorkspace,
+                                    )
+                                }
                                 if (!hasInbox && section == SettingsSection.Billing) {
                                     TwoFactorDeadlineBanner(hydratedMe.company) {
                                         section = SettingsSection.Profile

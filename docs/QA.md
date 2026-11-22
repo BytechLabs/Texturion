@@ -175,6 +175,7 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 | Scenario | Issue | Simulator evidence |
 | --- | --- | --- |
 | `customer-journeys` | | Owner signup and setup states, Canadian number ordering and team invites, technician texts, notes, scheduled sends, Lou draft review and explicit sending, contacts, task calendar, map and planner, and the bookkeeper's billing view. Runs in English and Canadian French in light and dark. The fixture handles external services. |
+| `workspace-switch` | #1143 | Switches from a technician workspace to a bookkeeper workspace and back. The test checks that the bookkeeper cannot see the technician inbox. Runs in English and Canadian French in light and dark. |
 | `attachment-sources` | #793 | The app's photo library and the Photos and Files share sheets stage fixture photos for a conversation. |
 | `attachment-send` | #793 | The app's photo library sends one fixture photo. XCTest checks the destination, caption, media type and size, and idempotency key. |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |

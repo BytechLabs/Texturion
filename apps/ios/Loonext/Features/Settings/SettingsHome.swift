@@ -205,6 +205,7 @@ struct SettingsHome: View {
     let onSignOut: @MainActor () -> Void
     /// Open straight at this section instead of the index.
     var initialSection: SettingsSection? = nil
+    var onSwitchWorkspace: (@MainActor (String) -> Void)? = nil
 
     @State private var path = NavigationPath()
     /// #719: what the search box holds, and the setting a result sent us to.
@@ -241,6 +242,24 @@ struct SettingsHome: View {
             role: role,
             showMessage: { showToast($0) }
         )
+    }
+
+    @ViewBuilder
+    private var workspacePicker: some View {
+        if let onSwitchWorkspace, me.memberships.count > 1 {
+            SelectField(
+                options: me.memberships.map { membership in
+                    SelectOption(
+                        membership.company_id,
+                        title: membership.name,
+                        isDisabled: membership.company_id == companyId
+                    )
+                },
+                selected: companyId,
+                label: t("shell.workspaces"),
+                onSelect: onSwitchWorkspace
+            )
+        }
     }
 
     var body: some View {
@@ -321,6 +340,7 @@ struct SettingsHome: View {
                 // belongs to "you are signed in as this person" — which is the
                 // thought somebody is having when they hand the phone on.
                 handOverRow
+                workspacePicker
                 // #515: a handover addressed to the reader, above the section
                 // list they may not be able to use. The index is the one
                 // surface every role reaches — it is the whole app for a
@@ -522,6 +542,8 @@ struct SettingsHome: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                workspacePicker
+                    .padding(.horizontal, 18)
                 switch section {
                 case .workspace:
                     WorkspaceSectionView(

@@ -9,6 +9,7 @@ const { WebSocketServer } = require("ws");
 const run = promisify(execFile);
 const origin = "http://127.0.0.1:8765";
 const companyID = "20000000-0000-4000-8000-000000000001";
+const billingCompanyID = "20000000-0000-4000-8000-000000000003";
 const userID = "20000000-0000-4000-8000-000000000002";
 const threadIDs = ["20000000-0000-4000-8000-000000000010", "20000000-0000-4000-8000-000000000011"];
 const contactID = "20000000-0000-4000-8000-000000000020";
@@ -25,7 +26,7 @@ const call = { id: "test-call", call_session_id: sessionID, contact_id: contactI
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 const mediaByID = new Map();
 let quote;
-const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, writes: [], scheduled: [],
+const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, multiWorkspace: false, writes: [], scheduled: [],
   invites: [], messages: [[], []], includeVoicemail: false, paymentsEnabled: false, paymentRequests: [],
   company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
@@ -111,6 +112,11 @@ function sampleAudio() {
 }
 
 const audio = sampleAudio();
+
+function billingCompany() {
+  return { ...state.company, id: billingCompanyID, name: "Fixture Books", subscription_status: "active", numbers: [] };
+}
+
 const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/port-requests", "/v1/text-enablements",
   "/v1/notifications", "/v1/company/setting-choices", "/v1/templates"]);
 const createPaths = new Set(["/v1/tasks", "/v1/scheduled-messages", "/v1/numbers/provision", "/v1/invites", "/v1/quotes", paymentRequestsPath]);
@@ -118,6 +124,7 @@ const handoffPages = new Set(["/onboarding", "/onboarding/plan", "/fixture-billi
 
 const server = createServer(async (req, res) => {
   const { pathname: path, searchParams } = new URL(req.url, origin);
+  const inBillingWorkspace = state.multiWorkspace && req.headers["x-company-id"] === billingCompanyID;
   const json = (value, status = 200) => {
     res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify(value));
@@ -141,6 +148,7 @@ const server = createServer(async (req, res) => {
       state.locale = searchParams.get("locale") ?? state.locale;
       state.stage = searchParams.get("stage") ?? state.stage;
       state.fieldwork = searchParams.has("fieldwork");
+      state.multiWorkspace = searchParams.has("multi_workspace");
       state.company.plan = "pro";
       if (state.fieldwork) state.contacts[0].notes = "Test notes";
       if (state.stage === "new") {
@@ -251,15 +259,18 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/v1/me") {
       const company = { ...state.company, subscription_status: state.stage };
+      const memberships = state.stage === "new" ? [] : [{ company_id: companyID, name: company.name,
+        role: state.role, subscription_status: company.subscription_status }];
+      if (state.multiWorkspace) {
+        memberships.push({ company_id: billingCompanyID, name: "Fixture Books", role: "bookkeeper", subscription_status: "active" });
+      }
       return json({ user_id: userID, display_name: state.role === "owner" ? "Test Owner" : "Test Crew", locale: state.locale,
-        company: state.stage === "new" ? null : company,
-        memberships: state.stage === "new" ? [] : [{ company_id: companyID, name: company.name,
-          role: state.role, subscription_status: company.subscription_status }] });
+        company: state.stage === "new" ? null : inBillingWorkspace ? billingCompany() : company, memberships });
     }
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
     if (path === "/v1/for-you") return json({});
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
-    if (path === "/v1/numbers") return json(page(state.company.numbers));
+    if (path === "/v1/numbers") return json(page(inBillingWorkspace ? [] : state.company.numbers));
     if (path === "/v1/registration") return json({});
     if (path === "/v1/available-numbers") return json({ data: [], masked: true });
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
@@ -345,7 +356,7 @@ const server = createServer(async (req, res) => {
       const rows = state.scheduled.filter((row) => !conversation || row.conversation_id === conversation);
       return json({ ...page(rows), upcoming_count: rows.length, held_count: 0 });
     }
-    if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/company") return json(inBillingWorkspace ? billingCompany() : state.company);
     if (path === "/v1/company/ownership") {
       return json({ owner_member_id: userID, i_am_owner: state.role === "owner" });
     }
@@ -378,6 +389,7 @@ const server = createServer(async (req, res) => {
     if (path === `/v1/conversations/${threadIDs[0]}/tasks/source` &&
       searchParams.get("call_id") === call.id) return json(page());
     if (path === "/v1/conversations") {
+      if (inBillingWorkspace) return json(page());
       if (searchParams.get("textable") === "true") return json(page([thread(0)]));
       return json(page(searchParams.get("pinned") === "only" ? [] : threadIDs.map((_, index) => thread(index))));
     }
