@@ -76,7 +76,11 @@ export const S01: ScenarioRunner = {
     await page.dial("ROBOT-1");
     const record = await ctx.robot.wait(plan.plan_id, 180_000);
     const answeredAt = record.answered_at ? Date.parse(record.answered_at) : undefined;
-    const hearing = await page.hear({ answeredAt });
+    const playbackAt = record.events.find((event) => event.type === "call.playback.started")?.at;
+    const playbackDelayMs = playbackAt && answeredAt !== undefined ? Date.parse(playbackAt) - answeredAt : 0;
+    const windowStartMs = Math.max(playbackDelayMs || 0, 2000);
+    if (playbackAt && Number.isFinite(playbackDelayMs)) ctx.evidence.robot_playback_delay_ms = playbackDelayMs;
+    const hearing = await page.hear({ answeredAt, windowStartMs, windowEndMs: TALK_MS });
     ctx.evidence.call = callEvidence(record, hearing);
 
     const robot = robotVerdict(record, "qa-w-owner");
