@@ -1,5 +1,6 @@
 package com.loonext.android.core.realtime
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonArray
@@ -127,6 +128,7 @@ fun viewersOf(
     selfUserId: String,
     now: Long,
     healthy: Boolean,
+    locale: String? = null,
 ): List<Viewer> {
     if (!healthy) return emptyList()
 
@@ -152,7 +154,9 @@ fun viewersOf(
         .map { (entry, typing) ->
             Viewer(
                 userId = entry.userId,
-                displayName = entry.displayName.trim().ifEmpty { "A teammate" },
+                displayName = entry.displayName.trim().ifEmpty {
+                    AppStrings.translate(locale, "thread.presenceUnnamed")
+                },
                 typing = typing,
             )
         }
@@ -161,21 +165,27 @@ fun viewersOf(
 data class Viewer(val userId: String, val displayName: String, val typing: Boolean)
 
 /** The one line the crew reads. Port of the shared `presenceLabel`. */
-fun presenceLabel(viewers: List<Viewer>): String? {
+fun presenceLabel(viewers: List<Viewer>, locale: String? = null): String? {
     if (viewers.isEmpty()) return null
 
     val typing = viewers.filter { it.typing }
     when (typing.size) {
         0 -> Unit
-        1 -> return "${typing[0].displayName} is replying…"
-        2 -> return "${typing[0].displayName} and ${typing[1].displayName} are replying…"
-        else -> return "${typing.size} people are replying…"
+        1 -> return AppStrings.translate(locale, "thread.presenceReplyingOne", mapOf("name" to typing[0].displayName))
+        2 -> return AppStrings.translate(
+            locale, "thread.presenceReplyingTwo",
+            mapOf("first" to typing[0].displayName, "second" to typing[1].displayName),
+        )
+        else -> return AppStrings.translate(locale, "thread.presenceReplyingMany", mapOf("count" to typing.size.toString()))
     }
 
     return when (viewers.size) {
-        1 -> "${viewers[0].displayName} is also here"
-        2 -> "${viewers[0].displayName} and ${viewers[1].displayName} are also here"
-        else -> "${viewers.size} teammates are also here"
+        1 -> AppStrings.translate(locale, "thread.presenceViewingOne", mapOf("name" to viewers[0].displayName))
+        2 -> AppStrings.translate(
+            locale, "thread.presenceViewingTwo",
+            mapOf("first" to viewers[0].displayName, "second" to viewers[1].displayName),
+        )
+        else -> AppStrings.translate(locale, "thread.presenceViewingMany", mapOf("count" to viewers.size.toString()))
     }
 }
 

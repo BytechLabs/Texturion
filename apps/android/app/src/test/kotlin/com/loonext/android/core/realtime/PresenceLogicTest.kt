@@ -172,6 +172,29 @@ class PresenceLogicTest {
     }
 
     @Test
+    fun `Canadian French names and counts the people on the thread`() {
+        val locale = "fr-CA"
+        val sam = Viewer("sam", "Sam", false)
+        val dale = Viewer("dale", "Dale", false)
+        val ann = Viewer("ann", "Ann", false)
+        assertNull(presenceLabel(emptyList(), locale))
+        assertEquals("Sam est aussi là", presenceLabel(listOf(sam), locale))
+        assertEquals("Sam et Dale sont aussi là", presenceLabel(listOf(sam, dale), locale))
+        assertEquals("3 membres de l’équipe sont aussi là", presenceLabel(listOf(sam, dale, ann), locale))
+        assertEquals("Sam rédige une réponse…", presenceLabel(listOf(sam.copy(typing = true), dale), locale))
+        assertEquals(
+            "Sam et Dale rédigent une réponse…",
+            presenceLabel(listOf(sam.copy(typing = true), dale.copy(typing = true), ann), locale),
+        )
+        assertEquals(
+            "3 personnes rédigent une réponse…",
+            presenceLabel(listOf(sam, dale, ann).map { it.copy(typing = true) }, locale),
+        )
+        val unnamed = viewersOf(listOf(entry(name = "   ")), CONV, ME, NOW, true, locale)
+        assertEquals("Un membre de l’équipe est aussi là", presenceLabel(unnamed, locale))
+    }
+
+    @Test
     fun `the label matches the shared wording exactly`() {
         // Three clients, one sentence. A divergence here is a divergence the
         // crew sees when they switch devices.

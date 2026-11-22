@@ -457,6 +457,15 @@ object ThreadStrings : AppStrings.Section {
         "thread.mentionTeammate" to "Mention a teammate",
         "thread.noMentionable" to "No teammates can see this conversation.",
 
+        // --- Presence -------------------------------------------------------------------
+        "thread.presenceUnnamed" to "A teammate",
+        "thread.presenceViewingOne" to "{name} is also here",
+        "thread.presenceViewingTwo" to "{first} and {second} are also here",
+        "thread.presenceViewingMany" to "{count} teammates are also here",
+        "thread.presenceReplyingOne" to "{name} is replying…",
+        "thread.presenceReplyingTwo" to "{first} and {second} are replying…",
+        "thread.presenceReplyingMany" to "{count} people are replying…",
+
         // --- Saved replies (#274 / #475) ----------------------------------------------
         "thread.templates" to "Templates",
         "thread.savedReplies" to "Saved replies",
@@ -1278,6 +1287,15 @@ object ThreadStrings : AppStrings.Section {
         // --- Mentions -------------------------------------------------------------------
         "thread.mentionTeammate" to "Mentionner un collègue",
         "thread.noMentionable" to "Personne de l'équipe ne voit cette conversation.",
+
+        // --- Presence -------------------------------------------------------------------
+        "thread.presenceUnnamed" to "Un membre de l’équipe",
+        "thread.presenceViewingOne" to "{name} est aussi là",
+        "thread.presenceViewingTwo" to "{first} et {second} sont aussi là",
+        "thread.presenceViewingMany" to "{count} membres de l’équipe sont aussi là",
+        "thread.presenceReplyingOne" to "{name} rédige une réponse…",
+        "thread.presenceReplyingTwo" to "{first} et {second} rédigent une réponse…",
+        "thread.presenceReplyingMany" to "{count} personnes rédigent une réponse…",
 
         // --- Saved replies (#274 / #475) ----------------------------------------------
         "thread.templates" to "Modèles",

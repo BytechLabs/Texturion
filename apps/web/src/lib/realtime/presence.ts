@@ -5,6 +5,7 @@ import { PRESENCE_HEARTBEAT_MS, presenceFor, TYPING_THROTTLE_MS, TYPING_TTL_MS }
 import type { PresenceEntry, Viewer } from '@loonext/shared';
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useLocale } from "@/i18n/provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
@@ -39,6 +40,7 @@ export function useConversationPresence(options: {
 }): { viewers: Viewer[]; onTyping: () => void } {
   const { companyId, phoneNumberId, conversationId, selfUserId, displayName } =
     options;
+  const { locale } = useLocale();
 
   const [entries, setEntries] = useState<PresenceEntry[]>([]);
   const [healthy, setHealthy] = useState(false);
@@ -151,6 +153,7 @@ export function useConversationPresence(options: {
     selfUserId: selfUserId ?? "",
     now: Date.now(),
     healthy,
+    locale,
   });
 
   return { viewers, onTyping };

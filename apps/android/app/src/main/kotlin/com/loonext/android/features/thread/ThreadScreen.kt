@@ -1252,8 +1252,9 @@ private fun ThreadLoaded(
             // Presence we are no longer being told about is presence we must not
             // show. The realtime state IS the health signal.
             healthy = realtimeState is RealtimeState.Joined,
+            locale = locale,
         )
-        presenceLabel(viewers)?.let { line ->
+        presenceLabel(viewers, locale)?.let { line ->
             Row(
                 Modifier
                     .fillMaxWidth()

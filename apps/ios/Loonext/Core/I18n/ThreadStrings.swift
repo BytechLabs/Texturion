@@ -456,6 +456,15 @@ enum ThreadStrings {
             "thread.mentionTeammate": "Mention a teammate",
             "thread.noMentionable": "No teammates can see this conversation.",
 
+            // --- Presence -------------------------------------------------------------------
+            "thread.presenceUnnamed": "A teammate",
+            "thread.presenceViewingOne": "{name} is also here",
+            "thread.presenceViewingTwo": "{first} and {second} are also here",
+            "thread.presenceViewingMany": "{count} teammates are also here",
+            "thread.presenceReplyingOne": "{name} is replying…",
+            "thread.presenceReplyingTwo": "{first} and {second} are replying…",
+            "thread.presenceReplyingMany": "{count} people are replying…",
+
             // --- Saved replies (#274 / #475) ---------------------------------------------
             "thread.templates": "Templates",
             "thread.savedReplies": "Saved replies",
@@ -1265,6 +1274,15 @@ enum ThreadStrings {
             "thread.mentionTeammate": "Mentionner un collègue",
             "thread.noMentionable":
                 "Personne de l'équipe ne voit cette conversation.",
+
+            // --- Presence -------------------------------------------------------------------
+            "thread.presenceUnnamed": "Un membre de l’équipe",
+            "thread.presenceViewingOne": "{name} est aussi là",
+            "thread.presenceViewingTwo": "{first} et {second} sont aussi là",
+            "thread.presenceViewingMany": "{count} membres de l’équipe sont aussi là",
+            "thread.presenceReplyingOne": "{name} rédige une réponse…",
+            "thread.presenceReplyingTwo": "{first} et {second} rédigent une réponse…",
+            "thread.presenceReplyingMany": "{count} personnes rédigent une réponse…",
 
             // --- Saved replies (#274 / #475) ---------------------------------------------
             "thread.templates": "Modèles",

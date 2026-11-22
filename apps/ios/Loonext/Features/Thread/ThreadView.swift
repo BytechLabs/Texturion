@@ -1368,9 +1368,10 @@ private struct ThreadBody: View {
             // so healthy with nobody here. A dead channel is absent entirely, so
             // "we do not know", which must look like silence rather than like
             // "nobody is here".
-            healthy: presenceByTopic[topic] != nil
+            healthy: presenceByTopic[topic] != nil,
+            locale: appLocale
         )
-        if let line = presenceLabel(viewers) {
+        if let line = presenceLabel(viewers, locale: appLocale) {
             HStack(spacing: 6) {
                 Circle()
                     .fill(viewers.contains(where: { $0.typing }) ? BrandColor.olive : BrandColor.muted500)

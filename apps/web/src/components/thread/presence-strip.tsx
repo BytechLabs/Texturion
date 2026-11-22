@@ -3,6 +3,8 @@
 import { presenceLabel } from '@loonext/shared';
 import type { Viewer } from '@loonext/shared';
 
+import { useLocale } from "@/i18n/provider";
+
 /**
  * #302 — the one line that stops a second person mid-sentence.
  *
@@ -25,7 +27,8 @@ import type { Viewer } from '@loonext/shared';
  * and not like "nobody is here".
  */
 export function PresenceStrip({ viewers }: { viewers: readonly Viewer[] }) {
-  const label = presenceLabel(viewers);
+  const { locale } = useLocale();
+  const label = presenceLabel(viewers, locale);
   if (!label) return null;
 
   const replying = viewers.some((viewer) => viewer.typing);
