@@ -333,7 +333,7 @@ class SoftphoneManager private constructor(
         val callerHint = CallWakePolicy.callerHintFromPushBody(content.body)
         // §5: OS shows the incoming UI from the push, pre-INVITE (idempotent
         // with the INVITE trigger — one Telecom call per session).
-        runCatching { registry.ensureIncomingCall(session, content.title, callerHint.orEmpty()) }
+        runCatching { registerIncomingWake(session, content.title, callerHint.orEmpty(), content.transferId) }
         scope.launch {
             try {
                 core.onIncomingCallPush(session, callerHint, content.transferId)
@@ -399,8 +399,16 @@ class SoftphoneManager private constructor(
      * an empty calls list. conflict/not_found are swallowed by contract.
      */
     suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null, transferId: String? = null) {
-        runCatching { registry.ensureIncomingCall(sessionId, CallNotifier.unknownCaller(), callerHint.orEmpty()) }
+        runCatching { registerIncomingWake(sessionId, CallNotifier.unknownCaller(), callerHint.orEmpty(), transferId) }
         core.onIncomingCallPush(sessionId, callerHint, transferId)
+    }
+
+    private fun registerIncomingWake(sessionId: String, callerName: String, callerNumber: String, transferId: String?) {
+        registry.ensureIncomingCall(sessionId, callerName, callerNumber, transferId)
+        if (transferId == null) return
+        core.state.value.liveCalls.firstOrNull { it.sessionId == sessionId && it.transferTarget }?.let {
+            registry.onLegBound(sessionId, it.id)
+        }
     }
 
     /**
