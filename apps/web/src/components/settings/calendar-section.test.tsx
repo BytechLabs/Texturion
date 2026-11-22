@@ -1,18 +1,25 @@
 /** @vitest-environment happy-dom */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MemberRole } from "@loonext/shared";
 import { LocaleProvider } from "@/i18n/provider";
+import { useCalendarConnections, useCalendarFeed } from "@/lib/api/calendar";
 import { CalendarSection } from "./calendar-section";
 
 const mocks = vi.hoisted(() => ({
+  role: "owner" as MemberRole,
   connections: [] as { id: string; provider: string; status: string }[],
   feedActive: false,
   createUrl: "https://api.example.com/calendar/tok/schedule.ics",
   check: vi.fn(),
 }));
 
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({ role: mocks.role }),
+}));
+
 vi.mock("@/lib/api/calendar", () => ({
-  useCalendarConnections: () => ({
+  useCalendarConnections: vi.fn(() => ({
     data: {
       connections: mocks.connections.map((c) => ({
         account_label: "maria@example.com",
@@ -29,7 +36,7 @@ vi.mock("@/lib/api/calendar", () => ({
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
-  }),
+  })),
   useAuthorizeCalendarConnection: () => ({ isPending: false, mutate: vi.fn() }),
   useDisconnectCalendarConnection: () => ({ isPending: false, mutate: vi.fn() }),
   useCalendarAttention: () => ({
@@ -39,10 +46,10 @@ vi.mock("@/lib/api/calendar", () => ({
     refetch: vi.fn(),
   }),
   useResolveCalendarAttention: () => ({ isPending: false, mutate: vi.fn() }),
-  useCalendarFeed: () => ({
+  useCalendarFeed: vi.fn(() => ({
     data: { active: mocks.feedActive, last_read_at: null },
     isLoading: false,
-  }),
+  })),
   useCreateCalendarFeed: () => ({
     isPending: false,
     mutate: (_: unknown, o: { onSuccess: (d: { url: string }) => void }) =>
@@ -68,6 +75,9 @@ function renderSection(locale: "en" | "fr-CA" = "en") {
 }
 
 beforeEach(() => {
+  mocks.role = "owner";
+  vi.mocked(useCalendarConnections).mockClear();
+  vi.mocked(useCalendarFeed).mockClear();
   mocks.connections = [];
   mocks.feedActive = false;
   mocks.check.mockReset();
@@ -76,6 +86,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("#744 the one Calendar section", () => {
+  it("hides both setup options and starts no calendar reads for a bookkeeper", () => {
+    mocks.role = "bookkeeper";
+    const { container } = renderSection();
+    expect(container.querySelector("#calendar")).toBeNull();
+    expect(useCalendarConnections).not.toHaveBeenCalled();
+    expect(useCalendarFeed).not.toHaveBeenCalled();
+  });
+
   it("offers both ways up front, each with what it does", () => {
     renderSection();
     expect(screen.getAllByRole("heading", { name: "Calendar" })).toHaveLength(1);
