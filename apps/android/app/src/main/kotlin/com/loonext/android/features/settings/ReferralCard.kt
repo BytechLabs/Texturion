@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.referral.ReferralShare
@@ -44,9 +45,10 @@ import com.loonext.android.core.referral.ReferralShare
  */
 @Composable
 fun ReferralCard(view: ReferralsView) {
-    SettingsCard(title = ReferralShare.TITLE, anchor = "referral") {
+    val locale = LocalAppLocale.current
+    SettingsCard(title = t(ReferralShare.TITLE_KEY), anchor = "referral") {
         Text(
-            "${ReferralShare.REWARD_LINE}.",
+            t(ReferralShare.REWARD_LINE_KEY) + ".",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -70,7 +72,7 @@ fun ReferralCard(view: ReferralsView) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        ReferralShare.stageLabel(row.stage),
+                        ReferralShare.stageLabel(row.stage, locale),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
