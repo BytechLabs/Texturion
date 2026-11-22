@@ -176,6 +176,7 @@ import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -425,6 +426,8 @@ private class InboxController(
      */
     var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
+    var scheduledLoad by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
+        private set
 
     var state by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
         private set
@@ -467,6 +470,8 @@ private class InboxController(
 
     private var noticeSeq = 0L
     private var loadSeq = 0
+    private var scheduledLoadSeq = 0
+    private val scheduledCancellations = mutableSetOf<String>()
     private var searchSeq = 0
     private var realtimeJob: Job? = null
     private var supportLoaded = false
@@ -883,13 +888,21 @@ private class InboxController(
         refreshScheduled()
     }
 
-    /** #233: what the workspace has queued. Quiet failure — it gates one icon. */
     fun refreshScheduled() {
         val line = shellLineId
+        val seq = ++scheduledLoadSeq
+        scheduledLoad = LoadState.Loading
         scope.launch {
-            runCatching {
+            try {
                 val page = repo.scheduledMessages(companyId, phoneLineId = line)
-                if (line == shellLineId) scheduled = page.scheduled_messages
+                if (seq == scheduledLoadSeq) {
+                    scheduled = page.scheduled_messages.filterNot { it.id in scheduledCancellations }
+                    scheduledLoad = LoadState.Ready(Unit)
+                }
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                if (seq == scheduledLoadSeq) scheduledLoad = LoadState.Failed(cause.userMessage(locale))
             }
         }
     }
@@ -903,15 +916,21 @@ private class InboxController(
      */
     fun cancelScheduled(id: String) {
         val line = shellLineId
-        val before = scheduled
-        scheduled = before.filterNot { it.id == id }
+        val row = scheduled.firstOrNull { it.id == id } ?: return
+        scheduledCancellations.add(id)
+        scheduled = scheduled.filterNot { it.id == id }
         scope.launch {
             try {
                 repo.cancelScheduledMessage(companyId, id)
                 notify(ScheduledSend.copy("canceled_confirmation"))
+            } catch (cause: CancellationException) {
+                throw cause
             } catch (cause: Exception) {
-                if (line == shellLineId) scheduled = before
+                if (line == shellLineId) scheduled = (scheduled + row).sortedBy { it.send_at }
                 notify(cause.userMessage(locale))
+            } finally {
+                scheduledCancellations.remove(id)
+                refreshScheduled()
             }
         }
     }
@@ -1572,7 +1591,10 @@ private fun InboxList(
                         controller.rows.count { it.unread },
                     scheduledCount = controller.scheduled.size,
                     onSearch = { searchOpen = true },
-                    onScheduled = { scheduledSheetOpen = true },
+                    onScheduled = {
+                        controller.refreshScheduled()
+                        scheduledSheetOpen = true
+                    },
                 )
                 Spacer(Modifier.height(14.dp))
                 // #711: ONE row for the tabs, Filter and Views, and the applied
@@ -1662,6 +1684,8 @@ private fun InboxList(
         if (scheduledSheetOpen) {
             ScheduledSheet(
                 rows = controller.scheduled,
+                loadState = controller.scheduledLoad,
+                onRetry = controller::refreshScheduled,
                 onOpenConversation = { conversationId ->
                     scheduledSheetOpen = false
                     onOpen(conversationId)

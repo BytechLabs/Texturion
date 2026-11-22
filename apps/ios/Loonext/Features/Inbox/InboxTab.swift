@@ -241,6 +241,7 @@ final class InboxController {
     /// tech who answers the same customer on Monday. Loaded alongside the other
     /// supporting lists, so nothing here gates the conversation list.
     private(set) var scheduled: [ScheduledMessage] = []
+    private(set) var scheduledLoad: LoadState<Void> = .loading
 
     /// One-shot toast for row-mutation failures (id makes repeats re-fire).
     private(set) var notice: ThreadNotice?
@@ -252,6 +253,8 @@ final class InboxController {
     var searching: Bool { query.trimmingCharacters(in: .whitespaces).count >= 2 }
 
     @ObservationIgnored private var loadSeq = 0
+    @ObservationIgnored private var scheduledLoadSeq = 0
+    @ObservationIgnored private var scheduledCancellations: Set<String> = []
     @ObservationIgnored private var searchSeq = 0
     @ObservationIgnored private var realtimeTask: Task<Void, Never>?
     @ObservationIgnored private var supportLoaded = false
@@ -616,14 +619,22 @@ final class InboxController {
         refreshScheduled()
     }
 
-    /// #233: what the workspace has queued. Quiet failure — it gates one icon.
     func refreshScheduled() {
         let line = shellLineId
+        scheduledLoadSeq += 1
+        let seq = scheduledLoadSeq
+        scheduledLoad = .loading
         Task {
-            if let page = try? await self.repo.scheduledMessages(
-                companyId: self.companyId, phoneLineId: line
-            ), line == self.shellLineId {
-                self.scheduled = page.scheduled_messages
+            do {
+                let page = try await repo.scheduledMessages(companyId: companyId, phoneLineId: line)
+                if seq == scheduledLoadSeq {
+                    scheduled = page.scheduled_messages.filter { !scheduledCancellations.contains($0.id) }
+                    scheduledLoad = .ready(())
+                }
+            } catch {
+                if seq == scheduledLoadSeq, !Task.isCancelled {
+                    scheduledLoad = .failed(error.userMessage(locale))
+                }
             }
         }
     }
@@ -635,9 +646,14 @@ final class InboxController {
     /// schedule it again — so it confirms rather than asking.
     func cancelScheduled(_ id: String) {
         let line = shellLineId
-        let before = scheduled
-        scheduled = before.filter { $0.id != id }
+        guard let row = scheduled.first(where: { $0.id == id }) else { return }
+        scheduledCancellations.insert(id)
+        scheduled = scheduled.filter { $0.id != id }
         Task {
+            defer {
+                scheduledCancellations.remove(id)
+                refreshScheduled()
+            }
             do {
                 try await repo.cancelScheduledMessage(companyId: companyId, id: id)
                 notify(
@@ -646,7 +662,9 @@ final class InboxController {
                     )
                 )
             } catch {
-                if line == shellLineId { scheduled = before }
+                if line == shellLineId {
+                    scheduled = (scheduled + [row]).sorted { $0.send_at < $1.send_at }
+                }
                 notify(error.userMessage)
             }
         }
@@ -1461,6 +1479,7 @@ private struct InboxList: View {
             .mapValues { rows in rows.contains(where: \.blocked) }
         VStack(spacing: 0) {
             InboxTitleRow(scheduledCount: controller.scheduled.count) {
+                controller.refreshScheduled()
                 scheduledSheetOpen = true
             }
 
@@ -1559,6 +1578,8 @@ private struct InboxList: View {
         .sheet(isPresented: $scheduledSheetOpen) {
             ScheduledSheet(
                 rows: controller.scheduled,
+                loadState: controller.scheduledLoad,
+                onRetry: controller.refreshScheduled,
                 onOpenConversation: { id in
                     controller.markLocallyRead(id)
                     onOpen(id, nil)
