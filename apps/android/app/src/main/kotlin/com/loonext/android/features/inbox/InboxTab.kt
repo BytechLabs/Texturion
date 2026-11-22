@@ -374,6 +374,8 @@ private class InboxController(
     var lineId: String?
         get() = shellLineId ?: filterLineId
         private set(value) { filterLineId = value }
+    val activeLineFilter: String?
+        get() = if (shellLineId == null) filterLineId else null
     var tagId by mutableStateOf<String?>(null)
         private set
 
@@ -547,7 +549,7 @@ private class InboxController(
             snoozedOnly = snoozedOnly,
             awaitingOnly = awaitingOnly,
             unassignedOnly = unassignedOnly,
-            lineId = lineId,
+            lineId = activeLineFilter,
         )
 
     /**
@@ -3434,7 +3436,7 @@ private fun InboxActiveFilters(controller: InboxController, lines: Map<String, S
         if (controller.unassignedOnly) {
             add(ActiveFilterChip(t("inbox.forYouSectionUnassigned")) { controller.setAssigneeFilter(null) })
         }
-        controller.lineId?.let { id ->
+        controller.activeLineFilter?.let { id ->
             add(ActiveFilterChip(lines[id] ?: t("inbox.filterGroupLine")) { controller.setLineFilter(null) })
         }
         if (controller.tagId != null) {
