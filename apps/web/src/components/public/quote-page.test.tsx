@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { QuotePage } from "./quote-page";
@@ -50,7 +50,7 @@ describe(QuotePage, () => {
         body: JSON.stringify({ name: "Camille Martin" }),
       },
     );
-    expect(document.activeElement).toBe(heading);
+    await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
   it("uses the separate decline credential and focuses the result", async () => {
@@ -76,6 +76,6 @@ describe(QuotePage, () => {
       "https://api.example.test/q/test-decline-credential/decline",
       { method: "POST" },
     );
-    expect(document.activeElement).toBe(heading);
+    await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 });
