@@ -1,7 +1,7 @@
 {
-  "apps/api": "0.31.5",
-  "apps/web": "0.32.1",
+  "apps/api": "0.32.0",
+  "apps/web": "0.33.0",
   "packages/shared": "0.24.3",
-  "apps/android": "0.27.4",
-  "apps/ios": "0.27.4"
+  "apps/android": "0.28.0",
+  "apps/ios": "0.28.0"
 }

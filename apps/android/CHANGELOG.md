@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.28.0](https://github.com/BytechLabs/Texturion/compare/android-v0.27.4...android-v0.28.0) (2026-11-22)
+
+
+### Features
+
+* **for-you:** add a workspace phone-line filter ([#1228](https://github.com/BytechLabs/Texturion/issues/1228)) ([245d5ea](https://github.com/BytechLabs/Texturion/commit/245d5eaa0f78e0917ee49aa1ceab93b6be5a93f7))
+* **inbox:** add conversation display options ([#1229](https://github.com/BytechLabs/Texturion/issues/1229)) ([42725f0](https://github.com/BytechLabs/Texturion/commit/42725f03f53daa4bccebdfd5009c9d1085442bf1))
+* **inbox:** clarify filters and unify assignee avatars ([#1236](https://github.com/BytechLabs/Texturion/issues/1236)) ([5494c77](https://github.com/BytechLabs/Texturion/commit/5494c771f7c941d1c457c14735e2c4b884e455d2))
+
+
+### Bug Fixes
+
+* **android:** keep answered calls registered with Telecom ([#1224](https://github.com/BytechLabs/Texturion/issues/1224)) ([8a27e0e](https://github.com/BytechLabs/Texturion/commit/8a27e0e4a70858f32160ccc366dc40a9b9e36317))
+* **android:** localize referral drafts and sharing ([#1234](https://github.com/BytechLabs/Texturion/issues/1234)) ([4b1444e](https://github.com/BytechLabs/Texturion/commit/4b1444e19c63e260162ae439b677fe6b176ca251))
+* **android:** localize the standalone call screen ([#1233](https://github.com/BytechLabs/Texturion/issues/1233)) ([ac67493](https://github.com/BytechLabs/Texturion/commit/ac674935dc4369fb7bafdf7ea893aa5fb569fca9))
+* **android:** reset auth state between account forms ([#1239](https://github.com/BytechLabs/Texturion/issues/1239)) ([d677528](https://github.com/BytechLabs/Texturion/commit/d677528922df2ae66f4e3add483b097005bddf9f))
+* **android:** skip stopping an idle call foreground service ([#1231](https://github.com/BytechLabs/Texturion/issues/1231)) ([aaa942b](https://github.com/BytechLabs/Texturion/commit/aaa942b1bd00ed192370a7996c6267cd59242a0e))
+* **clients:** group conversation navigation under the selected number ([#1232](https://github.com/BytechLabs/Texturion/issues/1232)) ([df0950e](https://github.com/BytechLabs/Texturion/commit/df0950edb4e3352bb98157f3be0aa7472951c037))
+
 ## [0.27.4](https://github.com/BytechLabs/Texturion/compare/android-v0.27.3...android-v0.27.4) (2026-11-22)
 
 
