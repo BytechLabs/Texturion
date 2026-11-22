@@ -1247,7 +1247,10 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(thread.calls).toHaveLength(0);
   });
 
-  it("D38: a connected customer leg bills its seconds, threads join-only, and never texts back", async () => {
+  it.each([
+    { answeredAt: "2026-07-04T10:00:06.000Z", talkSeconds: 192 },
+    { answeredAt: null, talkSeconds: 0 },
+  ])("uses $talkSeconds outbound talk seconds for the meter, call and thread", async ({ answeredAt, talkSeconds }) => {
     const callRecords = callRecordsInsertStub("cr-out-1");
     const customerLookup = customerStub();
     const meter = meterStub();
@@ -1255,14 +1258,12 @@ describe("handleCallEvent — terminal → text-back", () => {
     const upsert = upsertCallStub();
     const thread = threadCallStub();
     const sms = telnyxSms();
-    // D43: out_customer talk time anchors on calls.answered_at (stamped at
-    // customer pickup), NEVER ring time. Here the customer answered instantly.
-    const answeredAt = stubRoute(restMatch(env, "GET", "calls"), () => [
-      { answered_at: "2026-07-04T10:00:00.000Z" },
+    const answer = stubRoute(restMatch(env, "GET", "calls"), () => [
+      { answered_at: answeredAt },
     ]);
     serve(
       numberStub(),
-      answeredAt,
+      answer,
       callRecords,
       customerLookup,
       meter,
@@ -1283,25 +1284,28 @@ describe("handleCallEvent — terminal → text-back", () => {
         hangup_cause: "normal_clearing",
         client_state: btoa(`oc_customer|${CALLER}`),
         start_time: "2026-07-04T10:00:00.000Z",
-        end_time: "2026-07-04T10:03:12.000Z", // 192 s of talk
+        end_time: "2026-07-04T10:03:18.000Z",
       }),
     );
 
+    const stamped = expect.any(String);
     expect(callRecords.calls[0].body).toMatchObject({
       leg: "out_customer",
-      billable_seconds: 192,
-      stripe_reported_at: null,
+      billable_seconds: talkSeconds,
+      stripe_reported_at: talkSeconds > 0 ? null : stamped,
     });
-    const form = new URLSearchParams(String(meter.calls[0].body));
-    expect(form.get("payload[value]")).toBe("192");
+    const meterValues = meter.calls.map(({ body }) => new URLSearchParams(String(body)).get("payload[value]"));
+    expect(meterValues).toEqual(talkSeconds > 0 ? [String(talkSeconds)] : []);
     expect(upsert.calls[0].body).toMatchObject({
       p_outcome: "answered",
       p_direction: "outbound",
       p_caller_e164: CALLER,
+      p_forward_seconds: talkSeconds,
     });
     expect(thread.calls[0].body).toMatchObject({
       p_create_if_missing: false,
       p_direction: "outbound",
+      p_forward_seconds: talkSeconds,
     });
     // An outbound call must NEVER fire the missed-call text-back.
     expect(sms.calls).toHaveLength(0);
@@ -1333,7 +1337,7 @@ describe("handleCallEvent — terminal → text-back", () => {
       billable_seconds: 0,
       stripe_reported_at: expect.any(String),
     });
-    expect(upsert.calls[0].body).toMatchObject({ p_outcome: "missed" });
+    expect(upsert.calls[0].body).toMatchObject({ p_outcome: "missed", p_forward_seconds: 0 });
     expect(thread.calls).toHaveLength(1); // "Called, no answer" is history
     expect(sms.calls).toHaveLength(0);
   });

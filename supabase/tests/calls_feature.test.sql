@@ -592,4 +592,34 @@ begin
   raise notice 'C-13 PASSED: inbound line claims respect live calls, reservations, and replay';
 end $$;
 
+-- C-14. The carrier can finalize the talk time after the call has been threaded.
+do $$
+declare
+  v_company constant uuid := '77777777-7777-4777-8777-777000000000';
+  v_line constant uuid := '77777777-7777-4777-8777-777000000001';
+  v_caller constant text := '+14165550111';
+  v_session constant text := 'sess-c14-outbound';
+  v_thread jsonb;
+  v_events integer;
+  v_seconds integer;
+begin
+  perform public.api_upsert_call(v_company, v_line, v_session, v_caller, 'answered', 0, now(), now(), 'outbound');
+  v_thread := public.api_thread_call(v_company, v_line, v_caller, v_session, 'answered', 0, false, 'outbound');
+  update public.calls
+     set conversation_id = (v_thread->>'conversation_id')::uuid
+   where call_session_id = v_session;
+
+  perform public.api_upsert_call(v_company, v_line, v_session, v_caller, 'answered', 25, now(), now(), 'outbound');
+  v_thread := public.api_thread_call(v_company, v_line, v_caller, v_session, 'answered', 25, false, 'outbound');
+  select count(*), max((payload->>'forward_seconds')::integer)
+    into v_events, v_seconds
+    from public.conversation_events
+   where company_id = v_company and type = 'call_completed' and payload->>'call_session_id' = v_session;
+
+  if v_events is distinct from 1 or v_seconds is distinct from 25
+     or (v_thread->>'event_inserted')::boolean is distinct from false then
+    raise exception 'C-14 FAILED: expected one completed event with 25 seconds, got % event(s) with % seconds', v_events, v_seconds;
+  end if;
+end $$;
+
 rollback;
