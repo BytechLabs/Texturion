@@ -667,11 +667,11 @@ describe("hermetic call journeys (session layer)", () => {
     expect(fake.callsTo("POST", /\/actions\/bridge$/)).toEqual([
       expect.objectContaining({
         path: `/v2/calls/${placerLeg?.callControlId}/actions/bridge`,
-        body: { call_control_id: customer?.callControlId, play_ringtone: true },
-      }),
-      expect.objectContaining({
-        path: `/v2/calls/${placerLeg?.callControlId}/actions/bridge`,
-        body: { call_control_id: customer?.callControlId },
+        body: {
+          call_control_id: customer?.callControlId,
+          play_ringtone: true,
+          command_id: `outbound-ringback:${sessionId}`,
+        },
       }),
     ]);
     expect(sessionRow(sessionId)).toMatchObject({
