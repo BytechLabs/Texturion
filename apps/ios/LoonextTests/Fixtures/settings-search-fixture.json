@@ -1390,6 +1390,7 @@
    "page": null,
    "en": [
     "Get paid by text",
+    "Getting paid",
     "payments",
     "stripe",
     "text to pay",
@@ -1401,6 +1402,7 @@
    ],
    "fr": [
     "Se faire payer par texto",
+    "Encaisser les paiements",
     "paiements",
     "stripe",
     "lien de paiement",
@@ -2507,6 +2509,22 @@
    "visible": "member",
    "ids": [
     "account:change-password"
+   ]
+  },
+  {
+   "query": "Getting paid",
+   "locale": "en",
+   "visible": "all",
+   "ids": [
+    "payments:payments-setup"
+   ]
+  },
+  {
+   "query": "Encaisser les paiements",
+   "locale": "fr",
+   "visible": "all",
+   "ids": [
+    "payments:payments-setup"
    ]
   }
  ]

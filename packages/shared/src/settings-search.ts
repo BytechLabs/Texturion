@@ -268,8 +268,8 @@ export const SETTINGS_INDEX: readonly SettingsIndexEntry[] = [
 
   // Payments
   entry("payments", "payments-setup",
-    ["Get paid by text", "payments", "stripe", "text to pay", "payment link", "collect money", "bank account", "invoices", "card payments"],
-    ["Se faire payer par texto", "paiements", "stripe", "lien de paiement", "encaisser", "compte bancaire", "factures"]),
+    ["Get paid by text", "Getting paid", "payments", "stripe", "text to pay", "payment link", "collect money", "bank account", "invoices", "card payments"],
+    ["Se faire payer par texto", "Encaisser les paiements", "paiements", "stripe", "lien de paiement", "encaisser", "compte bancaire", "factures"]),
 
   // Audit log (#755: "History" and "Activity log" before)
   entry("history", "audit-log",
