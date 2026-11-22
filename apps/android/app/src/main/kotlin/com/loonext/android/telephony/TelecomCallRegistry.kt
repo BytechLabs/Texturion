@@ -512,11 +512,12 @@ class TelecomCallRegistry(
      */
     fun hasActiveCalls(): Boolean = entries.values.any { !it.terminated }
 
-    /** §9.2 `call_end` revocation / server-resolved teardown: disconnect the OS
-     *  call for [session]. Unknown session → no-op. */
-    fun disconnect(session: String) {
+    /** A remote answer dismisses this device's ring. A terminal state ends its call. */
+    fun disconnect(session: String, unansweredOnly: Boolean = false) {
         val entry = entries[session] ?: return
-        disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE))
+        disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE)) {
+            unansweredOnly && (it.accepted || it.mediaActive)
+        }
     }
 
     /** A wake push arrived after [session] stopped ringing: end the ring it raised now,
@@ -1022,13 +1023,12 @@ class TelecomCallRegistry(
         return if (code == cause.code) cause else DisconnectCause(code, cause.label, cause.description, cause.reason)
     }
 
-    private fun disconnectEntry(entry: CallEntry, cause: DisconnectCause) {
-        // scope.disconnect() ends the OS call; the suspend `addCall` then returns
-        // and `finally` runs cleanup. STAND_DOWN (already terminated) and
-        // RECORDED_FOR_BLOCK (the block delivers) do nothing here.
-        // No stand-down: server call_end and a leg that already ended (drive
-        // DONE/ERROR) must tear the OS call down even if it had accepted.
-        val plan = claimTerminate(entry, cause) { false }
+    private fun disconnectEntry(
+        entry: CallEntry,
+        cause: DisconnectCause,
+        standDown: (CallEntry) -> Boolean = { false },
+    ) {
+        val plan = claimTerminate(entry, cause, standDown)
         if (plan == TerminatePlan.STAND_DOWN) return
         if (plan == TerminatePlan.DISCONNECT_NOW) {
             disconnectOnScope(entry, cause)
