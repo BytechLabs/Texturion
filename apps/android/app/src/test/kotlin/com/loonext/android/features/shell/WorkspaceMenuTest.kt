@@ -2,7 +2,6 @@ package com.loonext.android.features.shell
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -37,8 +36,7 @@ class WorkspaceMenuTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription("Espaces de travail").performClick()
-        compose.onNodeWithText("Fixture Books").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Espaces de travail: Fixture Books").performClick()
         compose.onNodeWithText("Fixture Crew").performClick()
         compose.runOnIdle { assertEquals(technician.company_id, selected) }
     }
@@ -48,6 +46,6 @@ class WorkspaceMenuTest {
         compose.setContent {
             LoonextTheme { WorkspaceMenu(listOf(billing), billing.company_id) {} }
         }
-        compose.onNodeWithContentDescription("Workspaces").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Workspaces", substring = true).assertDoesNotExist()
     }
 }

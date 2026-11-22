@@ -1274,13 +1274,16 @@ private fun ReadyShell(
                                     pop()
                                 }
                             },
-                            actions = {
-                                if (!hasInbox) {
-                                    WorkspaceMenu(hydratedMe.memberships, companyId, root::switchWorkspace)
-                                }
-                            },
                         ) { contentModifier ->
                             Column(contentModifier) {
+                                if (!hasInbox) {
+                                    WorkspaceMenu(
+                                        memberships = hydratedMe.memberships,
+                                        companyId = companyId,
+                                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                                        onSwitchWorkspace = root::switchWorkspace,
+                                    )
+                                }
                                 if (!hasInbox && section == SettingsSection.Billing) {
                                     TwoFactorDeadlineBanner(hydratedMe.company) {
                                         section = SettingsSection.Profile
