@@ -63,6 +63,13 @@ describe("#719 settings search", () => {
     expect(anchorsOf("fuseau", "en")).not.toContain("time-zone");
   });
 
+  it.each([
+    ["Getting paid", "en"],
+    ["Encaisser les paiements", "fr"],
+  ] as const)("finds payment settings by the section title %s", (query, locale) => {
+    expect(anchorsOf(query, locale, asRole("owner"))).toContain("payments-setup");
+  });
+
   it("SS-6: one typo is forgiven in a word of four letters or more, not before", () => {
     expect(anchorsOf("voicmail")).toContain("voicemail"); // dropped letter
     expect(anchorsOf("notifcations")).toContain("notification-types");
