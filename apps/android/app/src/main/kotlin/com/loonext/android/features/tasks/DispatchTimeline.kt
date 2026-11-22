@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +45,12 @@ import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.LocalAppLocale
@@ -106,12 +112,18 @@ internal fun DispatchTimeline(
     fun x(time: Instant) = SlotWidth * (Duration.between(first, time).seconds.toFloat() / (SlotMinutes * 60))
     fun label(time: Instant) = TimestampFormat.clock(time, zone, locale)
     var highlighted by remember(day.date) { mutableStateOf<Pair<String, Instant>?>(null) }
+    var viewport by remember(day.date) { mutableStateOf(Rect.Zero) }
+    val lanes = remember(day.date, plan.members) { mutableMapOf<String, Rect>() }
+    val place by rememberUpdatedState(onPlace)
     SectionHeader(t("contactsTasks.schedule"))
     val scheduleStatus = highlighted?.let { label(it.second) }
         ?: if (blocks.isEmpty()) t("contactsTasks.dispatchNoBookings") else ""
     Text(scheduleStatus, style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 1)
-    Column(Modifier.horizontalScroll(rememberScrollState()).width(width)) {
+    Column(
+        Modifier.onGloballyPositioned { viewport = it.boundsInWindow() }
+            .horizontalScroll(rememberScrollState()).width(width),
+    ) {
         Box(Modifier.width(width).height(28.dp)) {
             repeat(count) { index ->
                 if (index % 4 == 0) {
@@ -129,7 +141,15 @@ internal fun DispatchTimeline(
                 TaskAvatar(member.name, size = 22.dp, memberId = member.id)
                 SectionHeader(member.name ?: t("contactsTasks.dispatchAssignee"))
             }
-            Box(Modifier.width(width).height(78.dp).background(MaterialTheme.colorScheme.surface)) {
+            Box(
+                Modifier.width(width).height(78.dp).background(MaterialTheme.colorScheme.surface)
+                    .onGloballyPositioned { coordinates ->
+                        lanes[member.id] = Rect(
+                            coordinates.positionInWindow(),
+                            Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
+                        )
+                    },
+            ) {
                 Row {
                     repeat(count) { index ->
                         val start = first.plusSeconds(index * SlotMinutes * 60)
@@ -147,6 +167,32 @@ internal fun DispatchTimeline(
                     val left = x(maxOf(start, first))
                     val blockWidth = maxOf(104.dp, x(minOf(end, last)) - left)
                     val movable = editable && !block.locked
+                    var handleOrigin by remember(block.id) { mutableStateOf(Offset.Zero) }
+                    val move = if (movable) Modifier.onGloballyPositioned { handleOrigin = it.positionInWindow() }
+                        .pointerInput(block.id, start, block.assignee_id, day.date, first, count) {
+                            var pointer = Offset.Zero
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { pointer = handleOrigin + it },
+                                onDragCancel = { highlighted = null },
+                                onDragEnd = {
+                                    val target = highlighted
+                                    highlighted = null
+                                    if (target != null && (target.first != block.assignee_id || target.second != start)) {
+                                        place("block:${block.id}", target.first, target.second)
+                                    }
+                                },
+                            ) { change, amount ->
+                                change.consume()
+                                pointer += amount
+                                val lane = lanes.entries.firstOrNull { (_, bounds) ->
+                                    pointer in viewport && pointer in bounds
+                                }
+                                highlighted = lane?.let { (assignee, bounds) ->
+                                    val slot = ((pointer.x - bounds.left) / SlotWidth.toPx()).toInt().coerceIn(0, count - 1)
+                                    assignee to first.plusSeconds(slot * SlotMinutes * 60)
+                                }
+                            }
+                        } else Modifier
                     Row(
                         Modifier.offset(x = minOf(left, maxOf(0.dp, width - blockWidth)), y = 8.dp).width(blockWidth)
                             .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)),
@@ -158,7 +204,7 @@ internal fun DispatchTimeline(
                                     color = MaterialTheme.colorScheme.onSecondaryContainer)
                             }
                             Row(
-                                Modifier.fillMaxWidth().heightIn(min = 20.dp).dispatchDrag("block:${block.id}", movable)
+                                Modifier.fillMaxWidth().heightIn(min = 20.dp).then(move)
                                     .padding(horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
