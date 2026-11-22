@@ -548,15 +548,13 @@ private struct InvitesCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
             Spacer().frame(height: 8)
-            HStack(spacing: 12) {
-                RoleField(role: role, enabled: !(seat.full || sending), showsDetail: true) { role = $0 }
-                Button(
-                    sending ? t("settingsMore.inviting") : t("settingsMore.invite")
-                ) { invite() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BrandColor.olive)
-                    .disabled(seat.full || sending || email.isBlank)
-            }
+            RoleField(role: role, enabled: !(seat.full || sending), showsDetail: true) { role = $0 }
+            Spacer().frame(height: 8)
+            Button(sending ? t("settingsMore.inviting") : t("settingsMore.invite")) { invite() }
+                .buttonStyle(.borderedProminent)
+                .tint(BrandColor.olive)
+                .disabled(seat.full || sending || email.isBlank)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             InlineError(formError)
             if seat.full {
                 Spacer().frame(height: 6)

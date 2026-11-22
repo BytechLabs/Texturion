@@ -445,7 +445,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
 }
 
 @Composable
-private fun InvitesCard(
+internal fun InvitesCard(
     scope: SettingsScope,
     company: CompanyView,
     members: List<Member>,
@@ -513,76 +513,71 @@ private fun InvitesCard(
             },
         )
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                RoleField(
-                    role = role,
-                    enabled = !seat.full && !sending,
-                    label = t("settingsMore.roleLabel"),
-                    onSelect = { role = it },
-                )
-                // The description of the chosen role sits under the field, where
-                // the closed field shows the name only.
-                Text(
-                    roleBlurb(role),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Button(
-                onClick = {
-                    val trimmed = email.trim()
-                    if (!trimmed.contains('@') || trimmed.length < 3) {
-                        formError =
-                            AppStrings.translate(locale, "settingsMore.enterTeammateEmail")
-                        return@Button
-                    }
-                    sending = true
-                    formError = null
-                    coroutines.launch {
-                        try {
-                            val invite = scope.repo.createInvite(
-                                scope.companyId, trimmed, role, inviteNoteOrNull(note),
+        RoleField(
+            role = role,
+            enabled = !seat.full && !sending,
+            label = t("settingsMore.roleLabel"),
+            onSelect = { role = it },
+        )
+        Text(
+            roleBlurb(role),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            modifier = Modifier.align(Alignment.End),
+            onClick = {
+                val trimmed = email.trim()
+                if (!trimmed.contains('@') || trimmed.length < 3) {
+                    formError =
+                        AppStrings.translate(locale, "settingsMore.enterTeammateEmail")
+                    return@Button
+                }
+                sending = true
+                formError = null
+                coroutines.launch {
+                    try {
+                        val invite = scope.repo.createInvite(
+                            scope.companyId, trimmed, role, inviteNoteOrNull(note),
+                        )
+                        email = ""
+                        // Cleared with the email: the next invite is for a
+                        // different person, and re-sending one owner's words
+                        // to a second teammate by accident is worse than
+                        // retyping them.
+                        note = ""
+                        haptics.confirm()
+                        if (invite.email_sent == false) {
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.inviteEmailFailed",
+                                ),
                             )
-                            email = ""
-                            // Cleared with the email: the next invite is for a
-                            // different person, and re-sending one owner's words
-                            // to a second teammate by accident is worse than
-                            // retyping them.
-                            note = ""
-                            haptics.confirm()
-                            if (invite.email_sent == false) {
-                                scope.showMessage(
-                                    AppStrings.translate(
-                                        locale,
-                                        "settingsMore.inviteEmailFailed",
-                                    ),
-                                )
-                            } else {
-                                scope.showMessage(
-                                    AppStrings.translate(
-                                        locale,
-                                        "settingsMore.inviteSentTo",
-                                        mapOf("email" to trimmed),
-                                    ),
-                                )
-                            }
-                            onChanged()
-                        } catch (cause: Exception) {
-                            formError = cause.userMessage(locale)
-                        } finally {
-                            sending = false
+                        } else {
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.inviteSentTo",
+                                    mapOf("email" to trimmed),
+                                ),
+                            )
                         }
+                        onChanged()
+                    } catch (cause: Exception) {
+                        formError = cause.userMessage(locale)
+                    } finally {
+                        sending = false
                     }
-                },
-                enabled = !seat.full && !sending && email.isNotBlank(),
-            ) {
-                Text(
-                    if (sending) t("settingsMore.inviting") else t("settingsMore.invite"),
-                )
-            }
+                }
+            },
+            enabled = !seat.full && !sending && email.isNotBlank(),
+        ) {
+            Text(
+                if (sending) t("settingsMore.inviting") else t("settingsMore.invite"),
+            )
         }
         InlineError(formError)
         if (seat.full) {
