@@ -11,7 +11,7 @@ import { Timestamp } from "@/components/ui/timestamp";
 import { formatWallDay } from "@/lib/format/time";
 
 import { AssigneeStack, assigneeSummary } from "./assignee-field";
-import { assigneeNames } from "./task-assignees";
+import { assigneeNames, taskAssigneeIds } from "./task-assignees";
 import { isOverdue, taskActionAllowed, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
@@ -149,7 +149,7 @@ export function TaskAssignee({
   }
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <AssigneeStack names={names} />
+      <AssigneeStack names={names} memberIds={taskAssigneeIds(task)} />
       {showName && (
         <span className="truncate text-[13px] text-muted-foreground">
           {assigneeSummary(names, t)}

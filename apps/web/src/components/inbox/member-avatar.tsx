@@ -8,6 +8,21 @@ import { useT } from "@/i18n/provider";
 import { useMembers } from "@/lib/api/team";
 import { cn } from "@/lib/utils";
 
+const ASSIGNEE_TONES = [
+  "app-assignee-olive",
+  "app-assignee-slate",
+  "app-assignee-plum",
+  "app-assignee-ochre",
+] as const;
+
+function assigneeTone(memberId: string) {
+  let hash = 0;
+  for (let index = 0; index < memberId.length; index += 1) {
+    hash = Math.imul(hash, 31) + memberId.charCodeAt(index);
+  }
+  return ASSIGNEE_TONES[hash & 3];
+}
+
 /**
  * Map of user_id → display_name for the active company's members.
  *
@@ -39,16 +54,19 @@ export function useMemberNames(): Map<string, string> {
  */
 export function MemberAvatar({
   name,
+  memberId,
   className,
 }: {
   name: string;
+  memberId?: string | null;
   className?: string;
 }) {
   return (
     <InitialsAvatar
       initials={avatarInitials(name)}
       className={cn(
-        "flex size-[18px] shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-[9px] font-medium text-primary",
+        "flex size-[18px] shrink-0 select-none items-center justify-center rounded-full text-[9px] font-medium",
+        memberId ? assigneeTone(memberId) : "bg-primary/10 text-primary",
         className,
       )}
     />

@@ -935,7 +935,7 @@ private fun TaskDetailBody(
                         }
                         val joiner = t("contactsTasks.andJoiner")
                         if (crewIds.isNotEmpty()) {
-                            AssigneeStack(crewNames, size = 24.dp)
+                            AssigneeStack(crewNames, size = 24.dp, memberIds = crewIds)
                             Spacer(Modifier.width(7.dp))
                         }
                         Text(

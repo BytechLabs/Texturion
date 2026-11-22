@@ -437,6 +437,7 @@ private fun BoardCard(
                 AssigneeStack(
                     taskAssigneeNames(task.assigneeIdList, task.assignees) { null },
                     size = 24.dp,
+                    memberIds = task.assigneeIdList,
                 )
                 // #722: the move is a done flip, so it needs the server's complete or reopen.
                 if (task.doneToggleAllowed()) {

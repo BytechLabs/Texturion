@@ -19,7 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -52,6 +51,7 @@ export function SavedViewsMenu({
   saveDescription,
   shareNote,
   compact = false,
+  outlined = false,
 }: {
   surface: SavedViewSurface;
   /** Whether a saved view's filters are what is on screen. */
@@ -67,6 +67,7 @@ export function SavedViewsMenu({
   shareNote: string;
   /** An icon button for a narrow list column; the label shows otherwise. */
   compact?: boolean;
+  outlined?: boolean;
 }) {
   const t = useT();
   const { role } = useActiveCompany();
@@ -93,18 +94,22 @@ export function SavedViewsMenu({
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
-            variant="ghost"
+            variant={outlined ? "outline" : "ghost"}
             size={compact ? "icon-sm" : "sm"}
             aria-label={compact ? t("inbox.viewsMenuAria", { current: label }) : undefined}
             title={compact ? label : undefined}
-            className={cn("shrink-0 text-muted-foreground", current && "text-app-ink")}
+            className={cn(
+              "text-muted-foreground",
+              outlined ? "min-w-0 justify-start gap-1.5 px-2 text-app-ink" : "shrink-0",
+              current && "text-app-ink",
+            )}
             onPointerEnter={() => setReaching(true)}
             onPointerLeave={() => setReaching(false)}
             onFocus={() => setReaching(true)}
             onBlur={() => setReaching(false)}
           >
             <Bookmark
-              className="size-4"
+              className="size-4 shrink-0"
               strokeWidth={1.75}
               fill={current ? "currentColor" : "none"}
               aria-hidden
@@ -114,9 +119,9 @@ export function SavedViewsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           {rows.length === 0 ? (
-            <DropdownMenuLabel className="text-[13px] font-normal text-muted-foreground">
+            <DropdownMenuItem disabled className="text-[13px] font-normal text-muted-foreground">
               {t("tasks.viewsNone")}
-            </DropdownMenuLabel>
+            </DropdownMenuItem>
           ) : (
             rows.map((view) => {
               const count = counts.data?.counts[view.id];

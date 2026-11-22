@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useId } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MemberAvatar } from "@/components/inbox/member-avatar";
 import { useT } from "@/i18n/provider";
 import { formatScheduleDay, formatScheduledTime, zonedWallClock } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -88,7 +89,10 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect }: {
           </div>
           {plan.members.map((member) => (
             <div className={cn("flex border-b last:border-b-0", focused === member.id && "bg-muted")} key={member.id}>
-              <h3 className="w-32 shrink-0 break-words px-3 py-3 text-sm font-medium">{member.name ?? t("tasks.teammate")}</h3>
+              <h3 className="flex w-32 shrink-0 items-start gap-2 break-words px-3 py-3 text-sm font-medium">
+                <MemberAvatar name={member.name ?? t("tasks.teammate")} memberId={member.id} />
+                <span>{member.name ?? t("tasks.teammate")}</span>
+              </h3>
               <div className="relative min-h-24 grow border-l" onDragOver={(event) => {
                 if (editable && event.dataTransfer.types.includes(MIME)) event.preventDefault();
               }} onDrop={(event) => {
@@ -155,7 +159,12 @@ export function DispatchWorkload({ plan, rows, onFocus }: {
           <tbody>
             {plan.members.map((member) => (
               <tr className="border-b last:border-0" key={member.id}>
-                <th scope="row" className="px-4 py-3 font-medium">{member.name ?? t("tasks.teammate")}</th>
+                <th scope="row" className="px-4 py-3 font-medium">
+                  <span className="flex items-center gap-2">
+                    <MemberAvatar name={member.name ?? t("tasks.teammate")} memberId={member.id} />
+                    {member.name ?? t("tasks.teammate")}
+                  </span>
+                </th>
                 {plan.days.map((day) => {
                   const cell = rows.find((value) => value.assignee_id === member.id && value.date === day.date);
                   const available = cell?.available;

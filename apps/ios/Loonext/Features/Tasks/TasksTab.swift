@@ -505,7 +505,11 @@ struct TasksTab: View {
             })
         }
         if let id = assigneeChip {
-            chips.append(ActiveFilterChip(id: "assignee", label: memberLabel(id)) {
+            chips.append(ActiveFilterChip(
+                id: "assignee",
+                label: memberLabel(id),
+                memberId: id == assigneeMe || id == me.user_id ? nil : id
+            ) {
                 assigneeChip = nil
             })
         }

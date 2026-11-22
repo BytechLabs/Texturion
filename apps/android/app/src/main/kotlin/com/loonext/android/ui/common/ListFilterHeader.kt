@@ -168,7 +168,7 @@ fun ListFilterButton(count: Int, onClick: () -> Unit) {
  * the filters on screen match no saved view, and "Manage views".
  */
 @Composable
-fun ListViewsMenu(views: ListViews) {
+fun ListViewsMenu(views: ListViews, modifier: Modifier = Modifier, labelled: Boolean = false) {
     val haptics = rememberHaptics()
     var open by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
@@ -179,7 +179,7 @@ fun ListViewsMenu(views: ListViews) {
     } else {
         t("inbox.viewsMenu")
     }
-    Box {
+    Box(modifier) {
         Surface(
             onClick = {
                 haptics.tap()
@@ -192,13 +192,27 @@ fun ListViewsMenu(views: ListViews) {
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
+            border = if (labelled) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
             modifier = Modifier
+                .then(if (labelled) Modifier.fillMaxWidth() else Modifier)
                 .touchTarget()
                 .asButton()
                 .semantics { contentDescription = name },
         ) {
-            Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(
+                Modifier.padding(horizontal = if (labelled) 8.dp else 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(Icons.Outlined.Bookmarks, contentDescription = null, modifier = Modifier.size(IconSize.Default))
+                if (labelled) {
+                    Text(
+                        active?.name ?: t("inbox.viewsMenu"),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -389,7 +403,11 @@ private fun ManageViewsSheet(views: ListViews, onDismiss: () -> Unit) {
 }
 
 /** One applied filter, removable. */
-data class ActiveFilterChip(val label: String, val onRemove: () -> Unit)
+data class ActiveFilterChip(
+    val label: String,
+    val memberId: String? = null,
+    val onRemove: () -> Unit,
+)
 
 /**
  * The applied filters as one scrolling line of removable chips with "Clear all".
@@ -431,6 +449,9 @@ fun ActiveFilterChips(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    if (chip.memberId != null) {
+                        InitialsAvatar(chip.label, size = 18.dp, memberId = chip.memberId)
+                    }
                     Text(
                         chip.label,
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),

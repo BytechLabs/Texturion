@@ -4,6 +4,7 @@ import { CalendarClock, Lock, Plus, Search, Trash2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MemberAvatar } from "@/components/inbox/member-avatar";
 import { Input } from "@/components/ui/input";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
@@ -133,7 +134,14 @@ export function DispatchEditor({ plan, task, day, block, initialAssignee, initia
               onValueChange={(value) => setAssignee(value === "unassigned" ? "" : value)}
               options={[
                 { value: "unassigned", label: t("tasks.unassigned") },
-                ...plan.members.map((member) => ({ value: member.id, label: member.name ?? t("tasks.teammate") })),
+                ...plan.members.map((member) => {
+                  const name = member.name ?? t("tasks.teammate");
+                  return {
+                    value: member.id,
+                    label: name,
+                    leading: <MemberAvatar name={name} memberId={member.id} />,
+                  };
+                }),
               ]} />
           </div>
           <label className={label}>

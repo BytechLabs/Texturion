@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import com.loonext.android.ui.theme.assigneeTone
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.TextUnit
@@ -196,13 +197,15 @@ fun InitialsAvatar(
     glyph: TextUnit = (size.value / 3).sp,
     container: Color = MaterialTheme.colorScheme.secondaryContainer,
     content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
+    memberId: String? = null,
 ) {
+    val tone = memberId?.let { assigneeTone(it) }
     Box(
         // Two letters are a picture of a person, not a word. Beside the name they were read
         // as a stop of their own ("PN") before every contact.
         modifier = modifier
             .size(size)
-            .background(container, shape)
+            .background(tone?.first ?: container, shape)
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
@@ -222,7 +225,7 @@ fun InitialsAvatar(
             // the inbox row failed rather than by overflowing.
             maxLines = 1,
             softWrap = false,
-            color = content,
+            color = tone?.second ?: content,
         )
     }
 }

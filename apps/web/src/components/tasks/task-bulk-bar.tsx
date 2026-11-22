@@ -88,7 +88,7 @@ function BulkAssign({
                   onClick={() => setPicked((ids) => toggleAssignee(ids, userId))}
                   className="tap-target flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  <MemberAvatar name={name} />
+                  <MemberAvatar name={name} memberId={userId} />
                   <span className="flex-1 truncate">{name}</span>
                   {selected && <Check className="size-4 text-primary" aria-hidden />}
                 </button>

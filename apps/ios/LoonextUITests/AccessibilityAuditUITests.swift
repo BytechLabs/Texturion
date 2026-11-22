@@ -437,6 +437,14 @@ final class AccessibilityAuditUITests: XCTestCase {
         if canadianFrench && surface == "login" {
             XCTAssertTrue(app.buttons["Se connecter"].firstMatch.waitForExistence(timeout: 10))
         }
+        if surface == "inbox" {
+            let filters = canadianFrench ? ["Responsable", "Étiquette", "Vues"] : ["Assignee", "Tag", "Views"]
+            for filter in filters {
+                let button = app.buttons[filter].firstMatch
+                XCTAssertTrue(button.waitForExistence(timeout: 10))
+                XCTAssertTrue(button.isHittable)
+            }
+        }
         if canadianFrench && surface == "tasks" {
             let sort = app.buttons["Trier les tâches"].firstMatch
             XCTAssertTrue(sort.waitForExistence(timeout: 10))

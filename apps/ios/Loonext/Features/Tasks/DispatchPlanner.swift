@@ -454,7 +454,11 @@ struct DispatchPlanner: View {
                 taskRow(task, nil, allowEdit: editable)
             }
             ForEach(plan.members.sorted { $0.id == worker && $1.id != worker }) { member in
-                SectionLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
+                HStack(spacing: 8) {
+                    InitialsAvatar(name: member.name, size: 22, memberId: member.id)
+                        .accessibilityHidden(true)
+                    SectionLabel(member.name ?? text("contactsTasks.dispatchAssignee"))
+                }
                 let bookings = blocks.filter { $0.assignee_id == member.id }
                 if bookings.isEmpty { Text(text("contactsTasks.dispatchNoBookings")) }
                 ForEach(bookings) { block in
@@ -528,7 +532,11 @@ struct DispatchPlanner: View {
         ForEach(payload.plan.members) { member in
             PaperCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(member.name ?? text("contactsTasks.dispatchAssignee")).font(.headline)
+                    HStack(spacing: 8) {
+                        InitialsAvatar(name: member.name, size: 24, memberId: member.id)
+                            .accessibilityHidden(true)
+                        Text(member.name ?? text("contactsTasks.dispatchAssignee")).font(.headline)
+                    }
                     ScrollView(.horizontal) {
                         HStack(alignment: .top, spacing: 12) {
                             ForEach(payload.workload.filter { $0.assignee_id == member.id }, id: \.date) { cell in

@@ -1335,7 +1335,7 @@ private struct InboxList: View {
     @Environment(\.appLocale) private var appLocale
 
     @State private var controller: InboxController?
-    @State private var filterSheetOpen = false
+    @State private var filterSection: InboxFilterSection?
     /// #233: the workspace's queued texts.
     @State private var scheduledSheetOpen = false
     @State private var assignFor: ConversationListItem?
@@ -1482,9 +1482,14 @@ private struct InboxList: View {
             }
             InboxTitleRow(compact: $compact)
 
-            searchField(controller)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 10)
+            HStack(spacing: 6) {
+                searchField(controller)
+                if !controller.searching {
+                    ListFilterButton(count: controller.activeFilterCount) { filterSection = .more }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
 
             if controller.searching {
                 SearchResultsPane(
@@ -1499,15 +1504,17 @@ private struct InboxList: View {
                     onTextContact: onTextContact
                 )
             } else {
-                // #711: ONE row for the tabs, Filter and Views, and the applied filters
-                // under it only while any is on.
-                ListFilterRow(
-                    filterCount: controller.activeFilterCount,
-                    onFilter: { filterSheetOpen = true },
-                    views: viewsModel(controller)
-                ) {
-                    statusTabs(controller)
-                }
+                statusTabs(controller)
+                    .padding(.horizontal, 18)
+                InboxQuickFilters(
+                    assigneeActive: controller.assigneeUserId != nil || controller.unassignedOnly || controller.tab == .mine,
+                    assigneeEnabled: controller.tab != .mine,
+                    tagActive: controller.tagId != nil,
+                    views: viewsModel(controller),
+                    onFilter: { filterSection = $0 }
+                )
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
                 ActiveFilterChips(
                     chips: activeFilterChips(controller),
                     onClearAll: { controller.clearSecondaryFilters() }
@@ -1571,8 +1578,8 @@ private struct InboxList: View {
                 onClose: { savedViewSheetOpen = false }
             )
         }
-        .sheet(isPresented: $filterSheetOpen) {
-            InboxFilterSheet(controller: controller, meUserId: me.user_id, lines: lines)
+        .sheet(item: $filterSection) { section in
+            InboxFilterSheet(controller: controller, meUserId: me.user_id, lines: lines, section: section)
         }
         // #233: what the workspace has queued to go out.
         .sheet(isPresented: $scheduledSheetOpen) {
@@ -1704,10 +1711,65 @@ private struct InboxStatusTabs: View {
             options: options,
             selected: selected,
             size: .compact,
-            fill: false,
-            horizontalPadding: 6,
+            fill: true,
+            horizontalPadding: 2,
             onSelect: onSelect
         )
+    }
+}
+
+private enum InboxFilterSection: Hashable, Identifiable {
+    case assignee, tag, more
+
+    var id: Self { self }
+
+    var titleKey: String {
+        switch self {
+        case .assignee: "inbox.filterGroupAssignee"
+        case .tag: "inbox.filterGroupTag"
+        case .more: "inbox.filterAction"
+        }
+    }
+}
+
+private struct InboxQuickFilters: View {
+    let assigneeActive: Bool
+    let assigneeEnabled: Bool
+    let tagActive: Bool
+    let views: ListViewsModel
+    let onFilter: @MainActor (InboxFilterSection) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 6))
+        layout {
+            filterButton(.assignee, active: assigneeActive)
+                .disabled(!assigneeEnabled)
+            filterButton(.tag, active: tagActive)
+            ListViewsMenu(model: views, labelled: true)
+        }
+    }
+
+    private func filterButton(_ section: InboxFilterSection, active: Bool) -> some View {
+        Button {
+            onFilter(section)
+        } label: {
+            Text(AppStrings.translate(appLocale, section.titleKey))
+                .font(.golos(12, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(BrandColor.ink)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(active ? BrandColor.insetDeep : BrandColor.paper, in: Capsule())
+                .overlay { Capsule().strokeBorder(BrandColor.muted250) }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
@@ -1794,19 +1856,14 @@ private struct ConversationListPane: View {
         }
     }
 
-    /// The row's assignee as a name the reader recognises: "You" for their own,
-    /// the teammate's display name otherwise, nil when nobody has it. Mirrors
-    /// Android's assigneeName in InboxTab.kt.
     private func assigneeName(_ row: ConversationListItem) -> String? {
         guard let userId = row.assigned_user_id else { return nil }
-        if userId == controller.meUserId {
-            return AppStrings.translate(appLocale, "inbox.assigneeYou")
+        if let name = controller.members.first(where: { $0.user_id == userId })?.display_name,
+           !name.isBlank {
+            return name
         }
-        guard let member = controller.members.first(where: { $0.user_id == userId })
-        else { return nil }
-        return member.display_name.isBlank
-            ? AppStrings.translate(appLocale, "inbox.teammateFallback")
-            : member.display_name
+        let fallback = userId == controller.meUserId ? "inbox.assigneeYou" : "inbox.teammateFallback"
+        return AppStrings.translate(appLocale, fallback)
     }
 
     /// One row + its swipe actions. Done/Reopen IS the close/open status flip
@@ -2075,10 +2132,13 @@ private struct ConversationRow: View {
                                     .foregroundStyle(BrandColor.muted500)
                             }
                             if let assigneeName {
-                                Text(assigneeName)
-                                    .font(.golos(10.5, weight: .semibold))
-                                    .foregroundStyle(BrandColor.muted500)
-                                    .lineLimit(largeText ? nil : 1)
+                                HStack(spacing: 4) {
+                                    assigneeAvatar(assigneeName)
+                                    Text(assigneeName)
+                                        .font(.golos(10.5, weight: .semibold))
+                                        .foregroundStyle(BrandColor.muted500)
+                                        .lineLimit(largeText ? nil : 1)
+                                }
                             }
                         }
                         .padding(.top, 2)
@@ -2086,11 +2146,16 @@ private struct ConversationRow: View {
                 }
                 if !largeText { Spacer() }
                 VStack(alignment: largeText ? .leading : .trailing, spacing: 6) {
-                    Text(relativeTime(row.last_message_at))
-                        .exactTime(row.last_message_at)
-                        .font(.golos(11))
-                        .monospacedDigit()
-                        .foregroundStyle(BrandColor.muted300)
+                    HStack(spacing: 6) {
+                        Text(relativeTime(row.last_message_at))
+                            .exactTime(row.last_message_at)
+                            .font(.golos(11))
+                            .monospacedDigit()
+                            .foregroundStyle(BrandColor.muted300)
+                        if compact, let assigneeName {
+                            assigneeAvatar(assigneeName)
+                        }
+                    }
                     if row.unread {
                         AttentionDot()
                     }
@@ -2114,6 +2179,11 @@ private struct ConversationRow: View {
                 )
             } ?? ""
         )
+    }
+
+    private func assigneeAvatar(_ name: String) -> some View {
+        InitialsAvatar(name: name, size: 20, memberId: row.assigned_user_id)
+            .accessibilityHidden(true)
     }
 
     private var accessibilityValue: String {
@@ -2164,29 +2234,10 @@ private struct InboxFilterSheet: View {
     let controller: InboxController
     let meUserId: String
     let lines: [(id: String, label: String)]
+    let section: InboxFilterSection
 
     @Environment(\.appLocale) private var appLocale
     @Environment(\.dismiss) private var dismiss
-
-    private var assigneeSelection: Binding<String> {
-        Binding(
-            get: { controller.unassignedOnly ? "none" : controller.assigneeUserId ?? "" },
-            set: { id in
-                if id == "none" {
-                    controller.setUnassignedFilter()
-                } else {
-                    controller.setAssigneeFilter(controller.members.first { $0.user_id == id })
-                }
-            }
-        )
-    }
-
-    private var tagSelection: Binding<String> {
-        Binding(
-            get: { controller.tagId ?? "" },
-            set: { id in controller.setTagFilter(controller.allTags.first { $0.id == id }) }
-        )
-    }
 
     private func memberName(_ member: Member) -> String {
         if member.user_id == meUserId { return AppStrings.translate(appLocale, "inbox.filterMe") }
@@ -2195,76 +2246,74 @@ private struct InboxFilterSheet: View {
             : member.display_name
     }
 
+    private func option(
+        _ title: String,
+        selected: Bool,
+        member: Member? = nil,
+        select: @escaping @MainActor () -> Void
+    ) -> some View {
+        Button {
+            select()
+            dismiss()
+        } label: {
+            HStack(spacing: 8) {
+                if let member {
+                    InitialsAvatar(name: member.display_name, size: 26, memberId: member.user_id)
+                        .accessibilityHidden(true)
+                }
+                Text(title)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(BrandColor.ink)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                if controller.tab != .mine {
-                    Picker(
-                        AppStrings.translate(appLocale, "inbox.filterByAssigneeTitle"),
-                        selection: assigneeSelection
+                switch section {
+                case .assignee:
+                    option(
+                        AppStrings.translate(appLocale, "inbox.filterAnyone"),
+                        selected: controller.assigneeUserId == nil && !controller.unassignedOnly
                     ) {
-                        Text(AppStrings.translate(appLocale, "inbox.filterAnyone")).tag("")
-                        Text(AppStrings.translate(appLocale, "inbox.forYouSectionUnassigned")).tag("none")
-                        ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
-                            Text(memberName(member)).tag(member.user_id)
+                        controller.setAssigneeFilter(nil)
+                    }
+                    option(
+                        AppStrings.translate(appLocale, "inbox.forYouSectionUnassigned"),
+                        selected: controller.unassignedOnly
+                    ) {
+                        controller.setUnassignedFilter()
+                    }
+                    ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
+                        option(memberName(member), selected: controller.assigneeUserId == member.user_id, member: member) {
+                            controller.setAssigneeFilter(member)
                         }
                     }
-                }
-                if lines.count > 1 {
-                    Picker(
-                        AppStrings.translate(appLocale, "inbox.filterGroupLine"),
-                        selection: Binding(
-                            get: { controller.lineId ?? "" },
-                            set: { controller.setLineFilter($0.isEmpty ? nil : $0) }
-                        )
+                case .tag:
+                    option(
+                        AppStrings.translate(appLocale, "inbox.filterAnyTag"),
+                        selected: controller.tagId == nil
                     ) {
-                        Text(AppStrings.translate(appLocale, "inbox.filterAnyLine")).tag("")
-                        ForEach(lines, id: \.id) { line in
-                            Text(line.label).tag(line.id)
-                        }
+                        controller.setTagFilter(nil)
                     }
-                }
-                Picker(
-                    AppStrings.translate(appLocale, "inbox.filterByTagTitle"),
-                    selection: tagSelection
-                ) {
-                    Text(AppStrings.translate(appLocale, "inbox.filterAnyTag")).tag("")
                     ForEach(controller.allTags, id: \.id) { tag in
-                        Text(tag.name).tag(tag.id)
+                        option(tag.name, selected: controller.tagId == tag.id) {
+                            controller.setTagFilter(tag)
+                        }
                     }
-                }
-                Section {
-                    Toggle(
-                        AppStrings.translate(appLocale, "inbox.chipUnanswered"),
-                        isOn: Binding(
-                            get: { controller.awaitingOnly },
-                            set: { _ in controller.toggleAwaiting() }
-                        )
-                    )
-                    Toggle(
-                        AppStrings.translate(appLocale, "inbox.chipUnread"),
-                        isOn: Binding(
-                            get: { controller.unreadOnly },
-                            set: { _ in controller.toggleUnread() }
-                        )
-                    )
-                    Toggle(
-                        AppStrings.translate(appLocale, "inbox.chipSpam"),
-                        isOn: Binding(
-                            get: { controller.spamOnly },
-                            set: { _ in controller.toggleSpam() }
-                        )
-                    )
-                    Toggle(
-                        AppStrings.translate(appLocale, "inbox.chipSnoozed"),
-                        isOn: Binding(
-                            get: { controller.snoozedOnly },
-                            set: { _ in controller.toggleSnoozed() }
-                        )
-                    )
+                case .more:
+                    advancedFilters
                 }
             }
-            .navigationTitle(AppStrings.translate(appLocale, "inbox.filterAction"))
+            .navigationTitle(AppStrings.translate(appLocale, section.titleKey))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -2273,6 +2322,54 @@ private struct InboxFilterSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder
+    private var advancedFilters: some View {
+        if lines.count > 1 {
+            Picker(
+                AppStrings.translate(appLocale, "inbox.filterGroupLine"),
+                selection: Binding(
+                    get: { controller.lineId ?? "" },
+                    set: { controller.setLineFilter($0.isEmpty ? nil : $0) }
+                )
+            ) {
+                Text(AppStrings.translate(appLocale, "inbox.filterAnyLine")).tag("")
+                ForEach(lines, id: \.id) { line in
+                    Text(line.label).tag(line.id)
+                }
+            }
+        }
+        Section {
+            Toggle(
+                AppStrings.translate(appLocale, "inbox.chipUnanswered"),
+                isOn: Binding(
+                    get: { controller.awaitingOnly },
+                    set: { _ in controller.toggleAwaiting() }
+                )
+            )
+            Toggle(
+                AppStrings.translate(appLocale, "inbox.chipUnread"),
+                isOn: Binding(
+                    get: { controller.unreadOnly },
+                    set: { _ in controller.toggleUnread() }
+                )
+            )
+            Toggle(
+                AppStrings.translate(appLocale, "inbox.chipSpam"),
+                isOn: Binding(
+                    get: { controller.spamOnly },
+                    set: { _ in controller.toggleSpam() }
+                )
+            )
+            Toggle(
+                AppStrings.translate(appLocale, "inbox.chipSnoozed"),
+                isOn: Binding(
+                    get: { controller.snoozedOnly },
+                    set: { _ in controller.toggleSnoozed() }
+                )
+            )
+        }
     }
 }
 
@@ -2621,6 +2718,7 @@ private func previewListItem(
     status: String,
     unread: Bool,
     snippet: String,
+    assigneeId: String? = nil,
     tags: [Tag] = []
 ) -> ConversationListItem {
     ConversationListItem(
@@ -2630,7 +2728,7 @@ private func previewListItem(
         phone_number_id: "n1",
         status: status,
         is_spam: false,
-        assigned_user_id: nil,
+        assigned_user_id: assigneeId,
         pinned_at: nil,
         pinned_by_user_id: nil,
         last_message_at: "2026-07-15T12:00:00Z",
@@ -2670,16 +2768,43 @@ private struct InboxAuditScreen: View {
     @Environment(\.appLocale) private var appLocale
     @State private var compact = false
 
+    private var views: ListViewsModel {
+        ListViewsModel(
+            entries: [],
+            activeId: nil,
+            canSaveCurrent: false,
+            canShare: false,
+            onApply: { _ in },
+            onSaveCurrent: {},
+            onDefault: { _ in },
+            onRename: { _, _ in },
+            onShare: { _, _ in },
+            onDelete: { _ in }
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             InboxScheduledLink(scheduledCount: 2, onOpenScheduled: {})
             InboxTitleRow(compact: $compact)
-            inboxSearchField(.constant(""), locale: appLocale)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 10)
-            ListFilterRow(filterCount: 2, onFilter: {}) {
-                InboxStatusTabs(selected: .open, onSelect: { _ in })
+            HStack(spacing: 6) {
+                inboxSearchField(.constant(""), locale: appLocale)
+                ListFilterButton(count: 2, onTap: {})
             }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+            InboxStatusTabs(selected: .open, onSelect: { _ in })
+                .padding(.horizontal, 18)
+            InboxQuickFilters(
+                assigneeActive: false,
+                assigneeEnabled: true,
+                tagActive: true,
+                views: views,
+                onFilter: { _ in }
+            )
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
             inboxFixtureList(compact: compact)
         }
         .background(BrandColor.canvas)
@@ -2701,11 +2826,12 @@ private func inboxFixtureList(compact: Bool) -> some View {
                     status: "open",
                     unread: true,
                     snippet: "can you come by tuesday morning to look at the fence?",
+                    assigneeId: "audit-member-1",
                     tags: [
                         Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
                     ]
                 ),
-                assigneeName: "You",
+                assigneeName: "Sam Lee",
                 compact: compact,
                 onTap: {}
             )
@@ -3010,13 +3136,14 @@ extension InboxList {
 
     fileprivate func activeFilterChips(_ controller: InboxController) -> [ActiveFilterChip] {
         var chips: [ActiveFilterChip] = []
-        if controller.assigneeUserId != nil && controller.tab != .mine {
+        if let memberId = controller.assigneeUserId, controller.tab != .mine {
             let name = controller.assignee?.display_name ?? ""
             chips.append(ActiveFilterChip(
                 id: "assignee",
                 label: name.isBlank
                     ? AppStrings.translate(appLocale, "inbox.teammateFallback")
-                    : name
+                    : name,
+                memberId: memberId
             ) { controller.setAssigneeFilter(nil) })
         }
         if controller.unassignedOnly {

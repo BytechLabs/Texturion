@@ -430,7 +430,13 @@ internal fun DispatchPlanner(
                     }
                     val members = plan.members.sortedBy { it.id != worker }
                     for (member in members) {
-                        SectionHeader(member.name ?: t("contactsTasks.dispatchAssignee"))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TaskAvatar(member.name, size = 22.dp, memberId = member.id)
+                            SectionHeader(member.name ?: t("contactsTasks.dispatchAssignee"))
+                        }
                         val bookings = blocks.filter { it.assignee_id == member.id }
                         if (bookings.isEmpty()) EmptyState(t("contactsTasks.dispatchNoBookings"), size = EmptyStateSize.Panel)
                         for (block in bookings) plan.tasks.find { it.id == block.task_id }?.let { task ->
@@ -445,7 +451,14 @@ internal fun DispatchPlanner(
                     SectionHeader(t("contactsTasks.dispatchBooked"))
                     for (member in plan.members) {
                         PaperCard(Modifier.fillMaxWidth()) {
-                            Text(member.name ?: t("contactsTasks.dispatchAssignee"), Modifier.padding(12.dp), style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                TaskAvatar(member.name, size = 24.dp, memberId = member.id)
+                                Text(member.name ?: t("contactsTasks.dispatchAssignee"), style = MaterialTheme.typography.titleSmall)
+                            }
                             Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 for (cell in response.workload.filter { it.assignee_id == member.id }) {
                                     val overload = cell.overloaded ?: (cell.available != null && cell.booked > cell.available)

@@ -16,6 +16,7 @@ import { avatarInitials, isFlaggedUrgent, mmsMediaKind, URGENT_BADGE_LABEL } fro
 import type { MmsMediaKind } from '@loonext/shared';
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import { useT } from "@/i18n/provider";
+import { MemberAvatar } from "./member-avatar";
 import type { ThreadData } from "@/lib/api/cache";
 import { keys } from "@/lib/api/keys";
 import type {
@@ -318,6 +319,11 @@ function ConversationRowView({
               style="short"
               className={cn("text-[11.5px]", active ? "text-app-muted" : "text-app-muted-2")}
             />
+            {compact && assigneeName && (
+              <span className="relative z-[1]" title={t("inbox.rowAssignedToTitle", { name: assigneeName })}>
+                <MemberAvatar name={assigneeName} memberId={conversation.assigned_user_id} />
+              </span>
+            )}
           </span>
         </span>
 
@@ -387,9 +393,9 @@ function ConversationRowView({
               // tooltip can open. Screen readers hear it in the row's label.
               <span
                 title={t("inbox.rowAssignedToTitle", { name: visibleAssignee })}
-                className="relative z-[1] inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
+                className="relative z-[1]"
               >
-                {avatarInitials(visibleAssignee)}
+                <MemberAvatar name={visibleAssignee} memberId={conversation.assigned_user_id} />
               </span>
             )}
           </span>

@@ -132,6 +132,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.filterAnyLine" to "Any line",
         "inbox.filterMe" to "Me",
         "inbox.filterGroupTags" to "Tags",
+        "inbox.filterGroupTag" to "Tag",
         "inbox.filterNoTags" to
             "No tags yet. Add tags from a conversation on the web.",
         "inbox.filterAnyTag" to "Any tag",
@@ -553,6 +554,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.filterAnyLine" to "Toutes les lignes",
         "inbox.filterMe" to "Moi",
         "inbox.filterGroupTags" to "Étiquettes",
+        "inbox.filterGroupTag" to "Étiquette",
         "inbox.filterNoTags" to
             "Aucune étiquette pour l'instant. Ajoutez-en depuis une conversation sur le web.",
         "inbox.filterAnyTag" to "Toute étiquette",

@@ -1,5 +1,6 @@
 "use client";
 
+import { MemberAvatar } from "@/components/inbox/member-avatar";
 import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -253,6 +254,7 @@ function ChipRow({
       {state.assignee && (
         <Chip
           label={assigneeName || t("tasks.assigneeChipFallback")}
+          memberId={state.assignee === "me" ? undefined : state.assignee}
           onRemove={() => {
             const next = { ...state };
             delete next.assignee;
@@ -478,10 +480,11 @@ function ContactChip({
   );
 }
 
-function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function Chip({ label, memberId, onRemove }: { label: string; memberId?: string; onRemove: () => void }) {
   const t = useT();
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
+      {memberId && <MemberAvatar name={label} memberId={memberId} />}
       {label}
       <button
         type="button"
@@ -641,6 +644,7 @@ function FilterPopover({
                     keywords={[m.display_name || t("tasks.teammate")]}
                     onSelect={() => setAssignee(active ? undefined : m.user_id)}
                   >
+                    <MemberAvatar name={m.display_name || t("tasks.teammate")} memberId={m.user_id} />
                     <span className="truncate">
                       {m.display_name || t("tasks.teammate")}
                       {m.user_id === userId ? t("tasks.youSuffix") : ""}

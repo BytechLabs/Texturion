@@ -171,16 +171,18 @@ struct InitialsAvatar: View {
     var shape: AnyShape = AnyShape(Circle())
     var tint: Color = BrandColor.avatarTint
     var content: Color = BrandColor.muted900
+    var memberId: String? = nil
 
     var body: some View {
         // Already carries the reader's setting, so it is applied at a FIXED size —
         // a `relativeTo:` font here would scale it a second time and undo the cap.
         let rendered = TypeScale.boundedGlyph(box: size, wanted: glyph ?? size * 0.38)
+        let tone = memberId.map(BrandColor.assigneeTone)
         Text(initialsOf(name))
             .font(.boundedGlyph(rendered, face: typeface, weight: .semibold))
             .lineLimit(1)
-            .foregroundStyle(content)
+            .foregroundStyle(tone?.label ?? content)
             .frame(width: size, height: size)
-            .background(tint, in: shape)
+            .background(tone?.fill ?? tint, in: shape)
     }
 }

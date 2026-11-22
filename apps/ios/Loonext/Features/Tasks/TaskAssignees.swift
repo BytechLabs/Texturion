@@ -171,7 +171,7 @@ struct AssigneeStack: View {
         } else {
             HStack(spacing: -size * 0.3) {
                 ForEach(Array(shown.enumerated()), id: \.element.id) { index, face in
-                    InitialsAvatar(name: face.name, size: size)
+                    InitialsAvatar(name: face.name, size: size, memberId: face.id)
                         .overlay(Circle().strokeBorder(BrandColor.paper, lineWidth: 1.5))
                         .zIndex(Double(shown.count - index))
                 }

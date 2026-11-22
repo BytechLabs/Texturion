@@ -188,8 +188,8 @@ class TalkBackFlowsSemanticsTest {
     @Test fun `assignee and due choices say they are buttons and which one is on`() {
         show {
             Column {
-                AssigneeChip("Dana Brightside", selected = true, onClick = {})
-                AssigneeChip("Sam Rivera", selected = false, onClick = {})
+                AssigneeChip("Dana Brightside", memberId = "dana", selected = true, onClick = {})
+                AssigneeChip("Sam Rivera", memberId = "sam", selected = false, onClick = {})
                 NobodyChip(selected = false, onClick = {})
                 DueChip("Today", selected = false, onClick = {})
                 DueChip("Tomorrow 9 AM", selected = true, onClick = {})
