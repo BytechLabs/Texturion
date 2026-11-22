@@ -5,7 +5,15 @@ import { Moon } from "lucide-react";
 import { CLOCK_AREA_CODE_NOTE } from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
+import { formatCompactWallHour } from "@/lib/format/time";
+
+const CLOCK_SOURCES = {
+  contact: "thread.clockFromContact",
+  area_code: "thread.clockFromAreaCode",
+  company: "thread.clockFromWorkspace",
+} as const satisfies Record<DestinationClock["source"], MessageKey>;
 
 /**
  * #225 — "9:42pm their time", above the composer, and only when it matters.
@@ -30,20 +38,6 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
   const t = useT();
   if (!clock || !clock.quiet) return null;
 
-  const hour = clock.local_hour;
-  const suffix = hour < 12 ? "am" : "pm";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-
-  const provenance =
-    clock.source === "contact"
-      ? "set on their contact"
-      : (clock.source === "area_code"
-        ? "from their area code"
-        : // The weakest rung: a non-geographic number with no override, so we
-          // are showing the shop's own clock and should say so plainly rather
-          // than let it read as the customer's.
-          "your workspace's timezone — we don't know theirs");
-
   return (
     <p className="flex items-start gap-1.5 px-1 pb-1.5 text-xs text-muted-foreground">
       <Moon
@@ -52,8 +46,10 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
         aria-hidden
       />
       <span>
-        It&apos;s about {twelve}
-        {suffix} where they are ({provenance}).{" "}
+        {t("thread.theirTimeAbout", {
+          time: formatCompactWallHour(clock.local_hour, t.locale),
+          source: t(CLOCK_SOURCES[clock.source]),
+        })}{" "}
         {/* #539: WHY theirs is the clock that counts, and that a wrong guess is
             correctable. The issue asked "why are we deriving time from customers
             area codes even? what if i bought my phone number in quebec but now

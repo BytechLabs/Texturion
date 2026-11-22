@@ -38,6 +38,13 @@ final class DestinationClockCopyTests: XCTestCase {
         XCTAssertTrue(line!.contains("where they are"), line!)
     }
 
+    func testUsesACanadianFrenchHourForTheDestinationClock() throws {
+        let line = try XCTUnwrap(theirTimeLine(clock(), locale: "fr-CA"))
+        XCTAssertTrue(line.hasPrefix("Il est environ 21 h chez lui (d'après son indicatif régional)."), line)
+        let midnight = try XCTUnwrap(theirTimeLine(clock(hour: 0, source: "contact"), locale: "fr-CA"))
+        XCTAssertTrue(midnight.hasPrefix("Il est environ 0 h chez lui"), midnight)
+    }
+
     func testHandlesMidnightAndNoonWithoutSayingZero() {
         XCTAssertTrue(theirTimeLine(clock(hour: 0))!.contains("12am"))
         // Noon is never quiet under the default window, but Texas Sundays make

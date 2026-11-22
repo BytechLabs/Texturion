@@ -103,6 +103,13 @@ enum TimestampFormat {
         draw(date, locale, timeZone, english: "h:mm a", french: "H 'h' mm")
     }
 
+    static func compactWallHour(_ hour: Int, locale: String?) -> String {
+        if locale == MessageLocale.frCA { return "\(hour) h" }
+        let twelve = hour % 12 == 0 ? 12 : hour % 12
+        let suffix = hour < 12 ? "am" : "pm"
+        return "\(twelve)\(suffix)"
+    }
+
     static func weekday(_ date: Date, locale: String? = nil, timeZone: TimeZone = .current) -> String {
         draw(date, locale, timeZone, english: "EEEE", french: "EEEE")
     }

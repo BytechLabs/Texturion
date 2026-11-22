@@ -1,6 +1,7 @@
 package com.loonext.android.features.thread
 
 import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
@@ -1164,13 +1165,11 @@ fun threadSummaryRefusal(reason: String, standing: CarrierStanding?): ThreadSumm
  */
 fun theirTimeLine(clock: DestinationClock?, locale: String? = null): String? {
     if (clock == null || !clock.quiet) return null
-    val suffix = if (clock.local_hour < 12) "am" else "pm"
-    val twelve = if (clock.local_hour % 12 == 0) 12 else clock.local_hour % 12
     val line = AppStrings.translate(
         locale,
         "thread.theirTimeAbout",
         mapOf(
-            "time" to "$twelve$suffix",
+            "time" to TimestampFormat.compactWallHour(clock.local_hour, locale),
             "source" to clockProvenance(clock.source, locale),
         ),
     )

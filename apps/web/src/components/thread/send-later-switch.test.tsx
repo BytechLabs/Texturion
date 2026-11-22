@@ -12,9 +12,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LocaleProvider } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 
-import { parseLocalInput, SendLaterDialog } from "./send-later-menu";
+import { parseLocalInput, QuietHoursConfirm, SendLaterDialog } from "./send-later-menu";
 
 afterEach(cleanup);
 
@@ -44,6 +45,15 @@ function soonAt0830(): string {
 }
 
 const SAME_AS_HERE: DestinationClock = { ...VANCOUVER, timezone: HERE };
+
+it("shows the destination hour in the French scheduling confirmation", () => {
+  render(
+    <LocaleProvider userLocale="fr-CA">
+      <QuietHoursConfirm open localHour={21} onOpenChange={vi.fn()} onConfirm={vi.fn()} />
+    </LocaleProvider>,
+  );
+  expect(screen.getByRole("dialog").textContent).toMatch(/Il sera environ 21\s+h chez ce client/);
+});
 
 function open(clock: DestinationClock | null) {
   const onConfirm = vi.fn();
@@ -86,6 +96,17 @@ describe("SendLaterDialog clock switch (#539)", () => {
     expect(screen.getByRole("group", { name: "Which clock" })).toBeInstanceOf(Element);
     expect(screen.getByRole("button", { name: "Your time" })).toBeInstanceOf(Element);
     expect(screen.getByRole("button", { name: "Their time" })).toBeInstanceOf(Element);
+  });
+
+  it("translates both clock choices and the selected clock's input label", () => {
+    render(
+      <LocaleProvider userLocale="fr-CA">
+        <SendLaterDialog open clock={VANCOUVER} onOpenChange={vi.fn()} onConfirm={vi.fn()} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByLabelText("Date et heure d'envoi, votre heure locale")).toBeInstanceOf(Element);
+    fireEvent.click(screen.getByRole("button", { name: "Son heure locale" }));
+    expect(screen.getByLabelText("Date et heure d'envoi, son heure locale")).toBeInstanceOf(Element);
   });
 
   it("starts on the reader's own clock", () => {

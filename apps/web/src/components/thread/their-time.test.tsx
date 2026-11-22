@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { LocaleProvider } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 
 import { TheirTime } from "./their-time";
@@ -55,5 +56,20 @@ describe(TheirTime, () => {
     // The weakest rung. Letting this read as the customer's time would be
     // presenting our timezone as theirs.
     expect(render(clock({ source: "company" }))).toContain("we don&#x27;t know theirs");
+  });
+
+  it.each([
+    ["area_code", "d&#x27;après son indicatif régional"],
+    ["contact", "inscrit à sa fiche de contact"],
+    ["company", "le fuseau horaire de votre espace de travail"],
+  ] as const)("renders the %s clock and its source in Canadian French", (source, provenance) => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider userLocale="fr-CA">
+        <TheirTime clock={clock({ source })} />
+      </LocaleProvider>,
+    );
+    expect(html).toMatch(/Il est environ 21\s+h chez lui/);
+    expect(html).toContain(provenance);
+    expect(html.includes("Les règles sur les heures")).toBe(source === "area_code");
   });
 });

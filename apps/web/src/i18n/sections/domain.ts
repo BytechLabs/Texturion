@@ -22,6 +22,8 @@
  * It grows one shared module at a time. Send failures first, because they are
  * the ones a person reads while wondering whether to try again.
  */
+import { CLOCK_CHOICE_LABELS } from "@loonext/shared";
+
 import type { Translated } from "../translated";
 
 export const domainEn = {
@@ -29,6 +31,8 @@ export const domainEn = {
   /* #228 — whose clock the rules follow (#225), and the numbers a member
      cannot see (#286). Both phones have had all three. */
   twoClocksAreaCodeNote: "The rules about when you may text go by their clock, not yours. If this number moved, set their timezone on the contact.",
+  twoClocksChoiceYours: CLOCK_CHOICE_LABELS.yours,
+  twoClocksChoiceTheirs: CLOCK_CHOICE_LABELS.theirs,
   twoClocksLine: "{there} their time · {here} yours",
   twoClocksSpoken: "{there} their time, which is {here} yours",
   hiddenNumbersOne: "One more number is on this account that is not shared with you. Ask an owner if you need it.",
@@ -383,6 +387,8 @@ export const domainEn = {
 export const domainFr: Translated<typeof domainEn> = {
   voicemailIntakeSource: "Tiré du message vocal",
   twoClocksAreaCodeNote: "Les règles sur les heures où vous pouvez texter suivent leur horloge, pas la vôtre. Si ce numéro a déménagé, réglez son fuseau horaire sur la fiche du client.",
+  twoClocksChoiceYours: "Votre heure locale",
+  twoClocksChoiceTheirs: "Son heure locale",
   twoClocksLine: "{there} à leur heure · {here} à la vôtre",
   twoClocksSpoken: "{there} à leur heure, ce qui fait {here} à la vôtre",
   hiddenNumbersOne: "Un autre numéro se trouve sur ce compte sans être partagé avec vous. Demandez-le à un propriétaire si vous en avez besoin.",

@@ -301,13 +301,14 @@ fun QuietHoursScheduleDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val locale = LocalAppLocale.current
     ConfirmDialog(
         title = t("thread.quietHoursTitle"),
         body = if (localHour == null) {
-            ScheduledSend.copy("quiet_hours_unknown", LocalAppLocale.current)
+            ScheduledSend.copy("quiet_hours_unknown", locale)
         } else {
-            t("thread.quietHoursAround", "hour" to formatHour(localHour))
-        } + " " + ScheduledSend.copy("quiet_hours_choice", LocalAppLocale.current),
+            t("thread.quietHoursAround", "hour" to TimestampFormat.compactWallHour(localHour, locale))
+        } + " " + ScheduledSend.copy("quiet_hours_choice", locale),
         confirmLabel = t("thread.scheduleAnyway"),
         dismissLabel = t("thread.pickAnotherTime"),
         onDismiss = onDismiss,
@@ -322,12 +323,6 @@ internal fun clockOf(at: Instant, zone: ZoneId): String =
 /** "Tue 8:00 AM" — enough to recognise what you picked, and no more. */
 internal fun sendAtLabel(at: Instant, zone: ZoneId, now: Instant = Instant.now()): String =
     TimestampFormat.label(at.toString(), TimestampFormat.Style.LONG, now = now, zone = zone)
-
-private fun formatHour(hour: Int): String {
-    val suffix = if (hour < 12) "am" else "pm"
-    val twelve = if (hour % 12 == 0) 12 else hour % 12
-    return "$twelve$suffix"
-}
 
 /** The destination's zone, falling back to this device's when unresolved. */
 internal fun destinationZone(clock: DestinationClock?): ZoneId =

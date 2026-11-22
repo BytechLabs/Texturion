@@ -1101,13 +1101,11 @@ struct MessagingRepository: Sendable {
 /// and nil still reads English.
 func theirTimeLine(_ clock: DestinationClock?, locale: String? = nil) -> String? {
     guard let clock, clock.isQuiet else { return nil }
-    let suffix = clock.hour < 12 ? "am" : "pm"
-    let twelve = clock.hour % 12 == 0 ? 12 : clock.hour % 12
     let line = AppStrings.translate(
         locale,
         "thread.theirTimeAbout",
         [
-            "time": "\(twelve)\(suffix)",
+            "time": TimestampFormat.compactWallHour(clock.hour, locale: locale),
             "source": clockProvenance(clock.rung, locale: locale),
         ]
     )

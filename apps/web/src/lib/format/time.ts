@@ -4,6 +4,7 @@ import {
   sameClock,
   timestampShape,
 } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { makeTranslate } from '@/i18n/translate';
 import type { Translate } from '@/i18n/translate';
@@ -432,6 +433,13 @@ export function formatWallHour(hour: number, locale: string): string {
   return getFormatter(locale, "UTC", { hour: "numeric" }).format(
     new Date(Date.UTC(2000, 0, 1, hour)),
   );
+}
+
+export function formatCompactWallHour(hour: number, locale: Locale): string {
+  if (locale !== DEFAULT_LOCALE) return formatWallHour(hour, locale);
+  const twelve = hour % 12 || 12;
+  const suffix = hour < 12 ? "am" : "pm";
+  return `${twelve}${suffix}`;
 }
 
 export function formatScheduledTime(iso: string, locale: string, timeZone?: string, withDay = false): string {
