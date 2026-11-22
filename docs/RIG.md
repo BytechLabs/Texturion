@@ -217,7 +217,9 @@ No hardware is bought (D142, update of 2026-11-01). The rig's Linux half is a ne
 
 **Why not WSL2.** A WSL distro mounts the Windows drives, which hold production keys in `apps/api/.dev.vars`, and shares one kernel with every other distro. The VM sees none of the host's drives.
 
-**The Windows side: `hostd`.** `tools/rig/host/hostd.mjs` is a dependency-free Node supervisor. Its ports and devices are `tools/rig/host/contract.json`. It:
+**The Windows side: `hostd`.** `tools/rig/host/hostd.mjs` is a dependency-free Node supervisor.
+It reads its ports, devices and emulator limit from `tools/rig/host/contract.json` at startup.
+
 - starts the VM with `vmrun ... nogui`, addressing only the marked `.vmx`;
 - starts the emulators under WHPX with `-accel on`, so a missing hypervisor fails loudly instead of falling back to software, with private AVD and emulator homes on F:;
 - runs a rig-only adb server on port 5137, so the agents' own adb on 5037 is untouched;
@@ -1347,7 +1349,7 @@ node scripts/ops/agent-diag.mjs --self-check
 | Production Telnyx reads | Merged into the guard as a redacted, GET-only class: one full-power key fewer. |
 | PostHog write access | None on the rig: the project key only sends, and the personal key only queries. |
 | FCM key rotation | No self-rotating key; non-expiry is checked at setup. |
-| Rig memory | 24 GB for the VM; the emulators run on the host, 2 cores and 3 GB each, at most 3 booted (2026-11-01). |
+| Rig memory | 24 GB for the VM. Each of the four configured emulators uses 2 cores and 3 GB on the host. All four can run together. |
 | Transfer pricing | Transfers are budgeted at $0.10 each (SIP Refer, rate sheet 2026-10-29). |
 | Cron path | `/cdn-cgi/handler/scheduled`, confirmed in wrangler 4.106.0. |
 | Isolation proof | G01 proves the app layer and the guard's 403s when it is run (on demand since 2026-11-01). |

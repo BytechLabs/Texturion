@@ -87,14 +87,14 @@ test("a name outside the contract, any other path and a wrong method are 404; th
   }
 });
 
-test("boot, 409 at max_booted, tokens and kill", async () => {
+test("boot all four emulators, fetch tokens and validate flags", async () => {
   assert.equal((await call("/v1/devices/pixel/tokens")).status, 409, "no tokens while off");
   assert.deepEqual(await call("/v1/devices/pixel/boot", { method: "POST", body: {} }), { status: 200, body: { state: "booted" } });
   assert.equal((await call("/v1/devices/emulator-34/boot", { method: "POST", body: { cold: true } })).status, 200);
   assert.equal((await call("/v1/devices/emulator-35/boot", { method: "POST" })).status, 200);
   assert.deepEqual(await call("/v1/devices/emulator-36/boot", { method: "POST" }), {
-    status: 409,
-    body: { error: "max_booted", max_booted: 3 },
+    status: 200,
+    body: { state: "booted" },
   });
   assert.deepEqual(await call("/v1/devices/pixel/tokens"), { status: 200, body: { console_token: CONSOLE_TOKEN, grpc_token: GRPC_TOKEN } });
   assert.equal((await call("/v1/devices/pixel/boot", { method: "POST", body: { cold: "yes" } })).status, 400);

@@ -316,10 +316,6 @@ async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   return found;
 }
 
-/**
- * E01's AVDs are checked when booted. At most three emulators run at once,
- * the device lane's among them, so one that is down is E01's to boot.
- */
 async function emulatorFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   const booted: Record<string, boolean> = {};
   const found: ScenarioResult[] = [];

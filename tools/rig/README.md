@@ -214,7 +214,7 @@ hostd and by the VM's lanes:
 | `emulator-35` (`rig-api35`) | console 5556, gRPC 8556 | the same |
 | `emulator-36` (`rig-api36`) | console 5558, gRPC 8558 | the same |
 
-At most 3 emulators are booted at once. The tunnel is one SSH connection the
+All four configured emulators can run together. The tunnel is one SSH connection the
 host opens to `rig@192.168.70.10` with `F:\loonext-rig\host\ssh\rig`, pinning
 the host key cloud-init pre-seeded; each port above is one `-R` bind on the
 VM's loopback, which the VM's sshd `PermitListen` allows and nothing else.
