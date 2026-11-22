@@ -245,6 +245,7 @@ describe("S25, automated texts and quiet hours", () => {
 
   it("passes by day when every automation arrives, and at night when the business's own are held", async () => {
     const day = textWorld("S25");
+    day.time.now = Date.UTC(2026, 10, 1, 3);
     day.app.automations = [
       { kind: "away_reply", body: "Away n0nce", state: "sent", reply: true },
       { kind: "scheduled_send", body: "Scheduled n0nce", state: "sent", reply: false },
@@ -253,28 +254,33 @@ describe("S25, automated texts and quiet hours", () => {
     day.robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Scheduled n0nce" });
     expect((await S25.run(day.ctx)).outcome).toBe("pass");
     expect(day.undo).toEqual([{ kind: "app.disarm-automations", params: { tenant: "QA-W", nonce: "n0nce" } }]);
-    expect(day.app.firedCrons).toEqual([{ cron: "* * * * *" }]);
+    expect(day.app.firedCrons).toHaveLength(1);
+    expect(day.app.firedCrons[0]?.cron).toBe("* * * * *");
+    expect(isQuietHour(day.app.firedCrons[0]!.at!)).toBe(false);
 
     const night = textWorld("S25");
-    night.time.now = Date.UTC(2026, 10, 1, 3);
-    night.app.automations = [{ kind: "reminder", body: "Reminder n0nce", state: "held", reply: false }];
+    night.ctx.slot.index = 1;
+    night.app.automations = [{ kind: "reminder", body: "Reminder n0nce", state: "held", reason: "domain.scheduledHoldQuietHours", reply: false }];
     expect((await S25.run(night.ctx)).outcome).toBe("pass");
+    expect(isQuietHour(night.app.firedCrons[0]!.at!)).toBe(true);
+    night.app.automations[0] = { ...night.app.automations[0]!, reason: "domain.scheduledHoldCustomerReply" };
+    await expect(S25.run(night.ctx)).resolves.toMatchObject({ failure_class: "quiet_hold_missing" });
     night.app.automations = [{ kind: "reminder", body: "Reminder n0nce", state: "sent", reply: false }];
     await expect(S25.run(night.ctx)).resolves.toMatchObject({ failure_class: "sent_in_quiet_hours" });
   });
 
   it("expects a reply to the customer's own text at night as well, which D4 exempts from quiet hours", async () => {
     const night = textWorld("S25");
-    night.time.now = Date.UTC(2026, 10, 1, 3);
+    night.ctx.slot.index = 1;
     night.app.automations = [
       { kind: "emergency_ack", body: "Emergency n0nce", state: "sent", reply: true },
-      { kind: "reminder", body: "Reminder n0nce", state: "held", reply: false },
+      { kind: "reminder", body: "Reminder n0nce", state: "held", reason: "domain.scheduledHoldQuietHours", reply: false },
     ];
     night.robot.deliver({ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Emergency n0nce" });
     expect((await S25.run(night.ctx)).outcome).toBe("pass");
 
     const held = textWorld("S25");
-    held.time.now = Date.UTC(2026, 10, 1, 3);
+    held.ctx.slot.index = 1;
     held.app.automations = [{ kind: "away_reply", body: "Away n0nce", state: "held", reply: true }];
     await expect(S25.run(held.ctx)).resolves.toMatchObject({ failure_class: "reply_held_at_night" });
   });
