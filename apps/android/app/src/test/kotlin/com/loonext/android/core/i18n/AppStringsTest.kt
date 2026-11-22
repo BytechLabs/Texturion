@@ -131,6 +131,19 @@ class AppStringsTest {
     }
 
     @Test
+    fun `interpolation preserves placeholder text inside values`() {
+        val names = mapOf("first" to "{second}", "second" to "{first}")
+        assertEquals(
+            "{second} and {first} are also here",
+            AppStrings.translate(MessageLocale.EN, "thread.presenceViewingTwo", names),
+        )
+        assertEquals(
+            "{second} et {first} sont aussi là",
+            AppStrings.translate(MessageLocale.FR_CA, "thread.presenceViewingTwo", names),
+        )
+    }
+
+    @Test
     fun `the interpolation pattern really matches, which a backspace would not`() {
         // This repo has lost two guards to a Kotlin string's backslash-b being
         // a BACKSPACE rather than a word boundary — one of them a check on a
