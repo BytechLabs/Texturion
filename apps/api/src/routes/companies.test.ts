@@ -94,6 +94,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       p_country: "US",
       p_requested_area_code: "212",
       p_us_texting_enabled: true,
+      p_timezone: "America/New_York",
     });
   });
 
@@ -202,7 +203,13 @@ describe("POST /v1/companies (company-exempt)", () => {
     );
   });
 
-  it("omits p_timezone when the body carries none (SQL default applies, D15)", async () => {
+  it.each([
+    [undefined, "America/Vancouver"],
+    ["+00:00", "UTC"],
+    ["-00", "UTC"],
+    ["+0530", "America/Vancouver"],
+    ["-04:00", "America/Vancouver"],
+  ])("creates a workspace with a named zone for browser reports of %s", async (timezone, expected) => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
     stubFetch(jwksRoute(auth), sb.route);
@@ -210,17 +217,40 @@ describe("POST /v1/companies (company-exempt)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
       method: "POST",
       companyId: null,
-      body: { ...validBody, requested_area_code: "212" },
+      body: { ...validBody, country: "CA", requested_area_code: "604", timezone },
     });
     expect(res.status).toBe(201);
-    expect(
-      sb.find("POST", "/rest/v1/rpc/api_create_company")[0].body,
-    ).not.toHaveProperty("p_timezone");
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_company")[0].body).toMatchObject({
+      p_timezone: expected,
+    });
+  });
+
+  it("uses the chosen nearby number's zone when the browser has only an offset", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: {
+        ...validBody,
+        country: "CA",
+        requested_area_code: "416",
+        chosen_number_e164: "+16045550188",
+        timezone: "-07:00",
+      },
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_company")[0].body).toMatchObject({
+      p_timezone: "America/Vancouver",
+    });
   });
 
   it("422s an invalid timezone at create (D15 IANA validation)", async () => {
     stubFetch(jwksRoute(auth), supabaseStub(env).route);
-    for (const timezone of ["Not/AZone", "EST5EDT-nonsense", "Toronto", ""]) {
+    for (const timezone of ["Not/AZone", "EST5EDT-nonsense", "Toronto", "", "+24:00", "+12:60"]) {
       const res = await apiRequest(
         app,
         env,
@@ -1127,7 +1157,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     await expect(errorCodeOf(roundsToZero)).resolves.toBe("validation_failed");
   });
 
-  it("lets an admin set the timezone; invalid zones are 422 (D15)", async () => {
+  it("lets an admin set an IANA timezone and rejects unsupported zones", async () => {
     const sb = stubWithRole("admin");
     sb.on("PATCH", "/rest/v1/companies", () => [
       { id: COMPANY_ID, timezone: "America/Denver" },
@@ -1144,13 +1174,15 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       timezone: "America/Denver",
     });
 
-    const bad = await apiRequest(app, env, await auth.token(), "/v1/company", {
-      method: "PATCH",
-      companyId: COMPANY_ID,
-      body: { timezone: "Eastern" },
-    });
-    expect(bad.status).toBe(422);
-    await expect(errorCodeOf(bad)).resolves.toBe("validation_failed");
+    for (const timezone of ["Eastern", "+00:00", "-07:00"]) {
+      const bad = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { timezone },
+      });
+      expect(bad.status).toBe(422);
+      await expect(errorCodeOf(bad)).resolves.toBe("validation_failed");
+    }
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(1);
   });
 

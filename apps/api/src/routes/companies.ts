@@ -5,8 +5,8 @@
  *         zod body { name, country, requested_area_code, us_texting_enabled?,
  *         timezone?, aup_accepted: true }; area code must be a geographic
  *         US/CA NANP code in the company's country; AUP acceptance is
- *         mandatory (422); timezone must be a valid IANA zone when present
- *         (D15 — onboarding sends the browser's zone; DB default otherwise).
+ *         mandatory (422). A named timezone is kept. With a fixed offset or
+ *         no browser zone, creation uses the number's zone, or UTC at zero.
  *         Creates company + owner membership + pre-seeded pipeline tags +
  *         notification_prefs atomically (api_create_company SQL function).
  *         Capped per user (#31): the RPC refuses a 6th owned workspace with
@@ -71,6 +71,8 @@ import {
 import { executionCtxOf, parseJsonBody, unwrap } from "./core/http";
 import { isValidIanaTimezone } from "./core/timezone";
 
+const TIMEZONE_OFFSET = /^[+-]([01]\d|2[0-3])(?::?([0-5]\d))?$/;
+
 const createSchema = z.object({
   name: z.string().trim().min(1).max(200),
   country: z.enum(["US", "CA"]),
@@ -83,8 +85,6 @@ const createSchema = z.object({
     .regex(/^\+1\d{10}$/)
     .optional(),
   us_texting_enabled: z.boolean().optional(),
-  // D15: onboarding sends the browser's IANA zone; validated below against
-  // the runtime's timezone database (a zod enum cannot express it).
   timezone: z.string().trim().min(1).max(100).optional(),
   locale: z.enum(LOCALES).optional(),
   // AUP acceptance is implicit now (the create RPC stamps aup_accepted_at
@@ -487,13 +487,23 @@ function assertValidTimezone(timezone: string): void {
   }
 }
 
+function companyCreationTimezone(timezone: string | undefined, numberTimezone: string): string {
+  if (timezone === undefined) return numberTimezone;
+  const offset = TIMEZONE_OFFSET.exec(timezone);
+  if (offset) {
+    return offset[1] === "00" && (offset[2] ?? "00") === "00" ? "UTC" : numberTimezone;
+  }
+  assertValidTimezone(timezone);
+  return timezone;
+}
+
 /**
  * Choose-your-number: a picked E.164 must be a geographic NANP number in the
  * company's country — validated against its OWN area code's NDC, NOT the
  * requested area code (a "show nearby" pick legitimately lands on a different
  * area code — e.g. an exhausted 416 → a 647).
  */
-function assertChosenNumberCountry(e164: string, country: string): void {
+function requireChosenNumberArea(e164: string, country: string) {
   const ndc = /^\+1(\d{3})\d{7}$/.exec(e164)?.[1];
   const entry = ndc ? NANP_AREA_CODES[ndc] : undefined;
   if (!ndc || !entry || !entry.geographic || entry.country !== country) {
@@ -502,6 +512,7 @@ function assertChosenNumberCountry(e164: string, country: string): void {
       `chosen_number_e164: ${e164} is not a ${country} local number.`,
     );
   }
+  return entry;
 }
 
 export const companiesRoutes = new Hono<AppEnv>();
@@ -522,10 +533,10 @@ companiesRoutes.post("/companies", async (c) => {
       "us_texting_enabled: US companies always have US texting enabled.",
     );
   }
-  if (body.chosen_number_e164) {
-    assertChosenNumberCountry(body.chosen_number_e164, body.country);
-  }
-  if (body.timezone !== undefined) assertValidTimezone(body.timezone);
+  const chosenArea = body.chosen_number_e164
+    ? requireChosenNumberArea(body.chosen_number_e164, body.country)
+    : entry;
+  const timezone = companyCreationTimezone(body.timezone, chosenArea.timezone);
 
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -538,8 +549,7 @@ companiesRoutes.post("/companies", async (c) => {
       // us_texting_enabled applies to CA (SPEC §4.2); US is always true.
       p_us_texting_enabled:
         body.country === "US" ? true : (body.us_texting_enabled ?? companySettingDefault("us_texting_enabled")),
-      // Omitted → the SQL default ('America/Toronto', D15) applies.
-      ...(body.timezone === undefined ? {} : { p_timezone: body.timezone }),
+      p_timezone: timezone,
     }),
     "company create",
   );
@@ -1243,7 +1253,7 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
       body.requested_area_code !== undefined;
     if ("chosen_number_e164" in body) {
       if (body.chosen_number_e164) {
-        assertChosenNumberCountry(body.chosen_number_e164, nextCountry);
+        requireChosenNumberArea(body.chosen_number_e164, nextCountry);
         patch.chosen_number_e164 = body.chosen_number_e164;
       } else {
         patch.chosen_number_e164 = null;

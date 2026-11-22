@@ -665,10 +665,11 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
 
 - All in-app timestamps render in the **viewer's browser timezone** (correct default);
   hovering a timestamp shows the absolute datetime including zone abbreviation.
-- `companies.timezone` (IANA, NOT NULL with default 'America/Toronto' for safe migration,
-  set from the creating browser at onboarding, editable in Settings → Workspace). Used for
-  business-facing daily framing (grace/usage email send windows) — quiet hours remain
-  **destination**-local per D4, unchanged.
+- `companies.timezone` is an IANA zone editable in Settings → Workspace. Onboarding keeps
+  the browser's named zone or records UTC for a zero offset. With any other fixed offset
+  or no browser zone, it uses the selected or requested number's region. The column's
+  default is `America/Toronto` for migration. Workspace time frames business days and
+  grace and usage email send windows. Quiet hours use the destination's time (D4).
 - Per-user preferences surface = what exists: display name, theme (System/Light/Dark),
   notification toggles (email/push). No per-user timezone override in MVP.
 

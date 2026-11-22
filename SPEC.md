@@ -833,7 +833,7 @@ shell.
 | Method & path | Role | Purpose / shape |
 |---|---|---|
 | `GET /v1/me` | any | `{ user_id, display_name, memberships: [{company_id, name, role, subscription_status}] }` |
-| `POST /v1/companies` | any | Create company: `{ name, country, requested_area_code, us_texting_enabled?, aup_accepted: true }` → company; creator = owner |
+| `POST /v1/companies` | any | Create company: `{ name, country, requested_area_code, us_texting_enabled?, timezone?, aup_accepted: true }` → company; creator = owner. Signup accepts an IANA zone or browser offset (D15). |
 | `GET /v1/company` | M | Company + plan, subscription_status, period, cap, numbers summary, registration summary |
 | `PATCH /v1/company` | O/A | `{ name? }`; `{ overage_cap_multiplier? }` **owner only** (number or null) |
 | `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` for a live subscription or an incomplete rejected US registration on resubscribe (§4.1 step 3) |
