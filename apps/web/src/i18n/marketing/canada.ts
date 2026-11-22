@@ -38,6 +38,9 @@ export const canadaEn = {
   timelineDayZero: "Day 0",
   heroPriceAfter: "a month for the whole team, flat.",
   truthPlansBefore: "The same flat plans as everyone:",
+  truthPlansStarterAfter: "/mo on Starter for up to 3 people and one local number,",
+  truthPlansProAfter:
+    "/mo on Pro for up to 15 people and two numbers. Receiving texts is always free and unlimited, month to month.",
   truthFeeBefore:
     "A Canadian business texting Canadian customers pays no registration fee and waits for nothing. The one-time",
   truthFeeAfter:
@@ -163,6 +166,9 @@ export const canadaFr: Translated<typeof canadaEn> = {
   timelineDayZero: "Jour 0",
   heroPriceAfter: "par mois pour toute l'équipe, prix fixe.",
   truthPlansBefore: "Les mêmes forfaits fixes que tout le monde :",
+  truthPlansStarterAfter: "/mois sur Starter pour un maximum de 3 personnes et un numéro local,",
+  truthPlansProAfter:
+    "/mois sur Pro pour un maximum de 15 personnes et deux numéros. La réception de textos reste gratuite et illimitée tous les mois.",
   truthFeeBefore:
     "Une entreprise canadienne qui écrit à des clients canadiens ne paie aucuns frais d'inscription et n'attend rien. Les frais uniques de",
   truthFeeAfter:

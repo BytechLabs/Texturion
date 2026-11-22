@@ -76,6 +76,10 @@ export const assistantEn = {
 
   pricingBefore:
     "Lou is included at both prices with nothing to enable and no per-seat or per-use charge:",
+  pricingStarterAfter: "/mo on Starter for up to 3 people,",
+  pricingProAfter:
+    "/mo on Pro for up to 15. The monthly caps are the reason there is no meter to watch. What Lou reads and stores is set out in our",
+  pricingPolicyJoin: "and the",
   privacyLink: "privacy policy",
   subprocessorsLink: "subprocessors page",
 
@@ -182,6 +186,10 @@ export const assistantFr: Translated<typeof assistantEn> = {
 
   pricingBefore:
     "Lou est inclus aux deux prix, sans rien à activer et sans frais par personne ni par utilisation :",
+  pricingStarterAfter: "/mois sur Starter pour un maximum de 3 personnes,",
+  pricingProAfter:
+    "/mois sur Pro pour un maximum de 15 personnes. Les plafonds mensuels vous évitent d’avoir à surveiller un compteur. Ce que Lou lit et conserve est expliqué dans notre",
+  pricingPolicyJoin: "et sur la",
   privacyLink: "politique de confidentialité",
   subprocessorsLink: "page des sous-traitants",
 

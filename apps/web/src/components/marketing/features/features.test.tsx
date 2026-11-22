@@ -43,8 +43,12 @@ import TemplatesAndTagsPage, {
 import { CountryProvider } from "@/components/marketing/country";
 import { BrowserFrame } from "@/components/marketing/frame/browser-frame";
 import { PhoneFrame } from "@/components/marketing/frame/phone-frame";
-import { ConsentVisual } from "./consent-visual";
+import { AssistantPageBody } from "../assistant-page";
+import { CallsPageBody } from "../calls-page";
 import { CanadaPageBody } from "../canada-page";
+import { ContactsPageBody } from "../contacts-page";
+import { SharedInboxPageBody } from "../shared-inbox-page";
+import { ConsentVisual } from "./consent-visual";
 import {
   FeatureCta,
   PricingSnippet,
@@ -433,6 +437,31 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
       "no carrier registration to text Canadian customers",
     );
     expect(comp).not.toContain("Let us handle the compliance details");
+  });
+});
+
+describe("Canadian French feature pricing", () => {
+  it.each([
+    ["shared inbox", SharedInboxPageBody],
+    ["calls", CallsPageBody],
+    ["contacts", ContactsPageBody],
+    ["Lou", AssistantPageBody],
+    ["Canada", CanadaPageBody],
+  ] as const)("localizes the %s plan paragraphs", (_label, Page) => {
+    for (const [country, audience] of [["us", "usd"], ["ca", "cad"]] as const) {
+      const html = renderToStaticMarkup(
+        <CountryProvider initialCountry={country} locale="fr-CA">
+          <Page locale="fr-CA" />
+        </CountryProvider>,
+      );
+      const starter = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience, "fr-CA");
+      const pro = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", audience, "fr-CA");
+      expect(html).toContain(`${starter}/mois sur Starter pour un maximum de 3 personnes`);
+      expect(html).toContain(`${pro}/mois sur Pro pour un maximum de 15 personnes`);
+      expect(html).not.toContain("/mo on");
+      expect(html).not.toContain("to register with the phone companies");
+      expect(html).not.toContain("Texting Canadian customers has no registration");
+    }
   });
 });
 

@@ -78,8 +78,15 @@ export const sharedInboxEn = {
 
   pricingBefore:
     "The shared inbox is the whole product, at one flat price for the whole crew:",
+  pricingStarterAfter: "/mo on Starter for up to 3 people and one local number,",
+  pricingProAfter:
+    "/mo on Pro for up to 15 people and two numbers. Texting is included on a fair-use basis rather than a hard cap, sized so almost every crew stays comfortably inside it, and receiving texts is always free and unlimited. The concrete numbers live in our",
   pricingUsFee: "US shops also pay a one-time",
-  pricingUsFeeAfter: "from your first month on.",
+  pricingUsFeeAfter: "to register with the phone companies, charged once, ever, so the first month is",
+  pricingUsMonthlyAfter: "and every month after is",
+  pricingCaBefore: "Texting Canadian customers has no registration and no setup fee, so",
+  pricingCaBetween: "is",
+  pricingCaAfter: "from your first month on.",
   fairUseLink: "fair use policy",
 
   relatedEyebrow: "See the shared inbox in your trade",
@@ -191,8 +198,15 @@ export const sharedInboxFr: Translated<typeof sharedInboxEn> = {
 
   pricingBefore:
     "La boîte de réception partagée est tout le produit, à un seul prix fixe pour toute l'équipe :",
+  pricingStarterAfter: "/mois sur Starter pour un maximum de 3 personnes et un numéro local,",
+  pricingProAfter:
+    "/mois sur Pro pour un maximum de 15 personnes et deux numéros. Les textos sont inclus selon une politique d’utilisation équitable plutôt qu’un plafond fixe. Presque toutes les équipes restent bien en dessous des seuils prévus. La réception de textos est toujours gratuite et illimitée. Les seuils sont détaillés dans notre",
   pricingUsFee: "Les commerces américains paient aussi des frais uniques de",
-  pricingUsFeeAfter: "à partir de votre premier mois.",
+  pricingUsFeeAfter: "pour s’inscrire auprès des opérateurs. Ces frais sont facturés une seule fois. Le premier mois coûte",
+  pricingUsMonthlyAfter: "et les mois suivants coûtent",
+  pricingCaBefore: "Les textos à des clients canadiens n’exigent ni inscription ni frais de mise en service. Le tarif de",
+  pricingCaBetween: "reste à",
+  pricingCaAfter: "à partir de votre premier mois.",
   fairUseLink: "politique d'utilisation équitable",
 
   relatedEyebrow: "La boîte partagée dans votre métier",

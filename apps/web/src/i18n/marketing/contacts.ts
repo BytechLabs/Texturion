@@ -73,6 +73,9 @@ export const contactsEn = {
   factsCsv: "Import and export are both CSV, both included, with no row cap and no charge.",
 
   pricingBefore: "Contacts come with the inbox:",
+  pricingStarterAfter: "/mo on Starter for up to 3 people,",
+  pricingProAfter:
+    "/mo on Pro for up to 15. There is no per-contact pricing, no contact cap and no CRM tier. Photos and files attached to a customer are stored free with no caps, which is set out with everything else in our",
   fairUseLink: "fair use policy",
 
   relatedEyebrow: "What fills a contact",
@@ -177,6 +180,9 @@ export const contactsFr: Translated<typeof contactsEn> = {
     "L'importation et l'exportation se font toutes deux en CSV, toutes deux incluses, sans plafond de lignes et sans frais.",
 
   pricingBefore: "Les contacts viennent avec la boîte de réception :",
+  pricingStarterAfter: "/mois sur Starter pour un maximum de 3 personnes,",
+  pricingProAfter:
+    "/mois sur Pro pour un maximum de 15 personnes. Il n’y a ni frais par contact, ni limite de contacts, ni forfait de gestion de la clientèle. Les photos et fichiers joints à la fiche d’un client sont stockés gratuitement et sans limite. Tous les détails figurent dans notre",
   fairUseLink: "politique d'utilisation équitable",
 
   relatedEyebrow: "Ce qui remplit un contact",
