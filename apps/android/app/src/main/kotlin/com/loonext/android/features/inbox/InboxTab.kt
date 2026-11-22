@@ -1731,7 +1731,10 @@ private fun InboxScheduledLink(scheduledCount: Int, onClick: () -> Unit) {
     }
     TextButton(
         onClick = onClick,
-        modifier = Modifier.padding(start = 12.dp).semantics { contentDescription = label },
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .padding(start = 12.dp)
+            .semantics { contentDescription = label },
     ) {
         Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(IconSize.Default))
         Spacer(Modifier.width(8.dp))
