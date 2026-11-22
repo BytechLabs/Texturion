@@ -100,7 +100,12 @@ function waitForRealtime(page) {
   });
 }
 
-async function checkShortPaymentActions(inbox, api) {
+async function checkShortThreadActions(inbox, api) {
+  const normalTimeline = inbox.getByRole("log");
+  assert.ok(
+    await normalTimeline.evaluate((element) => element.clientHeight) >= 120,
+    "An ordinary thread keeps room to read conversation history",
+  );
   const threadUrl = new URL(inbox.url());
   const conversationId = threadUrl.pathname.split("/").at(-1);
   const payment = await inbox.context().newPage();
@@ -123,9 +128,37 @@ async function checkShortPaymentActions(inbox, api) {
       decided_at: now,
       created_at: now,
     }));
+    quotes.push(...Array.from({ length: 4 }, (_, index) => ({
+      ...quotes[0],
+      id: randomUUID(),
+      description: `Draft quote ${index + 1}`,
+      status: "draft",
+      effective_status: "draft",
+      sent_at: null,
+      viewed_at: null,
+      decided_at: null,
+    })));
     await payment.route(quotesUrl.href, async (route) => {
       const response = await route.fetch();
       await route.fulfill({ response, json: { data: quotes } });
+    });
+    const scheduledUrl = new URL("/v1/scheduled-messages", api);
+    scheduledUrl.searchParams.set("conversation_id", conversationId);
+    const scheduledMessages = Array.from({ length: 7 }, (_, index) => ({
+      id: randomUUID(),
+      conversation_id: conversationId,
+      body: `Scheduled test text ${index + 1}`,
+      send_at: new Date(Date.now() + (24 + index) * 3_600_000).toISOString(),
+      clock_timezone: "America/Toronto",
+      clock_source: "company",
+      status: "pending",
+      held_reason: null,
+      held_reason_key: null,
+      allowed_actions: ["edit", "cancel"],
+    }));
+    await payment.route(scheduledUrl.href, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: { scheduled_messages: scheduledMessages } });
     });
     await payment.route(new URL("/v1/payments/account", api).href, async (route) => {
       const response = await route.fetch();
@@ -134,9 +167,20 @@ async function checkShortPaymentActions(inbox, api) {
         json: { ...(await response.json()), connected: true, readiness: "ready", currency: "cad" },
       });
     });
-    await payment.setViewportSize({ width: 320, height: 560 });
+    await payment.setViewportSize({ width: 1100, height: 880 });
     await payment.goto(threadUrl.href);
     await payment.getByText("Install the faucet", { exact: true }).waitFor();
+    const scheduledActions = payment.getByRole("button", { name: /Cancel the message scheduled for/ });
+    await scheduledActions.last().waitFor({ state: "attached" });
+    assert.equal(await scheduledActions.count(), 7);
+    const timeline = payment.getByRole("log");
+    const timelineHeight = () => timeline.evaluate((element) => element.clientHeight);
+    assert.ok(await timelineHeight() >= 120, "Desktop keeps room to read conversation history");
+
+    await payment.setViewportSize({ width: 320, height: 560 });
+    assert.ok(await timelineHeight() >= 120, "Mobile keeps room to read conversation history");
+    await scheduledActions.last().click({ trial: true });
+    await scheduledActions.first().click({ trial: true });
     await payment.getByRole("button", { name: "Ask for payment", exact: true }).last().click();
     const amount = payment.getByLabel("Amount", { exact: true });
     await amount.fill("17.43");
@@ -338,7 +382,7 @@ async function checkJourney(page, web, api, telnyx) {
     await remove.click();
     await inbox.getByRole("dialog", { name: "Delete draft", exact: true }).getByRole("button", { name: "Delete draft", exact: true }).click();
     await row.waitFor({ state: "hidden" });
-    await checkShortPaymentActions(inbox, api);
+    await checkShortThreadActions(inbox, api);
     await inbox.setViewportSize({ width: 390, height: 640 });
 
     await composer.waitFor();
@@ -404,7 +448,7 @@ try {
   }
   console.log(
     "web-journey: live text, idempotent reply, scheduled message controls, job creation, " +
-    "draft quote controls, short-screen payment actions, narrow team rows and STOP passed",
+    "draft quote controls, dense thread and payment actions, narrow team rows and STOP passed",
   );
 } catch (error) {
   console.error("web-journey failed", error);
