@@ -3,6 +3,8 @@ package com.loonext.android.telephony
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -39,14 +41,48 @@ class TelecomTransferRingTest {
         assertEquals(listOf("Original caller"), bridge.posted)
     }
 
-    private class IncomingRings : TelecomCallRegistry.Bridge {
+    @Test
+    fun `an answered update keeps the accepted local call through media and terminal cleanup`() = runTest {
+        val bridge = IncomingRings(acceptsLeg = true)
+        val registry = TelecomCallRegistry(ApplicationProvider.getApplicationContext(), backgroundScope, bridge)
+
+        registry.ensureIncomingCall("session", "Caller", "")
+        registry.onLegBound("session", "leg")
+        assertTrue(registry.answerFromNotification("session"))
+        registry.disconnect("session", unansweredOnly = true)
+        assertTrue(registry.hasActiveCalls())
+
+        registry.driveInbound("session", "leg", TelecomCallReducer.LegState.ACTIVE)
+        registry.disconnect("session", unansweredOnly = true)
+        assertTrue(registry.hasActiveCalls())
+
+        registry.disconnect("session")
+        assertFalse(registry.hasActiveCalls())
+    }
+
+    @Test
+    fun `another device answering clears the original ring without an accepted leg`() = runTest {
+        val bridge = IncomingRings()
+        val registry = TelecomCallRegistry(ApplicationProvider.getApplicationContext(), backgroundScope, bridge)
+
+        registry.ensureIncomingCall("session", "Caller", "")
+        registry.disconnect("session", unansweredOnly = true)
+        assertFalse(registry.hasActiveCalls())
+
+        registry.ensureIncomingCall("unbound", "Other caller", "")
+        assertTrue(registry.answerFromNotification("unbound"))
+        registry.disconnect("unbound", unansweredOnly = true)
+        assertFalse(registry.hasActiveCalls())
+    }
+
+    private class IncomingRings(private val acceptsLeg: Boolean = false) : TelecomCallRegistry.Bridge {
         val posted = mutableListOf<String>()
 
         override fun showIncomingCall(session: String, callerName: String, callerNumber: String) {
             posted += callerName
         }
 
-        override fun acceptLeg(session: String) = false
+        override fun acceptLeg(session: String) = acceptsLeg
         override fun endLeg(session: String) = Unit
         override fun holdLeg(session: String, hold: Boolean) = Unit
         override fun declineMine() = Unit

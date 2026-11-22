@@ -211,7 +211,9 @@ class SoftphoneManager private constructor(
             val session = content.callSessionId ?: return@CallEndHandler true
             if (core.keepTransferRing(session, content.callEndReason)) return@CallEndHandler false
             runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
-            runCatching { registry.disconnect(session) }
+            runCatching {
+                registry.disconnect(session, unansweredOnly = content.callEndReason == CallWakePolicy.STATE_ANSWERED)
+            }
             core.onCallEndPush(session)
             true
         }
@@ -418,7 +420,9 @@ class SoftphoneManager private constructor(
      */
     fun onCallSessionUpdate(sessionId: String, state: String?) {
         if (core.keepTransferRing(sessionId, state)) return
-        if (CallWakePolicy.isRingingExit(state)) runCatching { registry.disconnect(sessionId) }
+        if (CallWakePolicy.isRingingExit(state)) {
+            runCatching { registry.disconnect(sessionId, unansweredOnly = state == CallWakePolicy.STATE_ANSWERED) }
+        }
         core.onCallSessionUpdate(sessionId, state)
     }
 
