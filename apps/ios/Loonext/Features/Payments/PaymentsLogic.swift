@@ -372,16 +372,19 @@ private let payoutRequirementKeys: [String: String] = [
     "external_account": "payments.reqBankAccount",
     "business_profile.url": "payments.reqWebsite",
     "business_profile.mcc": "payments.reqWorkKind",
+    "business_type": "payments.reqBusinessType",
     "individual.verification.document": "payments.reqOwnerId",
     "individual.verification.additional_document": "payments.reqOwnerIdSecond",
     "individual.id_number": "payments.reqOwnerSin",
     "individual.address.line1": "payments.reqOwnerAddress",
     "individual.dob.day": "payments.reqOwnerDob",
+    "individual.relationship.title": "payments.reqBusinessRole",
     "company.tax_id": "payments.reqBusinessNumber",
     "company.verification.document": "payments.reqBusinessDocument",
     "tos_acceptance.date": "payments.reqTos",
     "tos_acceptance.ip": "payments.reqTos",
     "representative.verification.document": "payments.reqSignatoryId",
+    "representative.relationship.title": "payments.reqBusinessRole",
 ]
 
 // MARK: - What the thread strip shows

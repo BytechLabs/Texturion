@@ -329,16 +329,19 @@ describe(payoutRequirementCopy, () => {
       "external_account",
       "business_profile.url",
       "business_profile.mcc",
+      "business_type",
       "individual.verification.document",
       "individual.verification.additional_document",
       "individual.id_number",
       "individual.address.line1",
       "individual.dob.day",
+      "individual.relationship.title",
       "company.tax_id",
       "company.verification.document",
       "tos_acceptance.date",
       "tos_acceptance.ip",
       "representative.verification.document",
+      "representative.relationship.title",
     ]) {
       const { key } = payoutRequirementCopy(requirement);
       expect(key, requirement).not.toBeNull();
@@ -352,6 +355,23 @@ describe(payoutRequirementCopy, () => {
     expect(payoutRequirementCopy("tos_acceptance.ip")).toEqual(
       payoutRequirementCopy("tos_acceptance.date"),
     );
+  });
+
+  it("names the business type and the person's role in both languages", () => {
+    expect(payoutRequirementCopy("business_type")).toEqual({
+      key: "payments.reqBusinessType",
+      literal: null,
+    });
+    for (const person of ["individual", "representative"]) {
+      expect(payoutRequirementCopy(`${person}.relationship.title`)).toEqual({
+        key: "payments.reqBusinessRole",
+        literal: null,
+      });
+    }
+    expect(WEB_EN.payments.reqBusinessType).toBe("Business type");
+    expect(WEB_EN.payments.reqBusinessRole).toBe("Your role in the business");
+    expect(WEB_FR.payments.reqBusinessType).toBe("Type d'entreprise");
+    expect(WEB_FR.payments.reqBusinessRole).toBe("Votre fonction dans l'entreprise");
   });
 
   /**

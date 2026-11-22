@@ -82,6 +82,8 @@ enum PaymentsStrings {
             "payments.reqBankAccount": "Your bank account details",
             "payments.reqWebsite": "Your website or a description of what you do",
             "payments.reqWorkKind": "What kind of work you do",
+            "payments.reqBusinessType": "Business type",
+            "payments.reqBusinessRole": "Your role in the business",
             "payments.reqOwnerId": "Photo ID for the business owner",
             "payments.reqOwnerIdSecond": "A second document for the business owner",
             "payments.reqOwnerSin": "The owner's SIN or SSN",
@@ -164,6 +166,8 @@ enum PaymentsStrings {
             "payments.reqWebsite":
                 "Votre site web ou une description de ce que vous faites",
             "payments.reqWorkKind": "Le type de travail que vous faites",
+            "payments.reqBusinessType": "Type d'entreprise",
+            "payments.reqBusinessRole": "Votre fonction dans l'entreprise",
             "payments.reqOwnerId":
                 "Une pièce d'identité avec photo du propriétaire de l'entreprise",
             "payments.reqOwnerIdSecond":
