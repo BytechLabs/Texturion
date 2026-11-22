@@ -1465,7 +1465,7 @@ export function Composer({
 
   return (
     <div
-      className="relative px-3 pb-2 pt-2 md:px-4 md:pb-4"
+      className="relative min-h-0 overflow-y-auto px-3 pb-2 pt-2 md:px-4 md:pb-4"
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
