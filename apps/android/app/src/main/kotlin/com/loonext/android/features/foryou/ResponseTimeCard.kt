@@ -147,6 +147,7 @@ fun ResponseTimeCard(
                 selected = days,
                 onSelect = onWindow,
                 size = SegmentedSize.Sm,
+                minSegmentWidth = 48.dp,
             )
         }
 

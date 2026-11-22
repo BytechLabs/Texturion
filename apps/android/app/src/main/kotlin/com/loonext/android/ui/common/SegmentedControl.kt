@@ -65,6 +65,7 @@ fun <T> SegmentedControl(
     iconOnly: Boolean = false,
     labelPadding: Dp = 11.dp,
     labelLines: Int = 1,
+    minSegmentWidth: Dp = 44.dp,
 ) {
     val haptics = rememberHaptics()
     Row(
@@ -88,7 +89,7 @@ fun <T> SegmentedControl(
                 Modifier
                     .then(if (fill) Modifier.weight(1f) else Modifier)
                     .heightIn(min = if (size == SegmentedSize.Md) 44.dp else 36.dp)
-                    .widthIn(min = 44.dp)
+                    .widthIn(min = minSegmentWidth)
                     .clip(CircleShape)
                     .background(container, CircleShape)
                     .selectable(
