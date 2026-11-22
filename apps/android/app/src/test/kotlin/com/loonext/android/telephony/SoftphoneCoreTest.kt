@@ -913,6 +913,36 @@ class SoftphoneCoreTest {
     }
 
     @Test
+    fun `a transfer is answerable while original ring legs await the server bye`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        val session = "same-customer-session"
+        h.core.onIncomingCallPush(session)
+        val original = FakeHandle("original")
+        h.sdk.ring(original, headerSession = session)
+        runCurrent()
+        h.core.onCallEndPush(session)
+        assertTrue(h.core.state.value.calls.single().silenced)
+
+        val lateFork = FakeHandle("late-original-fork")
+        h.sdk.ring(lateFork, headerSession = session)
+        runCurrent()
+        val transfer = FakeHandle("transfer")
+        h.sdk.ring(transfer, headerSession = session, headerLegKind = "transfer")
+        runCurrent()
+
+        assertEquals(transfer.id, h.core.state.value.calls.single().id)
+        assertFalse(original.ended)
+        assertFalse(lateFork.ended)
+        assertTrue(h.core.state.value.heldLegsBySession.isEmpty())
+        h.core.answer(transfer.id)
+        assertNotNull(transfer.accepted)
+        assertNull(original.accepted)
+        h.scope.cancel()
+    }
+
+    @Test
     fun `consult autoanswers only on the sender device and resumes the caller after cancel`() = runTest {
         val h = harness()
         h.core.start("company-1")

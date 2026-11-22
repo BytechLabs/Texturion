@@ -156,6 +156,7 @@ class TelecomCallRegistry(
     private class CallEntry(
         val key: String,
         val direction: Int,
+        val transferId: String? = null,
     ) {
         @Volatile var scope: CallControlScope? = null
 
@@ -218,6 +219,9 @@ class TelecomCallRegistry(
 
         @Volatile var terminated = false
 
+        /** Local teardown is done even if the platform registration has not closed. */
+        @Volatile var teardownComplete = false
+
         /** The latest scope operation requested by the media leg. */
         @Volatile var lastAction: TelecomCallReducer.ScopeAction? = null
 
@@ -253,25 +257,22 @@ class TelecomCallRegistry(
     // ---------------------------------------------------------- inbound (§3/§5)
 
     /**
-     * §3 invariant — exactly ONE Telecom call per [session]. Idempotent: the
-     * first trigger (FCM push OR INVITE) does `addCall`; every later trigger
-     * for the same S reuses the handle. Safe to call from the FCM-woken process
-     * (pre-INVITE, locked included) and from the INVITE handler.
+     * §3 invariant — one live Telecom call per [session]. Push and INVITE reuse
+     * the same registration. A new [transferId] can replace a terminated ring
+     * after local teardown finishes.
      */
-    fun ensureIncomingCall(session: String, callerName: String, callerNumber: String) {
+    fun ensureIncomingCall(session: String, callerName: String, callerNumber: String, transferId: String? = null) {
         if (session.isBlank()) return
         registerOnce()
-        // NOTE: do NOT evict a terminated-but-uncleaned entry here to let a
-        // same-session re-presentation through. That was tried and reverted: a
-        // user REJECT terminates the entry, then SoftphoneCore's synchronous
-        // maybePromoteHeld→presentIncoming re-enters this method for the promoted
-        // duplicate fork — so the eviction re-rang a call the user had just
-        // declined (and answering it would accept media on a session whose
-        // decline was already sent). The promoted-fork missed-ring is real but
-        // needs the leg-gone signal (see the note on onLegBound below), not this.
-        if (!TelecomCallReducer.shouldAddCall(entries.keys, session)) return
-        val entry = CallEntry(session, CallAttributesCompat.DIRECTION_INCOMING)
-        if (entries.putIfAbsent(session, entry) != null) return // lost the race
+        val entry = CallEntry(session, CallAttributesCompat.DIRECTION_INCOMING, transferId)
+        val registered = entries.compute(session) { _, previous ->
+            // A fresh transfer can reuse the session while Telecom is still
+            // releasing its old ring. A promoted fork cannot reopen it.
+            if (previous == null ||
+                (transferId != null && previous.teardownComplete && previous.transferId != transferId)
+            ) entry else previous
+        }
+        if (registered !== entry) return
         CallFlowLog.log("telecom", "OS call registered sess=${CallFlowLog.tail(session)}")
         // SELF-MANAGED reality: Telecom draws no incoming UI, so WE ring. Posted
         // once per fresh registration (a duplicate push/INVITE returned above, so
@@ -672,7 +673,7 @@ class TelecomCallRegistry(
                 // leg so the answer race resolves on a teammate's phone. Scoped so a
                 // second live ring on this device isn't collaterally declined.
                 onFailure("telecom-addcall", cause)
-                declineForTeardown(entry)
+                if (!entry.terminated) declineForTeardown(entry)
             } finally {
                 cleanup(entry)
             }
@@ -703,6 +704,7 @@ class TelecomCallRegistry(
         // never accepts onto this torn-down call). Reading a plain @Volatile
         // accepted here would leave that window open (residual MEDIUM finding).
         val wasAccepted = synchronized(entry) {
+            if (entry.terminated) return
             entry.terminated = true
             entry.accepted
         }
@@ -725,13 +727,16 @@ class TelecomCallRegistry(
                 runCatching { bridge.releaseHeldSession(entry.key) }
             }
         }
+        entry.teardownComplete = true
     }
 
     private fun onTelecomResume(entry: CallEntry) {
+        if (entry.terminated) return
         runCatching { bridge.holdLeg(entry.key.removePrefix("out:"), hold = false) }
     }
 
     private fun onTelecomHold(entry: CallEntry) {
+        if (entry.terminated) return
         runCatching { bridge.holdLeg(entry.key.removePrefix("out:"), hold = true) }
     }
 
@@ -820,12 +825,12 @@ class TelecomCallRegistry(
             val result = runCatching { control.answer(entry.callType) }
                 .onFailure { onFailure("telecom-answer", it) }
                 .getOrNull()
-            if (result is CallControlResult.Error) {
+            if (result is CallControlResult.Error && !entry.terminated) {
                 onFailure("telecom-answer", TelecomOpException("answer", result.errorCode))
                 runCatching { bridge.endLeg(session) }
-                disconnectEntry(entry, DisconnectCause(DisconnectCause.ERROR))
                 // Scoped decline (not device-global) so a second live ring survives.
                 declineForTeardown(entry)
+                disconnectEntry(entry, DisconnectCause(DisconnectCause.ERROR))
             }
         }
     }
@@ -1023,9 +1028,12 @@ class TelecomCallRegistry(
         // RECORDED_FOR_BLOCK (the block delivers) do nothing here.
         // No stand-down: server call_end and a leg that already ended (drive
         // DONE/ERROR) must tear the OS call down even if it had accepted.
-        if (claimTerminate(entry, cause) { false } == TerminatePlan.DISCONNECT_NOW) {
+        val plan = claimTerminate(entry, cause) { false }
+        if (plan == TerminatePlan.STAND_DOWN) return
+        if (plan == TerminatePlan.DISCONNECT_NOW) {
             disconnectOnScope(entry, cause)
         }
+        entry.teardownComplete = true
     }
 
     /**

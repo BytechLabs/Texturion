@@ -497,6 +497,7 @@ class SoftphoneCore(
                 declineCancelledPlacement(event.call, headerSession)
                 return
             }
+            if (transferTarget) forgetOriginalRing(headerSession)
         }
         // §10.1.4 one presentation per session per device: the shared Telnyx
         // credential forks every leg's INVITE to all of a member's devices,
@@ -534,6 +535,17 @@ class SoftphoneCore(
             return
         }
         presentIncoming(event.call, name, number, headerSession, legId, transferTarget)
+    }
+
+    private fun forgetOriginalRing(session: String) {
+        // The transfer INVITE proves the session has already been answered.
+        // Its original unanswered forks may still be waiting for the server BYE.
+        heldInvites.filterValues { it.headerSession == session && !it.transferTarget }
+            .keys.toList().forEach { releaseHeld(it) }
+        _state.value.calls.filter {
+            it.sessionId == session && it.direction == CallDirection.INBOUND &&
+                it.phase == CallPhase.RINGING && !it.transferTarget
+        }.forEach { dropRingingPresentation(it.id) }
     }
 
     private fun acceptConsultSender(handle: SdkCallHandle, consultation: Consultation) {
@@ -829,7 +841,9 @@ class SoftphoneCore(
             } catch (_: Exception) {
                 return@launch
             }
-            if (CallWakePolicy.isRingingExit(live.state)) applyRingingExit(session)
+            if (CallWakePolicy.isRingingExit(live.state) && !keepTransferRing(session, live.state)) {
+                applyRingingExit(session)
+            }
         }
     }
 
