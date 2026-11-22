@@ -1502,6 +1502,7 @@ export function Composer({
       {!noteOnly && (
         <AskForPayment
           conversationId={conversationId}
+          contactLocale={contactLocale}
           prefill={paymentPrefill}
           onPrefillUsed={() => setPaymentPrefill(null)}
         />
