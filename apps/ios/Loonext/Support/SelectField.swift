@@ -118,11 +118,7 @@ struct SelectField<Value: Hashable>: View {
             Picker(label, selection: selection) { pickerOptions }
                 .pickerStyle(.inline)
         } label: {
-            Image(systemName: systemImage)
-                .font(.scaled(IconSize.standard, weight: .medium))
-                .foregroundStyle(BrandColor.muted700)
-                .frame(width: 44, height: 44)
-                .background(BrandColor.paper, in: Circle())
+            PaperIconButton.icon(systemImage: systemImage, foreground: BrandColor.muted700)
                 .contentShape(Circle())
         }
         .disabled(!enabled)
