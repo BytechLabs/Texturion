@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.33.0](https://github.com/BytechLabs/Texturion/compare/web-v0.32.1...web-v0.33.0) (2026-11-22)
+
+
+### Features
+
+* **for-you:** add a workspace phone-line filter ([#1228](https://github.com/BytechLabs/Texturion/issues/1228)) ([245d5ea](https://github.com/BytechLabs/Texturion/commit/245d5eaa0f78e0917ee49aa1ceab93b6be5a93f7))
+* **inbox:** add conversation display options ([#1229](https://github.com/BytechLabs/Texturion/issues/1229)) ([42725f0](https://github.com/BytechLabs/Texturion/commit/42725f03f53daa4bccebdfd5009c9d1085442bf1))
+* **inbox:** clarify filters and unify assignee avatars ([#1236](https://github.com/BytechLabs/Texturion/issues/1236)) ([5494c77](https://github.com/BytechLabs/Texturion/commit/5494c771f7c941d1c457c14735e2c4b884e455d2))
+
+
+### Bug Fixes
+
+* **clients:** group conversation navigation under the selected number ([#1232](https://github.com/BytechLabs/Texturion/issues/1232)) ([df0950e](https://github.com/BytechLabs/Texturion/commit/df0950edb4e3352bb98157f3be0aa7472951c037))
+* **onboarding:** accept browser timezone offsets at signup ([#1237](https://github.com/BytechLabs/Texturion/issues/1237)) ([4b2a4a3](https://github.com/BytechLabs/Texturion/commit/4b2a4a388dbf1a17bafc2814f6835c6b77634de1))
+
 ## [0.32.1](https://github.com/BytechLabs/Texturion/compare/web-v0.32.0...web-v0.32.1) (2026-11-22)
 
 
