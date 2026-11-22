@@ -320,6 +320,8 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.bookingDuePrecision" to "Provide a time or a date for this job.",
         "apiRefusals.remindersWorkspaceNotFound" to "No such workspace.",
         "apiRefusals.scheduledTextHorizon" to "We can hold a message for up to {days} days.",
+        "apiRefusals.scheduledTextQuietHours" to
+            "That lands at {hour}:00 in the customer's quiet hours. Confirm to schedule it anyway.",
         "apiRefusals.scheduledTextKeyUsed" to
             "Idempotency-Key was already used for a different scheduled text.",
         "apiRefusals.taskCreateKeyUsed" to "Idempotency-Key was already used for a task.",
@@ -696,6 +698,8 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.bookingDuePrecision" to "Indiquez une heure ou une date pour cette tâche.",
         "apiRefusals.remindersWorkspaceNotFound" to "Cet espace de travail est introuvable.",
         "apiRefusals.scheduledTextHorizon" to "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
+        "apiRefusals.scheduledTextQuietHours" to
+            "Ce texto arrive vers {hour} h pendant les heures de silence du client. Confirmez pour le programmer quand même.",
         "apiRefusals.scheduledTextKeyUsed" to
             "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
         "apiRefusals.taskCreateKeyUsed" to "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",

@@ -321,6 +321,8 @@ enum ApiErrorStrings {
             "apiRefusals.bookingDuePrecision": "Provide a time or a date for this job.",
             "apiRefusals.remindersWorkspaceNotFound": "No such workspace.",
             "apiRefusals.scheduledTextHorizon": "We can hold a message for up to {days} days.",
+            "apiRefusals.scheduledTextQuietHours":
+                "That lands at {hour}:00 in the customer's quiet hours. Confirm to schedule it anyway.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Idempotency-Key was already used for a different scheduled text.",
             "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
@@ -698,6 +700,8 @@ enum ApiErrorStrings {
             "apiRefusals.bookingDuePrecision": "Indiquez une heure ou une date pour cette tâche.",
             "apiRefusals.remindersWorkspaceNotFound": "Cet espace de travail est introuvable.",
             "apiRefusals.scheduledTextHorizon": "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
+            "apiRefusals.scheduledTextQuietHours":
+                "Ce texto arrive vers {hour} h pendant les heures de silence du client. Confirmez pour le programmer quand même.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
             "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",

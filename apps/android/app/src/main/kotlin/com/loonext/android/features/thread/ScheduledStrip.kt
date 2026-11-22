@@ -48,6 +48,7 @@ import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
 import com.loonext.android.features.compose.QuietHoursScheduleDialog
 import com.loonext.android.features.compose.ScheduleOutcome
+import com.loonext.android.features.compose.ScheduleQuietHoursConfirmation
 import com.loonext.android.features.compose.SendLaterPicker
 import com.loonext.android.features.compose.sendAtLabel
 import com.loonext.android.ui.common.ActionGroup
@@ -133,7 +134,7 @@ private fun ScheduledRow(
     var expanded by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf<String?>(null) }
     var pickingTime by remember { mutableStateOf(false) }
-    var quietTime by remember { mutableStateOf<Instant?>(null) }
+    var quietTime by remember { mutableStateOf<ScheduleQuietHoursConfirmation?>(null) }
     var saving by remember { mutableStateOf(false) }
 
     fun save(body: String? = null, at: Instant? = null, confirmed: Boolean = false) {
@@ -141,9 +142,11 @@ private fun ScheduledRow(
         saving = true
         scope.launch {
             try {
-                when (onUpdate(body, at?.toString(), confirmed)) {
+                when (val outcome = onUpdate(body, at?.toString(), confirmed)) {
                     ScheduleOutcome.Scheduled -> draft = null
-                    ScheduleOutcome.NeedsQuietHoursConfirm -> quietTime = at
+                    is ScheduleOutcome.NeedsQuietHoursConfirm -> {
+                        quietTime = at?.let { ScheduleQuietHoursConfirmation(it, outcome.localHour) }
+                    }
                     ScheduleOutcome.Failed -> Unit
                 }
             } finally {
@@ -283,12 +286,12 @@ private fun ScheduledRow(
             save(at = at)
         }, onDismiss = { pickingTime = false })
     }
-    quietTime?.let { at ->
+    quietTime?.let { pending ->
         QuietHoursScheduleDialog(
-            localHour = null,
+            localHour = pending.localHour,
             onConfirm = {
                 quietTime = null
-                save(at = at, confirmed = true)
+                save(at = pending.sendAt, confirmed = true)
             },
             onDismiss = {
                 quietTime = null

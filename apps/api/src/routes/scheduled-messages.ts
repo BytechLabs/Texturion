@@ -92,6 +92,15 @@ function scheduledHorizonError(days: number) {
   });
 }
 
+function scheduledQuietHoursError(localHour: number) {
+  const hour = String(localHour).padStart(2, "0");
+  return new ApiError(
+    "quiet_hours_confirmation_required",
+    `That lands at ${hour}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
+    { key: "apiRefusals.scheduledTextQuietHours", vars: { hour } },
+  );
+}
+
 scheduledMessageRoutes.post(
   "/scheduled-messages",
   requireCapability("conversations.send"),
@@ -152,12 +161,8 @@ scheduledMessageRoutes.post(
     });
 
     const needsQuietConfirmation = clock.quiet && !quiet_hours_confirmed;
-    const quietConfirmationError = () => new ApiError(
-      "quiet_hours_confirmation_required",
-      `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
-    );
     if (needsQuietConfirmation && idempotencyKey === null) {
-      throw quietConfirmationError();
+      throw scheduledQuietHoursError(clock.localHour);
     }
 
     const settings = await loadAutomaticTextSettings(db, companyId);
@@ -185,7 +190,7 @@ scheduledMessageRoutes.post(
         return c.json({ scheduled_message: result.scheduled_message }, result.outcome === "replayed" ? 200 : 201);
       }
       case "quiet_confirmation": {
-        throw quietConfirmationError();
+        throw scheduledQuietHoursError(clock.localHour);
       }
       case "key_conflict": {
         throw new ApiError("conflict", "Idempotency-Key was already used for a different scheduled text.", {
@@ -426,10 +431,7 @@ scheduledMessageRoutes.patch(
           contactTimezone: existing.conversations?.contacts?.timezone ?? null,
         });
         if (clock.quiet && !patchBody.quiet_hours_confirmed) {
-          throw new ApiError(
-            "quiet_hours_confirmation_required",
-            `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
-          );
+          throw scheduledQuietHoursError(clock.localHour);
         }
         patch.clock_timezone = clock.timezone;
         patch.clock_source = clock.source;

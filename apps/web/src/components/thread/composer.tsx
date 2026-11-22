@@ -35,7 +35,8 @@ import { AskForPayment } from "@/components/thread/ask-for-payment";
 import { OnMyWay } from "@/components/thread/on-my-way";
 import { PaymentStrip } from "@/components/thread/payment-strip";
 import { QuoteStrip } from "@/components/thread/quote-strip";
-import { useScheduleMessage } from "@/lib/api/scheduled-messages";
+import { scheduledQuietHour, useScheduleMessage } from "@/lib/api/scheduled-messages";
+import type { QuietHoursConfirmation } from "@/lib/api/scheduled-messages";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
@@ -1114,7 +1115,7 @@ export function Composer({
   // instant the menu closes, which would make "Pick a time…" a control that
   // silently does nothing (the trap snooze-menu.tsx documents).
   const [pickTimeOpen, setPickTimeOpen] = useState(false);
-  const [quietConfirmFor, setQuietConfirmFor] = useState<string | null>(null);
+  const [quietConfirmFor, setQuietConfirmFor] = useState<QuietHoursConfirmation | null>(null);
   const schedule = useScheduleMessage();
   const scheduleAttempt = useRef<{ conversationId: string; body: string; sendAt: string; key: string } | null>(null);
 
@@ -1437,7 +1438,7 @@ export function Composer({
           error instanceof ApiError &&
           error.code === "quiet_hours_confirmation_required"
         ) {
-          setQuietConfirmFor(sendAtIso);
+          setQuietConfirmFor({ sendAt: sendAtIso, localHour: scheduledQuietHour(error) });
           return;
         }
         toast.error(
@@ -2026,12 +2027,12 @@ export function Composer({
       />
       <QuietHoursConfirm
         open={quietConfirmFor !== null}
-        localHour={conversation.data?.destination_clock?.local_hour ?? null}
+        localHour={quietConfirmFor?.localHour ?? null}
         onOpenChange={(next) => {
           if (!next) setQuietConfirmFor(null);
         }}
         onConfirm={() => {
-          if (quietConfirmFor) void scheduleFor(quietConfirmFor, true);
+          if (quietConfirmFor) void scheduleFor(quietConfirmFor.sendAt, true);
         }}
       />
     </div>

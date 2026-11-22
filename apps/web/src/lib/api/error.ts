@@ -23,12 +23,21 @@ export class ApiError extends Error {
    */
   readonly requestId?: string;
 
-  constructor(code: ApiErrorCode, message: string, status: number, requestId?: string) {
+  readonly messageVars?: Readonly<Record<string, string>>;
+
+  constructor(
+    code: ApiErrorCode,
+    message: string,
+    status: number,
+    requestId?: string,
+    messageVars?: Readonly<Record<string, string>>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.requestId = requestId;
+    this.messageVars = messageVars;
   }
 
   /**
@@ -131,27 +140,11 @@ export function parseErrorBody(
             ),
           )
         : undefined;
-      if (KNOWN_CODES.has(code)) {
-        const known = code as ApiErrorCode;
-        return new ApiError(
-          known,
-          readerFacing(
-            known,
-            message,
-            t,
-            requestId,
-            messageKey,
-            messageVars,
-          ),
-          status,
-          requestId,
-        );
-      }
-      // Unknown-but-shaped code: keep the message, flag the code as internal.
+      const errorCode = KNOWN_CODES.has(code) ? (code as ApiErrorCode) : INTERNAL_ERROR_CODE;
       return new ApiError(
-        INTERNAL_ERROR_CODE,
+        errorCode,
         readerFacing(
-          INTERNAL_ERROR_CODE,
+          errorCode,
           message,
           t,
           requestId,
@@ -160,6 +153,7 @@ export function parseErrorBody(
         ),
         status,
         requestId,
+        messageVars,
       );
     }
   }

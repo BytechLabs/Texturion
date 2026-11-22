@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./core";
 import { ApiError, parseErrorBody } from "./error";
+import { scheduledQuietHour } from "./scheduled-messages";
 
 function jsonResponse(status: number, body: unknown): Response {
   return Response.json(body, {
@@ -29,6 +30,27 @@ function makeClient(
 }
 
 describe("ApiError envelope parsing (SPEC §7)", () => {
+  it.each([
+    ["03", 3],
+    ["00", 0],
+    ["23", 23],
+    ["24", null],
+    ["", null],
+    [undefined, null],
+  ])("reads the planned quiet-hours hour %s", (hour, expected) => {
+    const error = parseErrorBody(409, {
+      error: {
+        code: "quiet_hours_confirmation_required",
+        message: "That falls in quiet hours.",
+        ...(hour !== undefined && {
+          message_key: "apiRefusals.scheduledTextQuietHours",
+          message_vars: { hour },
+        }),
+      },
+    });
+    expect(scheduledQuietHour(error)).toBe(expected);
+  });
+
   it("maps every stable code from the envelope", () => {
     const error = parseErrorBody(403, {
       error: { code: "registration_pending", message: "US texting pending." },

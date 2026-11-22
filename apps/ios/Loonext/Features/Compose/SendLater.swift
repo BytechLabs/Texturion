@@ -34,10 +34,15 @@ enum ScheduleOutcome: Sendable {
     /// #225: the fire instant lands in the customer's quiet window and nobody
     /// has confirmed it yet. Distinct from ``failed`` because the remedy is a
     /// question, not an error — the retry carries `quiet_hours_confirmed`.
-    case needsQuietHoursConfirm
+    case needsQuietHoursConfirm(localHour: Int?)
 
     /// Refused or unreachable. The caller has already said so.
     case failed
+}
+
+struct ScheduleQuietHoursConfirmation {
+    let sendAt: Date
+    let localHour: Int?
 }
 
 /// The two presets plus the picker.

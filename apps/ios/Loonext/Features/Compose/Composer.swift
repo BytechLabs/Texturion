@@ -278,7 +278,7 @@ struct ThreadComposerView: View {
     @State private var sendLaterOpen = false
     @State private var pickTimeOpen = false
     /// The instant awaiting a quiet-hours answer. Nil means nothing is asked.
-    @State private var quietConfirmFor: Date?
+    @State private var quietConfirmFor: ScheduleQuietHoursConfirmation?
     @State private var suggesting = false
     /// #431: which of Lou's drafts (if any) was taken into the composer, and
     /// whether any were shown at all. Kept so the outcome can be judged at the
@@ -587,22 +587,13 @@ struct ThreadComposerView: View {
         }
         .confirmDialog(
             t("thread.quietHoursTitle"),
-            isPresented: Binding(
-                get: { quietConfirmFor != nil },
-                set: { if !$0 { quietConfirmFor = nil } }
-            ),
-            message: quietHoursScheduleMessage(
-                localHour: destinationClock?.local_hour,
-                locale: appLocale
-            ),
+            item: $quietConfirmFor,
+            message: { quietHoursScheduleMessage(localHour: $0.localHour, locale: appLocale) },
             confirmLabel: t("thread.scheduleAnyway"),
             cancelLabel: t("thread.pickAnotherTime"),
             tone: .standard
-        ) {
-            if let pending = quietConfirmFor {
-                quietConfirmFor = nil
-                scheduleFor(pending, quietHoursConfirmed: true)
-            }
+        ) { pending in
+            scheduleFor(pending.sendAt, quietHoursConfirmed: true)
         }
         // #507: a recording must not outlive the composer that started it.
         .onDisappear { cancelWrapUp() }
@@ -1280,8 +1271,8 @@ struct ThreadComposerView: View {
                             "picker_reassurance", locale: appLocale
                         )
                 )
-            case .needsQuietHoursConfirm:
-                quietConfirmFor = at
+            case .needsQuietHoursConfirm(let localHour):
+                quietConfirmFor = ScheduleQuietHoursConfirmation(sendAt: at, localHour: localHour)
             // The caller has already said what went wrong, in the API's own
             // words. A second sentence written here would either repeat it or
             // contradict it.

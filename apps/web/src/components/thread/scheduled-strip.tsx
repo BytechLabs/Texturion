@@ -14,8 +14,14 @@ import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 
 import { ApiError } from "@/lib/api/error";
-import { scheduledActionAllowed, useCancelScheduledMessage, useScheduledMessages, useUpdateScheduledMessage } from '@/lib/api/scheduled-messages';
-import type { ScheduledMessage } from '@/lib/api/scheduled-messages';
+import {
+  scheduledActionAllowed,
+  scheduledQuietHour,
+  useCancelScheduledMessage,
+  useScheduledMessages,
+  useUpdateScheduledMessage,
+} from "@/lib/api/scheduled-messages";
+import type { QuietHoursConfirmation, ScheduledMessage } from "@/lib/api/scheduled-messages";
 import type { DestinationClock } from "@/lib/api/types";
 import { twoClockLabel, twoClockSpoken } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -84,7 +90,7 @@ function ScheduledRow({
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [pickingTime, setPickingTime] = useState(false);
-  const [quietTime, setQuietTime] = useState<string | null>(null);
+  const [quietTime, setQuietTime] = useState<QuietHoursConfirmation | null>(null);
   const held = row.status === "held";
   const holdText = scheduledHoldText(row.held_reason_key, row.held_reason, t);
   const canEdit = scheduledActionAllowed(row, "edit");
@@ -95,7 +101,7 @@ function ScheduledRow({
       setDraft(null);
     } catch (error) {
       if (error instanceof ApiError && error.code === "quiet_hours_confirmation_required" && patch.send_at) {
-        setQuietTime(patch.send_at);
+        setQuietTime({ sendAt: patch.send_at, localHour: scheduledQuietHour(error) });
         return;
       }
       toast.error(t("thread.scheduledUpdateFailed"));
@@ -224,9 +230,9 @@ function ScheduledRow({
       )}
       <QuietHoursConfirm
         open={quietTime !== null}
-        localHour={null}
+        localHour={quietTime?.localHour ?? null}
         onOpenChange={(open) => { if (!open) setQuietTime(null); }}
-        onConfirm={() => { if (quietTime) void save({ send_at: quietTime, quiet_hours_confirmed: true }); }}
+        onConfirm={() => { if (quietTime) void save({ send_at: quietTime.sendAt, quiet_hours_confirmed: true }); }}
       />
     </li>
   );
