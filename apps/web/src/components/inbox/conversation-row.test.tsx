@@ -12,7 +12,10 @@ vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
 vi.mock("@/components/thread/conversation-actions", () => ({
   useConversationActions: () => ({ actions: [], dialogs: null }),
 }));
-vi.mock("./member-avatar", () => ({ useMemberNames: () => new Map([["member-1", "Sam"]]) }));
+vi.mock(import("./member-avatar"), async (importOriginal) => ({
+  ...await importOriginal(),
+  useMemberNames: () => new Map([["member-1", "Sam"]]),
+}));
 
 const AT = "2026-11-01T12:00:00Z";
 const ROW: ConversationListItem = {

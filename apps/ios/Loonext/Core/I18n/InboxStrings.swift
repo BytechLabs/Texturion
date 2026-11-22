@@ -122,8 +122,8 @@ enum InboxStrings {
             "inbox.conversationReopened": "Conversation reopened",
 
             // --- The two filter sheets ------------------------------------------
-            "inbox.filterByAssigneeTitle": "Filter by assignee",
-            "inbox.filterByTagTitle": "Filter by tag",
+            "inbox.filterGroupAssignee": "Assignee",
+            "inbox.filterGroupTag": "Tag",
             "inbox.filterAnyone": "Anyone",
             "inbox.filterGroupLine": "Line",
             "inbox.filterAnyLine": "Any line",
@@ -606,8 +606,8 @@ enum InboxStrings {
             "inbox.conversationReopened": "Conversation rouverte",
 
             // --- The two filter sheets ------------------------------------------
-            "inbox.filterByAssigneeTitle": "Filtrer par responsable",
-            "inbox.filterByTagTitle": "Filtrer par étiquette",
+            "inbox.filterGroupAssignee": "Responsable",
+            "inbox.filterGroupTag": "Étiquette",
             "inbox.filterAnyone": "N'importe qui",
             "inbox.filterGroupLine": "Ligne",
             "inbox.filterAnyLine": "Toutes les lignes",

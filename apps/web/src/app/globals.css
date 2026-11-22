@@ -861,6 +861,44 @@
   background: var(--app-avatar-self);
   color: var(--app-olive-deep) !important;
 }
+
+.app-assignee-olive {
+  --assignee-fill: #e4e6d7;
+  --assignee-label: #3d4828;
+}
+.app-assignee-slate {
+  --assignee-fill: #dde8eb;
+  --assignee-label: #2f4d59;
+}
+.app-assignee-plum {
+  --assignee-fill: #e9e0eb;
+  --assignee-label: #5a3d63;
+}
+.app-assignee-ochre {
+  --assignee-fill: #f1e5d2;
+  --assignee-label: #644922;
+}
+.dark .app-assignee-olive {
+  --assignee-fill: #333c25;
+  --assignee-label: #d9e7be;
+}
+.dark .app-assignee-slate {
+  --assignee-fill: #2b3e47;
+  --assignee-label: #c9e1ea;
+}
+.dark .app-assignee-plum {
+  --assignee-fill: #43334a;
+  --assignee-label: #e4cce9;
+}
+.dark .app-assignee-ochre {
+  --assignee-fill: #493924;
+  --assignee-label: #f2d9ad;
+}
+:is(.app-assignee-olive, .app-assignee-slate, .app-assignee-plum, .app-assignee-ochre) {
+  background-color: var(--assignee-fill);
+  color: var(--assignee-label);
+}
+
 @utility app-bubble-out {
   background: var(--app-bubble-out);
   /* #26: the bubble carries its own AA text pair (white in light, near-black

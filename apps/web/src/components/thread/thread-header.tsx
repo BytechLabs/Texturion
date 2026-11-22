@@ -427,7 +427,7 @@ export function ThreadHeader({
               disabled={updating}
             >
               {assigneeName ? (
-                <MemberAvatar name={assigneeName} className="size-6" />
+                <MemberAvatar name={assigneeName} memberId={conversation.assigned_user_id} className="size-6" />
               ) : (
                 <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
                   <UserRound className="size-3.5" strokeWidth={1.75} />
@@ -460,6 +460,7 @@ export function ThreadHeader({
                   >
                     <MemberAvatar
                       name={member.display_name || t("thread.teammate")}
+                      memberId={member.user_id}
                       className="size-5"
                     />
                     {member.display_name || t("thread.teammate")}

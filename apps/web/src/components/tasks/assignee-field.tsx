@@ -12,7 +12,7 @@ import {
 import { useLocale, useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import { useMembers } from "@/lib/api/team";
-import { cn, withOccurrenceKeys } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import {
   MAX_ASSIGNEES,
@@ -27,9 +27,11 @@ import {
  */
 export function AssigneeStack({
   names,
+  memberIds,
   className,
 }: {
   names: readonly string[];
+  memberIds: readonly string[];
   className?: string;
 }) {
   const t = useT();
@@ -47,10 +49,11 @@ export function AssigneeStack({
       aria-label={t("tasks.assigneesAria", { names: spoken })}
       className={cn("flex shrink-0 items-center", className)}
     >
-      {withOccurrenceKeys(shown, (name) => name).map(({ item: name, key }, index) => (
+      {shown.map((name, index) => (
         <MemberAvatar
-          key={key}
+          key={memberIds[index]}
           name={name}
+          memberId={memberIds[index]}
           className={cn("ring-2 ring-background", index > 0 && "-ml-1.5")}
         />
       ))}
@@ -134,7 +137,7 @@ export function AssigneeField({
             triggerClassName,
           )}
         >
-          <AssigneeStack names={names} />
+          <AssigneeStack names={names} memberIds={value} />
           <span
             className={cn(
               "truncate",
@@ -170,7 +173,7 @@ export function AssigneeField({
                   }
                   className="tap-target flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  <MemberAvatar name={name} />
+                  <MemberAvatar name={name} memberId={member.user_id} />
                   <span className="flex-1 truncate">
                     {name}
                     {me.data?.user_id === member.user_id

@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { CopyablePhoneNumber, useCopyPhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Select,
@@ -17,7 +17,18 @@ export type SimpleSelectOption = {
   description?: string;
   disabled?: boolean;
   copyValue?: string | null;
+  leading?: ReactNode;
 };
+
+function optionLabel(option: SimpleSelectOption | undefined) {
+  if (!option?.leading) return option?.label;
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {option.leading}
+      <span className="truncate">{option.label}</span>
+    </span>
+  );
+}
 
 /**
  * #746: the one simple select, for a short list of single choices.
@@ -91,7 +102,7 @@ export function SimpleSelect({
         onContextMenu={(event) => copyOption(event, chosen?.copyValue)}
         onKeyDown={(event) => copyShortcut(event, chosen?.copyValue)}
       >
-        <SelectValue placeholder={placeholder}>{chosen?.label}</SelectValue>
+        <SelectValue placeholder={placeholder}>{optionLabel(chosen)}</SelectValue>
       </SelectTrigger>
       <SelectContent
         className={contentClassName ?? "max-w-[min(22rem,calc(100vw-2rem))]"}
@@ -106,7 +117,7 @@ export function SimpleSelect({
             onContextMenu={(event) => copyOption(event, option.copyValue)}
             onKeyDown={(event) => copyShortcut(event, option.copyValue)}
           >
-            {option.label}
+            {optionLabel(option)}
           </SelectItem>
         ))}
       </SelectContent>

@@ -146,6 +146,18 @@ enum BrandColor {
     static let overdueAmber = adaptive(light: 0x8C6113, dark: 0xD9A441)
     static let amberBg = adaptive(light: 0xF4E8CD, dark: 0x2E2712)
 
+    private static let assigneeTones: [(fill: Color, label: Color)] = [
+        (adaptive(light: 0xE4E6D7, dark: 0x333C25), adaptive(light: 0x3D4828, dark: 0xD9E7BE)),
+        (adaptive(light: 0xDDE8EB, dark: 0x2B3E47), adaptive(light: 0x2F4D59, dark: 0xC9E1EA)),
+        (adaptive(light: 0xE9E0EB, dark: 0x43334A), adaptive(light: 0x5A3D63, dark: 0xE4CCE9)),
+        (adaptive(light: 0xF1E5D2, dark: 0x493924), adaptive(light: 0x644922, dark: 0xF2D9AD))
+    ]
+
+    static func assigneeTone(_ memberId: String) -> (fill: Color, label: Color) {
+        let hash = memberId.utf16.reduce(UInt32(0)) { $0 &* 31 &+ UInt32($1) }
+        return assigneeTones[Int(hash & 3)]
+    }
+
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(UIColor { traits in
             traits.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light)

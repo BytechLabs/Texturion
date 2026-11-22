@@ -64,7 +64,7 @@ fun MemberPickerSheet(
             value = member.user_id,
             label = name + if (member.user_id == meUserId) you else "",
             searchText = member.display_name,
-            leading = { TaskAvatar(name, size = 32.dp, fontSize = 11.sp) },
+            leading = { TaskAvatar(name, size = 32.dp, fontSize = 11.sp, memberId = member.user_id) },
         )
     }
     SearchablePickerSheet(
@@ -80,6 +80,7 @@ fun MemberPickerSheet(
 private fun PickerRow(
     name: String,
     avatarName: String?,
+    memberId: String,
     selected: Boolean,
     onClick: () -> Unit,
     role: Role? = null,
@@ -93,7 +94,7 @@ private fun PickerRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (avatarName != null) {
-            TaskAvatar(avatarName, size = 32.dp, fontSize = 11.sp)
+            TaskAvatar(avatarName, size = 32.dp, fontSize = 11.sp, memberId = memberId)
         } else {
             Box(Modifier.width(32.dp))
         }
@@ -152,6 +153,7 @@ fun MultiMemberPickerSheet(
                         name = member.display_name.ifBlank { t("contactsTasks.teammate") } +
                             if (member.user_id == meUserId) t("contactsTasks.youSuffix") else "",
                         avatarName = member.display_name.ifBlank { null },
+                        memberId = member.user_id,
                         selected = member.user_id in picked,
                         role = Role.Checkbox,
                         onClick = {

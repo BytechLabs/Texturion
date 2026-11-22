@@ -9,6 +9,7 @@ import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Inbox
 import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.MAIN_ACTION_SIZE
 import com.loonext.android.ui.common.Segment
 import com.loonext.android.ui.common.SegmentedControl
@@ -164,6 +165,7 @@ import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.ActiveFilterChip
 import com.loonext.android.ui.common.ActiveFilterChips
 import com.loonext.android.ui.common.ListFilterRow
+import com.loonext.android.ui.common.ListViewsMenu
 import com.loonext.android.ui.common.ListViews
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ViewsMenuEntry
@@ -197,6 +199,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import com.loonext.android.ui.common.asToggleButton
@@ -1545,7 +1548,7 @@ private fun InboxList(
     }
 
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
-    var filterSheetOpen by remember { mutableStateOf(false) }
+    var filterSection by remember { mutableStateOf<InboxFilterSection?>(null) }
     /** #233: the workspace's queued texts. */
     var scheduledSheetOpen by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
@@ -1612,7 +1615,7 @@ private fun InboxList(
                         Capability.SETTINGS_MANAGE,
                     ),
                     onSearch = { searchOpen = true },
-                    onFilter = { filterSheetOpen = true },
+                    onFilter = { filterSection = it },
                 )
                 InboxActiveFilters(controller, lines)
                 Spacer(Modifier.height(14.dp))
@@ -1677,12 +1680,13 @@ private fun InboxList(
             }
         }
 
-        if (filterSheetOpen) {
+        filterSection?.let { section ->
             FiltersSheet(
                 controller = controller,
                 meUserId = me.user_id,
                 lines = lines,
-                onDismiss = { filterSheetOpen = false },
+                section = section,
+                onDismiss = { filterSection = null },
             )
         }
 
@@ -1951,6 +1955,7 @@ private fun ConversationListPane(
                 else -> t("inbox.emptyNoConversations")
             },
             icon = Icons.Outlined.Inbox,
+            size = EmptyStateSize.Panel,
         )
         return
     }
@@ -1963,11 +1968,8 @@ private fun ConversationListPane(
     val teammateLabel = t("inbox.teammateFallback")
     fun assigneeName(row: ConversationListItem): String? =
         row.assigned_user_id?.let { userId ->
-            if (userId == meUserId) {
-                youLabel
-            } else {
-                membersById[userId]?.display_name?.ifBlank { teammateLabel }
-            }
+            membersById[userId]?.display_name?.ifBlank { null }
+                ?: if (userId == meUserId) youLabel else teammateLabel
         }
 
     Column(Modifier.fillMaxSize()) {
@@ -2234,6 +2236,10 @@ private fun ConversationRow(
                     textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (compact && assigneeName != null) {
+                    Spacer(Modifier.width(6.dp))
+                    InitialsAvatar(assigneeName, size = 20.dp, glyph = 8.sp, memberId = row.assigned_user_id)
+                }
             }
             if (largeText) {
                 nameText(Modifier.fillMaxWidth())
@@ -2366,16 +2372,19 @@ private fun ConversationRow(
                         )
                     }
                     if (!compact && assigneeName != null) {
-                        Text(
-                            assigneeName,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            InitialsAvatar(assigneeName, size = 20.dp, glyph = 8.sp, memberId = row.assigned_user_id)
+                            Text(
+                                assigneeName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -2464,6 +2473,7 @@ private fun FiltersSheet(
     controller: InboxController,
     meUserId: String,
     lines: Map<String, String>,
+    section: InboxFilterSection,
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -2481,20 +2491,21 @@ private fun FiltersSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    t("inbox.filtersTitle"),
+                    t(section.labelKey),
                     style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
                     color = MaterialTheme.colorScheme.onBackground,
                 )
-                Spacer(Modifier.weight(1f))
-                FilterResetControl(
-                    active = controller.isFiltered,
-                    onReset = { controller.resetFilters() },
-                )
+                if (section == InboxFilterSection.More) {
+                    Spacer(Modifier.weight(1f))
+                    FilterResetControl(
+                        active = controller.isFiltered,
+                        onReset = { controller.resetFilters() },
+                    )
+                }
             }
 
-            if (controller.tab != InboxStatusTab.Mine) {
+            if (section == InboxFilterSection.Assignee) {
                 Column {
-                    SectionHeader(t("inbox.filterGroupAssignee"))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
                         verticalArrangement = Arrangement.spacedBy(7.dp),
@@ -2502,12 +2513,18 @@ private fun FiltersSheet(
                         FilterPill(
                             text = t("inbox.filterAnyone"),
                             selected = controller.assigneeUserId == null && !controller.unassignedOnly,
-                            onClick = { controller.setAssigneeFilter(null) },
+                            onClick = {
+                                controller.setAssigneeFilter(null)
+                                onDismiss()
+                            },
                         )
                         FilterPill(
                             text = t("inbox.forYouSectionUnassigned"),
                             selected = controller.unassignedOnly,
-                            onClick = controller::setUnassignedFilter,
+                            onClick = {
+                                controller.setUnassignedFilter()
+                                onDismiss()
+                            },
                         )
                         controller.members.filter { it.deactivated_at == null }.forEach { member ->
                             val label = if (member.user_id == meUserId) {
@@ -2518,12 +2535,16 @@ private fun FiltersSheet(
                             FilterPill(
                                 text = label,
                                 selected = controller.assigneeUserId == member.user_id,
-                                onClick = { controller.setAssigneeFilter(member) },
+                                onClick = {
+                                    controller.setAssigneeFilter(member)
+                                    onDismiss()
+                                },
                                 leading = {
                                     InitialsAvatar(
                                         member.display_name.ifBlank { null },
                                         24.dp,
                                         glyph = 9.sp,
+                                        memberId = member.user_id,
                                     )
                                 },
                             )
@@ -2532,7 +2553,7 @@ private fun FiltersSheet(
                 }
             }
 
-            if (lines.size > 1) {
+            if (section == InboxFilterSection.More && lines.size > 1) {
                 Column {
                     SectionHeader(t("inbox.filterGroupLine"))
                     FlowRow(
@@ -2555,8 +2576,7 @@ private fun FiltersSheet(
                 }
             }
 
-            Column {
-                SectionHeader(t("inbox.filterGroupTags"))
+            if (section == InboxFilterSection.Tag) Column {
                 if (controller.allTags.isEmpty()) {
                     Text(
                         t("inbox.filterNoTags"),
@@ -2572,7 +2592,10 @@ private fun FiltersSheet(
                         FilterPill(
                             text = t("inbox.filterAnyTag"),
                             selected = controller.tagId == null,
-                            onClick = { controller.setTagFilter(null) },
+                            onClick = {
+                                controller.setTagFilter(null)
+                                onDismiss()
+                            },
                         )
                         controller.allTags.forEach { tag ->
                             val tint = tag.color?.let { hex ->
@@ -2583,7 +2606,10 @@ private fun FiltersSheet(
                             FilterPill(
                                 text = tag.name,
                                 selected = controller.tagId == tag.id,
-                                onClick = { controller.setTagFilter(tag) },
+                                onClick = {
+                                    controller.setTagFilter(tag)
+                                    onDismiss()
+                                },
                                 outlined = true,
                                 leading = tint?.let { dot ->
                                     {
@@ -2600,35 +2626,37 @@ private fun FiltersSheet(
                 }
             }
 
-            // #508: first of the toggles, because it is the only one here that
-            // names money leaving. Reachable as a control in its own right and
-            // not only by arriving from the response-time card — a filter you
-            // can reach from exactly one card is one most of the crew never
-            // learns exists.
-            ToggleCard(
-                label = t("inbox.filterUnansweredOnly"),
-                checked = controller.awaitingOnly,
-                onToggle = { controller.toggleAwaiting() },
-            )
-            ToggleCard(
-                label = t("inbox.filterUnreadOnly"),
-                checked = controller.unreadOnly,
-                onToggle = { controller.toggleUnread() },
-            )
-            ToggleCard(
-                label = t("inbox.filterSpamOnly"),
-                checked = controller.spamOnly,
-                onToggle = { controller.toggleSpam() },
-            )
-            // #293: the way back to what you deferred. A snooze that hid a
-            // thread with no way to find it would be worse than the clutter it
-            // solved, and this sheet is where every other hidden population in
-            // the inbox already lives.
-            ToggleCard(
-                label = t("inbox.filterSnoozedOnly"),
-                checked = controller.snoozedOnly,
-                onToggle = { controller.toggleSnoozed() },
-            )
+            if (section == InboxFilterSection.More) {
+                // #508: first of the toggles, because it is the only one here that
+                // names money leaving. Reachable as a control in its own right and
+                // not only by arriving from the response-time card — a filter you
+                // can reach from exactly one card is one most of the crew never
+                // learns exists.
+                ToggleCard(
+                    label = t("inbox.filterUnansweredOnly"),
+                    checked = controller.awaitingOnly,
+                    onToggle = { controller.toggleAwaiting() },
+                )
+                ToggleCard(
+                    label = t("inbox.filterUnreadOnly"),
+                    checked = controller.unreadOnly,
+                    onToggle = { controller.toggleUnread() },
+                )
+                ToggleCard(
+                    label = t("inbox.filterSpamOnly"),
+                    checked = controller.spamOnly,
+                    onToggle = { controller.toggleSpam() },
+                )
+                // #293: the way back to what you deferred. A snooze that hid a
+                // thread with no way to find it would be worse than the clutter it
+                // solved, and this sheet is where every other hidden population in
+                // the inbox already lives.
+                ToggleCard(
+                    label = t("inbox.filterSnoozedOnly"),
+                    checked = controller.snoozedOnly,
+                    onToggle = { controller.toggleSnoozed() },
+                )
+            }
 
             // Filters apply live; this just closes the sheet (ink pill + lime
             // arrow, spec 01).
@@ -3421,7 +3449,7 @@ private fun InboxFilterRow(
     lineLabel: String?,
     canShare: Boolean,
     onSearch: () -> Unit,
-    onFilter: () -> Unit,
+    onFilter: (InboxFilterSection) -> Unit,
 ) {
     var saveOpen by remember { mutableStateOf(false) }
     val selection = controller.currentSelection
@@ -3432,6 +3460,8 @@ private fun InboxFilterRow(
         filterCount = controller.activeFilterCount,
         onSearch = onSearch,
         onFilter = onFilter,
+        assigneeFiltered = controller.assigneeUserId != null || controller.unassignedOnly,
+        tagFiltered = controller.tagId != null,
         views = ListViews(
             entries = controller.savedViews.map { view ->
                 ViewsMenuEntry(
@@ -3463,16 +3493,19 @@ private fun InboxFilterRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InboxListControls(
     selected: InboxStatusTab,
     onSelect: (InboxStatusTab) -> Unit,
     filterCount: Int,
     onSearch: () -> Unit,
-    onFilter: () -> Unit,
+    onFilter: (InboxFilterSection) -> Unit,
     views: ListViews?,
+    assigneeFiltered: Boolean = false,
+    tagFiltered: Boolean = false,
 ) {
-    ListFilterRow(filterCount = filterCount, onFilter = onFilter, views = views) {
+    ListFilterRow(filterCount = filterCount, onFilter = { onFilter(InboxFilterSection.More) }) {
         TextButton(onClick = onSearch, modifier = Modifier.heightIn(min = 44.dp)) {
             Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(IconSize.Default))
             Spacer(Modifier.width(8.dp))
@@ -3485,9 +3518,61 @@ private fun InboxListControls(
         selected = selected,
         onSelect = onSelect,
         fill = true,
-        labelPadding = 4.dp,
+        labelPadding = 1.dp,
         labelLines = 2,
     )
+    Spacer(Modifier.height(8.dp))
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        maxItemsInEachRow = if (LocalDensity.current.fontScale > 1.3f) 1 else 3,
+    ) {
+        InboxQuickFilter(
+            section = InboxFilterSection.Assignee,
+            modifier = Modifier.weight(1.25f),
+            active = assigneeFiltered || selected == InboxStatusTab.Mine,
+            enabled = selected != InboxStatusTab.Mine,
+            onClick = onFilter,
+        )
+        InboxQuickFilter(
+            section = InboxFilterSection.Tag,
+            modifier = Modifier.weight(1f),
+            active = tagFiltered,
+            onClick = onFilter,
+        )
+        if (views != null) {
+            ListViewsMenu(views, modifier = Modifier.weight(0.9f), labelled = true)
+        }
+    }
+}
+
+private enum class InboxFilterSection(val labelKey: String) {
+    Assignee("inbox.filterGroupAssignee"),
+    Tag("inbox.filterGroupTag"),
+    More("inbox.filtersTitle"),
+}
+
+@Composable
+private fun InboxQuickFilter(
+    section: InboxFilterSection,
+    modifier: Modifier,
+    active: Boolean,
+    enabled: Boolean = true,
+    onClick: (InboxFilterSection) -> Unit,
+) {
+    OutlinedButton(
+        onClick = { onClick(section) },
+        modifier = modifier.heightIn(min = 44.dp),
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+            contentColor = if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Text(t(section.labelKey), maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** #711: the applied filters as removable chips, only while any is on. */
@@ -3497,7 +3582,7 @@ private fun InboxActiveFilters(controller: InboxController, lines: Map<String, S
         if (controller.assigneeUserId != null && controller.tab != InboxStatusTab.Mine) {
             val name = controller.assignee?.display_name?.ifBlank { null }
                 ?: t("inbox.teammateFallback")
-            add(ActiveFilterChip(name) { controller.setAssigneeFilter(null) })
+            add(ActiveFilterChip(name, memberId = controller.assigneeUserId) { controller.setAssigneeFilter(null) })
         }
         if (controller.unassignedOnly) {
             add(ActiveFilterChip(t("inbox.forYouSectionUnassigned")) { controller.setAssigneeFilter(null) })

@@ -13,6 +13,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
+import { Button } from "@/components/ui/button";
 import { FilterButton } from "@/components/ui/filter-button";
 import {
   Popover,
@@ -40,24 +41,13 @@ import {
   viewFiltersToUrl,
   viewMatchesUrl,
 } from "./saved-view-filters";
+import { MemberAvatar } from "./member-avatar";
 
 interface InboxLine {
   id: string;
   label: string;
 }
 
-/**
- * The §2 filter bar. There is **no fly-out drawer** — filtering is one-glance:
- *
- *  1. a debounced search field (→ URL `q`, drives the /v1/search view);
- *  2. persistent segmented status tabs (Open | Mine | All | Closed) with a
- *     single quiet stone count on **Open** only (§2.1);
- *  3. always-visible removable chips for the secondary dimensions (§2.2); and
- *  4. a compact `+ Filter` cmdk popover that adds a chip + URL param (§2.3).
- *
- * URL is the state (§2) — this component only calls `onChange` with the next
- * filter object; the parent writes it to the URL.
- */
 export function FilterBar({
   filters,
   onChange,
@@ -83,20 +73,6 @@ export function FilterBar({
       <div className="flex items-center gap-1">
         <InboxSearch filters={filters} onChange={onChange} />
         <FilterPopover filters={filters} lines={lines} onChange={onChange} disabled={searching} />
-        <SavedViewsMenu
-          compact
-          surface="conversations"
-          isCurrent={(view) => viewMatchesUrl(view, filters)}
-          onApply={(view) => onChange(viewFiltersToUrl(view, filters))}
-          currentFilters={() => urlFiltersToView(filters)}
-          suggestName={() => suggestViewName(filters, {
-            unassigned: t("inbox.shortcutUnassigned"),
-            line: selectedLine?.label ?? t("inbox.filterGroupLine"),
-          })}
-          hasFilters={serializeInboxFilters(filters) !== ""}
-          saveDescription={t("inbox.viewSaveDescription")}
-          shareNote={t("inbox.viewShareNote")}
-        />
       </div>
       <SegmentedControl
         fill
@@ -124,6 +100,24 @@ export function FilterBar({
           };
         })}
       />
+      <div className="grid grid-cols-[minmax(max-content,1fr)_minmax(max-content,1fr)_minmax(4.75rem,1fr)] gap-1.5">
+        <FilterPopover dimension="assignee" filters={filters} onChange={onChange} disabled={searching} />
+        <FilterPopover dimension="tag" filters={filters} onChange={onChange} disabled={searching} />
+        <SavedViewsMenu
+          outlined
+          surface="conversations"
+          isCurrent={(view) => viewMatchesUrl(view, filters)}
+          onApply={(view) => onChange(viewFiltersToUrl(view, filters))}
+          currentFilters={() => urlFiltersToView(filters)}
+          suggestName={() => suggestViewName(filters, {
+            unassigned: t("inbox.shortcutUnassigned"),
+            line: selectedLine?.label ?? t("inbox.filterGroupLine"),
+          })}
+          hasFilters={serializeInboxFilters(filters) !== ""}
+          saveDescription={t("inbox.viewSaveDescription")}
+          shareNote={t("inbox.viewShareNote")}
+        />
+      </div>
       {/* #711: only while something is applied. */}
       {hasActiveFilters(filters) && (
         <ChipRow filters={filters} lines={lines} onChange={onChange} disabled={searching} />
@@ -293,6 +287,7 @@ function ChipRow({
           <Chip
             key={chip.key}
             label={labelFor(chip.key, chip.value)}
+            memberId={chip.key === "assignee" && chip.value !== "none" ? chip.value : undefined}
             disabled={disabled}
             onRemove={() => onChange(clearSecondary(filters, chip.key))}
           />
@@ -318,16 +313,19 @@ function ChipRow({
 /** §2.2 removable stone-tinted chip — same tokens as the status pills, not petrol. */
 function Chip({
   label,
+  memberId,
   onRemove,
   disabled,
 }: {
   label: string;
+  memberId?: string;
   onRemove: () => void;
   disabled: boolean;
 }) {
   const t = useT();
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
+      {memberId && <MemberAvatar name={label} memberId={memberId} />}
       {label}
       <button
         type="button"
@@ -351,13 +349,15 @@ function Chip({
  * visible as a chip.
  */
 function FilterPopover({
+  dimension,
   filters,
   lines,
   onChange,
   disabled,
 }: {
+  dimension?: "assignee" | "tag";
   filters: InboxUrlFilters;
-  lines: readonly InboxLine[];
+  lines?: readonly InboxLine[];
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
@@ -381,14 +381,30 @@ function FilterPopover({
     [members.data],
   );
   const availableTags = tags.data?.data ?? [];
+  const label = dimension && t(dimension === "assignee" ? "inbox.filterGroupAssignee" : "inbox.filterGroupTag");
+  const userFilter = filters.assignee === "me" ? userId : filters.assignee;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <FilterButton compact count={activeChips(filters).length} disabled={disabled} />
+        {dimension ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className={cn(
+              "min-w-0 justify-start px-2",
+              filters[dimension] && "bg-secondary text-secondary-foreground",
+            )}
+          >
+            <span className="truncate">{label}</span>
+          </Button>
+        ) : (
+          <FilterButton compact count={activeChips(filters).length} disabled={disabled} />
+        )}
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={dimension ? "start" : "end"}
         sideOffset={6}
         className="w-64 p-0 shadow-lg"
       >
@@ -400,10 +416,10 @@ function FilterPopover({
             return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={t("inbox.filterByPlaceholder")} />
+          <CommandInput aria-label={label} placeholder={t("inbox.filterByPlaceholder")} />
           <CommandList>
             <CommandEmpty>{t("inbox.filterNone")}</CommandEmpty>
-            <CommandGroup heading={t("inbox.filterGroupAssignee")}>
+            {dimension === "assignee" && <CommandGroup heading={label}>
               <CommandItem
                 value="assignee-none"
                 keywords={[t("inbox.shortcutUnassigned")]}
@@ -415,18 +431,20 @@ function FilterPopover({
                 )}
               </CommandItem>
               {assignableMembers.map((m) => {
-                const active = filters.assignee === m.user_id;
+                const active = userFilter === m.user_id;
+                const name = m.display_name || t("inbox.teammateFallback");
                 return (
                   <CommandItem
                     key={m.user_id}
                     value={`assignee-${m.user_id}`}
-                    keywords={[m.display_name || t("inbox.teammateFallback")]}
+                    keywords={[name]}
                     onSelect={() =>
                       set("assignee", active ? undefined : m.user_id)
                     }
                   >
+                    <MemberAvatar name={name} memberId={m.user_id} />
                     <span className="truncate">
-                      {m.display_name || t("inbox.teammateFallback")}
+                      {name}
                       {m.user_id === userId ? t("inbox.youSuffix") : ""}
                     </span>
                     {active && (
@@ -438,8 +456,8 @@ function FilterPopover({
                   </CommandItem>
                 );
               })}
-            </CommandGroup>
-            {lines.length > 1 && (
+            </CommandGroup>}
+            {!dimension && lines && lines.length > 1 && (
               <CommandGroup heading={t("inbox.filterGroupLine")}>
                 {lines.map((line) => {
                   const active = filters.line === line.id;
@@ -459,8 +477,8 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
-            {availableTags.length > 0 && (
-              <CommandGroup heading={t("inbox.filterGroupTag")}>
+            {dimension === "tag" && (
+              <CommandGroup heading={label}>
                 {availableTags.map((tag) => {
                   const active = filters.tag === tag.id;
                   return (
@@ -482,7 +500,7 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
-            <CommandGroup heading={t("inbox.filterGroupMore")}>
+            {!dimension && <CommandGroup heading={t("inbox.filterGroupMore")}>
               {/* #508: first in the group, because it is the one filter here
                   that names money leaving. It is also the destination the
                   response-time card links to, and a destination reachable only
@@ -566,7 +584,7 @@ function FilterPopover({
                   />
                 )}
               </CommandItem>
-            </CommandGroup>
+            </CommandGroup>}
           </CommandList>
         </Command>
       </PopoverContent>
