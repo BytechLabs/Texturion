@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.31.5](https://github.com/BytechLabs/Texturion/compare/api-v0.31.4...api-v0.31.5) (2026-11-22)
+
+
+### Bug Fixes
+
+* **api:** allow quote decisions from the app origin ([#1097](https://github.com/BytechLabs/Texturion/issues/1097)) ([04857fd](https://github.com/BytechLabs/Texturion/commit/04857fdc9bdd51310ae4b2fec61b92058080aca9))
+* **billing:** match onboarding prices to checkout currency ([#1119](https://github.com/BytechLabs/Texturion/issues/1119)) ([4b87e19](https://github.com/BytechLabs/Texturion/commit/4b87e19f483c2907f938553db472263f3d472d9c))
+* **calls:** generate ringback on the outbound placer leg ([#1135](https://github.com/BytechLabs/Texturion/issues/1135)) ([cdfc229](https://github.com/BytechLabs/Texturion/commit/cdfc229605c06e19c7bc90f226ddaddde8eb64e2))
+* **calls:** keep the accepted outbound ringback bridge ([#1153](https://github.com/BytechLabs/Texturion/issues/1153)) ([411f9e0](https://github.com/BytechLabs/Texturion/commit/411f9e093d45c60b33fe23a13e6b70a6e8daa531))
+* **calls:** match logged duration to customer talk time ([#1146](https://github.com/BytechLabs/Texturion/issues/1146)) ([0513500](https://github.com/BytechLabs/Texturion/commit/0513500dbae052beccaff25703dceab8ddacf4cc))
+* **calls:** meter late outbound customer hangups ([#1142](https://github.com/BytechLabs/Texturion/issues/1142)) ([8805556](https://github.com/BytechLabs/Texturion/commit/880555657eb89edab169a452d1800b1c4b7af41f))
+* resume incomplete Stripe payout setup ([#1155](https://github.com/BytechLabs/Texturion/issues/1155)) ([ab68ae8](https://github.com/BytechLabs/Texturion/commit/ab68ae83bb6dd0eb714607d6766b46e3bbf0e67e))
+* **thread:** show the planned quiet-hours clock ([#1199](https://github.com/BytechLabs/Texturion/issues/1199)) ([309d3a5](https://github.com/BytechLabs/Texturion/commit/309d3a5ad053375fb32cf687313029404a551aff))
+* **web:** show completed usage exports to bookkeepers ([#1158](https://github.com/BytechLabs/Texturion/issues/1158)) ([5321c21](https://github.com/BytechLabs/Texturion/commit/5321c21ab03c97657cef91a0c707a4e34ce7d4d4))
+
 ## [0.31.4](https://github.com/BytechLabs/Texturion/compare/api-v0.31.3...api-v0.31.4) (2026-11-21)
 
 
