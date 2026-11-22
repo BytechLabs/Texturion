@@ -915,10 +915,7 @@ private fun ReadyShell(
     // event-driven; only the badge counter needs the resync.)
     ResyncOnResume(companyId) { countsKey++ }
 
-    // #315: a bookkeeper holds billing and nothing else, and all four nav slots
-    // are conversation surfaces — rendering the shell for them would be four
-    // tabs that each answer 403. They get the one screen they can work instead.
-    // Seeded once, and NOT popped: there is nothing underneath it for them.
+    // Roles without conversation access use Settings as their root.
     val role = hydratedMe.memberships.firstOrNull { it.company_id == companyId }?.role
     val hasInbox = MemberRole.canReadConversations(role)
 
@@ -933,12 +930,6 @@ private fun ReadyShell(
             oriented = runCatching { graph.meRepo.firsts(companyId).oriented }.getOrNull()
         }
     }
-    LaunchedEffect(hasInbox, companyId) {
-        if (!hasInbox && routeStack.isEmpty()) {
-            routeStack.add(Overlay.Settings(SettingsSection.Billing))
-        }
-    }
-
     CompositionLocalProvider(LocalOpenTrash provides { openTrash() }) {
     ReadyShellFrame(offline || staleWorkspace) {
         if (hasInbox) {
@@ -1068,11 +1059,10 @@ private fun ReadyShell(
             )
         }
 
-        routeStack.lastOrNull()?.let { active ->
-            // #315: a role with no inbox has nothing underneath its one screen,
-            // so back must not strand them on an empty shell. Their route is
-            // re-seeded by the effect above if it is ever popped.
-            BackHandler(enabled = hasInbox) { pop() }
+        val activeRoute = routeStack.lastOrNull()
+            ?: if (hasInbox) null else Overlay.Settings(SettingsSection.Billing)
+        activeRoute?.let { active ->
+            BackHandler(enabled = routeStack.isNotEmpty()) { pop() }
             // Canvas + status inset once for every routed surface (#172). Only
             // the TOP of the stack renders; back pops one route at a time.
             // imeHost here is the ONE keyboard policy for pushed routes
@@ -1256,10 +1246,11 @@ private fun ReadyShell(
                         // Composed AFTER the host's pop BackHandler, so system
                         // back returns a section to the hub before popping the
                         // Settings route (the pre-hoist ordering, preserved).
-                        BackHandler(enabled = section != null) {
+                        fun closeSection() {
                             section = null
                             settingAnchor = null
                         }
+                        BackHandler(enabled = section != null, onBack = ::closeSection)
                         OverlayScaffold(
                             // #228: `section.title` resolves with a null locale —
                             // it exists so the guards comparing this app against
@@ -1267,13 +1258,10 @@ private fun ReadyShell(
                             // phone showed an English HEADER over a French
                             // section. The key is public for exactly this.
                             title = section?.let { t(it.titleKey) } ?: t("shell.settings"),
-                            onBack = {
-                                if (section != null) {
-                                    section = null
-                                    settingAnchor = null
-                                } else {
-                                    pop()
-                                }
+                            onBack = when {
+                                section != null -> ::closeSection
+                                routeStack.isNotEmpty() -> ::pop
+                                else -> null
                             },
                         ) { contentModifier ->
                             Column(contentModifier) {
@@ -1421,7 +1409,7 @@ private fun TwoFactorDeadlineBanner(company: CompanyView?, onOpen: () -> Unit) {
 @Composable
 private fun OverlayScaffold(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     actions: (@Composable () -> Unit)? = null,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -1430,14 +1418,17 @@ private fun OverlayScaffold(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
+                    .heightIn(min = 44.dp),
             ) {
-                PaperIconButton(
-                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = t("common.back"),
-                    onClick = onBack,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                )
+                onBack?.let {
+                    PaperIconButton(
+                        icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = t("common.back"),
+                        onClick = it,
+                        modifier = Modifier.align(Alignment.CenterStart),
+                    )
+                }
                 OverlayTitle(title, Modifier.align(Alignment.Center))
                 actions?.let { slot ->
                     Box(Modifier.align(Alignment.CenterEnd)) { slot() }
