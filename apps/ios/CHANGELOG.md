@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.27.4](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.3...ios-v0.27.4) (2026-11-22)
+
+
+### Bug Fixes
+
+* **billing:** match onboarding prices to checkout currency ([#1119](https://github.com/BytechLabs/Texturion/issues/1119)) ([4b87e19](https://github.com/BytechLabs/Texturion/commit/4b87e19f483c2907f938553db472263f3d472d9c))
+* **calls:** clear ended outbound placements ([#1179](https://github.com/BytechLabs/Texturion/issues/1179)) ([487d55c](https://github.com/BytechLabs/Texturion/commit/487d55c55780f92aaaea173a0cbb00c140985110))
+* find payment setup by its Settings title ([#1192](https://github.com/BytechLabs/Texturion/issues/1192)) ([6cd345d](https://github.com/BytechLabs/Texturion/commit/6cd345d83f6822f64d0fc3bf9bbed7f5dfaa3dad))
+* **i18n:** preserve inserted text in localized templates ([#1218](https://github.com/BytechLabs/Texturion/issues/1218)) ([cf5b26d](https://github.com/BytechLabs/Texturion/commit/cf5b26d9a766917673dcb40f5e4944fa00b651b5))
+* **ios:** keep inbox customer names readable at large text sizes ([#1132](https://github.com/BytechLabs/Texturion/issues/1132)) ([2bb77d4](https://github.com/BytechLabs/Texturion/commit/2bb77d46390ed670f55e0b9829c3074a31e80c0c))
+* **ios:** load payment request controls when a thread opens ([#1120](https://github.com/BytechLabs/Texturion/issues/1120)) ([f1e39d7](https://github.com/BytechLabs/Texturion/commit/f1e39d72a663fb7129fa27df13b34269df31a270))
+* **ios:** reflow call history and waiting actions at large text sizes ([#1134](https://github.com/BytechLabs/Texturion/issues/1134)) ([0d10b17](https://github.com/BytechLabs/Texturion/commit/0d10b175083d085e1acf60510068a91ab54424e0))
+* keep team invites visible on narrow phones ([#1173](https://github.com/BytechLabs/Texturion/issues/1173)) ([0e8dbcf](https://github.com/BytechLabs/Texturion/commit/0e8dbcf9f556af29a686ab2bc2b688f06f03d91a))
+* **mobile:** keep phone scope out of inbox filters ([#1193](https://github.com/BytechLabs/Texturion/issues/1193)) ([f4d1427](https://github.com/BytechLabs/Texturion/commit/f4d14277b859b19868eafb53c1aa47aa36771fd5))
+* **mobile:** let bookkeepers switch to another workspace ([#1152](https://github.com/BytechLabs/Texturion/issues/1152)) ([b81ce47](https://github.com/BytechLabs/Texturion/commit/b81ce474b1bf4d6cfd3a555c7ac076b971bd88aa))
+* **mobile:** refresh scheduled texts when opening Scheduled ([#1190](https://github.com/BytechLabs/Texturion/issues/1190)) ([39ebb5e](https://github.com/BytechLabs/Texturion/commit/39ebb5e52d35ab312f17a2fd4ead2065c98ac153))
+* **payments:** localize Stripe payout requirements ([#1201](https://github.com/BytechLabs/Texturion/issues/1201)) ([2e7063e](https://github.com/BytechLabs/Texturion/commit/2e7063e2a1514269268c1c4673613252b37d32d0))
+* preserve interrupted thread sends ([#1136](https://github.com/BytechLabs/Texturion/issues/1136)) ([6ee4e42](https://github.com/BytechLabs/Texturion/commit/6ee4e42de03b12a6915cebedb651fb5e109ec7a4))
+* preserve phone digits while editing ([#1096](https://github.com/BytechLabs/Texturion/issues/1096)) ([715c194](https://github.com/BytechLabs/Texturion/commit/715c1948d450c7559efc1e381a53d7da7c1854bd))
+* **quotes:** keep draft actions within narrow threads ([#1163](https://github.com/BytechLabs/Texturion/issues/1163)) ([f3cbef8](https://github.com/BytechLabs/Texturion/commit/f3cbef83b7dea491d7b73bdad88468c9666b4979))
+* **quotes:** preserve decimal amounts in quotes and pay links ([#1094](https://github.com/BytechLabs/Texturion/issues/1094)) ([ff71ce6](https://github.com/BytechLabs/Texturion/commit/ff71ce6d086f1f866e5cc4fe97c3fdbdb62eb68e))
+* refresh scheduled texts after delivery ([#1164](https://github.com/BytechLabs/Texturion/issues/1164)) ([adc4bb5](https://github.com/BytechLabs/Texturion/commit/adc4bb53ed7f6b5c4574b74a1de8dd935e088c60))
+* resume incomplete Stripe payout setup ([#1155](https://github.com/BytechLabs/Texturion/issues/1155)) ([ab68ae8](https://github.com/BytechLabs/Texturion/commit/ab68ae83bb6dd0eb714607d6766b46e3bbf0e67e))
+* **tasks:** keep mobile sort controls visible beside filters ([#1141](https://github.com/BytechLabs/Texturion/issues/1141)) ([098cbe9](https://github.com/BytechLabs/Texturion/commit/098cbe927d780ba51d9c8f1c8c99d8b7212c3e6d))
+* **thread:** increase scheduled message touch targets ([#1194](https://github.com/BytechLabs/Texturion/issues/1194)) ([2dbb9c3](https://github.com/BytechLabs/Texturion/commit/2dbb9c36cea7fb487b69b75629f1247b75fa824e))
+* **thread:** keep native composers below scrollable action cards ([#1200](https://github.com/BytechLabs/Texturion/issues/1200)) ([6f1e29c](https://github.com/BytechLabs/Texturion/commit/6f1e29c69d0f8572dcc1f37f9f2354b9eb74fd91))
+* **thread:** localize conversation presence ([#1210](https://github.com/BytechLabs/Texturion/issues/1210)) ([e424d60](https://github.com/BytechLabs/Texturion/commit/e424d6098cb5f239b7cdd5a00399ccb053bf3258))
+* **thread:** localize quiet-hours clocks ([#1191](https://github.com/BytechLabs/Texturion/issues/1191)) ([5be80d4](https://github.com/BytechLabs/Texturion/commit/5be80d432e46023a351ae11df2d1ed4f15f40d1b))
+* **thread:** show the planned quiet-hours clock ([#1199](https://github.com/BytechLabs/Texturion/issues/1199)) ([309d3a5](https://github.com/BytechLabs/Texturion/commit/309d3a5ad053375fb32cf687313029404a551aff))
+
 ## [0.27.3](https://github.com/BytechLabs/Texturion/compare/ios-v0.27.2...ios-v0.27.3) (2026-11-21)
 
 

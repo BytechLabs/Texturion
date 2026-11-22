@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.32.1](https://github.com/BytechLabs/Texturion/compare/web-v0.32.0...web-v0.32.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **billing:** match onboarding prices to checkout currency ([#1119](https://github.com/BytechLabs/Texturion/issues/1119)) ([4b87e19](https://github.com/BytechLabs/Texturion/commit/4b87e19f483c2907f938553db472263f3d472d9c))
+* **calls:** clear ended outbound placements ([#1179](https://github.com/BytechLabs/Texturion/issues/1179)) ([487d55c](https://github.com/BytechLabs/Texturion/commit/487d55c55780f92aaaea173a0cbb00c140985110))
+* **i18n:** preserve inserted text in localized templates ([#1218](https://github.com/BytechLabs/Texturion/issues/1218)) ([cf5b26d](https://github.com/BytechLabs/Texturion/commit/cf5b26d9a766917673dcb40f5e4944fa00b651b5))
+* localize scheduled message clocks ([#1175](https://github.com/BytechLabs/Texturion/issues/1175)) ([a0d482c](https://github.com/BytechLabs/Texturion/commit/a0d482c142e9748c70f82bd37a7dbd9b254ff33a))
+* **onboarding:** preserve business details during email lookup ([#1151](https://github.com/BytechLabs/Texturion/issues/1151)) ([63bdbc2](https://github.com/BytechLabs/Texturion/commit/63bdbc20576b4878365e0ace84ac8d4c6fc7ef4d))
+* **payments:** localize Stripe payout requirements ([#1201](https://github.com/BytechLabs/Texturion/issues/1201)) ([2e7063e](https://github.com/BytechLabs/Texturion/commit/2e7063e2a1514269268c1c4673613252b37d32d0))
+* preserve interrupted thread sends ([#1136](https://github.com/BytechLabs/Texturion/issues/1136)) ([6ee4e42](https://github.com/BytechLabs/Texturion/commit/6ee4e42de03b12a6915cebedb651fb5e109ec7a4))
+* preserve phone digits while editing ([#1096](https://github.com/BytechLabs/Texturion/issues/1096)) ([715c194](https://github.com/BytechLabs/Texturion/commit/715c1948d450c7559efc1e381a53d7da7c1854bd))
+* **quotes:** keep draft actions within narrow threads ([#1163](https://github.com/BytechLabs/Texturion/issues/1163)) ([f3cbef8](https://github.com/BytechLabs/Texturion/commit/f3cbef83b7dea491d7b73bdad88468c9666b4979))
+* **quotes:** preserve decimal amounts in quotes and pay links ([#1094](https://github.com/BytechLabs/Texturion/issues/1094)) ([ff71ce6](https://github.com/BytechLabs/Texturion/commit/ff71ce6d086f1f866e5cc4fe97c3fdbdb62eb68e))
+* refresh scheduled texts after delivery ([#1164](https://github.com/BytechLabs/Texturion/issues/1164)) ([adc4bb5](https://github.com/BytechLabs/Texturion/commit/adc4bb53ed7f6b5c4574b74a1de8dd935e088c60))
+* resume incomplete Stripe payout setup ([#1155](https://github.com/BytechLabs/Texturion/issues/1155)) ([ab68ae8](https://github.com/BytechLabs/Texturion/commit/ab68ae83bb6dd0eb714607d6766b46e3bbf0e67e))
+* **thread:** increase scheduled message touch targets ([#1194](https://github.com/BytechLabs/Texturion/issues/1194)) ([2dbb9c3](https://github.com/BytechLabs/Texturion/commit/2dbb9c36cea7fb487b69b75629f1247b75fa824e))
+* **thread:** localize conversation presence ([#1210](https://github.com/BytechLabs/Texturion/issues/1210)) ([e424d60](https://github.com/BytechLabs/Texturion/commit/e424d6098cb5f239b7cdd5a00399ccb053bf3258))
+* **thread:** localize quiet-hours clocks ([#1191](https://github.com/BytechLabs/Texturion/issues/1191)) ([5be80d4](https://github.com/BytechLabs/Texturion/commit/5be80d432e46023a351ae11df2d1ed4f15f40d1b))
+* **thread:** show the planned quiet-hours clock ([#1199](https://github.com/BytechLabs/Texturion/issues/1199)) ([309d3a5](https://github.com/BytechLabs/Texturion/commit/309d3a5ad053375fb32cf687313029404a551aff))
+* **web:** fit marketing feature heroes on phones ([#1180](https://github.com/BytechLabs/Texturion/issues/1180)) ([3b06c4e](https://github.com/BytechLabs/Texturion/commit/3b06c4e4dc5da8e46ef61c76471b4871476f1d17))
+* **web:** hide calendar setup without conversation access ([#1171](https://github.com/BytechLabs/Texturion/issues/1171)) ([52feef1](https://github.com/BytechLabs/Texturion/commit/52feef1a7efdbb55d1d8138d5af0dd406dde1062))
+* **web:** keep dense thread history readable ([#1222](https://github.com/BytechLabs/Texturion/issues/1222)) ([7483778](https://github.com/BytechLabs/Texturion/commit/7483778bc4dd6998c8f9c830edf63143be5f7004))
+* **web:** keep narrow team member actions reachable ([#1198](https://github.com/BytechLabs/Texturion/issues/1198)) ([012930f](https://github.com/BytechLabs/Texturion/commit/012930fb44f30697a849456c05d302e0b66979c9))
+* **web:** keep thread composer actions reachable on short screens ([#1188](https://github.com/BytechLabs/Texturion/issues/1188)) ([1358ea6](https://github.com/BytechLabs/Texturion/commit/1358ea68d91140779771eef412d45a1d69fcf0d6))
+* **web:** localize French marketing demo clocks and labels ([#1087](https://github.com/BytechLabs/Texturion/issues/1087)) ([c30520f](https://github.com/BytechLabs/Texturion/commit/c30520fc7c9566c80bc4295f295edc49af293978))
+* **web:** localize marketing plan paragraphs ([#1178](https://github.com/BytechLabs/Texturion/issues/1178)) ([5df0bc6](https://github.com/BytechLabs/Texturion/commit/5df0bc6501daabd8346827a62548a06c43c714fc))
+* **web:** scope onboarding drafts to the signed-in owner ([#1150](https://github.com/BytechLabs/Texturion/issues/1150)) ([d54291f](https://github.com/BytechLabs/Texturion/commit/d54291f78ed6b0139bced22a3237934950a3343f))
+* **web:** show 911 during number setup ([#1176](https://github.com/BytechLabs/Texturion/issues/1176)) ([41a474e](https://github.com/BytechLabs/Texturion/commit/41a474ee583bb63d21698f266fb23e4f37cff129))
+* **web:** show completed usage exports to bookkeepers ([#1158](https://github.com/BytechLabs/Texturion/issues/1158)) ([5321c21](https://github.com/BytechLabs/Texturion/commit/5321c21ab03c97657cef91a0c707a4e34ce7d4d4))
+* **web:** use the recipient language for payment requests ([#1182](https://github.com/BytechLabs/Texturion/issues/1182)) ([537bf65](https://github.com/BytechLabs/Texturion/commit/537bf65d6b2858a17baa566a57439831632a1d3a))
+
 ## [0.32.0](https://github.com/BytechLabs/Texturion/compare/web-v0.31.2...web-v0.32.0) (2026-11-21)
 
 

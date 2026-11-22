@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.24.3](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.2...shared-v0.24.3) (2026-11-22)
+
+
+### Bug Fixes
+
+* find payment setup by its Settings title ([#1192](https://github.com/BytechLabs/Texturion/issues/1192)) ([6cd345d](https://github.com/BytechLabs/Texturion/commit/6cd345d83f6822f64d0fc3bf9bbed7f5dfaa3dad))
+* **payments:** localize Stripe payout requirements ([#1201](https://github.com/BytechLabs/Texturion/issues/1201)) ([2e7063e](https://github.com/BytechLabs/Texturion/commit/2e7063e2a1514269268c1c4673613252b37d32d0))
+* **quotes:** preserve decimal amounts in quotes and pay links ([#1094](https://github.com/BytechLabs/Texturion/issues/1094)) ([ff71ce6](https://github.com/BytechLabs/Texturion/commit/ff71ce6d086f1f866e5cc4fe97c3fdbdb62eb68e))
+* resume incomplete Stripe payout setup ([#1155](https://github.com/BytechLabs/Texturion/issues/1155)) ([ab68ae8](https://github.com/BytechLabs/Texturion/commit/ab68ae83bb6dd0eb714607d6766b46e3bbf0e67e))
+* **thread:** localize conversation presence ([#1210](https://github.com/BytechLabs/Texturion/issues/1210)) ([e424d60](https://github.com/BytechLabs/Texturion/commit/e424d6098cb5f239b7cdd5a00399ccb053bf3258))
+
 ## [0.24.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.1...shared-v0.24.2) (2026-11-20)
 
 
