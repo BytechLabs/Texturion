@@ -2,6 +2,7 @@ package com.loonext.android.telephony
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.telecom.DisconnectCause
 import androidx.core.telecom.CallAttributesCompat
 import androidx.core.telecom.CallControlResult
@@ -36,6 +37,16 @@ data class AudioRouteFacts(
     /** Proximity distinguishes wired headsets from the receiver, even when the UI groups them. */
     val endpointType: Int? = null,
 )
+
+internal fun CallsManager.registerLoonextPhoneAccount() {
+    // Android 14 and 15 can leave transactional calls ringing when Telecom
+    // creates the call after the registration timeout. The connection service
+    // rejects a late request when its registration has already expired.
+    registerAppWithTelecom(
+        CallsManager.CAPABILITY_BASELINE,
+        backwardsCompatSdkLevel = Build.VERSION_CODES.VANILLA_ICE_CREAM,
+    )
+}
 
 /**
  * The single owner of every call the OS sees (#171, docs/CALLS-CLIENT-V2.md
@@ -207,7 +218,7 @@ class TelecomCallRegistry(
 
         @Volatile var terminated = false
 
-        /** The last scope op driven (App→OS mirror idempotency). */
+        /** The latest scope operation requested by the media leg. */
         @Volatile var lastAction: TelecomCallReducer.ScopeAction? = null
 
         var deadlineJob: Job? = null
@@ -234,7 +245,7 @@ class TelecomCallRegistry(
         synchronized(this) {
             if (registered) return
             registered = runCatching {
-                callsManager.registerAppWithTelecom(CallsManager.CAPABILITY_BASELINE)
+                callsManager.registerLoonextPhoneAccount()
             }.onFailure { onFailure("telecom-register", it) }.isSuccess
         }
     }
@@ -443,12 +454,16 @@ class TelecomCallRegistry(
         if (entry.owningLegId == null && legState == TelecomCallReducer.LegState.ACTIVE) {
             entry.owningLegId = legId
         }
-        val action = TelecomCallReducer.mapLegState(legState, outbound, entry.lastAction)
-        if (action == TelecomCallReducer.ScopeAction.NONE || action == entry.lastAction) return
-        entry.lastAction = action
+        val (action, control) = synchronized(entry) {
+            if (entry.terminated) return
+            val action = TelecomCallReducer.mapLegState(legState, outbound, entry.lastAction)
+            if (action == TelecomCallReducer.ScopeAction.NONE || action == entry.lastAction) return
+            entry.lastAction = action
+            action to entry.scope
+        }
         when (action) {
-            TelecomCallReducer.ScopeAction.SET_ACTIVE -> scopeOp(entry) { setActive() }
-            TelecomCallReducer.ScopeAction.SET_INACTIVE -> scopeOp(entry) { setInactive() }
+            TelecomCallReducer.ScopeAction.SET_ACTIVE,
+            TelecomCallReducer.ScopeAction.SET_INACTIVE -> control?.let { scopeOp(entry, it, action) }
             TelecomCallReducer.ScopeAction.DISCONNECT_LOCAL ->
                 disconnectEntry(entry, DisconnectCause(DisconnectCause.LOCAL))
 
@@ -605,6 +620,7 @@ class TelecomCallRegistry(
                             terminated = entry.terminated,
                             answerRequested = entry.answerRequested,
                             answered = entry.answered,
+                            lastAction = entry.lastAction,
                         )
                     }
                     // §3.1/I4: keep foreground priority (and the mic FGS) within 5s.
@@ -642,6 +658,10 @@ class TelecomCallRegistry(
                         // I3 catch-up: the user answered before the scope existed —
                         // issue the OS answer now (idempotent via entry.answered).
                         TelecomCallReducer.ScopeReconcile.ANSWER -> answerOnScope(entry, session)
+                        TelecomCallReducer.ScopeReconcile.SET_ACTIVE ->
+                            scopeOp(entry, this, TelecomCallReducer.ScopeAction.SET_ACTIVE)
+                        TelecomCallReducer.ScopeReconcile.SET_INACTIVE ->
+                            scopeOp(entry, this, TelecomCallReducer.ScopeAction.SET_INACTIVE)
                         TelecomCallReducer.ScopeReconcile.NONE -> Unit
                     }
                 }
@@ -1084,10 +1104,16 @@ class TelecomCallRegistry(
      * which is reported but not escalated (a redundant hold/resume Error must
      * not tear a live call down).
      */
-    private fun scopeOp(entry: CallEntry, op: suspend CallControlScope.() -> CallControlResult) {
-        val control = entry.scope ?: return
+    private fun scopeOp(
+        entry: CallEntry,
+        control: CallControlScope,
+        action: TelecomCallReducer.ScopeAction,
+    ) {
         control.launch {
-            val result = runCatching { control.op() }
+            if (entry.terminated || entry.lastAction != action) return@launch
+            val result = runCatching {
+                if (action == TelecomCallReducer.ScopeAction.SET_ACTIVE) control.setActive() else control.setInactive()
+            }
                 .onFailure { onFailure("telecom-scope", it) }
                 .getOrNull()
             if (result is CallControlResult.Error) {

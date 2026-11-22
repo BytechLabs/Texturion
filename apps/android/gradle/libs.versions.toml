@@ -22,10 +22,9 @@ biometric = "1.1.0"
 # binds hardest here: this is the path that decides whether somebody can get
 # into their own account.
 credentials = "1.6.0"
-# Jetpack Telecom (#171): the OS owns the ringing session, audio mode, mic FGS,
-# and route. 1.0.1 is the latest STABLE (1.1.0 is alpha-only — never ship an
-# alpha on the ring path). Backports to minSdk 26; the project is minSdk 28.
-coreTelecom = "1.0.1"
+# Jetpack Telecom owns the ringing session, audio mode, mic priority and route.
+# Version 1.1 adds the registration option used on Android 14 and 15.
+coreTelecom = "1.1.0"
 okhttp = "5.5.1"
 kotlinxSerialization = "1.12.0"
 kotlinxCoroutines = "1.11.0"
