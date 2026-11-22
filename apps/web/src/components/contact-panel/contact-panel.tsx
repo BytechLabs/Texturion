@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Check, ChevronDown, Copy, Plus, Sparkles, Undo2, X } from "lucide-react";
+import { Ban, ChevronDown, Plus, Sparkles, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { avatarColorClass } from "@/components/shell/avatar-color";
 import { AttachmentsClump } from "@/components/thread/attachments-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Command,
   CommandEmpty,
@@ -53,7 +54,7 @@ import { useConversationTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import type { ContactDetail, ConversationDetail } from "@/lib/api/types";
-import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { contactDisplayName } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -124,7 +125,6 @@ export function ContactPanel({
 }) {
   const t = useT();
   const memberNames = useMemberNames();
-  const [copied, setCopied] = useState(false);
   const [confirmOptOut, setConfirmOptOut] = useState(false);
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
@@ -152,7 +152,6 @@ export function ContactPanel({
     );
   }
 
-  const phone = formatPhone(contact.phone_e164);
   const memberName = (id: string | null) =>
     id ? memberNames.get(id) ?? t("contacts.aTeammate") : null;
   // #301: an unanswered source stays out in the open as the one-tap ask; once
@@ -160,16 +159,6 @@ export function ContactPanel({
   const asksForSource =
     activeSources(leadSources.data?.data).length > 0 &&
     conversation.lead_source_id === null;
-
-  const copyNumber = async () => {
-    try {
-      await navigator.clipboard.writeText(contact.phone_e164);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard unavailable — number stays selectable.
-    }
-  };
 
   const relationship = contactRelationshipLine(
     contact.conversation_count,
@@ -208,9 +197,7 @@ export function ContactPanel({
         }
         meta={
           <>
-            <p className="select-all whitespace-nowrap px-2 text-sm tabular-nums text-muted-foreground">
-              {phone}
-            </p>
+            <CopyablePhoneNumber number={contact.phone_e164} className="whitespace-nowrap px-2 text-sm tabular-nums text-muted-foreground" />
             {/* #410: how long they have been a customer, and how often. */}
             {relationship !== null && (
               <p className="px-2 text-[13px] text-muted-foreground">
@@ -228,14 +215,6 @@ export function ContactPanel({
               variant="outline"
               disabled={conversation.opted_out ?? contact.opted_out}
             />
-            <Button variant="outline" size="sm" onClick={() => { void copyNumber(); }}>
-              {copied ? (
-                <Check className="text-success" strokeWidth={1.75} aria-hidden />
-              ) : (
-                <Copy strokeWidth={1.75} aria-hidden />
-              )}
-              {t(copied ? "contacts.numberCopied" : "contacts.copyNumber")}
-            </Button>
             <RecordOpenLink
               href={`/contacts/${contact.id}`}
               label={t("contacts.openContact")}

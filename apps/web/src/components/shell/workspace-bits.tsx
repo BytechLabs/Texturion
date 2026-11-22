@@ -1,15 +1,12 @@
 "use client";
 
-import { Check, Copy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link, { useLinkStatus } from "next/link";
-import { useState } from "react";
-import { toast } from "sonner";
 
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
 import type { PhoneNumberSummary } from "@/lib/api/types";
-import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
 /** The company tile's square logo initials (e.g. "Rivera Plumbing" → "RP"). */
@@ -42,49 +39,14 @@ export function NavGlyph({
   );
 }
 
-/**
- * One active business number + a copy button. The number itself is the useful
- * thing (not "1 number active"); copy writes the raw E.164 and flips to a check
- * for a beat. A standalone row so it never nests a button inside a button (the
- * workspace tiles are themselves buttons). Shared by the desktop sidebar's
- * number strip and the mobile header so both render numbers identically and
- * handle more than one number the same way.
- */
-export function CopyableNumberRow({ e164 }: { e164: string }) {
-  const t = useT();
-  const [copied, setCopied] = useState(false);
-  const label = formatPhone(e164);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(e164);
-      setCopied(true);
-      toast.success(t("shell.numberCopied"));
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error(t("shell.copyBlocked"));
-    }
-  };
+function CopyableNumberRow({ e164 }: { e164: string }) {
   return (
     <div className="flex items-center gap-1.5 text-[12px]">
       <span
         aria-hidden
         className="size-1.5 shrink-0 rounded-full bg-app-olive"
       />
-      <span className="min-w-0 flex-1 truncate tabular-nums text-app-ink">
-        {label}
-      </span>
-      <button
-        type="button"
-        onClick={() => void copy()}
-        aria-label={t("shell.copyNumber", { number: label })}
-        className="grid size-6 shrink-0 place-items-center rounded-[6px] text-app-muted-2 outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {copied ? (
-          <Check className="size-3.5" strokeWidth={2} aria-hidden />
-        ) : (
-          <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
-        )}
-      </button>
+      <CopyablePhoneNumber number={e164} className="min-h-6 tabular-nums text-app-ink" />
     </div>
   );
 }

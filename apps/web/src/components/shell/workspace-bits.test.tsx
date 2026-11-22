@@ -41,7 +41,7 @@ describe(WorkspaceNumbers, () => {
       { id: "n1", status: "active", number_e164: "+14165550100" },
     ];
     const html = renderToStaticMarkup(<WorkspaceNumbers />);
-    expect(html).toContain("Copy (416) 555-0100");
+    expect(html).toContain("Copy number: (416) 555-0100");
     expect(html).not.toContain('data-slot="skeleton"');
   });
 
