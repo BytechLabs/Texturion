@@ -18,7 +18,6 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import type { PortabilityCheck } from "@/lib/api/types";
 import { writeCompanyCookie } from "@/lib/company/cookie";
-import { browserTimezone } from "@/lib/format/time";
 import { formatPhone } from "@/lib/format/phone";
 import {
   clearReferralCode,
@@ -91,14 +90,12 @@ export default function PortNumberPage() {
       // requested_area_code (unused for a port that buys no inventory).
       let activeCompanyId = companyId;
       if (!activeCompanyId) {
-        const timezone = browserTimezone();
         const company = await createCompany.mutateAsync({
           locale: t.locale,
           name: (draft.name ?? "").trim(),
           country,
           requested_area_code: areaCodeOf(e164),
           us_texting_enabled: country === "CA" ? draft.usTexting !== false : true,
-          ...(timezone ? { timezone } : {}),
           // #370: the crew size answered back on the name step.
           ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
           // #288: and how they say they heard about us.

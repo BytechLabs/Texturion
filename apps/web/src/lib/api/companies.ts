@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
+import { browserTimezone } from "@/lib/format/time";
 
 import type {
   AutomaticTextSettings,
@@ -85,8 +86,6 @@ export interface CreateCompanyInput {
   chosen_number_e164?: string;
   /** CA only — US companies always have US texting enabled. */
   us_texting_enabled?: boolean;
-  /** D15: the creating browser's IANA zone, captured silently at onboarding. */
-  timezone?: string;
   locale?: Locale;
   /**
    * #370: how big the crew is, as answered on the name step. Omitted when the
@@ -121,8 +120,15 @@ export interface CreateCompanyInput {
 export function useCreateCompany() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateCompanyInput) =>
-      apiFetch<CompanyView>("/v1/companies", { method: "POST", body: input }),
+    mutationFn: (input: CreateCompanyInput) => {
+      const reportedZone = browserTimezone();
+      const timezone = reportedZone === "+00:00" ? "UTC" : reportedZone;
+      // A nonzero offset cannot identify the workspace's daylight saving rules.
+      const body = timezone === "UTC" || timezone?.includes("/")
+        ? { ...input, timezone }
+        : input;
+      return apiFetch<CompanyView>("/v1/companies", { method: "POST", body });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.me });
     },

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MfaGate } from "@/components/shell/mfa-gate";
 
-import { useCompany } from "./companies";
+import { useCompany, useCreateCompany } from "./companies";
 import { ApiError } from "./error";
 import { keys } from "./keys";
 import { meCompanyQueryOptions } from "./me";
@@ -120,5 +120,35 @@ describe(useCompany, () => {
     await expect(screen.findByText("enter your code")).resolves.toBeInstanceOf(Element);
     expect(screen.queryByText("the shell")).toBeNull();
     expect(calls()).toEqual([`/v1/me@${COMPANY}`, `/v1/company@${COMPANY}`]);
+  });
+});
+
+describe(useCreateCompany, () => {
+  it.each([
+    ["America/Toronto", "America/Toronto"],
+    ["UTC", "UTC"],
+    ["+00:00", "UTC"],
+    ["-05:00", undefined],
+    ["+05:30", undefined],
+  ])("submits a valid workspace payload when the browser reports %s", async (reported, timezone) => {
+    const options = Intl.DateTimeFormat().resolvedOptions();
+    const resolvedOptions = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")
+      .mockReturnValue({ ...options, timeZone: reported });
+    document.dispatchEvent(new Event("visibilitychange"));
+    try {
+      api.mockResolvedValueOnce(fromCompany);
+      const { result } = renderHook(() => useCreateCompany(), {
+        wrapper: wrapperFor(newClient()),
+      });
+      const input = { name: "Test Plumbing", country: "CA", requested_area_code: "416" } as const;
+      await act(async () => { await result.current.mutateAsync(input); });
+      expect(api).toHaveBeenCalledExactlyOnceWith("/v1/companies", {
+        method: "POST",
+        body: timezone ? { ...input, timezone } : input,
+      });
+    } finally {
+      resolvedOptions.mockRestore();
+      document.dispatchEvent(new Event("visibilitychange"));
+    }
   });
 });
