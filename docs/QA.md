@@ -187,9 +187,18 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 | `quote-amount` | #1088, #1115 | A ready payout account exposes Ask for payment on a new thread. The Canadian French quote and pay-link forms save a decimal comma amount. The fixture records the amounts in cents and XCTest captures the previews and saved amounts. |
 | `accessibility` | #238, #1118 | Apple's audits check labels, contrast, hit regions and large-text clipping. Canadian French tests run in both appearances and check that task sorting is visible and changes the selected sort. |
 
-`LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service. Use HTTPS origins or runner loopback HTTP. The defaults use the included loopback fixture because the rig edge's public routes serve webhooks and media. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
+`LoonextQA` uses the `QA` build configuration. Override `LOONEXT_QA_API_URL`, `LOONEXT_QA_WEB_URL`, `LOONEXT_QA_SUPABASE_URL` and `LOONEXT_QA_SUPABASE_PUBLISHABLE_KEY` on `xcodebuild` to use another nonproduction service from a machine that can reach it. Use HTTPS origins or runner loopback HTTP. Debug and Release keep the production endpoints. The workflow checks the Release compilation condition, bundle ID and endpoint values.
 
 For interactive tests of throughput and packet loss, Xcode exposes Network Link Conditioner profiles in its Devices and Simulators window. The hosted test controls the fixture's sockets while leaving its control endpoint reachable. [Apple network conditioning guide](https://developer.apple.com/videos/play/tech-talks/111378/)
+
+### Provider round trips
+
+Keep the GitHub-hosted iOS workflow on the loopback fixture for client behavior. Use the private rig to verify provider delivery and record the rig run IDs alongside the Simulator results. The rig app, API and Auth endpoints stay on the private network.
+
+- Run `S28` to buy a number in the rig's Telnyx partition, ring the owner from `ROBOT-1`, and verify release.
+- Run `S35` to receive the Auth signup email in Mailpit and follow its confirmation link. Use `S34` for invite delivery to the tagged robot mailbox. To verify fresh invite acceptance, open a new invite from that mailbox, complete sign-in, and check the new member's workspace role.
+- Use the scheduled-send check in `S25` to verify delivery to `ROBOT-1` during sendable hours. Record the carrier receipt and the app's result.
+- For pay links, use a connected Stripe test account and an owned rig phone line. Open the delivered payment link, complete hosted Checkout with a Stripe test card, and verify the Connect event and the paid state in the app.
 
 ### Accepted iPhone hardware gaps
 
