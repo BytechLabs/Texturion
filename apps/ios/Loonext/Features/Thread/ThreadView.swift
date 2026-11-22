@@ -2469,7 +2469,7 @@ private struct AssigneeChoiceChip: View {
                     .font(.golos(12.5, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? BrandColor.ink : BrandColor.muted700)
             }
-            .padding(.leading, showsAvatar ? 6 : 13)
+            .padding(.leading, memberId == nil ? 13 : 6)
             .padding(.trailing, 13)
             .padding(.vertical, 6)
             .background(BrandColor.paper, in: Capsule())
