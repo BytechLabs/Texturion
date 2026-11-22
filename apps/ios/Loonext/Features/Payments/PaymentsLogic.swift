@@ -322,6 +322,9 @@ struct PayoutAccountFacts: Sendable {
 func payoutReadiness(_ account: PayoutAccountFacts?) -> PayoutReadiness {
     guard let account = account, account.connected else { return .notConnected }
     if account.chargesEnabled { return .ready }
+    if !account.detailsSubmitted && account.disabledReason == "requirements.past_due" {
+        return .onboardingIncomplete
+    }
     if isStamped(account.disabledReason) { return .restricted }
     if !account.detailsSubmitted { return .onboardingIncomplete }
     return .pendingVerification
@@ -377,6 +380,7 @@ private let payoutRequirementKeys: [String: String] = [
     "company.tax_id": "payments.reqBusinessNumber",
     "company.verification.document": "payments.reqBusinessDocument",
     "tos_acceptance.date": "payments.reqTos",
+    "tos_acceptance.ip": "payments.reqTos",
     "representative.verification.document": "payments.reqSignatoryId",
 ]
 

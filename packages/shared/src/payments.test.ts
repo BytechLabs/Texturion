@@ -253,6 +253,16 @@ describe(payoutReadiness, () => {
   it("names the reason when charges are off", () => {
     expect(
       payoutReadiness({ ...base, disabled_reason: "requirements.past_due" }),
+    ).toBe("onboarding_incomplete");
+    expect(
+      payoutReadiness({
+        ...base,
+        details_submitted: true,
+        disabled_reason: "requirements.past_due",
+      }),
+    ).toBe("restricted");
+    expect(
+      payoutReadiness({ ...base, disabled_reason: "rejected.fraud" }),
     ).toBe("restricted");
     expect(payoutReadiness(base)).toBe("onboarding_incomplete");
     // Everything handed over, nothing outstanding, charges still off: Stripe is
@@ -311,7 +321,7 @@ describe(payoutRequirementCopy, () => {
     expect(say("reqOwnerId")).toBe("Photo ID for the business owner");
   });
 
-  it("says all twelve in French, which is the half nobody re-reads", () => {
+  it("translates the known requirements into French", () => {
     // A key present in English and missing in French falls back to English by
     // design, so this never surfaces as a broken screen — it surfaces as a
     // French owner reading an English list of what Stripe still wants.
@@ -327,6 +337,7 @@ describe(payoutRequirementCopy, () => {
       "company.tax_id",
       "company.verification.document",
       "tos_acceptance.date",
+      "tos_acceptance.ip",
       "representative.verification.document",
     ]) {
       const { key } = payoutRequirementCopy(requirement);
@@ -335,6 +346,12 @@ describe(payoutRequirementCopy, () => {
       expect(WEB_FR.payments[name]).toBeTypeOf("string");
       expect(WEB_FR.payments[name], requirement).not.toBe(WEB_EN.payments[name]);
     }
+  });
+
+  it("uses the same terms label for the date and IP requirements", () => {
+    expect(payoutRequirementCopy("tos_acceptance.ip")).toEqual(
+      payoutRequirementCopy("tos_acceptance.date"),
+    );
   });
 
   /**

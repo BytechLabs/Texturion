@@ -267,6 +267,7 @@ private fun PayoutCard(
  */
 @Composable
 private fun OutstandingRequirements(requirements: List<String>) {
+    val locale = LocalAppLocale.current
     val dark = isSystemInDarkTheme()
     val bg = if (dark) BrandColor.DarkAmberBg else BrandColor.AmberBg
     val ink = if (dark) BrandColor.DarkAmber else BrandColor.Amber
@@ -282,9 +283,9 @@ private fun OutstandingRequirements(requirements: List<String>) {
             color = ink,
         )
         Spacer(Modifier.height(4.dp))
-        requirements.forEach { requirement ->
+        requirements.map { Payments.requirementCopy(it, locale) }.distinct().forEach { text ->
             Text(
-                Payments.requirementCopy(requirement),
+                text,
                 style = MaterialTheme.typography.bodySmall,
                 color = ink,
                 modifier = Modifier.padding(top = 2.dp),

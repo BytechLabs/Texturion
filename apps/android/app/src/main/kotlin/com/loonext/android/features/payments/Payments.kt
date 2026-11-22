@@ -264,6 +264,7 @@ object Payments {
     ): PayoutReadiness = when {
         !connected -> PayoutReadiness.NOT_CONNECTED
         chargesEnabled -> PayoutReadiness.READY
+        !detailsSubmitted && disabledReason == "requirements.past_due" -> PayoutReadiness.ONBOARDING_INCOMPLETE
         !disabledReason.isNullOrBlank() -> PayoutReadiness.RESTRICTED
         !detailsSubmitted -> PayoutReadiness.ONBOARDING_INCOMPLETE
         else -> PayoutReadiness.PENDING_VERIFICATION
@@ -371,6 +372,7 @@ object Payments {
         "company.tax_id" to "payments.reqBusinessNumber",
         "company.verification.document" to "payments.reqBusinessDocument",
         "tos_acceptance.date" to "payments.reqTos",
+        "tos_acceptance.ip" to "payments.reqTos",
         "representative.verification.document" to "payments.reqSignatoryId",
     )
 }

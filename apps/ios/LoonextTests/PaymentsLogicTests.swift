@@ -328,6 +328,10 @@ final class PaymentsLogicTests: XCTestCase {
         )
         XCTAssertEqual(payoutRequirementCopy("external_account"), "Your bank account details")
         XCTAssertEqual(payoutRequirementCopy("tos_acceptance.date"), "Accepting Stripe's terms")
+        XCTAssertEqual(
+            payoutRequirementCopy("tos_acceptance.ip", "fr-CA"),
+            payoutRequirementCopy("tos_acceptance.date", "fr-CA")
+        )
     }
 
     /// Stripe adds requirement keys without telling anybody. An outstanding

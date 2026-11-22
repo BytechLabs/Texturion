@@ -317,15 +317,15 @@ describe("#224 the account", () => {
     });
   });
 
-  it("names the outstanding requirements rather than saying 'pending'", async () => {
+  it("offers to finish setup for an unsubmitted account with past-due requirements", async () => {
     const harness = buildHarness({
       account: { charges_enabled: false, details_submitted: false },
       accountOverrides: {
         charges_enabled: false,
         details_submitted: false,
         requirements: {
-          currently_due: ["external_account", "individual.verification.document"],
-          disabled_reason: null,
+          currently_due: ["external_account", "tos_acceptance.date", "tos_acceptance.ip"],
+          disabled_reason: "requirements.past_due",
           current_deadline: null,
         },
       },
@@ -333,9 +333,13 @@ describe("#224 the account", () => {
     const response = await harness.request("/v1/payments/account");
     const body = await response.json<Record<string, unknown>>();
     expect(body.readiness).toBe("onboarding_incomplete");
+    expect(body.action).toBe("Finish setting up");
+    expect(body.action_key).toBe("payments.payoutActionFinish");
+    expect(body.charges_enabled).toBe(false);
     expect(body.requirements_due).toEqual([
       "external_account",
-      "individual.verification.document",
+      "tos_acceptance.date",
+      "tos_acceptance.ip",
     ]);
   });
 
@@ -398,7 +402,7 @@ describe("#224 who may ask whether payments are on", () => {
     });
     const body = await (await harness.request("/v1/payments/account")).json<Record<string, unknown>>();
     // Enough to decide whether to draw a control.
-    expect(body.readiness).toBe("restricted");
+    expect(body.readiness).toBe("onboarding_incomplete");
     // And nothing about the owner's identity documents or the business's
     // standing with a payment processor.
     expect(body.requirements_due).toBeUndefined();
