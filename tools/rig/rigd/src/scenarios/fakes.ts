@@ -630,8 +630,8 @@ export class FakeBrowser implements BrowserApi {
       async hangUp() {
         actions.push(`${member} hang up`);
       },
-      async dial(role) {
-        actions.push(`${member} dial ${role}`);
+      async dial(role, fromRole) {
+        actions.push(`${member} dial ${role}${fromRole ? ` from ${fromRole}` : ""}`);
       },
       async hold(on) {
         actions.push(`${member} ${on ? "hold" : "resume"}`);

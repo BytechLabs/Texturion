@@ -293,7 +293,7 @@ describe("S01, the browser calls ROBOT-1", () => {
     const { ctx, robot, browser } = fakeContext("S01");
     expect((await S01.run(ctx)).outcome).toBe("pass");
     expect(robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", answer_after_ms: 4000, expect: "qa-w-owner" });
-    expect(browser.actions).toEqual(["qa-w-owner dial ROBOT-1"]);
+    expect(browser.actions).toEqual(["qa-w-owner dial ROBOT-1 from DEV-W1"]);
     expect(ctx.evidence.call).toMatchObject({ ids: { call_session_id: "session-1" } });
     expect(browser.hearingOptions).toEqual([
       { answeredAt: expect.any(Number), windowStartMs: 2000, windowEndMs: 25_000 },

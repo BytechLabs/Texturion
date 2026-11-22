@@ -73,7 +73,7 @@ export const S01: ScenarioRunner = {
       hangup_after_ms: TALK_MS,
     });
     if (plan.state === "failed") return infra("robot", plan.errors.join("; "));
-    await page.dial("ROBOT-1");
+    await page.dial("ROBOT-1", "DEV-W1");
     const record = await ctx.robot.wait(plan.plan_id, 180_000);
     const answeredAt = record.answered_at ? Date.parse(record.answered_at) : undefined;
     const playbackAt = record.events.find((event) => event.type === "call.playback.started")?.at;
