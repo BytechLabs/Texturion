@@ -141,6 +141,7 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LocalWindowSizeClass
 import com.loonext.android.ui.common.MainActionButton
+import com.loonext.android.ui.common.RefreshBox
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.imeHost
@@ -1467,30 +1468,37 @@ private fun ExternalStep(
     // #180: centre the interstitial when there is room, but let it scroll on a
     // short/landscape viewport so the CTA and Sign out never fall off-screen.
     BoxWithConstraints(Modifier.fillMaxSize()) {
-      Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = maxHeight)
-            .verticalScroll(rememberScrollState())
-            .contentMaxWidth(460.dp)
-            .padding(horizontal = 28.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-      ) {
-        Text(headline, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
-        )
-        Button(onClick = {
-            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-        }) { Text(cta) }
-        TextButton(onClick = onRefresh) { Text(t("shell.externalStepDone")) }
-        TextButton(onClick = onSignOut) { Text(t("shell.signOut")) }
-      }
+        val viewportHeight = maxHeight
+        RefreshBox(
+            isRefreshing = false,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = viewportHeight)
+                    .verticalScroll(rememberScrollState())
+                    .contentMaxWidth(460.dp)
+                    .padding(horizontal = 28.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(headline, style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
+                )
+                Button(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                }) { Text(cta) }
+                TextButton(onClick = onRefresh) { Text(t("shell.externalStepDone")) }
+                TextButton(onClick = onSignOut) { Text(t("shell.signOut")) }
+            }
+        }
     }
 }
 
