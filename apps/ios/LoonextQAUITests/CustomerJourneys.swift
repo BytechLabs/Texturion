@@ -137,15 +137,25 @@ final class CustomerJourneys: XCTestCase {
         dismissNotificationPrimer(language)
         try waitFor(button(text("Tasks", "Tâches"))).tap()
         try waitFor(button(text("Planner", "Planificateur"))).tap()
-        let pending = try waitFor(button("Test boiler"))
+        let pending = app.descendants(matching: .any)["dispatch-queue-task-test-task"].firstMatch
+        try waitFor(pending)
         let lane = app.descendants(matching: .any)["dispatch-lane-20000000-0000-4000-8000-000000000002"].firstMatch
         try waitFor(lane)
         XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
         shot("Planner schedule \(suffix)")
-        pending.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).press(
-            forDuration: 0.6, thenDragTo: lane.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)))
-        try waitFor(button(text("Change duration", "Modifier la durée")))
+        let previewCount = try await allWrites().filter { $0.path == "/v1/dispatch/preview" }.count
+        pending.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).press(
+            forDuration: 0.9, thenDragTo: lane.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)),
+            withVelocity: .slow, thenHoldForDuration: 0.4)
+        let resize = try waitFor(button(text("Change duration", "Modifier la durée")))
         shot("Planner staged work \(suffix)")
+        let edge = resize.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        edge.press(forDuration: 0.05, thenDragTo: edge.withOffset(CGVector(dx: 56, dy: 0)))
+        try waitFor(button(text("Change duration", "Modifier la durée")))
+        let writes = try await allWrites()
+        XCTAssertEqual(writes.filter { $0.path == "/v1/dispatch/preview" }.count, previewCount + 2)
+        XCTAssertFalse(writes.contains { $0.path == "/v1/dispatch/publish" })
+        shot("Planner resized work \(suffix)")
     }
 
     private func workspace(_ language: Language, _ theme: String) async throws {

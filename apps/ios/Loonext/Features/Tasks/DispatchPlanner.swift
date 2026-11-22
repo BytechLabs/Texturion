@@ -564,7 +564,10 @@ struct DispatchPlanner: View {
             .padding(12)
         }
         if dragEnabled {
-            row.draggable("task:\(task.id)")
+            row.contentShape(Rectangle())
+                .draggable("task:\(task.id)")
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("dispatch-queue-task-\(task.id)")
         } else {
             row
         }
@@ -964,7 +967,7 @@ private struct DispatchTimelineBlock: View {
             Button(action: onTask) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task.title).font(.caption.weight(.semibold)).lineLimit(1)
-                    Text("\(time(start)) – \(time(resizing ?? end))").font(.caption2.monospacedDigit()).lineLimit(1)
+                    Text("\(time(start)) – \(time(resizing ?? end))").font(.caption2.monospacedDigit()).lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .padding(.leading, 6)

@@ -334,7 +334,7 @@ internal fun DispatchPlanner(
             selected = pane,
             onSelect = { pane = it },
             fill = true,
-            labelPadding = 4.dp,
+            labelPadding = 1.dp,
             labelLines = 2,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
