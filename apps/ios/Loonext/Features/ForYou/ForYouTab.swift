@@ -16,6 +16,11 @@ import SwiftUI
 /// micro-headers with olive counts, Bricolage screen title.
 @MainActor
 struct ForYouTab: View {
+    private struct QueueScope: Equatable {
+        let companyId: String
+        let lineId: String?
+    }
+
     let graph: AppGraph
     let companyId: String
     let me: Me
@@ -29,7 +34,10 @@ struct ForYouTab: View {
     let onOpenNotifications: () -> Void
     var onOpenCalls: (() -> Void)? = nil
 
+    @Environment(\.appLocale) private var appLocale
     @State private var state: LoadState<ForYou> = .loading
+    @State private var loadedScope: QueueScope?
+    @State private var lineSelection: QueueScope?
     @State private var hasScheduleDecisions = false
     @State private var recentCalls: LoadState<[Call]> = .loading
     /// #287: money asked for and not yet answered. Empty rather than a
@@ -96,6 +104,28 @@ struct ForYouTab: View {
     @State private var editing = false
     @State private var layoutFailed = false
 
+    private var lines: [PhoneNumberSummary] { accessiblePhoneLines(me.company?.numbers ?? []) }
+
+    private var selectedLine: PhoneNumberSummary? {
+        guard lines.count > 1, lineSelection?.companyId == companyId else { return nil }
+        return lines.first { $0.id == lineSelection?.lineId }
+    }
+
+    private var queueScope: QueueScope { QueueScope(companyId: companyId, lineId: selectedLine?.id) }
+
+    private var linePicker: PhoneLineMenu? {
+        guard lines.count > 1 else { return nil }
+        return PhoneLineMenu(
+            lines: lines,
+            selected: selectedLine,
+            allowAll: true,
+            labelKey: "inbox.forYouQueuePhoneLine",
+            allowCopy: false,
+            allNumbersKey: "inbox.forYouAllNumbers",
+            onSelect: { lineSelection = QueueScope(companyId: companyId, lineId: $0) }
+        )
+    }
+
     /// The set to render from: whatever this session last chose, else the server's.
     private var hidden: [String] {
         hiddenOverride
@@ -156,13 +186,11 @@ struct ForYouTab: View {
 
     var body: some View {
         Group {
-            switch state {
+            switch loadedScope == queueScope ? state : .loading {
             case .loading:
-                CenteredLoading()
-                    .background(BrandColor.canvas)
+                queuePlaceholder { CenteredLoading() }
             case .failed(let message):
-                LoadError(message: message) { refreshKey += 1 }
-                    .background(BrandColor.canvas)
+                queuePlaceholder { LoadError(message: message) { refreshKey += 1 } }
             case .ready(let forYou):
                 ForYouList(
                     forYou: forYou,
@@ -246,11 +274,13 @@ struct ForYouTab: View {
                         onChanged: { refreshKey += 1 },
                         onHasDecisions: { hasScheduleDecisions = $0 }
                     ),
-                    hasScheduleDecisions: hasScheduleDecisions
+                    hasScheduleDecisions: hasScheduleDecisions,
+                    linePicker: linePicker,
+                    lineFiltered: selectedLine != nil
                 )
             }
         }
-        .task(id: "\(companyId)#\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)#\(selectedLine?.id ?? "")#\(refreshKey)") { await reload() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadPipeline() }
@@ -288,18 +318,41 @@ struct ForYouTab: View {
         .resyncOnForeground { refreshKey += 1 }
     }
 
+    private func queuePlaceholder<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let linePicker {
+                VStack(alignment: .leading, spacing: 5) {
+                    ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
+                    linePicker
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+            }
+            content()
+        }
+        .background(BrandColor.canvas)
+    }
+
     private func reload() async {
-        if case .loading = state,
+        let scope = queueScope
+        if loadedScope != scope {
+            state = .loading
+            loadedScope = scope
+        }
+        if scope.lineId == nil, case .loading = state,
            let cached: ForYou = await graph.api.cachedGet("/v1/for-you", companyId: companyId),
-           !Task.isCancelled {
+           !Task.isCancelled, loadedScope == scope {
             state = .ready(cached)
         }
         do {
-            state = .ready(try await graph.forYouApi.forYou(companyId: companyId))
+            let data = try await graph.forYouApi.forYou(companyId: companyId, lineId: scope.lineId)
+            guard !Task.isCancelled, loadedScope == scope else { return }
+            state = .ready(data)
         } catch is CancellationError {
             // A re-key (realtime tick, foreground resync) cancelled this pass;
             // the replacement is already running. Never a user-visible failure.
         } catch {
+            guard !Task.isCancelled, loadedScope == scope else { return }
             // A BACKGROUND refetch failure must not replace a loaded queue with
             // a full-screen error — the landing screen would blank out because a
             // single revalidation blipped, even though good data was on screen.
@@ -518,6 +571,8 @@ struct ForYouList: View {
     let onAnnounce: @MainActor (String) -> Void
     var scheduleDecisions: ScheduleDecisionsSection? = nil
     var hasScheduleDecisions = false
+    var linePicker: PhoneLineMenu? = nil
+    var lineFiltered = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -542,14 +597,14 @@ struct ForYouList: View {
     // up on the whole body (CI run 7).
     private var subtitle: String {
         if total == 0 {
-            return AppStrings.translate(appLocale, "inbox.forYouAllCaughtUp")
+            return AppStrings.translate(appLocale, lineFiltered ? "inbox.forYouLineEmpty" : "inbox.forYouAllCaughtUp")
         }
         if total == 1 {
-            return AppStrings.translate(appLocale, "inbox.forYouWorkOne")
+            return AppStrings.translate(appLocale, lineFiltered ? "inbox.forYouLineWorkOne" : "inbox.forYouWorkOne")
         }
         return AppStrings.translate(
             appLocale,
-            "inbox.forYouWorkMany",
+            lineFiltered ? "inbox.forYouLineWorkMany" : "inbox.forYouWorkMany",
             ["count": String(total)]
         )
     }
@@ -568,6 +623,9 @@ struct ForYouList: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 heading
+                if let linePicker {
+                    linePicker
+                }
                 // #310: only while the carriers have it. Above the queue
                 // because during the wait the queue is empty by definition —
                 // texting is what fills it, and that has not started yet.
@@ -633,7 +691,7 @@ struct ForYouList: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
-                if total > 0 || !hasScheduleDecisions {
+                if total > 0 || lineFiltered || !hasScheduleDecisions {
                     Text(subtitle)
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)

@@ -115,10 +115,30 @@ function forYouStub(
   // #106: the route resolves number_access for members ([] = unrestricted).
   sb.on("POST", "/rest/v1/rpc/member_number_levels", () => numberAccess);
   sb.on("POST", "/rest/v1/rpc/api_for_you", () => payload);
+  sb.on("POST", "/rest/v1/rpc/api_for_you_by_line", () => payload);
   return sb;
 }
 
 describe("GET /v1/for-you", () => {
+  it("passes the selected line and the member's number access to the scoped queue", async () => {
+    const lineId = "dddddddd-0000-4000-8000-00000000000d";
+    const sb = forYouStub("member", MEMBER_PAYLOAD, [{ phone_number_id: lineId, level: "none" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/for-you?phone_number_id=${lineId}`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_for_you_by_line");
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_hidden_number_ids: [lineId],
+      p_phone_number_id: lineId,
+    });
+  });
+
   it("returns the four sections and scopes the RPC to caller + company (member)", async () => {
     const sb = forYouStub("member", MEMBER_PAYLOAD);
     stubFetch(jwksRoute(auth), sb.route);

@@ -45,7 +45,7 @@ private enum class LouSection(val label: String) {
     Settings("shell.settings"),
 }
 
-private fun availableLines(numbers: List<PhoneNumberSummary>): List<PhoneNumberSummary> =
+internal fun availableLines(numbers: List<PhoneNumberSummary>): List<PhoneNumberSummary> =
     numbers.filter { it.status == "active" && !it.number_e164.isNullOrBlank() }
 
 internal fun selectedPhoneLine(numbers: List<PhoneNumberSummary>, rememberedId: String?): PhoneNumberSummary? {
@@ -59,20 +59,23 @@ internal fun PhoneLineMenu(
     selected: PhoneNumberSummary?,
     allowAll: Boolean,
     onSelect: (String?) -> Unit,
+    labelKey: String = "shell.phoneLine",
+    allowCopy: Boolean = true,
+    allNumbersKey: String = "shell.allPhoneLines",
 ) {
     val lines = availableLines(numbers)
     if (lines.isEmpty()) return
-    val all = t("shell.allPhoneLines")
+    val all = t(allNumbersKey)
     val options = buildList<SelectOption<String?>> {
         if (allowAll) add(SelectOption(null, all))
         lines.forEach { line ->
             val number = formatPhone(line.number_e164)
             val label = line.label?.trim()?.takeIf { it.isNotEmpty() }
             val title = label?.let { "$it · $number" } ?: number
-            add(SelectOption(line.id, title, copyValue = line.number_e164))
+            add(SelectOption(line.id, title, copyValue = line.number_e164.takeIf { allowCopy }))
         }
     }
-    SelectField(options = options, selected = selected?.id, onSelect = onSelect, label = t("shell.phoneLine"))
+    SelectField(options = options, selected = selected?.id, onSelect = onSelect, label = t(labelKey))
 }
 
 @Composable

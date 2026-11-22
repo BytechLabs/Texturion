@@ -32,7 +32,8 @@ class StoreCache {
  * prefetches at shell mount.
  */
 object CacheKeys {
-    fun forYou(companyId: String) = "forYou/$companyId"
+    fun forYou(companyId: String, lineId: String? = null) =
+        if (lineId == null) "forYou/$companyId" else "forYou/$companyId/$lineId"
     fun scheduleDecisions(companyId: String) = "scheduleDecisions/$companyId"
     /** #342: spam marks that do not look like spam. */
     fun spamReview(companyId: String) = "spamReview/$companyId"

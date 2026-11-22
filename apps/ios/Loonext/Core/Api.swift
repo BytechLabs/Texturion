@@ -105,8 +105,8 @@ struct MeApi: Sendable {
 struct ForYouApi: Sendable {
     let api: ApiClient
 
-    func forYou(companyId: String) async throws -> ForYou {
-        try await api.get("/v1/for-you", companyId: companyId)
+    func forYou(companyId: String, lineId: String? = nil) async throws -> ForYou {
+        try await api.get("/v1/for-you", query: ["phone_number_id": lineId], companyId: companyId)
     }
 
     func scheduleDecisions(companyId: String) async throws -> ScheduleDecisionsResponse {

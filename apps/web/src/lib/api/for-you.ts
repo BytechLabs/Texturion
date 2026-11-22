@@ -28,13 +28,14 @@ import type {
  * `keys.forYou` on those events. `staleTime` keeps a tab switch from refetching
  * needlessly while the broadcasts keep it live.
  */
-export function useForYou() {
+export function useForYou(lineId?: string) {
   const companyId = useCompanyId();
+  const workspaceKey = keys.forYou(companyId);
   return useQuery({
-    queryKey: keys.forYou(companyId),
+    queryKey: lineId ? [...workspaceKey, lineId] : workspaceKey,
     // Always mounted, so a superseding refetch aborts the running request.
     queryFn: ({ signal }) =>
-      apiFetch<ForYou>("/v1/for-you", { companyId, signal }),
+      apiFetch<ForYou>("/v1/for-you", { companyId, signal, searchParams: { phone_number_id: lineId } }),
     staleTime: 30_000,
   });
 }
@@ -123,19 +124,19 @@ export function useCompleteForYouTask() {
     onMutate: async (input) => {
       const key = keys.forYou(companyId);
       await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<ForYou>(key);
+      const previous = queryClient.getQueriesData<ForYou>({ queryKey: key });
       // Completing removes the task from the open-task sections; the undo path
       // (done=false) relies on the settle-time invalidation to bring it back.
       if (input.done) {
-        queryClient.setQueryData<ForYou>(key, (data) =>
+        queryClient.setQueriesData<ForYou>({ queryKey: key }, (data) =>
           forYouWithoutTask(data, input.task.task_id),
         );
       }
       return { previous };
     },
     onError: (_error, _input, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(keys.forYou(companyId), context.previous);
+      for (const [key, previous] of context?.previous ?? []) {
+        queryClient.setQueryData(key, previous);
       }
     },
     onSettled: () => {

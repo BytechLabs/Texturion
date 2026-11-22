@@ -55,6 +55,39 @@ final class CustomerJourneys: XCTestCase {
     func testWorkspaceFrenchLight() async throws { try await workspace(.french, "light") }
     func testWorkspaceFrenchDark() async throws { try await workspace(.french, "dark") }
 
+    func testForYouEnglishLight() async throws { try await forYou(.english, "light") }
+    func testForYouEnglishDark() async throws { try await forYou(.english, "dark") }
+    func testForYouFrenchLight() async throws { try await forYou(.french, "light") }
+    func testForYouFrenchDark() async throws { try await forYou(.french, "dark") }
+
+    private func forYou(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "member", stage: "active", multiLine: true)
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        let pickerName = text("Focus queue phone number", "Numéro des tâches à traiter")
+        let picker = try waitFor(button(pickerName))
+        let allLines = text("All phone numbers", "Tous les numéros")
+        try waitFor(label(text("2 things need you", "2 choses demandent votre attention")))
+        try app.performAccessibilityAudit(for: [.contrast, .hitRegion, .sufficientElementDescription]) { issue in
+            issue.element?.label != pickerName
+        }
+        shot("For You workspace queue \(suffix)")
+
+        picker.tap()
+        try waitFor(button("Service · (416) 555-0104")).tap()
+        try waitFor(label(text("1 thing needs you", "1 chose demande votre attention")))
+        try waitFor(label("Ben Fixture"))
+        XCTAssertFalse(label("Ada Fixture").exists)
+        shot("For You Service line \(suffix)")
+
+        try waitFor(button(pickerName)).tap()
+        try waitFor(button(allLines)).tap()
+        try waitFor(label(text("2 things need you", "2 choses demandent votre attention")))
+    }
+
     private func workspace(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -314,7 +347,8 @@ final class CustomerJourneys: XCTestCase {
         role: String,
         stage: String,
         fieldwork: Bool = false,
-        multiWorkspace: Bool = false
+        multiWorkspace: Bool = false,
+        multiLine: Bool = false
     ) async throws {
         var url = URLComponents(url: fixture.appending(path: "__qa/profile"), resolvingAgainstBaseURL: false)!
         url.queryItems = [
@@ -324,6 +358,7 @@ final class CustomerJourneys: XCTestCase {
         ]
         if fieldwork { url.queryItems?.append(URLQueryItem(name: "fieldwork", value: "1")) }
         if multiWorkspace { url.queryItems?.append(URLQueryItem(name: "multi_workspace", value: "1")) }
+        if multiLine { url.queryItems?.append(URLQueryItem(name: "multi_line", value: "1")) }
         var request = URLRequest(url: try XCTUnwrap(url.url))
         request.httpMethod = "POST"
         let (_, response) = try await URLSession.shared.data(for: request)

@@ -11,6 +11,7 @@ on:
           - all
           - customer-journeys
           - workspace-switch
+          - for-you
           - foreground-alerts
           - notification-actions
           - notification-reply-transport

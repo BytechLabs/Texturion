@@ -315,6 +315,11 @@ export const inboxEn = {
 
   // --- The crew queue (for-you-view.tsx) ------------------------------------
   forYouTitle: "For you",
+  forYouQueuePhoneLine: "Focus queue phone number",
+  forYouAllNumbers: "All phone numbers",
+  forYouLineEmpty: "No work on this phone number.",
+  forYouLineWorkOne: "1 thing needs you on this number.",
+  forYouLineWorkMany: "{count} things need you on this number.",
   forYouWorkOne: "{count} thing needs you · you're all caught up otherwise",
   forYouWorkMany: "{count} things need you · you're all caught up otherwise",
   forYouAllCaughtUp: "You're all caught up.",
@@ -829,6 +834,11 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- The crew queue --------------------------------------------------------
   forYouTitle: "Pour vous",
+  forYouQueuePhoneLine: "Numéro des tâches à traiter",
+  forYouAllNumbers: "Tous les numéros",
+  forYouLineEmpty: "Rien à traiter sur ce numéro.",
+  forYouLineWorkOne: "1 chose demande votre attention sur ce numéro.",
+  forYouLineWorkMany: "{count} choses demandent votre attention sur ce numéro.",
   forYouWorkOne:
     "{count} chose demande votre attention · vous êtes à jour pour le reste",
   forYouWorkMany:

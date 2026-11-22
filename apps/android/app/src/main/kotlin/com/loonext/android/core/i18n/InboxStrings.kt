@@ -273,6 +273,11 @@ object InboxStrings : AppStrings.Section {
 
         // --- The crew queue (ForYouTab.kt) ----------------------------------------
         "inbox.forYouTitle" to "For you",
+        "inbox.forYouQueuePhoneLine" to "Focus queue phone number",
+        "inbox.forYouAllNumbers" to "All phone numbers",
+        "inbox.forYouLineEmpty" to "No work on this phone number.",
+        "inbox.forYouLineWorkOne" to "1 thing needs you on this number.",
+        "inbox.forYouLineWorkMany" to "{count} things need you on this number.",
         "inbox.forYouAllCaughtUp" to "You're all caught up",
         "inbox.forYouWorkOne" to "1 thing needs you · otherwise you're caught up",
         "inbox.forYouWorkMany" to "{count} things need you · otherwise you're caught up",
@@ -690,6 +695,11 @@ object InboxStrings : AppStrings.Section {
 
         // --- The crew queue -----------------------------------------------------------------
         "inbox.forYouTitle" to "Pour vous",
+        "inbox.forYouQueuePhoneLine" to "Numéro des tâches à traiter",
+        "inbox.forYouAllNumbers" to "Tous les numéros",
+        "inbox.forYouLineEmpty" to "Rien à traiter sur ce numéro.",
+        "inbox.forYouLineWorkOne" to "1 chose demande votre attention sur ce numéro.",
+        "inbox.forYouLineWorkMany" to "{count} choses demandent votre attention sur ce numéro.",
         "inbox.forYouAllCaughtUp" to "Vous êtes à jour",
         "inbox.forYouWorkOne" to
             "1 chose demande votre attention · vous êtes à jour pour le reste",

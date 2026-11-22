@@ -120,9 +120,13 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|customer-journeys|workspace-switch|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
+  all|customer-journeys|workspace-switch|for-you|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
+if [[ "$scenario" == for-you ]]; then
+  run_scenario for-you LoonextQAUITests/CustomerJourneys/testForYou{English,French}{Light,Dark}
+  exit $?
+fi
 if [[ "$scenario" == workspace-switch ]]; then
   run_scenario workspace-switch LoonextQAUITests/CustomerJourneys/testWorkspace{English,French}{Light,Dark}
   exit $?
