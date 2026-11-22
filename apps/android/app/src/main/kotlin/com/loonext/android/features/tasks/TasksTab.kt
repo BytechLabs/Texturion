@@ -663,7 +663,12 @@ private fun TaskListScreen(
                     })
                 }
                 if (assigneeChip != null) {
-                    add(ActiveFilterChip(memberName(assigneeChip) ?: teammateLabel) { assigneeChip = null })
+                    add(
+                        ActiveFilterChip(
+                            memberName(assigneeChip) ?: teammateLabel,
+                            memberId = assigneeChip?.takeUnless { it == ASSIGNEE_ME },
+                        ) { assigneeChip = null },
+                    )
                 }
                 if (unassignedChip) add(ActiveFilterChip(noneLabel) { unassignedChip = false })
                 dueChip?.let { chip ->
@@ -1570,7 +1575,7 @@ internal fun TaskListRow(
         }
         if ("assignee" in columns && assigneeNames.isNotEmpty()) {
             Spacer(Modifier.width(12.dp))
-            AssigneeStack(assigneeNames, size = 28.dp)
+            AssigneeStack(assigneeNames, size = 28.dp, memberIds = task.assigneeIdList)
         }
     }
 }

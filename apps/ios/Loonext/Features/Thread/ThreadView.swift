@@ -1756,14 +1756,18 @@ private struct ThreadHeader: View {
 
     @Environment(\.appLocale) private var appLocale
 
-    /// The one status line under the name: status · assignee (or number), plus
-    /// an opted-out tail — the Android header subtitle.
+    private var assigneeName: String? {
+        guard let memberId = detail.assigned_user_id else { return nil }
+        if let name = controller.members.first(where: { $0.user_id == memberId })?.display_name,
+           !name.isBlank {
+            return name
+        }
+        return AppStrings.translate(appLocale, "thread.teammate")
+    }
+
     private var subtitle: String {
         var parts = statusLabel(detail.status, locale: appLocale)
-        let assigneeName = controller.members
-            .first { $0.user_id == detail.assigned_user_id }?
-            .display_name
-        let trailing = (assigneeName?.isBlank == false) ? assigneeName! : phoneLabel
+        let trailing = assigneeName ?? phoneLabel
         parts += " · \(trailing)"
         if controller.threadOptedOut == true {
             parts += " · " + AppStrings.translate(appLocale, "thread.optedOut")
@@ -1858,6 +1862,10 @@ private struct ThreadHeader: View {
                             Circle()
                                 .fill(BrandColor.lime)
                                 .frame(width: 6, height: 6)
+                            if let assigneeName {
+                                InitialsAvatar(name: assigneeName, size: 18, memberId: detail.assigned_user_id)
+                                    .accessibilityHidden(true)
+                            }
                             Text(subtitle)
                                 .font(.golos(11))
                                 .foregroundStyle(BrandColor.muted500)
@@ -2450,15 +2458,16 @@ private struct ConversationSheet: View {
 @MainActor
 private struct AssigneeChoiceChip: View {
     let name: String
-    let showsAvatar: Bool
+    let memberId: String?
     let selected: Bool
     let onTap: @MainActor () -> Void
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 7) {
-                if showsAvatar {
-                    InitialsAvatar(name: name, size: 26)
+                if let memberId {
+                    InitialsAvatar(name: name, size: 26, memberId: memberId)
+                        .accessibilityHidden(true)
                 }
                 Text(name)
                     .font(.golos(12.5, weight: selected ? .semibold : .medium))
@@ -2515,7 +2524,8 @@ struct AssigneePickerSheet: View {
                         HStack(spacing: 12) {
                             InitialsAvatar(
                                 name: member.display_name.isBlank ? nil : member.display_name,
-                                size: 30
+                                size: 30,
+                                memberId: member.user_id
                             )
                             let name = member.display_name.isBlank
                                 ? AppStrings.translate(
@@ -2952,7 +2962,7 @@ struct MakeTaskSheet: View {
                             : member.display_name
                         AssigneeChoiceChip(
                             name: name,
-                            showsAvatar: true,
+                            memberId: member.user_id,
                             selected: isAssignee(member.user_id)
                         ) {
                             toggleAssignee(member.user_id)
@@ -2960,7 +2970,7 @@ struct MakeTaskSheet: View {
                     }
                     AssigneeChoiceChip(
                         name: AppStrings.translate(locale, "thread.nobody"),
-                        showsAvatar: false,
+                        memberId: nil,
                         selected: nobodyAssigned
                     ) { clearAssignees() }
                 }

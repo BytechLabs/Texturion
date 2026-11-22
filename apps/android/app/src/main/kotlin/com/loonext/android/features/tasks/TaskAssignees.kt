@@ -82,6 +82,7 @@ internal fun AssigneeStack(
     modifier: Modifier = Modifier,
     size: Dp = 28.dp,
     glyph: TextUnit = 9.5.sp,
+    memberIds: List<String>,
 ) {
     if (names.isEmpty()) return
     val teammate = t("contactsTasks.teammate")
@@ -103,12 +104,13 @@ internal fun AssigneeStack(
         horizontalArrangement = Arrangement.spacedBy(-(size * 0.3f)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        shown.forEach { name ->
+        shown.forEachIndexed { index, name ->
             TaskAvatar(
                 name,
                 size = size,
                 fontSize = glyph,
                 modifier = Modifier.border(1.5.dp, ring, CircleShape),
+                memberId = memberIds.getOrNull(index),
             )
         }
         if (extra > 0) {

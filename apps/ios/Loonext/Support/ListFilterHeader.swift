@@ -116,6 +116,7 @@ struct ListFilterButton: View {
 @MainActor
 struct ListViewsMenu: View {
     let model: ListViewsModel
+    var labelled = false
 
     @Environment(\.appLocale) private var appLocale
     @State private var managing = false
@@ -159,19 +160,32 @@ struct ListViewsMenu: View {
                 }
             }
         } label: {
-            Image(systemName: "bookmark")
-                .font(.scaled(IconSize.standard, weight: .semibold))
+            HStack(spacing: 6) {
+                Image(systemName: "bookmark")
+                    .font(.scaled(IconSize.standard, weight: .semibold))
+                if labelled {
+                    Text(activeName)
+                        .font(.golos(12, weight: .semibold))
+                        .lineLimit(2)
+                }
+            }
                 .foregroundStyle(model.activeId != nil ? BrandColor.paper : BrandColor.muted700)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, labelled ? 8 : 12)
+                .frame(maxWidth: labelled ? .infinity : nil)
                 .frame(minHeight: 44)
                 .background(
                     model.activeId != nil ? BrandColor.ink : BrandColor.paper,
                     in: Capsule()
                 )
+                .overlay {
+                    if labelled { Capsule().strokeBorder(BrandColor.muted250) }
+                }
                 .contentShape(Capsule())
         }
         .accessibilityLabel(
-            AppStrings.translate(appLocale, "inbox.viewsMenuAria", ["current": activeName])
+            model.activeId == nil
+                ? activeName
+                : AppStrings.translate(appLocale, "inbox.viewsMenuAria", ["current": activeName])
         )
         .sheet(isPresented: $managing) {
             ManageViewsSheet(model: model)
@@ -296,6 +310,7 @@ private struct ManageViewsSheet: View {
 struct ActiveFilterChip: Identifiable {
     let id: String
     let label: String
+    var memberId: String? = nil
     let onRemove: @MainActor () -> Void
 }
 
@@ -315,6 +330,10 @@ struct ActiveFilterChips: View {
                     ForEach(chips) { chip in
                         Button(action: chip.onRemove) {
                             HStack(spacing: 6) {
+                                if let memberId = chip.memberId {
+                                    InitialsAvatar(name: chip.label, size: 18, memberId: memberId)
+                                        .accessibilityHidden(true)
+                                }
                                 Text(chip.label)
                                     .font(.golos(12, weight: .medium))
                                 Image(systemName: "xmark")

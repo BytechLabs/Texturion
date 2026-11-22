@@ -653,6 +653,7 @@ fun MakeTaskSheet(
                     members.filter { it.deactivated_at == null }.forEach { member ->
                         AssigneeChip(
                             name = member.display_name.ifBlank { t("thread.teammate") },
+                            memberId = member.user_id,
                             selected = member.user_id in assigneeIds,
                             onClick = {
                                 haptics.tap()
@@ -1114,7 +1115,7 @@ private fun TaskFieldLabel(text: String, modifier: Modifier = Modifier) {
 
 /** One member chip: 26dp avatar + name; selected = ink ring + olive check. */
 @Composable
-internal fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
+internal fun AssigneeChip(name: String, memberId: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(CircleShape)
@@ -1130,7 +1131,7 @@ internal fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        InitialsAvatar(name, 26.dp, glyph = 10.sp)
+        InitialsAvatar(name, 26.dp, glyph = 10.sp, memberId = memberId)
         Text(
             name,
             style = MaterialTheme.typography.labelMedium.copy(

@@ -626,6 +626,7 @@ private fun PinPeekCard(
                             taskAssigneeNames(single.assigneeIdList, single.assignees) { null },
                             Modifier.padding(top = 6.dp),
                             size = 24.dp,
+                            memberIds = single.assigneeIdList,
                         )
                     }
                 }
@@ -710,6 +711,7 @@ private fun PinPeekCard(
                             taskAssigneeNames(task.assigneeIdList, task.assignees) { null },
                             Modifier.padding(start = 8.dp),
                             size = 22.dp,
+                            memberIds = task.assigneeIdList,
                         )
                         // #693: just the flag and the repeat glyph; labels stay on the single card.
                         if (TaskPriority.isFlagged(task.priority) || showsRepeatIcon(task.repeat)) {

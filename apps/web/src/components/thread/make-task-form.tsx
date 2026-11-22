@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { SimpleSelect } from "@/components/ui/simple-select";
+import { MemberAvatar } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { createdToast } from "@/components/ui/created-toast";
 import { CountryPicker } from "@/components/ui/country-picker";
@@ -371,6 +372,7 @@ export function MakeTaskForm({
             { value: UNASSIGNED, label: t("thread.unassigned") },
             ...memberOptions.map((member) => ({
               value: member.user_id,
+              leading: <MemberAvatar name={member.display_name} memberId={member.user_id} />,
               label:
                 member.display_name +
                 (me.data?.user_id === member.user_id ? t("thread.youSuffix") : ""),

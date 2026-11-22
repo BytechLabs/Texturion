@@ -258,7 +258,7 @@ function ThreadPlaceholder({ row, backHref }: { row: ConversationListItem; backH
           </span>
           <span className="flex min-h-11 min-w-11 items-center justify-center md:min-h-0 md:min-w-0">
             {assigneeName ? (
-              <MemberAvatar name={assigneeName} className="size-6" />
+              <MemberAvatar name={assigneeName} memberId={row.assigned_user_id} className="size-6" />
             ) : (
               <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
                 <UserRound className="size-3.5" strokeWidth={1.75} aria-hidden />

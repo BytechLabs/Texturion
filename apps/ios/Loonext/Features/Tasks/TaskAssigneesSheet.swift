@@ -151,7 +151,8 @@ struct TaskAssigneesSheet: View {
             : base
         let selected = chosen.contains(member.user_id)
         return HStack(spacing: 12) {
-            InitialsAvatar(name: member.display_name.isBlank ? nil : member.display_name, size: 32)
+            InitialsAvatar(name: base, size: 32, memberId: member.user_id)
+                .accessibilityHidden(true)
             Text(name)
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)

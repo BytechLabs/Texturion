@@ -126,8 +126,9 @@ internal fun TaskAvatar(
     size: Dp = 28.dp,
     fontSize: TextUnit = 9.5.sp,
     modifier: Modifier = Modifier,
+    memberId: String? = null,
 ) {
-    InitialsAvatar(name, size, modifier = modifier, glyph = fontSize)
+    InitialsAvatar(name, size, modifier = modifier, glyph = fontSize, memberId = memberId)
 }
 
 

@@ -90,6 +90,7 @@ describe("#711 SavedViewsMenu", () => {
   it("SV-3: nothing filtered means nothing to save", () => {
     open({ hasFilters: false });
     expect(screen.queryByRole("menuitem", { name: "Save these filters as a view…" })).toBeNull();
+    expect(screen.getByRole("menuitem").getAttribute("aria-disabled")).toBe("true");
   });
 
   it("SV-4: one click applies a view", () => {

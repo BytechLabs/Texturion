@@ -1887,6 +1887,7 @@ private fun ThreadHeader(
                         val assigneeName = members
                             .firstOrNull { it.user_id == detail.assigned_user_id }
                             ?.display_name?.ifBlank { null }
+                            ?: detail.assigned_user_id?.let { t("thread.teammate") }
                         // #505 — the repeat-customer signal, on the surface the
                         // person replying is actually looking at. It lived only in
                         // the contact panel, which opens on a tap nobody takes
@@ -1945,6 +1946,10 @@ private fun ThreadHeader(
                                     ),
                             )
                             Spacer(Modifier.width(5.dp))
+                            if (assigneeName != null) {
+                                InitialsAvatar(assigneeName, size = 18.dp, glyph = 7.sp, memberId = detail.assigned_user_id)
+                                Spacer(Modifier.width(4.dp))
+                            }
                             Text(
                                 subtitle,
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -2242,7 +2247,7 @@ private fun AssigneePickerSheet(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    InitialsAvatar(member.display_name.ifBlank { null }, size = 30.dp)
+                    InitialsAvatar(member.display_name.ifBlank { null }, size = 30.dp, memberId = member.user_id)
                     Spacer(Modifier.width(12.dp))
                     Text(
                         member.display_name.ifBlank { t("thread.teammate") } +

@@ -199,7 +199,7 @@ export function BulkBar({
           <DropdownMenuLabel>{t("inbox.bulkAssignTo")}</DropdownMenuLabel>
           {[...memberNames.entries()].map(([userId, name]) => (
             <DropdownMenuItem key={userId} onSelect={() => onAssign(userId)}>
-              <MemberAvatar name={name} />
+              <MemberAvatar name={name} memberId={userId} />
               {name}
             </DropdownMenuItem>
           ))}
