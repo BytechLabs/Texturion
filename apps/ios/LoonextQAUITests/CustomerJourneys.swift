@@ -74,7 +74,7 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertFalse(label("Ada Fixture").exists)
         XCTAssertFalse(button("Conversations").exists)
         shot("Bookkeeper workspace \(suffix)")
-        try waitFor(button(text("Workspaces", "Espaces de travail"))).tap()
+        try reveal(label(text("Workspaces", "Espaces de travail"))).tap()
         try reveal(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Simulator Fixtures")).firstMatch).tap()
         try waitFor(button("Conversations"), timeout: 30)
         dismissNotificationPrimer(language)

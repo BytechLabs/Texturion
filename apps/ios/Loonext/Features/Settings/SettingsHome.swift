@@ -247,21 +247,18 @@ struct SettingsHome: View {
     @ViewBuilder
     private var workspacePicker: some View {
         if let onSwitchWorkspace, me.memberships.count > 1 {
-            Menu {
-                Picker(t("shell.workspaces"), selection: Binding(
-                    get: { companyId },
-                    set: { onSwitchWorkspace($0) }
-                )) {
-                    ForEach(me.memberships, id: \.company_id) { membership in
-                        Text(membership.name).tag(membership.company_id)
-                    }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                Label(t("shell.workspaces"), systemImage: "building.2")
-            }
-            .accessibilityLabel(t("shell.workspaces"))
-            .accessibilityValue(me.memberships.first { $0.company_id == companyId }?.name ?? "")
+            SelectField(
+                options: me.memberships.map { membership in
+                    SelectOption(
+                        membership.company_id,
+                        title: membership.name,
+                        isDisabled: membership.company_id == companyId
+                    )
+                },
+                selected: companyId,
+                label: t("shell.workspaces"),
+                onSelect: onSwitchWorkspace
+            )
         }
     }
 
@@ -545,6 +542,8 @@ struct SettingsHome: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                workspacePicker
+                    .padding(.horizontal, 18)
                 switch section {
                 case .workspace:
                     WorkspaceSectionView(
@@ -619,11 +618,6 @@ struct SettingsHome: View {
         .background(BrandColor.canvas)
         .navigationTitle(t(section.titleKey))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                workspacePicker.labelStyle(.iconOnly)
-            }
-        }
         .onDisappear {
             if path.isEmpty { settingAnchor = nil }
         }
