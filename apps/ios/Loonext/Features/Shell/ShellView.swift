@@ -1103,7 +1103,7 @@ struct PhoneLineMenu: View {
         if !lines.isEmpty {
             SelectField(
                 options: options, selected: selected?.id,
-                label: AppStrings.translate(appLocale, labelKey), onSelect: onSelect
+                label: AppStrings.translate(appLocale, labelKey), usesMenu: true, onSelect: onSelect
             )
         }
     }

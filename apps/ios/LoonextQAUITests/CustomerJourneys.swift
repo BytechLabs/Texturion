@@ -71,6 +71,8 @@ final class CustomerJourneys: XCTestCase {
         let picker = try waitFor(button(pickerName))
         let allLines = text("All phone numbers", "Tous les numéros")
         try waitFor(label(text("2 things need you", "2 choses demandent votre attention")))
+        XCTAssertEqual(picker.value as? String, allLines)
+        XCTAssertGreaterThanOrEqual(picker.frame.height, 44)
         try app.performAccessibilityAudit(for: [.contrast, .hitRegion, .sufficientElementDescription]) { issue in
             issue.element?.label != pickerName
         }
@@ -79,8 +81,8 @@ final class CustomerJourneys: XCTestCase {
         picker.tap()
         try waitFor(button("Service · (416) 555-0104")).tap()
         try waitFor(label(text("1 thing needs you", "1 chose demande votre attention")))
-        try waitFor(label("Ben Fixture"))
-        XCTAssertFalse(label("Ada Fixture").exists)
+        try waitFor(label("Service lead"))
+        XCTAssertFalse(label("Office lead").exists)
         shot("For You Service line \(suffix)")
 
         try waitFor(button(pickerName)).tap()

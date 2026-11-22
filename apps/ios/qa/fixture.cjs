@@ -280,7 +280,7 @@ const server = createServer(async (req, res) => {
         if (selectedLine && numberId !== selectedLine) return [];
         return [{
           conversation_id: threadIDs[index],
-          contact: state.contacts[index],
+          contact: { ...state.contacts[index], name: index === 0 ? "Office lead" : "Service lead" },
           assigned_user_id: userID,
           status: "waiting",
           last_message_at: now(),
