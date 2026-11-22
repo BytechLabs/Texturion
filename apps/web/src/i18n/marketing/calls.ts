@@ -81,6 +81,9 @@ export const callsEn = {
     "No cell forwarding, no desk phones, no phone menus or queues. The app is the phone, and it needs microphone permission to be one.",
 
   pricingBefore: "Calling costs nothing extra:",
+  pricingStarterAfter: "/mo on Starter covers up to 3 people and",
+  pricingProAfter:
+    "/mo on Pro covers up to 15, and calls are included at both prices. Minutes work the way texting does, on a fair-use basis rather than a hard cap, with a spending limit you set and an email at 80% and again at 100% before a single paid minute is billed. The concrete numbers live in our",
   fairUseLink: "fair use policy",
 
   relatedEyebrow: "The rest of your number",
@@ -196,6 +199,9 @@ export const callsFr: Translated<typeof callsEn> = {
     "Aucun renvoi vers un cellulaire, aucun téléphone de bureau, aucun menu ni file d'attente. L'application est le téléphone, et il lui faut la permission du micro pour en être un.",
 
   pricingBefore: "Les appels ne coûtent rien de plus :",
+  pricingStarterAfter: "/mois sur Starter pour un maximum de 3 personnes et",
+  pricingProAfter:
+    "/mois sur Pro pour un maximum de 15 personnes. Les appels sont inclus dans les deux forfaits. Comme les textos, les minutes sont incluses selon une politique d’utilisation équitable plutôt qu’un plafond fixe. Vous fixez la limite de dépenses et recevez un courriel à 80 % puis à 100 % avant la facturation de la première minute payante. Les seuils sont détaillés dans notre",
   fairUseLink: "politique d'utilisation équitable",
 
   relatedEyebrow: "Le reste de la ligne",

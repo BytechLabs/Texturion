@@ -129,12 +129,11 @@ export function ContactsPageBody({ locale = "en" }: { locale?: MarketingLocale }
 
       <PricingSnippet locale={locale}>
         <p>
-          {copy.pricingBefore} <PlanPrice plan="starter" />/mo on
-          Starter for up to 3 people, <PlanPrice plan="pro" />/mo on Pro for up
-          to 15. There is no per-contact pricing, no
-          contact cap and no CRM tier. Photos and files attached to a customer
-          are stored free with no caps, which is set out with everything else in
-          our{" "}
+          {copy.pricingBefore}{" "}
+          <PlanPrice plan="starter" />
+          {copy.pricingStarterAfter}{" "}
+          <PlanPrice plan="pro" />
+          {copy.pricingProAfter}{" "}
           <Link
             href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"

@@ -139,12 +139,11 @@ export function SharedInboxPageBody({
 
       <PricingSnippet locale={locale}>
         <p>
-          {copy.pricingBefore} <PlanPrice plan="starter" />/mo on Starter for up to 3
-          people and one local number, <PlanPrice plan="pro" />/mo on Pro for up
-          to 15 people and two numbers. Texting is
-          included on a fair-use basis rather than a hard cap, sized so almost
-          every crew stays comfortably inside it, and receiving texts is
-          always free and unlimited. The concrete numbers live in our{" "}
+          {copy.pricingBefore}{" "}
+          <PlanPrice plan="starter" />
+          {copy.pricingStarterAfter}{" "}
+          <PlanPrice plan="pro" />
+          {copy.pricingProAfter}{" "}
           <Link
             href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
@@ -155,16 +154,16 @@ export function SharedInboxPageBody({
         </p>
         <CountryOnly country="us">
           <p>
-            {copy.pricingUsFee} <RegistrationFee /> to register with
-            the phone companies, charged once, ever, so the first month is{" "}
-            <FirstMonthTotal plan="starter" /> and every month after is{" "}
+            {copy.pricingUsFee} <RegistrationFee />{" "}
+            {copy.pricingUsFeeAfter} <FirstMonthTotal plan="starter" />{" "}
+            {copy.pricingUsMonthlyAfter}{" "}
             <PlanPrice plan="starter" />.
           </p>
         </CountryOnly>
         <CountryOnly country="ca">
           <p>
-            Texting Canadian customers has no registration and no setup fee, so{" "}
-            <PlanPrice plan="starter" /> is <PlanPrice plan="starter" /> {copy.pricingUsFeeAfter}
+            {copy.pricingCaBefore} <PlanPrice plan="starter" />{" "}
+            {copy.pricingCaBetween} <PlanPrice plan="starter" /> {copy.pricingCaAfter}
           </p>
         </CountryOnly>
       </PricingSnippet>

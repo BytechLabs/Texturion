@@ -144,13 +144,11 @@ export function CallsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
 
       <PricingSnippet locale={locale}>
         <p>
-          {copy.pricingBefore} <PlanPrice plan="starter" />/mo on
-          Starter covers up to 3 people and <PlanPrice plan="pro" />/mo on Pro
-          covers up to 15, and calls are included at both prices. Minutes work
-          the way texting does, on a fair-use basis rather
-          than a hard cap, with a spending limit you set and an email at 80%
-          and again at 100% before a single paid minute is billed. The concrete
-          numbers live in our{" "}
+          {copy.pricingBefore}{" "}
+          <PlanPrice plan="starter" />
+          {copy.pricingStarterAfter}{" "}
+          <PlanPrice plan="pro" />
+          {copy.pricingProAfter}{" "}
           <Link
             href={localizedPath("/legal/fair-use", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"

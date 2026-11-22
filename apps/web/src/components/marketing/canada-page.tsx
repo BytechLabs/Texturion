@@ -268,11 +268,11 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
 
       <PricingSnippet locale={locale}>
         <p>
-          {copy.truthPlansBefore} <PlanPrice plan="starter" />/mo on
-          Starter for up to 3 people and one local number,{" "}
-          <PlanPrice plan="pro" />/mo on Pro for up to 15 people and two
-          numbers. Receiving texts is always free and unlimited, month to
-          month.
+          {copy.truthPlansBefore}{" "}
+          <PlanPrice plan="starter" />
+          {copy.truthPlansStarterAfter}{" "}
+          <PlanPrice plan="pro" />
+          {copy.truthPlansProAfter}
         </p>
         <p>
           {copy.truthFeeBefore} <RegistrationFee /> {copy.truthFeeAfter}
