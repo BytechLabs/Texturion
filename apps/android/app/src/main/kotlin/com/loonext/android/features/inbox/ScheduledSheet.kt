@@ -147,6 +147,7 @@ private fun ScheduledSheetRow(
     onCancel: (String) -> Unit,
 ) {
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
     val held = row.status == "held"
     // #712: the scheduled text's one action list. The Cancel button on the row and
     // its long-press menu both run it.
@@ -186,7 +187,7 @@ private fun ScheduledSheetRow(
             ) {
                 CopyablePhoneNumber(
                     row.conversations?.contacts?.takeIf { it.name.isNullOrBlank() }?.phone_e164,
-                    label = scheduledRecipient(row, LocalAppLocale.current),
+                    label = scheduledRecipient(row, locale),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,
@@ -196,7 +197,7 @@ private fun ScheduledSheetRow(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    if (held) t("inbox.scheduledWaiting") else sendAtOf(row),
+                    if (held) t("inbox.scheduledWaiting") else sendAtOf(row, locale),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                     color = if (held) {
                         NoteAmber.ink()
@@ -218,7 +219,7 @@ private fun ScheduledSheetRow(
             // #228: the key where this build has words for it, the stored
             // English otherwise.
             val reason = ScheduledSend.holdText(
-                row.held_reason_key, row.held_reason, LocalAppLocale.current,
+                row.held_reason_key, row.held_reason, locale,
             )
             if (held && !reason.isNullOrBlank()) {
                 Text(
@@ -229,7 +230,7 @@ private fun ScheduledSheetRow(
                 )
             } else if (!held) {
                 Text(
-                    ScheduledSend.clockProvenance(row.clock_source, LocalAppLocale.current),
+                    ScheduledSend.clockProvenance(row.clock_source, locale),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),

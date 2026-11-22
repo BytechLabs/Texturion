@@ -123,6 +123,7 @@ private fun ScheduledRow(
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     val held = row.status == "held"
     val canEdit = row.allowed_actions.allows("edit")
     val accent = if (held) NoteAmber.ink() else MaterialTheme.colorScheme.onSurfaceVariant
@@ -176,7 +177,7 @@ private fun ScheduledRow(
         Column(Modifier.weight(1f)) {
             Text(
                 buildString {
-                    append(if (held) t("thread.scheduledWaiting") else sendAtOf(row))
+                    append(if (held) t("thread.scheduledWaiting") else sendAtOf(row, locale))
                     append(" — ")
                     append(row.body)
                 },
@@ -192,7 +193,7 @@ private fun ScheduledRow(
             // #228: the key where this build has words for it, the stored
             // English otherwise.
             val reason = ScheduledSend.holdText(
-                row.held_reason_key, row.held_reason, LocalAppLocale.current,
+                row.held_reason_key, row.held_reason, locale,
             )
             if (held && !reason.isNullOrBlank()) {
                 Text(
@@ -202,7 +203,7 @@ private fun ScheduledRow(
                 )
             } else if (!held) {
                 Text(
-                    ScheduledSend.clockProvenance(row.clock_source, LocalAppLocale.current),
+                    ScheduledSend.clockProvenance(row.clock_source, locale),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -241,7 +242,7 @@ private fun ScheduledRow(
                 Icons.Filled.Close,
                 contentDescription = t(
                     "thread.cancelScheduledAria",
-                    "when" to sendAtSpokenOf(row),
+                    "when" to sendAtSpokenOf(row, locale),
                 ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(IconSize.Small),
@@ -306,17 +307,17 @@ private fun ScheduledRow(
  * the label stays quiet — rather than inventing a third clock and announcing a
  * difference about nothing.
  */
-internal fun sendAtOf(row: ScheduledMessage): String = sendAtParts(row).first
+internal fun sendAtOf(row: ScheduledMessage, locale: String): String = sendAtParts(row, locale).first
 
 /** The same, spelled out, for TalkBack. */
-internal fun sendAtSpokenOf(row: ScheduledMessage): String = sendAtParts(row).second
+internal fun sendAtSpokenOf(row: ScheduledMessage, locale: String): String = sendAtParts(row, locale).second
 
-private fun sendAtParts(row: ScheduledMessage): Pair<String, String> {
+private fun sendAtParts(row: ScheduledMessage, locale: String): Pair<String, String> {
     val at = runCatching { Instant.parse(row.send_at) }.getOrNull()
         ?: return "Scheduled" to "Scheduled"
     val here = ZoneId.systemDefault()
     val zone = runCatching { ZoneId.of(row.clock_timezone) }.getOrElse { here }
     val there = sendAtLabel(at, zone)
     val mine = sendAtLabel(at, here)
-    return TwoClocks.bothClocks(there, mine) to TwoClocks.bothClocksSpoken(there, mine)
+    return TwoClocks.bothClocks(there, mine, locale) to TwoClocks.bothClocksSpoken(there, mine, locale)
 }
