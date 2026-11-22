@@ -312,32 +312,79 @@ export class AppProbe implements AppApi {
   /**
    * S25's automations for one nonce, in the tenant's thread with the role:
    * an away reply and an emergency acknowledgement, which the runner's own
-   * inbound text sets off, and a scheduled send and a reminder, due now.
+   * inbound text sets off, a late scheduled send and a task reminder.
    * Every body carries the nonce. The help reply is not armed: only an AIDE
    * draws it, and S24 sends one already.
    */
-  async armAutomations(args: { tenant: string; toRole: string; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }> {
+  async armAutomations(args: { tenant: string; toRole: string; nonce: string; fireAt: number }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }> {
     const companyId = this.#tenant(args.tenant).company_id;
-    const conversationId = await this.#conversationWith(args.tenant, args.toRole);
+    const [conversationId] = await this.#conversationsWith(args.tenant, args.toRole, "DEV-W1");
     if (!conversationId) throw new Error(`app probe: ${args.tenant} has no thread with ${args.toRole} to arm automations in`);
-    const bodies = automationBodies(args.nonce);
-    const previous = await this.patchCompany({
-      tenant: args.tenant,
-      values: {
-        away_enabled: true,
-        away_message: bodies.away_reply,
-        // Every weekday missing is closed all day (packages/shared business-hours.ts), so the away reply always applies.
-        business_hours: {},
-        business_hours_exceptions: [],
-        emergency_keyword_enabled: true,
-        emergency_reply_enabled: true,
-        emergency_keywords: [S25_KEYWORD],
-        emergency_message: bodies.emergency_ack,
-      },
+    const thread = { company_id: `eq.${companyId}`, id: `eq.${conversationId}` };
+    const [conversation] = await this.#rest<Pick<AutomationConversation, "emergency_at" | "last_emergency_ack_at">[]>("conversations", {
+      ...thread,
+      select: "emergency_at,last_emergency_ack_at",
     });
-    this.#saveArmed(args.nonce, { tenant: args.tenant, previous, armed_at: this.#now() });
+    const [source] = await this.#rest<{ id: string }[]>("messages", {
+      company_id: `eq.${companyId}`,
+      conversation_id: `eq.${conversationId}`,
+      direction: "eq.inbound",
+      done_at: "is.null",
+      select: "id",
+      order: "created_at.desc",
+      limit: "1",
+    });
+    if (!conversation || !source) throw new Error(`app probe: ${args.tenant} has no customer message for the reminder fixture`);
+    const bodies = automationBodies(args.nonce);
+    const closedDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(this.#now());
+    const settings = {
+      away_enabled: true,
+      away_message: bodies.away_reply,
+      business_hours: {},
+      business_hours_exceptions: [{ from: closedDate, to: closedDate, hours: null }],
+      auto_reply_cooldown_minutes: 1,
+      emergency_keyword_enabled: true,
+      emergency_reply_enabled: true,
+      emergency_keywords: [S25_KEYWORD],
+      emergency_message: bodies.emergency_ack,
+    } satisfies Partial<Record<CompanyField, unknown>>;
+    const previous = await this.companySettings({ tenant: args.tenant, fields: Object.keys(settings) as CompanyField[] });
+    this.#saveArmed(args.nonce, { tenant: args.tenant, previous, armed_at: this.#now(), conversation: { id: conversationId, ...conversation } });
+    await this.#write("PATCH", "companies", { id: `eq.${companyId}` }, settings, "return=minimal");
+    await this.#write("PATCH", "conversations", thread, { last_emergency_ack_at: null }, "return=minimal");
     const owner = await this.#userIdOf(`${args.tenant.toLowerCase()}-owner`);
-    const due = iso(this.#now());
+    const taskId = stableUuid(companyId, S25_KEYWORD, args.nonce);
+    const minimumOffset = 24 * 60;
+    const rules = await this.#rest<{ offset_minutes: number; enabled: boolean }[]>("appointment_reminder_rules", {
+      company_id: `eq.${companyId}`,
+      select: "offset_minutes,enabled",
+      offset_minutes: `gte.${minimumOffset}`,
+    });
+    const existingRule = rules.find((rule) => rule.enabled);
+    let reminderOffsetMinutes = existingRule?.offset_minutes ?? minimumOffset;
+    if (!existingRule) {
+      const occupiedOffsets = new Set(rules.map((rule) => rule.offset_minutes));
+      while (occupiedOffsets.has(reminderOffsetMinutes)) reminderOffsetMinutes += 1;
+      await this.#write("POST", "appointment_reminder_rules", {}, {
+        id: stableUuid(taskId, "reminder-rule"),
+        company_id: companyId,
+        offset_minutes: reminderOffsetMinutes,
+        body: bodies.reminder,
+        enabled: true,
+        created_by: owner,
+      }, "return=minimal");
+    }
+    const reminderAt = args.fireAt - 60_000;
+    await this.#write("POST", "tasks", {}, {
+      id: taskId,
+      company_id: companyId,
+      conversation_id: conversationId,
+      message_id: source.id,
+      independent_source: true,
+      created_by_user_id: owner,
+      title: bodies.reminder,
+      due_at: iso(reminderAt + reminderOffsetMinutes * 60_000),
+    }, "return=minimal");
     const expires = iso(this.#now() + 24 * 3_600_000);
     for (const [origin, body] of [
       ["human", bodies.scheduled_send],
@@ -347,13 +394,14 @@ export class AppProbe implements AppApi {
         company_id: companyId,
         conversation_id: conversationId,
         body,
-        send_at: due,
+        // A human send at its chosen time can go through quiet hours. Exercise the late-send rule.
+        send_at: iso(origin === "human" ? args.fireAt - 11 * 60_000 : reminderAt),
         clock_timezone: "America/Toronto",
         clock_source: "area_code",
         expires_at: expires,
         created_by: owner,
         origin,
-        ...(origin === "reminder" ? { reminder_offset_minutes: 60 } : {}),
+        ...(origin === "reminder" ? { task_id: taskId, reminder_offset_minutes: reminderOffsetMinutes } : {}),
       });
     }
     return { undo: { kind: "app.disarm-automations", params: { tenant: args.tenant, nonce: args.nonce } } };
@@ -371,35 +419,39 @@ export class AppProbe implements AppApi {
       created_at: `gte.${iso(armed.armed_at)}`,
       select: "body,status,direction",
     });
-    const scheduled = await this.#rest<{ body: string; status: string }[]>("scheduled_messages", {
+    const scheduled = await this.#rest<{ body: string; status: string; held_reason_key: string | null }[]>("scheduled_messages", {
       company_id: `eq.${companyId}`,
       body: `like.*${args.nonce}*`,
-      select: "body,status",
+      select: "body,status,held_reason_key",
     });
-    const stateOf = (body: string): AutomatedText["state"] => {
+    return (["away_reply", "emergency_ack", "scheduled_send", "reminder"] as const).map((kind) => {
+      const body = bodies[kind];
       const row = scheduled.find((candidate) => candidate.body === body);
-      if (row?.status === "held") return "held";
-      if (row && row.status !== "sent") return "pending";
-      return sent.some((message) => message.body === body && message.status !== "failed") ? "sent" : "pending";
-    };
-    return (["away_reply", "emergency_ack", "scheduled_send", "reminder"] as const).map((kind) => ({
-      kind,
-      body: bodies[kind],
-      state: stateOf(bodies[kind]),
-      reply: kind === "away_reply" || kind === "emergency_ack",
-    }));
+      const message = sent.find((candidate) => candidate.body === body || (kind === "emergency_ack" && candidate.body.startsWith(`${body} `)));
+      const state = row?.status === "held" ? "held" : (message && message.status !== "failed" ? "sent" : "pending");
+      return { kind, body: message?.body ?? body, state, reason: row?.held_reason_key, reply: kind === "away_reply" || kind === "emergency_ack" };
+    });
   }
 
   /** Undo for armAutomations: the company's settings back, and the scheduled texts cancelled if still unsent. */
   async disarmAutomations(args: { tenant: string; nonce: string }): Promise<void> {
     const armed = this.#readArmed(args.nonce);
     const companyId = this.#tenant(args.tenant).company_id;
-    await this.#write("PATCH", "scheduled_messages", {
-      company_id: `eq.${companyId}`,
-      body: `like.*${args.nonce}*`,
-      status: "in.(pending,held)",
-    }, { status: "canceled", canceled_at: iso(this.#now()) }, "return=minimal");
-    if (armed) await this.patchCompany({ tenant: args.tenant, values: armed.previous });
+    const taskId = stableUuid(companyId, S25_KEYWORD, args.nonce);
+    const { id, ...previousConversation } = armed?.conversation ?? {};
+    const results = await Promise.allSettled([
+      this.#write("PATCH", "scheduled_messages", {
+        company_id: `eq.${companyId}`,
+        body: `like.*${args.nonce}*`,
+        status: "in.(pending,held)",
+      }, { status: "canceled", canceled_at: iso(this.#now()) }, "return=minimal"),
+      this.#write("DELETE", "tasks", { company_id: `eq.${companyId}`, id: `eq.${taskId}` }),
+      this.#write("DELETE", "appointment_reminder_rules", { company_id: `eq.${companyId}`, id: `eq.${stableUuid(taskId, "reminder-rule")}` }),
+      armed ? this.patchCompany({ tenant: args.tenant, values: armed.previous }) : undefined,
+      id ? this.#write("PATCH", "conversations", { company_id: `eq.${companyId}`, id: `eq.${id}` }, previousConversation, "return=minimal") : undefined,
+    ]);
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed) throw failed.reason;
     if (this.#o.stateDir) rmSync(this.#armedPath(args.nonce), { force: true });
   }
 
@@ -1513,11 +1565,18 @@ export function subjectOf(token: string): string {
   return sub;
 }
 
+interface AutomationConversation {
+  id: string;
+  emergency_at: string | null;
+  last_emergency_ack_at: string | null;
+}
+
 /** What S25 changed, kept under the nonce so the undo can put it back. */
 interface ArmedAutomations {
   tenant: string;
   previous: Partial<Record<CompanyField, unknown>>;
   armed_at: number;
+  conversation?: AutomationConversation;
 }
 
 /** The addresses S32 and S35 sign up with: Resend's test sink, tagged with the scenario. */

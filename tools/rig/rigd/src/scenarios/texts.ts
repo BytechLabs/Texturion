@@ -259,37 +259,38 @@ export const S24: ScenarioRunner = {
 };
 
 /**
- * Automated texts and quiet hours: by day they arrive, at night the ones the
- * business starts are held (the destination's clock, Ontario). A reply to the
- * customer's own text is exempt from quiet hours (D4), so it arrives at
- * night too. The registry runs it twice a week, a daytime run and a night
- * run, so both halves are exercised.
+ * S25 fires the minute cron at a daytime or nighttime instant in Toronto.
  */
 export const S25: ScenarioRunner = {
   id: "S25",
   async run(ctx) {
-    const night = isQuietHour(ctx.now());
+    const night = ctx.slot.index === 1;
+    let fireAt = ctx.now();
+    while (isQuietHour(fireAt) !== night) fireAt -= 3_600_000;
     ctx.evidence.mode = night ? "night" : "day";
+    ctx.evidence.scheduled_trigger_at = new Date(fireAt).toISOString();
     ctx.lease.registerUndo({ kind: "app.disarm-automations", params: { tenant: "QA-W", nonce: ctx.nonce } });
     try {
-      await ctx.app.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: ctx.nonce });
+      await ctx.app.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: ctx.nonce, fireAt });
     } catch (error) {
       return infra("app-probe", `arming the automations failed: ${(error as Error).message}`);
     }
     const since = ctx.now();
+    await ctx.app.fireCron("* * * * *", fireAt);
+    await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: `S25 ordinary text ${ctx.nonce}`, scenario: ctx.scenario });
     await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: `Rig S25 ${ctx.nonce}`, scenario: ctx.scenario });
-    // The scheduled texts are due now; the minute cron sends or holds them.
-    await ctx.app.fireCron("* * * * *");
     await ctx.sleep(60_000);
 
     const texts = await ctx.app.automatedTexts({ tenant: "QA-W", nonce: ctx.nonce });
     const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since });
     const arrived = (body: string) => inbox.some((m) => m.text === body);
-    ctx.evidence.texts = texts.map((t) => ({ kind: t.kind, state: t.state, arrived: arrived(t.body), reply: t.reply }));
+    ctx.evidence.texts = texts.map((t) => ({ kind: t.kind, state: t.state, reason: t.reason, arrived: arrived(t.body), reply: t.reply }));
     if (texts.length === 0) return infra("app-probe", "no automated texts were armed");
     const held = night ? texts.filter((t) => !t.reply) : [];
-    const leaked = held.filter((t) => t.state !== "held" || arrived(t.body));
+    const leaked = held.filter((t) => t.state === "sent" || arrived(t.body));
     if (leaked.length > 0) return fail("sent_in_quiet_hours", `sent at night: ${leaked.map((t) => t.kind).join(", ")}`);
+    const notHeld = held.filter((t) => t.state !== "held" || t.reason !== "domain.scheduledHoldQuietHours");
+    if (notHeld.length > 0) return fail("quiet_hold_missing", `not held at night: ${notHeld.map((t) => t.kind).join(", ")}`);
     const missing = texts.filter((t) => !held.includes(t) && (t.state !== "sent" || !arrived(t.body)));
     if (missing.length > 0) {
       return fail(night ? "reply_held_at_night" : "not_sent_by_day", `did not arrive ${night ? "at night" : "by day"}: ${missing.map((t) => t.kind).join(", ")}`);

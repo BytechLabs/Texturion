@@ -378,52 +378,78 @@ describe("the app probe", () => {
   it("arms S25 in the thread with ROBOT-1, reads what came of it, and disarms back to what was there", async () => {
     const stateDir = tempDir();
     const bodies = automationBodies("n0nce");
+    const emergencyBody = `${bodies.emergency_ack} Safety information.`;
+    const previousConversation = { emergency_at: "2026-10-30T08:00:00Z", last_emergency_ack_at: "2026-10-30T08:00:00Z" };
     const { probe, requests } = probeWith(
       {
         [`GET ${rest("contacts")}`]: () => json([{ id: "contact-1" }]),
-        [`GET ${rest("conversations")}`]: () => json([{ id: "conv-1" }]),
+        [`GET ${rest("conversations")}`]: () => json([{ id: "conv-1", ...previousConversation }]),
+        [`PATCH ${rest("conversations")}`]: () => new Response(null, { status: 204 }),
         [`GET ${rest("companies")}`]: () => json([{ away_enabled: false, away_message: null, business_hours: { mon: { open: "09:00", close: "17:00" } } }]),
         [`PATCH ${rest("companies")}`]: () => new Response(null, { status: 204 }),
+        [`POST ${rest("tasks")}`]: () => new Response(null, { status: 201 }),
+        [`DELETE ${rest("tasks")}`]: () => json([]),
+        [`GET ${rest("appointment_reminder_rules")}`]: () => json([]),
+        [`POST ${rest("appointment_reminder_rules")}`]: () => new Response(null, { status: 201 }),
+        [`DELETE ${rest("appointment_reminder_rules")}`]: () => json([]),
         [`POST ${rest("scheduled_messages")}`]: () => new Response("[]", { status: 201 }),
         [`PATCH ${rest("scheduled_messages")}`]: () => new Response(null, { status: 204 }),
-        [`GET ${rest("messages")}`]: () => json([{ body: bodies.away_reply, status: "delivered", direction: "outbound" }]),
+        [`GET ${rest("messages")}`]: ({ url }) => new URL(url).searchParams.get("select") === "id"
+          ? json([{ id: "customer-message" }])
+          : json([{ body: bodies.away_reply, status: "delivered" }, { body: emergencyBody, status: "delivered" }]),
         [`GET ${rest("scheduled_messages")}`]: () =>
           json([
-            { body: bodies.scheduled_send, status: "held" },
+            { body: bodies.scheduled_send, status: "held", held_reason_key: "domain.scheduledHoldQuietHours" },
             { body: bodies.reminder, status: "pending" },
           ]),
       },
       stateDir,
     );
-    await probe.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: "n0nce" });
+    const fireAt = Date.UTC(2026, 9, 31, 23);
+    await probe.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: "n0nce", fireAt });
     const armed = JSON.parse(requests.find((r) => r.method === "PATCH" && r.url.startsWith(rest("companies")))!.body!);
     expect(armed).toMatchObject({ away_enabled: true, away_message: bodies.away_reply, emergency_keywords: ["RIG"] });
     expect(armed.business_hours).toEqual({});
+    expect(armed.business_hours_exceptions).toEqual([{ from: "2026-10-31", to: "2026-10-31", hours: null }]);
     const scheduled = requests.filter((r) => r.method === "POST" && r.url.startsWith(rest("scheduled_messages"))).map((r) => JSON.parse(r.body!));
     expect(scheduled.map((row) => [row.origin, row.body, row.conversation_id, row.created_by])).toEqual([
       ["human", bodies.scheduled_send, "conv-1", OWNER],
       ["reminder", bodies.reminder, "conv-1", OWNER],
     ]);
+    const task = JSON.parse(requests.find((r) => r.method === "POST" && r.url.startsWith(rest("tasks")))!.body!);
+    const rule = JSON.parse(requests.find((r) => r.method === "POST" && r.url.startsWith(rest("appointment_reminder_rules")))!.body!);
+    expect(rule).toMatchObject({ company_id: COMPANY, offset_minutes: 1440, enabled: true, body: bodies.reminder });
+    expect(task).toMatchObject({ company_id: COMPANY, conversation_id: "conv-1", message_id: "customer-message", created_by_user_id: OWNER, due_at: new Date(fireAt + 86_340_000).toISOString() });
+    expect(scheduled[0]).toMatchObject({ send_at: new Date(fireAt - 660_000).toISOString() });
+    expect(scheduled[1]).toMatchObject({ task_id: task.id, reminder_offset_minutes: 1440, send_at: new Date(fireAt - 60_000).toISOString() });
 
     const texts = await probe.automatedTexts({ tenant: "QA-W", nonce: "n0nce" });
     expect(texts.map((t) => [t.kind, t.state, t.reply])).toEqual([
       ["away_reply", "sent", true],
-      ["emergency_ack", "pending", true],
+      ["emergency_ack", "sent", true],
       ["scheduled_send", "held", false],
       ["reminder", "pending", false],
     ]);
+    expect(texts.find((text) => text.kind === "scheduled_send")?.reason).toBe("domain.scheduledHoldQuietHours");
+    expect(texts.find((text) => text.kind === "emergency_ack")?.body).toBe(emergencyBody);
 
     await probe.disarmAutomations({ tenant: "QA-W", nonce: "n0nce" });
     const patches = requests.filter((r) => r.method === "PATCH" && r.url.startsWith(rest("companies")));
     expect(JSON.parse(patches.at(-1)!.body!)).toMatchObject({ away_enabled: false, away_message: null, business_hours: { mon: { open: "09:00", close: "17:00" } } });
     const cancel = requests.find((r) => r.method === "PATCH" && r.url.startsWith(rest("scheduled_messages")))!;
     expect(decodeURIComponent(cancel.url)).toContain("status=in.(pending,held)");
+    const removed = requests.find((r) => r.method === "DELETE" && r.url.startsWith(rest("tasks")))!;
+    expect(new URL(removed.url).searchParams.get("id")).toBe(`eq.${task.id}`);
+    const removedRule = requests.find((r) => r.method === "DELETE" && r.url.startsWith(rest("appointment_reminder_rules")))!;
+    expect(new URL(removedRule.url).searchParams.get("id")).toBe(`eq.${rule.id}`);
+    const threadWrites = requests.filter((r) => r.method === "PATCH" && r.url.startsWith(rest("conversations")));
+    expect(threadWrites.map((r) => JSON.parse(r.body!))).toEqual([{ last_emergency_ack_at: null }, previousConversation]);
     await expect(probe.automatedTexts({ tenant: "QA-W", nonce: "n0nce" })).resolves.toEqual([]);
   });
 
   it("refuses to arm S25 where there is no thread to arm it in", async () => {
     const { probe } = probeWith({ [`GET ${rest("contacts")}`]: () => json([]) }, tempDir());
-    await expect(probe.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: "n0nce" })).rejects.toThrow(/no thread with ROBOT-1/);
+    await expect(probe.armAutomations({ tenant: "QA-W", toRole: "ROBOT-1", nonce: "n0nce", fireAt: Date.UTC(2026, 9, 31, 23) })).rejects.toThrow(/no thread with ROBOT-1/);
   });
 });
 

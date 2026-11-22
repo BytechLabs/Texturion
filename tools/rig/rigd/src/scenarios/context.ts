@@ -145,8 +145,10 @@ export interface CallRow {
 export interface AutomatedText {
   kind: "away_reply" | "scheduled_send" | "reminder" | "emergency_ack" | "help_reply";
   body: string;
-  /** held: kept back for quiet hours. sent: released to Telnyx. */
+  /** sent: released to Telnyx. */
   state: "held" | "sent" | "pending";
+  /** The translation key stored when the scheduler holds or fails the text. */
+  reason?: string | null;
   /**
    * An answer to the customer's own text. D4 exempts replies from quiet hours
    * (messaging/away-reply.ts), so these arrive by night as well as by day.
@@ -319,7 +321,7 @@ export interface AppApi {
   /** Fires one of the API's crons at an instant, as the rig's timers do. */
   fireCron(cron: string, at?: number): Promise<void>;
   /** Seeds S25's automations for a nonce; the undo removes them. */
-  armAutomations(args: { tenant: string; toRole: StandingRole; nonce: string }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }>;
+  armAutomations(args: { tenant: string; toRole: StandingRole; nonce: string; fireAt: number }): Promise<{ undo: { kind: string; params: Record<string, unknown> } }>;
   automatedTexts(args: { tenant: string; nonce: string }): Promise<AutomatedText[]>;
 
   /** A local feature flag's global value, or null when no row sets it. Kill switches are flags that are on until killed. */
