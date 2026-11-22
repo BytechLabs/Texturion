@@ -338,7 +338,7 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
             onSelect={select} onStageBlock={stageBlock} />
         </>
       )}
-      {pane === "workload" && <DispatchWorkload plan={plan} rows={preview?.workload ?? query.data?.workload ?? []} onFocus={(id, when) => {
+      {pane === "workload" && <DispatchWorkload plan={plan} date={date} rows={preview?.workload ?? query.data?.workload ?? []} onFocus={(id, when) => {
         setPerson(id);
         changeDate(when);
         setPane("schedule");

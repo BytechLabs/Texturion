@@ -582,40 +582,34 @@ struct DispatchPlanner: View {
     private func workload(_ payload: DispatchPayload) -> some View {
         SectionLabel(text("contactsTasks.dispatchBooked"))
         ForEach(payload.plan.members) { member in
+            let cell = payload.workload.first { $0.assignee_id == member.id && $0.date == key(date) }
+            let booked = cell?.booked ?? 0
+            let available = cell?.available
+            let overCapacity = cell?.overloaded ?? (available.map { booked > $0 } ?? false)
             PaperCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        InitialsAvatar(name: member.name, size: 24, memberId: member.id)
-                            .accessibilityHidden(true)
-                        Text(member.name ?? text("contactsTasks.dispatchAssignee")).font(.headline)
-                    }
-                    ScrollView(.horizontal) {
-                        HStack(alignment: .top, spacing: 12) {
-                            ForEach(payload.workload.filter { $0.assignee_id == member.id }, id: \.date) { cell in
-                                Button {
-                                    if let day = payload.plan.day(cell.date) {
-                                        selectDate(dispatchInstant(day.start))
-                                        person = member.id
-                                        pane = .schedule
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading) {
-                                        Text(cell.date.suffix(5))
-                                        Text(text("contactsTasks.dispatchDurationValue", ["minutes": String(Int(cell.booked))]))
-                                        Text(cell.available.map {
-                                            text("contactsTasks.dispatchDurationValue", ["minutes": String(Int($0))])
-                                        } ?? text("contactsTasks.dispatchAvailabilityUnknown"))
-                                        if cell.overloaded ?? (cell.available.map { cell.booked > $0 } ?? false) {
-                                            Text(text("contactsTasks.dispatchOverload")).foregroundStyle(BrandColor.destructive)
-                                        }
-                                    }
-                                    .padding(8)
-                                }
-                            }
+                Button {
+                    person = member.id
+                    pane = .schedule
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            InitialsAvatar(name: member.name, size: 24, memberId: member.id)
+                                .accessibilityHidden(true)
+                            Text(member.name ?? text("contactsTasks.dispatchAssignee")).font(.headline)
+                        }
+                        let bookedLabel = text("contactsTasks.dispatchDurationValue", ["minutes": String(Int(booked))])
+                        let capacity = available.map { text("contactsTasks.dispatchDurationValue", ["minutes": String(Int($0))]) }
+                            ?? text("contactsTasks.dispatchAvailabilityUnknown")
+                        Text("\(bookedLabel) / \(capacity)").font(.subheadline).foregroundStyle(BrandColor.muted700)
+                        if overCapacity {
+                            Text(text("contactsTasks.dispatchOverload")).foregroundStyle(BrandColor.destructive)
                         }
                     }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(12)
+                    .contentShape(Rectangle())
                 }
-                .padding(12)
+                .buttonStyle(.plain)
             }
         }
         SectionLabel(text("contactsTasks.unassigned"))
@@ -648,9 +642,9 @@ struct DispatchPlanner: View {
             person = $0
             route = nil
         }
-        if editable {
+        if editable && !flexible.isEmpty {
             Button(text("contactsTasks.dispatchOptimize")) { optimize(worker) }
-                .disabled(busy || flexible.isEmpty)
+                .disabled(busy)
         }
         if let route {
             Text(text("contactsTasks.dispatchDrive", ["before": String(route.before), "after": String(route.after)]))
@@ -787,17 +781,19 @@ private struct DispatchTimelineScale {
         calendar.timeZone = zone
         let weekday = String(calendar.component(.weekday, from: start) - 1)
         let shifts = plan.members.compactMap { $0.shifts?[weekday] }.filter { $0.start != nil && $0.end != nil }
+        if day.closed == true && day.opens_at == nil && shifts.isEmpty && blocks.isEmpty { return nil }
+        let opening = day.opens_at.map(dispatchInstant) ?? (shifts.isEmpty ? start : nil)
+        let closing = day.closes_at.map(dispatchInstant) ?? (shifts.isEmpty ? dayEnd : nil)
         func local(_ clock: String?) -> Date? {
             guard let clock else { return nil }
             let parts = clock.split(separator: ":").compactMap { Int($0) }
             guard parts.count == 2 else { return nil }
             return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: start)
         }
-        let starts = [day.opens_at.map(dispatchInstant)].compactMap { $0 }
+        let starts = [opening].compactMap { $0 }
             + blocks.map { dispatchInstant($0.starts_at) } + shifts.compactMap { local($0.start) }
-        let ends = [day.closes_at.map(dispatchInstant)].compactMap { $0 }
+        let ends = [closing].compactMap { $0 }
             + blocks.map { dispatchInstant($0.ends_at) } + shifts.compactMap { local($0.end) }
-        if day.closed == true && starts.isEmpty { return nil }
         first = max(start, starts.min() ?? start)
         last = min(dayEnd, ends.max() ?? dayEnd)
     }

@@ -1,7 +1,6 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -489,31 +488,25 @@ internal fun DispatchPlanner(
                 DispatchPane.Workload -> {
                     SectionHeader(t("contactsTasks.dispatchBooked"))
                     for (member in plan.members) {
+                        val cell = response.workload.find { it.assignee_id == member.id && it.date == date.toString() }
+                        val booked = cell?.booked ?: 0.0
+                        val available = cell?.available
+                        val overload = cell?.overloaded ?: (available != null && booked > available)
                         PaperCard(Modifier.fillMaxWidth()) {
-                            Row(
-                                Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                TaskAvatar(member.name, size = 24.dp, memberId = member.id)
-                                Text(member.name ?: t("contactsTasks.dispatchAssignee"), style = MaterialTheme.typography.titleSmall)
-                            }
-                            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                                for (cell in response.workload.filter { it.assignee_id == member.id }) {
-                                    val overload = cell.overloaded ?: (cell.available != null && cell.booked > cell.available)
-                                    TextButton(onClick = {
-                                        person = member.id
-                                        date = LocalDate.parse(cell.date)
-                                        pane = DispatchPane.Schedule
-                                    }) {
-                                        Column {
-                                            Text(cell.date.takeLast(5))
-                                            Text(t("contactsTasks.dispatchDurationValue", "minutes" to cell.booked.toInt().toString()))
-                                            Text(cell.available?.let { t("contactsTasks.dispatchDurationValue", "minutes" to it.toInt().toString()) }
-                                                ?: t("contactsTasks.dispatchAvailabilityUnknown"))
-                                            if (overload) Text(t("contactsTasks.dispatchOverload"), color = MaterialTheme.colorScheme.error)
-                                        }
+                            TextButton(onClick = { person = member.id; pane = DispatchPane.Schedule }) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        TaskAvatar(member.name, size = 24.dp, memberId = member.id)
+                                        Text(member.name ?: t("contactsTasks.dispatchAssignee"), style = MaterialTheme.typography.titleSmall)
                                     }
+                                    val bookedLabel = t("contactsTasks.dispatchDurationValue", "minutes" to booked.toInt().toString())
+                                    val capacity = available?.let { t("contactsTasks.dispatchDurationValue", "minutes" to it.toInt().toString()) }
+                                        ?: t("contactsTasks.dispatchAvailabilityUnknown")
+                                    Text("$bookedLabel / $capacity", style = MaterialTheme.typography.bodyMedium)
+                                    if (overload) Text(t("contactsTasks.dispatchOverload"), color = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -542,8 +535,10 @@ internal fun DispatchPlanner(
                     }
                     if (!personal) {
                         DispatchAssignee(plan.members, worker, allowEmpty = false) { person = it; route = null }
-                        TextButton(enabled = editable && !busy && flexible.isNotEmpty(), onClick = { optimize() }) {
-                            Text(t("contactsTasks.dispatchOptimize"))
+                        if (editable && flexible.isNotEmpty()) {
+                            TextButton(enabled = !busy, onClick = { optimize() }) {
+                                Text(t("contactsTasks.dispatchOptimize"))
+                            }
                         }
                         route?.let { result ->
                             Text(t("contactsTasks.dispatchDrive", "before" to result.before.toString(), "after" to result.after.toString()))

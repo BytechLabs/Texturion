@@ -79,11 +79,7 @@ internal fun DispatchTimeline(
     val dayStart = Instant.parse(day.start)
     val dayEnd = Instant.parse(day.end)
     val shifts = plan.members.mapNotNull { it.shifts[weekday] }.filter { it.start != null && it.end != null }
-    val starts = listOfNotNull(day.opens_at?.let(Instant::parse)) + blocks.map { Instant.parse(it.starts_at) } +
-        shifts.map { date.atTime(LocalTime.parse(it.start)).atZone(zone).toInstant() }
-    val ends = listOfNotNull(day.closes_at?.let(Instant::parse)) + blocks.map { Instant.parse(it.ends_at) } +
-        shifts.map { date.atTime(LocalTime.parse(it.end)).atZone(zone).toInstant() }
-    if (day.closed && starts.isEmpty()) {
+    if (day.closed && day.opens_at == null && shifts.isEmpty() && blocks.isEmpty()) {
         Text(t("contactsTasks.dispatchClosedDay"), style = MaterialTheme.typography.bodyMedium)
         return
     }
@@ -91,6 +87,12 @@ internal fun DispatchTimeline(
         Text(t("contactsTasks.dispatchNoBookings"), style = MaterialTheme.typography.bodyMedium)
         return
     }
+    val opening = day.opens_at?.let(Instant::parse) ?: dayStart.takeIf { shifts.isEmpty() }
+    val closing = day.closes_at?.let(Instant::parse) ?: dayEnd.takeIf { shifts.isEmpty() }
+    val starts = listOfNotNull(opening) + blocks.map { Instant.parse(it.starts_at) } +
+        shifts.map { date.atTime(LocalTime.parse(it.start)).atZone(zone).toInstant() }
+    val ends = listOfNotNull(closing) + blocks.map { Instant.parse(it.ends_at) } +
+        shifts.map { date.atTime(LocalTime.parse(it.end)).atZone(zone).toInstant() }
     val first = maxOf(dayStart, starts.minOrNull() ?: dayStart)
     val last = minOf(dayEnd, ends.maxOrNull() ?: dayEnd)
     val count = ((Duration.between(first, last).toMinutes() + SlotMinutes - 1) / SlotMinutes).toInt().coerceAtLeast(1)

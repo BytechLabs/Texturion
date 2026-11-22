@@ -52,6 +52,7 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
   const { openTask } = useTaskDrawer();
   const id = useId();
   const dragged = useRef<DraggedWork | null>(null);
+  const touchOrigin = useRef<{ x: number; y: number } | null>(null);
   const resizeOrigin = useRef<{ x: number; laneWidth: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ assignee: string; start: number } | null>(null);
   const [resize, setResize] = useState<{ id: string; end: number } | null>(null);
@@ -69,9 +70,9 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
   });
   const starts = [...shifts.flatMap(({ start }) => start ?? []), ...blocks.map((block) => Date.parse(block.starts_at))];
   const ends = [...shifts.flatMap(({ end }) => end ?? []), ...blocks.map((block) => Date.parse(block.ends_at))];
-  if (day.opens_at) starts.push(Date.parse(day.opens_at));
-  if (day.closes_at) ends.push(Date.parse(day.closes_at));
-  const closed = day.closed && starts.length === 0 && ends.length === 0;
+  const closed = day.closed && !day.opens_at && shifts.length === 0 && blocks.length === 0;
+  if (day.opens_at || shifts.length === 0) starts.push(Date.parse(day.opens_at ?? day.start));
+  if (day.closes_at || shifts.length === 0) ends.push(Date.parse(day.closes_at ?? day.end));
   const first = Math.max(dayStart, starts.length > 0 ? Math.min(...starts) : dayStart);
   const last = Math.min(dayEnd, ends.length > 0 ? Math.max(...ends) : dayEnd);
   const range = Math.max(HOUR, last - first);
@@ -90,19 +91,14 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
     setDropTarget(null);
   }
 
-  function slotAt(event: React.DragEvent<HTMLDivElement>) {
-    const lane = event.currentTarget.getBoundingClientRect();
-    const slot = Math.floor((event.clientX - lane.left) / lane.width * range / SLOT);
+  function slotAt(x: number, lane: Element) {
+    const bounds = lane.getBoundingClientRect();
+    const slot = Math.floor((x - bounds.left) / bounds.width * range / SLOT);
     const lastSlot = Math.ceil((last - first) / SLOT) - 1;
     return first + Math.max(0, Math.min(lastSlot, slot)) * SLOT;
   }
 
-  function drop(event: React.DragEvent<HTMLDivElement>, assignee: string) {
-    const item = dragged.current;
-    if (!editable || !item || event.dataTransfer.getData(MIME) !== item.task.id) return;
-    event.preventDefault();
-    const start = slotAt(event);
-    finishDrag();
+  function place(item: DraggedWork, assignee: string, start: number) {
     const length = item.block
       ? Date.parse(item.block.ends_at) - Date.parse(item.block.starts_at)
       : (item.task.dispatch_estimate ?? 0) * MINUTE;
@@ -119,6 +115,41 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
     onStageBlock(item.task, {
       ...booking, assignee_id: assignee, starts_at, ends_at: new Date(start + length).toISOString(),
     });
+  }
+
+  function touchTarget(event: React.PointerEvent<HTMLSpanElement>) {
+    const lane = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-dispatch-assignee]");
+    const assignee = lane?.dataset.dispatchAssignee;
+    return lane && assignee ? { assignee, start: slotAt(event.clientX, lane) } : null;
+  }
+
+  function touchGrip(item: DraggedWork) {
+    return <span className="grid min-h-8 min-w-6 shrink-0 touch-none cursor-grab place-items-center text-app-muted" aria-hidden
+      onPointerDown={(event) => {
+        if (event.pointerType === "mouse" || !event.isPrimary) return;
+        touchOrigin.current = { x: event.clientX, y: event.clientY };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }} onPointerMove={(event) => {
+        const origin = touchOrigin.current;
+        if (!event.isPrimary || !origin) return;
+        if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 6) {
+          dragged.current = item;
+          setDropTarget(touchTarget(event));
+        }
+      }} onPointerUp={(event) => {
+        if (!event.isPrimary || !touchOrigin.current) return;
+        const target = dragged.current ? touchTarget(event) : null;
+        touchOrigin.current = null;
+        finishDrag();
+        if (target && editable) place(item, target.assignee, target.start);
+      }} onClick={(event) => {
+        if (event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType !== "mouse") event.stopPropagation();
+      }} onLostPointerCapture={() => {
+        touchOrigin.current = null;
+        finishDrag();
+      }}>
+      <GripVertical className="size-4" />
+    </span>;
   }
 
   function resizedEnd(block: DispatchBlock, x: number) {
@@ -141,7 +172,7 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
                 <button type="button" className="flex min-h-8 max-w-full items-center gap-1.5 text-left text-sm font-medium hover:underline"
                   draggable={editable && !closed} onDragStart={(event) => startDrag(event, { task })} onDragEnd={finishDrag}
                   onClick={() => openTask(task.id)}>
-                  {editable && !closed && <GripVertical className="size-4 shrink-0 cursor-grab text-app-muted" aria-hidden />}
+                  {editable && !closed && touchGrip({ task })}
                   {task.title}
                 </button>
                 <p className="text-xs text-app-muted">{task.dispatch_estimate === null
@@ -174,19 +205,30 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
           </div>
           {plan.members.map((member) => (
             <div className={cn("flex border-b last:border-b-0", focused === member.id && "bg-muted")} key={member.id}>
+<<<<<<< HEAD
               <h3 className="flex w-32 shrink-0 items-start gap-2 break-words px-3 py-3 text-sm font-medium">
                 <MemberAvatar name={member.name ?? t("tasks.teammate")} memberId={member.id} />
                 <span>{member.name ?? t("tasks.teammate")}</span>
               </h3>
               <div className="relative min-h-24 grow border-l" onDragOver={(event) => {
+=======
+              <h3 className="w-32 shrink-0 break-words px-3 py-3 text-sm font-medium">{member.name ?? t("tasks.teammate")}</h3>
+              <div data-dispatch-assignee={member.id} className="relative min-h-24 grow border-l" onDragOver={(event) => {
+>>>>>>> 9486b6cf3 (fix: keep planner gestures usable on compact screens)
                 if (editable && dragged.current && event.dataTransfer.types.includes(MIME)) {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "move";
-                  setDropTarget({ assignee: member.id, start: slotAt(event) });
+                  setDropTarget({ assignee: member.id, start: slotAt(event.clientX, event.currentTarget) });
                 }
               }} onDragLeave={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null);
-              }} onDrop={(event) => drop(event, member.id)}>
+              }} onDrop={(event) => {
+                const item = dragged.current;
+                if (!editable || !item || event.dataTransfer.getData(MIME) !== item.task.id) return;
+                event.preventDefault();
+                finishDrag();
+                place(item, member.id, slotAt(event.clientX, event.currentTarget));
+              }}>
                 {hours.map((hour) => <div key={hour} aria-hidden className="absolute inset-y-0 border-l" style={{ left: `${percent(hour)}%` }} />)}
                 {dropTarget?.assignee === member.id && <div aria-hidden className="pointer-events-none absolute inset-y-0 z-3 border-l-2 border-primary"
                   style={{ left: `${percent(dropTarget.start)}%` }}>
@@ -208,7 +250,11 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
                       title={`${task.title} · ${timeSpan(plan, shown, t.locale)}${item.locked ? ` · ${t("tasks.dispatchLocked")}` : ""}`}
                       draggable={movable} onDragStart={(event) => startDrag(event, { task, block: item })} onDragEnd={finishDrag}
                       onClick={() => editable ? onSelect(task, item) : openTask(task.id)}>
-                      <span className="flex items-center gap-1 truncate">{item.locked && <Lock className="size-3 shrink-0" aria-hidden />}{task.title}</span>
+                      <span className="flex items-center gap-1 truncate">
+                        {item.locked && <Lock className="size-3 shrink-0" aria-hidden />}
+                        {movable && touchGrip({ task, block: item })}
+                        {task.title}
+                      </span>
                       <span className="block truncate">{timeSpan(plan, shown, t.locale)}</span>
                     </button>
                     {movable && <button type="button" aria-label={t("tasks.dispatchResizeBlock", { title: task.title })}
@@ -242,9 +288,10 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
   );
 }
 
-export function DispatchWorkload({ plan, rows, onFocus }: {
+export function DispatchWorkload({ plan, rows, date, onFocus }: {
   plan: DispatchPlan;
   rows: DispatchPreview["workload"];
+  date: string;
   onFocus: (assignee: string, date: string) => void;
 }) {
   const t = useT();
@@ -260,9 +307,34 @@ export function DispatchWorkload({ plan, rows, onFocus }: {
     return due >= start && due < end;
   });
 
+  function workload(assignee: string, day: string) {
+    const cell = rows.find((value) => value.assignee_id === assignee && value.date === day);
+    const available = cell?.available;
+    const booked = Math.round(cell?.booked ?? 0);
+    const overCapacity = cell?.overloaded ?? (available != null && booked > available);
+    return <span className={cn("block tabular-nums", overCapacity && "text-destructive")}>
+      {t("tasks.dispatchDurationValue", { minutes: booked })} / {available == null
+        ? t("tasks.dispatchAvailabilityUnknown") : t("tasks.dispatchDurationValue", { minutes: Math.round(available) })}
+      {overCapacity && <span className="block text-xs">{t("tasks.dispatchOverload")}</span>}
+    </span>;
+  }
+
   return (
     <div className="space-y-3">
-      <section className={cn(panel, "overflow-x-auto")} aria-label={t("tasks.workload")}>
+      <section className={cn(panel, "md:hidden")} aria-labelledby={`${id}-booked`}>
+        <h2 id={`${id}-booked`} className="border-b px-4 py-3 text-sm font-semibold">{t("tasks.dispatchBooked")}</h2>
+        <ul className="divide-y">{plan.members.map((member) => <li key={member.id}>
+          <button type="button" className="w-full px-4 py-3 text-left text-sm hover:bg-muted"
+            onClick={() => onFocus(member.id, date)}>
+            <span className="flex items-center gap-2 font-medium">
+              <MemberAvatar name={member.name ?? t("tasks.teammate")} memberId={member.id} />
+              {member.name ?? t("tasks.teammate")}
+            </span>
+            {workload(member.id, date)}
+          </button>
+        </li>)}</ul>
+      </section>
+      <section className={cn(panel, "hidden overflow-x-auto md:block")} aria-label={t("tasks.workload")}>
         <table className="w-full min-w-180 text-left text-sm">
           <thead><tr className="border-b">
             <th scope="col" className="px-4 py-3">{t("tasks.dispatchBooked")}</th>
@@ -277,21 +349,10 @@ export function DispatchWorkload({ plan, rows, onFocus }: {
                     {member.name ?? t("tasks.teammate")}
                   </span>
                 </th>
-                {plan.days.map((day) => {
-                  const cell = rows.find((value) => value.assignee_id === member.id && value.date === day.date);
-                  const available = cell?.available;
-                  const booked = Math.round(cell?.booked ?? 0);
-                    const overloaded = cell?.overloaded ?? (available != null && booked > available);
-                  return <td key={day.date} className="p-1">
-                    <button type="button" className={cn("min-h-12 w-full rounded-md p-2 text-left tabular-nums hover:bg-muted", overloaded && "text-destructive")}
-                      onClick={() => onFocus(member.id, day.date)}>
-                      {t("tasks.dispatchDurationValue", { minutes: booked })} / {available == null
-                        ? "–" : t("tasks.dispatchDurationValue", { minutes: Math.round(available) })}
-                      {overloaded && <span className="block text-xs">{t("tasks.dispatchOverload")}</span>}
-                      {available == null && <span className="block text-xs">{t("tasks.dispatchAvailabilityUnknown")}</span>}
-                    </button>
-                  </td>;
-                })}
+                {plan.days.map((day) => <td key={day.date} className="p-1">
+                  <button type="button" className="min-h-12 w-full rounded-md p-2 text-left hover:bg-muted"
+                    onClick={() => onFocus(member.id, day.date)}>{workload(member.id, day.date)}</button>
+                </td>)}
               </tr>
             ))}
           </tbody>
@@ -375,7 +436,7 @@ export function DispatchRoutesView({ plan, blocks, route, busy, editable, person
       <section className={panel} aria-labelledby={`${id}-route`}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
           <h2 id={`${id}-route`} className="text-sm font-semibold">{t(personal ? "tasks.myDay" : "tasks.routes")}</h2>
-          {editable && <Button variant="outline" size="sm" disabled={busy || movable.length === 0}
+          {editable && movable.length > 0 && <Button variant="outline" size="sm" disabled={busy}
             onClick={() => onOptimize?.()}>{t("tasks.dispatchOptimize")}</Button>}
         </div>
         {(personal ? blocks : ordered).length === 0 && <p className={cn(note, "p-4")}>
