@@ -14,6 +14,7 @@ const userID = "20000000-0000-4000-8000-000000000002";
 const threadIDs = ["20000000-0000-4000-8000-000000000010", "20000000-0000-4000-8000-000000000011"];
 const contactID = "20000000-0000-4000-8000-000000000020";
 const lineID = "20000000-0000-4000-8000-000000000030";
+const serviceLineID = "20000000-0000-4000-8000-000000000031";
 const sessionID = "20000000-0000-4000-8000-000000000040";
 const quoteID = "20000000-0000-4000-8000-000000000050";
 const paymentRequestsPath = "/v1/conversations/" + threadIDs[0] + "/payment-requests";
@@ -26,7 +27,7 @@ const call = { id: "test-call", call_session_id: sessionID, contact_id: contactI
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
 const mediaByID = new Map();
 let quote;
-const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, multiWorkspace: false, writes: [], scheduled: [],
+const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, multiWorkspace: false, multiLine: false, writes: [], scheduled: [],
   invites: [], messages: [[], []], includeVoicemail: false, paymentsEnabled: false, paymentRequests: [],
   company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
@@ -149,6 +150,7 @@ const server = createServer(async (req, res) => {
       state.stage = searchParams.get("stage") ?? state.stage;
       state.fieldwork = searchParams.has("fieldwork");
       state.multiWorkspace = searchParams.has("multi_workspace");
+      state.multiLine = searchParams.has("multi_line");
       state.company.plan = "pro";
       if (state.fieldwork) state.contacts[0].notes = "Test notes";
       if (state.stage === "new") {
@@ -259,6 +261,9 @@ const server = createServer(async (req, res) => {
     }
     if (path === "/v1/me") {
       const company = { ...state.company, subscription_status: state.stage };
+      if (state.multiLine) {
+        company.numbers = [line, { ...line, id: serviceLineID, label: "Service", number_e164: "+14165550104" }];
+      }
       const memberships = state.stage === "new" ? [] : [{ company_id: companyID, name: company.name,
         role: state.role, subscription_status: company.subscription_status }];
       if (state.multiWorkspace) {
@@ -268,7 +273,21 @@ const server = createServer(async (req, res) => {
         company: state.stage === "new" ? null : inBillingWorkspace ? billingCompany() : company, memberships });
     }
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
-    if (path === "/v1/for-you") return json({});
+    if (path === "/v1/for-you") {
+      if (!state.multiLine) return json({});
+      const selectedLine = searchParams.get("phone_number_id");
+      const waiting = [lineID, serviceLineID].flatMap((numberId, index) => {
+        if (selectedLine && numberId !== selectedLine) return [];
+        return [{
+          conversation_id: threadIDs[index],
+          contact: { ...state.contacts[index], name: index === 0 ? "Office lead" : "Service lead" },
+          assigned_user_id: userID,
+          status: "waiting",
+          last_message_at: now(),
+        }];
+      });
+      return json({ waiting_on_you: waiting });
+    }
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
     if (path === "/v1/numbers") return json(page(inBillingWorkspace ? [] : state.company.numbers));
     if (path === "/v1/registration") return json({});

@@ -265,6 +265,11 @@ enum InboxStrings {
 
             // --- The "For you" queue (ForYouTab.swift) -------------------------------------
             "inbox.forYouTitle": "For you",
+            "inbox.forYouQueuePhoneLine": "Focus queue phone number",
+            "inbox.forYouAllNumbers": "All phone numbers",
+            "inbox.forYouLineEmpty": "No work on this phone number.",
+            "inbox.forYouLineWorkOne": "1 thing needs you on this number.",
+            "inbox.forYouLineWorkMany": "{count} things need you on this number.",
             "inbox.forYouAllCaughtUp": "You're all caught up.",
             "inbox.forYouWorkOne": "1 thing needs you",
             "inbox.forYouWorkMany": "{count} things need you",
@@ -729,6 +734,11 @@ enum InboxStrings {
 
             // --- The "For you" queue (ForYouTab.swift) -------------------------------------
             "inbox.forYouTitle": "Pour vous",
+            "inbox.forYouQueuePhoneLine": "Numéro des tâches à traiter",
+            "inbox.forYouAllNumbers": "Tous les numéros",
+            "inbox.forYouLineEmpty": "Rien à traiter sur ce numéro.",
+            "inbox.forYouLineWorkOne": "1 chose demande votre attention sur ce numéro.",
+            "inbox.forYouLineWorkMany": "{count} choses demandent votre attention sur ce numéro.",
             "inbox.forYouAllCaughtUp": "Vous êtes à jour.",
             "inbox.forYouWorkOne": "1 chose demande votre attention",
             "inbox.forYouWorkMany": "{count} choses demandent votre attention",

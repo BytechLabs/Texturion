@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { CalendarAttentionPanel } from "@/components/for-you/calendar-attention-panel";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { usePhoneLine } from "@/components/shell/phone-line";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import {
 import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { formatDue } from "@/components/tasks/task-format";
 import { useT } from "@/i18n/provider";
 import { useCalendarAttention } from "@/lib/api/calendar";
@@ -76,8 +78,11 @@ import type { DashboardLayout, DashboardPanelId, DashboardTile, DashboardTileId,
 import { cn } from "@/lib/utils";
 import { headlineWork } from "@/lib/for-you/headline";
 import { LoadError } from "@/components/ui/load-error";
+import { useCompanyId } from "@/lib/company/provider";
 
 export { countDistinctWork, headlineWork } from "@/lib/for-you/headline";
+
+const ALL_PHONE_LINES = "all";
 
 /** Open the shared command-K palette (the search glyph in the header). */
 function openCommand() {
@@ -589,7 +594,7 @@ function SummaryTile({
       <p
         className={cn(
           "mt-0.5 h-4 truncate text-[11px]",
-          overdue ? "font-semibold text-app-clay" : "text-app-muted-2",
+          overdue ? "font-semibold text-app-clay" : "text-app-muted",
         )}
       >
         {signal ?? ""}
@@ -677,7 +682,23 @@ function Overflow({
  */
 export function ForYouView() {
   const t = useT();
-  const forYou = useForYou();
+  const companyId = useCompanyId();
+  const { lines } = usePhoneLine();
+  const [lineSelection, setLineSelection] = useState({ companyId, value: ALL_PHONE_LINES });
+  const selectedLineId = lines.length > 1 && lineSelection.companyId === companyId
+    ? lines.find((line) => line.id === lineSelection.value)?.id
+    : undefined;
+  const allLinesLabel = t("inbox.forYouAllNumbers");
+  const lineOptions = [
+    { value: ALL_PHONE_LINES, label: allLinesLabel },
+    ...lines.map(({ id, name, number }) => ({
+      value: id,
+      label: name === number ? number : `${name} · ${number}`,
+    })),
+  ];
+  const lineValue = selectedLineId ?? ALL_PHONE_LINES;
+  const lineLabel = lineOptions.find(({ value }) => value === lineValue)?.label ?? allLinesLabel;
+  const forYou = useForYou(selectedLineId);
   const attention = useCalendarAttention();
   const hasScheduleDecisions = Boolean(attention.data?.attention.length);
 
@@ -737,6 +758,7 @@ export function ForYouView() {
   }, [data]);
 
   function renderDescription() {
+    if (forYou.isError) return undefined;
     if (forYou.isPending) {
       return (
         // The Skeleton recipe as a span: the header sets this line in a <p>.
@@ -748,8 +770,12 @@ export function ForYouView() {
       );
     }
     if (total > 0) {
+      if (selectedLineId) {
+        return t(total === 1 ? "inbox.forYouLineWorkOne" : "inbox.forYouLineWorkMany", { count: total });
+      }
       return t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total });
     }
+    if (selectedLineId) return t("inbox.forYouLineEmpty");
     return hasScheduleDecisions ? undefined : t("inbox.forYouAllCaughtUp");
   }
 
@@ -793,6 +819,18 @@ export function ForYouView() {
         }
       />
 
+      {lines.length > 1 && (
+        <div className="mb-6">
+          <SimpleSelect
+            ariaLabel={`${t("inbox.forYouQueuePhoneLine")}, ${lineLabel}`}
+            className="min-h-11 max-w-full"
+            value={lineValue}
+            onValueChange={(value) => setLineSelection({ companyId, value })}
+            options={lineOptions}
+          />
+        </div>
+      )}
+
       {/* #310: only while the carriers have it. Above the queue because during
           the wait the queue is empty by definition — texting is the thing that
           fills it, and that is exactly what has not started yet. */}
@@ -835,6 +873,7 @@ export function ForYouView() {
           order={strip.map((tile) => tile.id)}
           editing={editing}
           hasScheduleDecisions={hasScheduleDecisions}
+          lineFiltered={selectedLineId !== undefined}
         />
       ))}
     </div>
@@ -1060,6 +1099,7 @@ function ForYouSections({
   order,
   editing,
   hasScheduleDecisions,
+  lineFiltered,
 }: {
   data: ForYou;
   /** #540: the urgency order, which the default layout follows. */
@@ -1067,6 +1107,7 @@ function ForYouSections({
   /** #736: the member is arranging the page. */
   editing: boolean;
   hasScheduleDecisions: boolean;
+  lineFiltered: boolean;
 }) {
   const t = useT();
   // Read off the /v1/me payload the shell already holds, so the page is laid
@@ -1265,7 +1306,7 @@ function ForYouSections({
           ))}
         </Section>
       )}
-      {queuesEmpty && <CaughtUpCard />}
+      {queuesEmpty && !lineFiltered && <CaughtUpCard />}
       <OffPageWork items={offPage} onShow={show} />
       {editing && (
         <LayoutToolbar

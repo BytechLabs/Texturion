@@ -52,6 +52,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -100,6 +101,8 @@ import com.loonext.android.features.calls.callOutcomeLabel
 import com.loonext.android.features.calls.callerDisplayName
 import com.loonext.android.features.calls.isActionableMiss
 import com.loonext.android.features.settings.SettingsSection
+import com.loonext.android.features.shell.PhoneLineMenu
+import com.loonext.android.features.shell.availableLines
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.LoadError
@@ -189,14 +192,31 @@ fun ForYouTab(
     // #176 cache-first: renders instantly from StoreCache on every visit after
     // the first in-process fetch; refreshKey bumps are always silent revalidation.
     var refreshKey by remember { mutableStateOf(0) }
+    val lines = availableLines(me.company?.numbers.orEmpty())
+    var lineId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    val selectedLine = lines.firstOrNull { lines.size > 1 && it.id == lineId }
+    val linePicker: (@Composable () -> Unit)? = if (lines.size > 1) {
+        {
+            PhoneLineMenu(
+                numbers = lines,
+                selected = selectedLine,
+                allowAll = true,
+                onSelect = { lineId = it },
+                labelKey = "inbox.forYouQueuePhoneLine",
+                allowCopy = false,
+                allNumbersKey = "inbox.forYouAllNumbers",
+            )
+        }
+    } else null
     // #342: the review strip's two answers are one-shot mutations; the strip
     // refetches itself afterwards rather than patching a cache by hand.
     val coroutines = rememberCoroutineScope()
-    val state = rememberCacheFirst(
-        cache = graph.storeCache,
-        key = CacheKeys.forYou(companyId),
-        refreshKey = refreshKey,
-    ) { graph.forYouRepo.forYou(companyId) }
+    val queueKey = CacheKeys.forYou(companyId, selectedLine?.id)
+    val state = key(queueKey) {
+        rememberCacheFirst(graph.storeCache, queueKey, refreshKey) {
+            graph.forYouRepo.forYou(companyId, selectedLine?.id)
+        }
+    }
     val scheduleDecisions = rememberCacheFirst(
         cache = graph.storeCache,
         key = CacheKeys.scheduleDecisions(companyId),
@@ -426,8 +446,16 @@ fun ForYouTab(
     when (val current = state) {
         // First fetch only (#176 keeps every revisit cached): shimmer in the
         // queue-card grammar, not a spinner.
-        is LoadState.Loading -> ForYouSkeleton(modifier)
-        is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ }, modifier)
+        is LoadState.Loading -> ForYouSkeleton(modifier, linePicker)
+        is LoadState.Failed -> Column(modifier) {
+            if (linePicker != null) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
+                    ForYouTitle()
+                    linePicker()
+                }
+            }
+            LoadError(current.message, onRetry = { refreshKey++ }, Modifier.weight(1f))
+        }
         is LoadState.Ready -> RefreshBox(
             isRefreshing = pullRefreshing,
             onRefresh = {
@@ -462,6 +490,8 @@ fun ForYouTab(
             }
             ForYouList(
                 forYou = current.value,
+                linePicker = linePicker,
+                lineFiltered = selectedLine != null,
                 // #342: spam marks that do not look like spam.
                 spamReview = (spamReview as? LoadState.Ready)?.value.orEmpty(),
                 onAnswerSpamReview = { conversationId, notSpam ->
@@ -620,6 +650,8 @@ internal fun ForYouList(
     onAnnounce: (String) -> Unit,
     modifier: Modifier = Modifier,
     scheduleDecisions: (@Composable () -> Unit)? = null,
+    linePicker: (@Composable () -> Unit)? = null,
+    lineFiltered: Boolean = false,
 ) {
     val locale = LocalAppLocale.current
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -696,19 +728,21 @@ internal fun ForYouList(
 
         item(key = "title") {
             Column(Modifier.padding(top = 15.dp)) {
-                ScreenTitle(t("inbox.forYouTitle"))
-                if (total > 0 || scheduleDecisions == null) {
+                ForYouTitle()
+                if (total > 0 || lineFiltered || scheduleDecisions == null) {
+                    val summary = when (total) {
+                        0 -> if (lineFiltered) "inbox.forYouLineEmpty" else "inbox.forYouAllCaughtUp"
+                        1 -> if (lineFiltered) "inbox.forYouLineWorkOne" else "inbox.forYouWorkOne"
+                        else -> if (lineFiltered) "inbox.forYouLineWorkMany" else "inbox.forYouWorkMany"
+                    }
                     Text(
-                        when (total) {
-                            0 -> t("inbox.forYouAllCaughtUp")
-                            1 -> t("inbox.forYouWorkOne")
-                            else -> t("inbox.forYouWorkMany", "count" to total.toString())
-                        },
+                        t(summary, "count" to total.toString()),
                         modifier = Modifier.padding(top = 5.dp),
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                linePicker?.invoke()
             }
         }
 
@@ -766,7 +800,7 @@ internal fun ForYouList(
 
         // The activation/empty variant (screen-18 grammar): a centered inset
         // well instead of the queue cards.
-        if (total == 0 && scheduleDecisions == null) {
+        if (total == 0 && !lineFiltered && scheduleDecisions == null) {
             item(key = "caught-up") { CaughtUpWell(Modifier.animateItem()) }
         }
 
@@ -1483,7 +1517,7 @@ private fun CaughtUpWell(modifier: Modifier = Modifier) {
  * Failed and cached states never see this (#176).
  */
 @Composable
-private fun ForYouSkeleton(modifier: Modifier = Modifier) {
+private fun ForYouSkeleton(modifier: Modifier, linePicker: (@Composable () -> Unit)?) {
     Column(
         modifier
             .fillMaxSize()
@@ -1497,14 +1531,20 @@ private fun ForYouSkeleton(modifier: Modifier = Modifier) {
             SkeletonBlock(44.dp, 44.dp, shape = CircleShape)
         }
         Spacer(Modifier.height(15.dp))
-        SkeletonBlock(168.dp, 30.dp)
+        if (linePicker == null) SkeletonBlock(168.dp, 30.dp) else ForYouTitle()
         Spacer(Modifier.height(9.dp))
         SkeletonBlock(236.dp, 12.dp)
+        linePicker?.invoke()
         Spacer(Modifier.height(21.dp))
         PaperCard(Modifier.fillMaxWidth()) { SkeletonList(rows = 3) }
         Spacer(Modifier.height(14.dp))
         PaperCard(Modifier.fillMaxWidth()) { SkeletonList(rows = 2) }
     }
+}
+
+@Composable
+private fun ForYouTitle() {
+    ScreenTitle(t("inbox.forYouTitle"))
 }
 
 /**

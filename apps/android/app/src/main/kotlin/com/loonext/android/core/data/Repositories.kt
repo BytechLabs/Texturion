@@ -152,8 +152,8 @@ class MeRepository(private val api: ApiClient) {
 }
 
 class ForYouRepository(private val api: ApiClient) {
-    suspend fun forYou(companyId: String): ForYou =
-        api.get("/v1/for-you", companyId = companyId)
+    suspend fun forYou(companyId: String, lineId: String? = null): ForYou =
+        api.get("/v1/for-you", companyId = companyId, query = mapOf("phone_number_id" to lineId))
 
     suspend fun scheduleDecisions(companyId: String): ScheduleDecisionsResponse =
         api.get("/v1/calendar/attention", companyId = companyId)

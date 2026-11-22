@@ -96,6 +96,53 @@ values
    '10000000-0000-4000-8000-00000000000c', 'f0000000-0000-4000-8000-00000000000c',
    'Call the new lead', null, null, 'a0000000-0000-4000-8000-000000000001');
 
+savepoint phone_line_filter;
+
+do $test$
+declare
+  company constant uuid := 'c0000000-0000-4000-8000-000000000001';
+  member constant uuid := 'a0000000-0000-4000-8000-000000000002';
+  first_line constant uuid := 'd0000000-0000-4000-8000-000000000001';
+  second_line constant uuid := 'd0000000-0000-4000-8000-000000000108';
+  second_conversation constant uuid := 'f0000000-0000-4000-8000-00000000000a';
+  result jsonb;
+begin
+  insert into public.phone_numbers (id, company_id, status, provisioning_key, country, number_e164)
+  values (second_line, company, 'active', 'cs_fy_1084', 'US', '+16135550108');
+  update public.conversations set phone_number_id = second_line where id = second_conversation;
+  update public.tasks set source_line_id = second_line where conversation_id = second_conversation;
+  insert into public.tasks (company_id, title, assigned_user_id, created_by_user_id)
+  values (company, 'Standalone work', member, member);
+
+  result := public.api_for_you(company, member, now(), 1);
+  if (result->'totals'->>'waiting_on_you')::int is distinct from 2
+     or (result->'totals'->>'my_tasks')::int is distinct from 2 then
+    raise exception 'Workspace queue should include both phone lines and standalone work';
+  end if;
+
+  result := public.api_for_you_by_line(company, member, now(), 1, null, first_line);
+  if result->'waiting_on_you'->0->>'conversation_id' is distinct from 'f0000000-0000-4000-8000-00000000000b'
+     or (result->'totals'->>'waiting_on_you')::int is distinct from 1
+     or result->'my_tasks' is distinct from '[]'::jsonb then
+    raise exception 'First-line queue should filter before limiting and computing totals: %', result;
+  end if;
+
+  result := public.api_for_you_by_line(company, member, now(), 1, null, second_line);
+  if result->'waiting_on_you'->0->>'conversation_id' is distinct from second_conversation::text
+     or (result->'totals'->>'my_tasks')::int is distinct from 1
+     or result->'triage'->'conversations' is distinct from '[]'::jsonb then
+    raise exception 'Second-line queue should include only its work: %', result;
+  end if;
+
+  result := public.api_for_you_by_line(company, member, now(), 1, array[second_line], second_line);
+  if (result->'totals'->>'distinct_work')::int is distinct from 0 then
+    raise exception 'Filtering on a hidden line should return an empty queue: %', result;
+  end if;
+end $test$;
+
+rollback to phone_line_filter;
+release savepoint phone_line_filter;
+
 -- ===========================================================================
 -- FY1. api_for_you (member): waiting_on_you = both assigned open|waiting
 --      threads (W urgency 0 pinned by its overdue-linked task, then U urgency

@@ -1080,6 +1080,8 @@ struct PhoneLineMenu: View {
     let selected: PhoneNumberSummary?
     var allowAll = false
     var labelKey = "shell.phoneLine"
+    var allowCopy = true
+    var allNumbersKey = "shell.allPhoneLines"
     let onSelect: @MainActor (String?) -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -1087,12 +1089,12 @@ struct PhoneLineMenu: View {
     private var options: [SelectOption<String?>] {
         var choices: [SelectOption<String?>] = []
         if allowAll {
-            choices.append(SelectOption(nil, title: AppStrings.translate(appLocale, "shell.allPhoneLines")))
+            choices.append(SelectOption(nil, title: AppStrings.translate(appLocale, allNumbersKey)))
         }
         for line in lines {
             let number = formatPhone(line.number_e164)
             let title = line.label.flatMap { $0.isBlank ? nil : "\($0) · \(number)" } ?? number
-            choices.append(SelectOption(line.id, title: title, copyValue: line.number_e164))
+            choices.append(SelectOption(line.id, title: title, copyValue: allowCopy ? line.number_e164 : nil))
         }
         return choices
     }
@@ -1101,7 +1103,7 @@ struct PhoneLineMenu: View {
         if !lines.isEmpty {
             SelectField(
                 options: options, selected: selected?.id,
-                label: AppStrings.translate(appLocale, labelKey), onSelect: onSelect
+                label: AppStrings.translate(appLocale, labelKey), usesMenu: true, onSelect: onSelect
             )
         }
     }

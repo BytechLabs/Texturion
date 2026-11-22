@@ -24,13 +24,14 @@
  *        injects the clock so "overdue" is testable.
  */
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { unwrap } from "./core/http";
+import { parseWith, unwrap } from "./core/http";
 
 export const forYouRoutes = new Hono<AppEnv>();
 
@@ -40,8 +41,10 @@ export const forYouRoutes = new Hono<AppEnv>();
  * single section, the surplus lives in the full Inbox / /tasks views.
  */
 const SECTION_LIMIT = 20;
+const lineQuery = z.uuid().optional();
 
 forYouRoutes.get("/for-you", requireCapability("conversations.read"), async (c) => {
+  const lineId = parseWith(lineQuery, c.req.query("phone_number_id"));
   const db = getDb(getEnv(c.env));
   const role = c.get("role");
   // #416/D53 opened the unclaimed queue to everyone — a crew of 1-10 has no
@@ -61,12 +64,13 @@ forYouRoutes.get("/for-you", requireCapability("conversations.read"), async (c) 
   });
 
   const result = unwrap<Record<string, unknown>>(
-    await db.rpc("api_for_you", {
+    await db.rpc(lineId ? "api_for_you_by_line" : "api_for_you", {
       p_company_id: c.get("companyId"),
       p_user_id: c.get("userId"),
       p_now: new Date().toISOString(),
       p_limit: SECTION_LIMIT,
       p_hidden_number_ids: access.hiddenNumberIds,
+      ...(lineId ? { p_phone_number_id: lineId } : {}),
     }),
     "for-you read-model",
   );

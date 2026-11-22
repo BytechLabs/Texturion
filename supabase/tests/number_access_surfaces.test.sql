@@ -44,6 +44,7 @@ do $$
 declare
   roster text[] := array[
     'api_for_you',
+    'api_for_you_by_line',
     'api_list_calls',
     'api_list_conversations',
     'api_notifications',
@@ -441,6 +442,14 @@ begin
      > jsonb_array_length(
        public.api_for_you(co, usr, now(), 20)->'unread') then
     raise exception 'NA-3 FAILED: denying a number ADDED for-you rows';
+  end if;
+
+  open_n := (public.api_for_you_by_line(co, usr, now(), 20, null, hidden[1])
+    ->'totals'->>'distinct_work')::int;
+  hidden_n := (public.api_for_you_by_line(co, usr, now(), 20, hidden, hidden[1])
+    ->'totals'->>'distinct_work')::int;
+  if open_n < 1 or hidden_n is distinct from 0 then
+    raise exception 'NA-3 FAILED: the selected number has % items with access and % without', open_n, hidden_n;
   end if;
 end $$;
 

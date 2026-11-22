@@ -40,6 +40,7 @@ struct SelectField<Value: Hashable>: View {
     var showsDetail: Bool
     /// A header choice uses the paper icon button and speaks the selected value.
     var triggerIcon: String?
+    private let usesMenu: Bool
     let onSelect: @MainActor (Value) -> Void
 
     init(
@@ -49,6 +50,7 @@ struct SelectField<Value: Hashable>: View {
         enabled: Bool = true,
         showsDetail: Bool = true,
         triggerIcon: String? = nil,
+        usesMenu: Bool = false,
         onSelect: @escaping @MainActor (Value) -> Void
     ) {
         self.options = options
@@ -57,6 +59,7 @@ struct SelectField<Value: Hashable>: View {
         self.enabled = enabled
         self.showsDetail = showsDetail
         self.triggerIcon = triggerIcon
+        self.usesMenu = usesMenu
         self.onSelect = onSelect
     }
 
@@ -71,8 +74,10 @@ struct SelectField<Value: Hashable>: View {
             } else if options.contains(where: { $0.copyValue != nil }) {
                 HStack(spacing: 8) {
                     CopyablePhoneNumber(number: chosen?.copyValue, label: chosen?.title ?? label, minimumHeight: 44)
-                    phoneMenu
+                    phoneMenu(showsSelection: false)
                 }
+            } else if usesMenu {
+                phoneMenu(showsSelection: true)
             } else {
                 picker
             }
@@ -120,7 +125,7 @@ struct SelectField<Value: Hashable>: View {
         .accessibilityValue(chosen?.title ?? "")
     }
 
-    private var phoneMenu: some View {
+    private func phoneMenu(showsSelection: Bool) -> some View {
         Menu {
             ForEach(options.indices, id: \.self) { index in
                 let option = options[index]
@@ -136,9 +141,15 @@ struct SelectField<Value: Hashable>: View {
                 .disabled(option.isDisabled)
             }
         } label: {
-            Image(systemName: "chevron.up.chevron.down")
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            Group {
+                if showsSelection {
+                    Label(chosen?.title ?? label, systemImage: "chevron.up.chevron.down")
+                } else {
+                    Image(systemName: "chevron.up.chevron.down")
+                }
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .tint(BrandColor.olive)
         .frame(minHeight: 44, alignment: .leading)
