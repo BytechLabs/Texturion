@@ -7,6 +7,7 @@ import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Inbox
 import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.MAIN_ACTION_SIZE
 import com.loonext.android.ui.common.Segment
 import com.loonext.android.ui.common.SegmentedControl
 import com.loonext.android.ui.common.SearchField
@@ -1703,7 +1704,10 @@ private fun InboxList(
             )
         }
 
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        SnackbarHost(
+            snackbar,
+            Modifier.align(Alignment.BottomCenter).padding(bottom = MAIN_ACTION_SIZE + 8.dp),
+        )
     }
 }
 
