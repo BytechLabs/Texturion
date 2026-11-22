@@ -25,6 +25,7 @@ vi.mock("@/lib/api/usage", () => ({
 // #304: the export card lives on this page now. It is a real mutation hook,
 // and this harness renders statically with no query client.
 vi.mock("@/lib/api/exports", () => ({
+  useDataExports: () => ({ data: { data: [] } }),
   useExportUsage: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 vi.mock("@/lib/api/companies", () => ({

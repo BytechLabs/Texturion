@@ -19,15 +19,18 @@ import {
 import { sayEnglish } from "@/i18n/translate";
 import { ExportUsage } from "./export-usage";
 import { ApiError } from "@/lib/api/error";
+import type { DataExport } from "@/lib/api/types";
 
-const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
+const { requestExport, readExports, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
+  readExports: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   role: { current: "owner" },
 }));
 
 vi.mock("@/lib/api/exports", () => ({
+  useDataExports: readExports,
   useExportUsage: () => ({ isPending: false, mutateAsync: requestExport }),
 }));
 vi.mock("@/lib/company/provider", () => ({
@@ -51,6 +54,8 @@ beforeEach(() => {
   role.current = "owner";
   requestExport.mockReset();
   requestExport.mockResolvedValue({ export_id: "e1", already_building: false });
+  readExports.mockReset();
+  readExports.mockReturnValue({ data: { data: [] } });
   toastSuccess.mockReset();
   toastError.mockReset();
 });
@@ -65,6 +70,7 @@ describe("#304 exporting a period's usage", () => {
       role.current = who;
       const { container } = render(<ExportUsage />);
       expect(container.innerHTML, who).toBe("");
+      expect(readExports).not.toHaveBeenCalled();
       cleanup();
     }
   });
@@ -149,7 +155,36 @@ describe("#304 exporting a period's usage", () => {
     fireEvent.click(screen.getByText("Start it"));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
-    expect(toastSuccess.mock.calls[0][0]).toContain("Data export");
+    expect(toastSuccess.mock.calls[0][0]).toContain("download your export here");
+  });
+
+  it("lets a bookkeeper collect their ready export beside the request form", () => {
+    role.current = "bookkeeper";
+    const row: DataExport = {
+      id: "e1",
+      kind: "usage_summary",
+      status: "ready",
+      requested_at: "2026-09-04T10:00:00Z",
+      completed_at: "2026-09-04T10:01:00Z",
+      expires_at: null,
+      row_counts: {},
+      error: null,
+      allowed_actions: ["download"],
+      files: [{ name: "usage.csv", url: "https://example.test/usage.csv" }],
+    };
+    const previousApiRow: DataExport = {
+      ...row,
+      id: "e2",
+      kind: "workspace",
+      files: [{ name: "messages.jsonl", url: "https://example.test/messages.jsonl" }],
+    };
+    readExports.mockReturnValue({ data: { data: [row, previousApiRow] } });
+    render(<ExportUsage />);
+    expect(readExports).toHaveBeenCalledWith("usage_summary");
+    expect(screen.getByRole("link", { name: "usage.csv" }).getAttribute("download")).toBe("usage.csv");
+    expect(screen.queryByRole("link", { name: "messages.jsonl" })).toBeNull();
+    fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
+    expect(screen.getByRole("link", { name: "usage.csv" }).getAttribute("href")).toBe(row.files[0].url);
   });
 
   it("EU-8: shows the server's reason when it refuses", async () => {

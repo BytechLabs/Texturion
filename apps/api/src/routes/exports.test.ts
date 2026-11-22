@@ -252,6 +252,28 @@ describe("POST /v1/exports", () => {
 });
 
 describe("GET /v1/exports", () => {
+  it.each([
+    ["owner", ["usage_summary"]],
+    ["bookkeeper", ["usage_summary"]],
+    ["member", []],
+  ])("limits the usage list for %s to permitted summaries", async (role, kinds) => {
+    const { sb, routes } = world({
+      role,
+      rows: [readyRow({ kind: "workspace" }), readyRow({ kind: "usage_summary" })],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const response = await apiRequest(app, env, await auth.token(), "/v1/exports?kind=usage_summary", {
+      companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(200);
+    const { data } = await response.json<{ data: { kind: string }[] }>();
+    expect(data.map(({ kind }) => kind)).toEqual(kinds);
+    const filters = sb.find("GET", "/rest/v1/data_exports").map(({ url }) => url.searchParams.get("kind"));
+    const expectedFilters = kinds.length === 0 ? [] : [`in.(${kinds.join(",")})`];
+    expect(filters).toEqual(expectedFilters);
+  });
+
   it("mints a download link per file, fresh", async () => {
     const { routes } = world();
     stubFetch(jwksRoute(auth), ...routes);
