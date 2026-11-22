@@ -5,6 +5,13 @@ import android.content.Context
 import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.loonext.android.core.auth.AppPrefs
 import com.loonext.android.core.model.MessageLocale
 import java.util.Locale
 
@@ -132,4 +139,14 @@ object UiLocale {
 
     private fun isKnown(value: String?): Boolean =
         value == MessageLocale.EN || value == MessageLocale.FR_CA
+}
+
+@Composable
+fun rememberReaderLocale(prefs: AppPrefs): String {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val deviceTag = remember(context, configuration) { UiLocale.deviceTag(context) }
+    val userLocale by prefs.uiLocale.collectAsStateWithLifecycle(initialValue = null)
+    val workspaceLocale by prefs.workspaceLocale.collectAsStateWithLifecycle(initialValue = null)
+    return UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
 }
