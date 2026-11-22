@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,17 +43,13 @@ import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TimestampFormat
+import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.SectionHeader
 import java.time.Duration
 import java.time.Instant
@@ -66,6 +60,7 @@ import kotlin.math.roundToLong
 private const val DispatchMime = "application/x-loonext-dispatch"
 private const val SlotMinutes = 15L
 private val SlotWidth = 28.dp
+private val LaneHeight = 104.dp
 
 internal fun Modifier.dispatchDrag(payload: String, enabled: Boolean): Modifier =
     if (enabled) dragAndDropSource { _: Offset ->
@@ -112,18 +107,12 @@ internal fun DispatchTimeline(
     fun x(time: Instant) = SlotWidth * (Duration.between(first, time).seconds.toFloat() / (SlotMinutes * 60))
     fun label(time: Instant) = TimestampFormat.clock(time, zone, locale)
     var highlighted by remember(day.date) { mutableStateOf<Pair<String, Instant>?>(null) }
-    var viewport by remember(day.date) { mutableStateOf(Rect.Zero) }
-    val lanes = remember(day.date, plan.members) { mutableMapOf<String, Rect>() }
-    val place by rememberUpdatedState(onPlace)
     SectionHeader(t("contactsTasks.schedule"))
     val scheduleStatus = highlighted?.let { label(it.second) }
         ?: if (blocks.isEmpty()) t("contactsTasks.dispatchNoBookings") else ""
     Text(scheduleStatus, style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant, minLines = 1)
-    Column(
-        Modifier.onGloballyPositioned { viewport = it.boundsInWindow() }
-            .horizontalScroll(rememberScrollState()).width(width),
-    ) {
+    Column(Modifier.horizontalScroll(rememberScrollState()).width(width)) {
         Box(Modifier.width(width).height(28.dp)) {
             repeat(count) { index ->
                 if (index % 4 == 0) {
@@ -141,15 +130,7 @@ internal fun DispatchTimeline(
                 TaskAvatar(member.name, size = 22.dp, memberId = member.id)
                 SectionHeader(member.name ?: t("contactsTasks.dispatchAssignee"))
             }
-            Box(
-                Modifier.width(width).height(78.dp).background(MaterialTheme.colorScheme.surface)
-                    .onGloballyPositioned { coordinates ->
-                        lanes[member.id] = Rect(
-                            coordinates.positionInWindow(),
-                            Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()),
-                        )
-                    },
-            ) {
+            Box(Modifier.width(width).height(LaneHeight).background(MaterialTheme.colorScheme.surface)) {
                 Row {
                     repeat(count) { index ->
                         val start = first.plusSeconds(index * SlotMinutes * 60)
@@ -165,57 +146,33 @@ internal fun DispatchTimeline(
                     val start = Instant.parse(block.starts_at)
                     val end = resized ?: Instant.parse(block.ends_at)
                     val left = x(maxOf(start, first))
-                    val blockWidth = maxOf(104.dp, x(minOf(end, last)) - left)
+                    val blockWidth = maxOf(144.dp, x(minOf(end, last)) - left)
                     val movable = editable && !block.locked
-                    var handleOrigin by remember(block.id) { mutableStateOf(Offset.Zero) }
-                    val move = if (movable) Modifier.onGloballyPositioned { handleOrigin = it.positionInWindow() }
-                        .pointerInput(block.id, start, block.assignee_id, day.date, first, count) {
-                            var pointer = Offset.Zero
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = { pointer = handleOrigin + it },
-                                onDragCancel = { highlighted = null },
-                                onDragEnd = {
-                                    val target = highlighted
-                                    highlighted = null
-                                    if (target != null && (target.first != block.assignee_id || target.second != start)) {
-                                        place("block:${block.id}", target.first, target.second)
-                                    }
-                                },
-                            ) { change, amount ->
-                                change.consume()
-                                pointer += amount
-                                val lane = lanes.entries.firstOrNull { (_, bounds) ->
-                                    pointer in viewport && pointer in bounds
-                                }
-                                highlighted = lane?.let { (assignee, bounds) ->
-                                    val slot = ((pointer.x - bounds.left) / SlotWidth.toPx()).toInt().coerceIn(0, count - 1)
-                                    assignee to first.plusSeconds(slot * SlotMinutes * 60)
-                                }
-                            }
-                        } else Modifier
-                    Row(
+                    Column(
                         Modifier.offset(x = minOf(left, maxOf(0.dp, width - blockWidth)), y = 8.dp).width(blockWidth)
                             .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)),
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            TextButton(onClick = { onTask(task.id) }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                                Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer)
-                            }
-                            Row(
-                                Modifier.fillMaxWidth().heightIn(min = 20.dp).then(move)
-                                    .padding(horizontal = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                if (movable) Icon(Icons.Outlined.DragHandle, contentDescription = null,
-                                    modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                Text("${label(start)} – ${label(end)}", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer)
-                            }
+                        TextButton(
+                            onClick = { onTask(task.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) {
+                            Text(task.title, modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
                         }
-                        if (editable) {
+                        Row(Modifier.fillMaxWidth().padding(start = if (movable) 0.dp else 8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            if (movable) {
+                                Box(Modifier.size(44.dp).dispatchDrag("block:${block.id}", true),
+                                    contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.DragHandle, contentDescription = null,
+                                        modifier = Modifier.size(IconSize.Default), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            }
+                            Text("${label(start)} – ${label(end)}", modifier = Modifier.weight(1f),
+                                maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            if (!editable) return@Row
                             val resize = if (movable) Modifier.pointerInput(block.id, block.ends_at, day.date) {
                                 var offset = 0f
                                 detectHorizontalDragGestures(
@@ -238,7 +195,7 @@ internal fun DispatchTimeline(
                                 Icon(
                                     if (movable) Icons.Outlined.DragHandle else Icons.Outlined.Lock,
                                     contentDescription = t(if (movable) "contactsTasks.dispatchResizeBlock" else "contactsTasks.dispatchEditBlock"),
-                                    modifier = Modifier.size(18.dp).rotate(if (movable) 90f else 0f),
+                                    modifier = Modifier.size(IconSize.Default).rotate(if (movable) 90f else 0f),
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
                             }
@@ -273,7 +230,7 @@ private fun DispatchSlotTarget(
         }
     }
     Box(
-        Modifier.width(SlotWidth).height(78.dp)
+        Modifier.width(SlotWidth).height(LaneHeight)
             .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
             .then(if (highlighted) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
             .then(if (editable) Modifier.dragAndDropTarget(
