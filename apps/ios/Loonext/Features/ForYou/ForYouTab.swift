@@ -322,7 +322,7 @@ struct ForYouTab: View {
         VStack(alignment: .leading, spacing: 14) {
             if let linePicker {
                 VStack(alignment: .leading, spacing: 5) {
-                    ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
+                    ForYouTitle()
                     linePicker
                 }
                 .padding(.horizontal, 18)
@@ -504,6 +504,14 @@ struct ForYouTab: View {
                 recentCalls = .failed(error.userMessage)
             }
         }
+    }
+}
+
+private struct ForYouTitle: View {
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
     }
 }
 
@@ -690,7 +698,7 @@ struct ForYouList: View {
     private var heading: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
+                ForYouTitle()
                 if total > 0 || lineFiltered || !hasScheduleDecisions {
                     Text(subtitle)
                         .font(.golos(13))
