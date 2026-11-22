@@ -193,6 +193,7 @@ final class InboxController {
         get { shellLineId ?? filterLineId }
         set { filterLineId = newValue }
     }
+    var activeLineFilter: String? { shellLineId == nil ? filterLineId : nil }
     private(set) var tagId: String?
 
     /// The filtered teammate, once the roster can name them. Labels only.
@@ -286,7 +287,7 @@ final class InboxController {
             snoozedOnly: snoozedOnly,
             awaitingOnly: awaitingOnly,
             unassignedOnly: unassignedOnly,
-            lineId: lineId
+            lineId: activeLineFilter
         )
     }
 
@@ -2981,7 +2982,7 @@ extension InboxList {
                 label: AppStrings.translate(appLocale, "inbox.forYouSectionUnassigned")
             ) { controller.setAssigneeFilter(nil) })
         }
-        if let lineId = controller.lineId {
+        if let lineId = controller.activeLineFilter {
             chips.append(ActiveFilterChip(
                 id: "line",
                 label: lines.first { $0.id == lineId }?.label
