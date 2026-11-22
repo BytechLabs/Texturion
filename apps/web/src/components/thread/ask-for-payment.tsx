@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLocale, useT } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -34,9 +35,7 @@ import {
  *   setup lives in Settings, where the owner is, and a tech cannot action it
  *   anyway. *Applying: Zen of Clarity, and Prioritize Intent.*
  *
- * - **Never an empty form.** The description arrives pre-filled with "Deposit",
- *   which is the ask this feature exists for and the one most likely to be
- *   right. *Applying: Smart Defaults.*
+ * - **Editable default.** The description starts as a deposit in the customer's language.
  *
  * - **The preview IS the ethical friction.** Sending a bill to a customer is
  *   customer-visible and cannot be unsent, so the exact text that will arrive is
@@ -52,10 +51,12 @@ import {
  */
 export function AskForPayment({
   conversationId,
+  contactLocale,
   prefill,
   onPrefillUsed,
 }: {
   conversationId: string;
+  contactLocale?: string | null;
   /**
    * #287 — an accepted quote, opening this form with its own numbers in it.
    *
@@ -75,13 +76,12 @@ export function AskForPayment({
   const { locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
-  // Smart Defaults: the ask this feature was built for, editable in one tap.
-  const [description, setDescription] = useState("Deposit");
+  const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!prefill) return;
     setAmount(String(prefill.amountCents / 100));
-    setDescription(prefill.description);
+    setDescriptionDraft(prefill.description);
     setOpen(true);
     onPrefillUsed?.();
   }, [prefill, onPrefillUsed]);
@@ -100,7 +100,9 @@ export function AskForPayment({
 
   const currency: BillingCurrency =
     account.data?.currency === "cad" ? "cad" : "usd";
-  const businessName = company.data?.name ?? "";
+  const messageLocale = resolveLocale(contactLocale, company.data?.locale);
+  const messageT = makeTranslate(messageLocale);
+  const description = descriptionDraft ?? messageT("payments.deposit");
 
   const cents = parseMoneyInputToCents(amount, locale);
   const problem = cents === null ? null : paymentAmountProblem(cents);
@@ -108,27 +110,11 @@ export function AskForPayment({
   const preview =
     cents !== null && problem === null && description.trim().length > 0
       ? paymentRequestSms({
-          businessName: businessName || "Your business",
+          businessName: company.data?.name || messageT("payments.yourBusiness"),
           amountCents: cents,
           currency,
           description,
-          /*
-           * #228 — the WORKSPACE language, which is the preview being as
-           * honest as it can be rather than as honest as we would like.
-           *
-           * The send resolves the customer own setting first (routes/
-           * payments.ts reads contacts(locale)), and this cannot: the
-           * conversation-detail projection does not carry it, and widening
-           * that wire for a preview would mean an RPC migration and three
-           * client types for a string nobody but the sender reads.
-           *
-           * So the preview matches the send for every customer who follows
-           * the workspace, which is nearly all of them, and can differ for
-           * one who has been given their own language. It is the same
-           * approximation the placeholder URL on the next line already makes
-           * — close enough to be useful, and named rather than hidden.
-           */
-          locale: resolveLocale(null, company.data?.locale ?? null),
+          locale: messageLocale,
           // The real URL is minted by the server; this stands in for it at the
           // same length so the preview does not lie about how long the text is.
           url: "https://app.loonext.com/pay/…",
@@ -153,7 +139,7 @@ export function AskForPayment({
       );
       setOpen(false);
       setAmount("");
-      setDescription("Deposit");
+      setDescriptionDraft(null);
       // A new key for the next ask: reusing it would let the server dedupe a
       // genuinely different request as a retry of this one.
       setIdempotencyKey(crypto.randomUUID());
@@ -222,7 +208,7 @@ export function AskForPayment({
             id="payment-description"
             value={description}
             maxLength={PAYMENT_DESCRIPTION_MAX}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => setDescriptionDraft(event.target.value)}
           />
         </div>
       </div>
