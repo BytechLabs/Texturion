@@ -33,10 +33,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -488,6 +490,16 @@ fun ThreadScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+@Composable
+internal fun ThreadActionCards(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .heightIn(max = 192.dp)
+            .verticalScroll(rememberScrollState()),
+        content = content,
+    )
 }
 
 @Composable
@@ -1287,76 +1299,78 @@ private fun ThreadLoaded(
             viewerReadOnly = viewerReadOnly,
         )
 
-        // #233: what this thread is about to say. Above the composer and below
-        // the transcript, because a scheduled message is not a message — it has
-        // no delivery status and may never become one, and putting it in the
-        // history would mean a reader has to check a badge before believing
-        // anything above the fold actually went. Rendered here rather than
-        // inside the banner branch's `else` so a HELD text still says why:
-        // a banner means something is wrong with sending, which is exactly when
-        // a queued text is stuck and most needs saying out loud.
-        // #244: above the scheduled strip, because this is the only thing on
-        // the screen with a clock running on it — somebody is waiting for a
-        // callback, and if nobody claims it the alert widens to the whole crew.
-        AlertBanner(
-            alert = detail.open_alert,
-            viewerId = me.user_id,
-            onClaim = { controller.acknowledgeAlert(it) },
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
+        ThreadActionCards {
+            // #233: what this thread is about to say. Above the composer and below
+            // the transcript, because a scheduled message is not a message — it has
+            // no delivery status and may never become one, and putting it in the
+            // history would mean a reader has to check a badge before believing
+            // anything above the fold actually went. Rendered here rather than
+            // inside the banner branch's `else` so a HELD text still says why:
+            // a banner means something is wrong with sending, which is exactly when
+            // a queued text is stuck and most needs saying out loud.
+            // #244: above the scheduled strip, because this is the only thing on
+            // the screen with a clock running on it — somebody is waiting for a
+            // callback, and if nobody claims it the alert widens to the whole crew.
+            AlertBanner(
+                alert = detail.open_alert,
+                viewerId = me.user_id,
+                onClaim = { controller.acknowledgeAlert(it) },
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
 
-        ScheduledStrip(
-            rows = controller.scheduled,
-            clock = detail.destination_clock,
-            onUpdate = controller::updateScheduled,
-            onCancel = { controller.cancelScheduled(it) },
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
-
-        // #224: what this thread is owed, and the control that asks for more.
-        // Above the composer for the same reason the scheduled strip is — it is
-        // STATE, not history, and it changes without anybody here doing
-        // anything.
-        //
-        // Never for a notes-only member: a note goes to the crew, a payment
-        // request goes to the customer, and #106 says that member gets no
-        // control the API would refuse. Web draws the same line.
-        //
-        // A VIEW-ONLY OBSERVER STILL SEES THE STRIP and is offered nothing on
-        // it. #315 says read_only differs from a member in what it can DO, not
-        // in what it sees, and what this thread is owed is a fact about the
-        // conversation they are here to read.
-        if (detail.viewer_level != "note") {
-            ThreadPayments(
-                graph = graph,
-                companyId = companyId,
-                conversationId = controller.conversationId,
-                businessName = controller.company?.name,
-                messageLocale = MessageLocale.resolve(
-                    detail.contact.locale,
-                    controller.company?.locale,
-                ),
-                canAct = !viewerReadOnly,
-                onNotice = onNotice,
-                // The ask went out as an ordinary text, so the transcript has a
-                // message the timeline does not know about yet.
-                onSent = { controller.refreshAfterReconnect() },
+            ScheduledStrip(
+                rows = controller.scheduled,
+                clock = detail.destination_clock,
+                onUpdate = controller::updateScheduled,
+                onCancel = { controller.cancelScheduled(it) },
                 modifier = Modifier.padding(bottom = 4.dp),
             )
-            // #287: beside the payment strip because they are the same kind of
-            // thing — state that changes without anybody here doing anything.
-            ThreadQuotes(
-                graph = graph,
-                companyId = companyId,
-                conversationId = controller.conversationId,
-                quoteChangedTick = controller.quoteChangedTick,
-                canAct = !viewerReadOnly,
-                draftOpen = quoteDraftOpen && composer.mode == ComposerMode.Text,
-                onCloseDraft = { quoteDraftOpen = false },
-                onNotice = onNotice,
-                onSent = { controller.refreshAfterReconnect() },
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
+
+            // #224: what this thread is owed, and the control that asks for more.
+            // Above the composer for the same reason the scheduled strip is — it is
+            // STATE, not history, and it changes without anybody here doing
+            // anything.
+            //
+            // Never for a notes-only member: a note goes to the crew, a payment
+            // request goes to the customer, and #106 says that member gets no
+            // control the API would refuse. Web draws the same line.
+            //
+            // A VIEW-ONLY OBSERVER STILL SEES THE STRIP and is offered nothing on
+            // it. #315 says read_only differs from a member in what it can DO, not
+            // in what it sees, and what this thread is owed is a fact about the
+            // conversation they are here to read.
+            if (detail.viewer_level != "note") {
+                ThreadPayments(
+                    graph = graph,
+                    companyId = companyId,
+                    conversationId = controller.conversationId,
+                    businessName = controller.company?.name,
+                    messageLocale = MessageLocale.resolve(
+                        detail.contact.locale,
+                        controller.company?.locale,
+                    ),
+                    canAct = !viewerReadOnly,
+                    onNotice = onNotice,
+                    // The ask went out as an ordinary text, so the transcript has a
+                    // message the timeline does not know about yet.
+                    onSent = { controller.refreshAfterReconnect() },
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                // #287: beside the payment strip because they are the same kind of
+                // thing — state that changes without anybody here doing anything.
+                ThreadQuotes(
+                    graph = graph,
+                    companyId = companyId,
+                    conversationId = controller.conversationId,
+                    quoteChangedTick = controller.quoteChangedTick,
+                    canAct = !viewerReadOnly,
+                    draftOpen = quoteDraftOpen && composer.mode == ComposerMode.Text,
+                    onCloseDraft = { quoteDraftOpen = false },
+                    onNotice = onNotice,
+                    onSent = { controller.refreshAfterReconnect() },
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
         }
 
         // #716: Lou's catch-up offer, one line beside the input. Answering it

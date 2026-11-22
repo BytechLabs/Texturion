@@ -40,6 +40,23 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testThreadAndComposer() throws { try audit("thread") }
 
+    func testDenseScheduledThreadKeepsComposerReachable() {
+        let app = launchEvidence("threadActionCards", "light")
+        defer { app.terminate() }
+        let composer = app.buttons["Add to message"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 20))
+        XCTAssertTrue(composer.isHittable)
+
+        let cards = app.scrollViews.firstMatch
+        XCTAssertTrue(cards.waitForExistence(timeout: 20))
+        let lastText = element(app, labelContains: "Queued 23")
+        for _ in 0..<12 where !lastText.isHittable {
+            cards.swipeUp()
+        }
+        XCTAssertTrue(lastText.isHittable)
+        XCTAssertTrue(composer.isHittable)
+    }
+
     func testTimelineNamesTheSenderOnEachMessage() {
         let app = launchEvidence("thread", "light")
         defer { app.terminate() }
