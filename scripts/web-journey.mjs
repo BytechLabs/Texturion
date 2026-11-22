@@ -169,6 +169,7 @@ async function checkJourney(page, web, api, telnyx) {
   const inbound = `Can you look at the kitchen sink? ${marker}`;
   const reply = `Yes, I can visit tomorrow. ${marker}`;
   const task = `Check the kitchen sink ${marker}`;
+  const scheduledText = `I will confirm the appointment tomorrow. ${marker}`;
 
   await page.goto(new URL("/login", web).href);
   await page.locator("input[type=email]").fill(EMAIL);
@@ -232,6 +233,27 @@ async function checkJourney(page, web, api, telnyx) {
     assert.deepEqual(attempts.map(({ status }) => Math.floor(status / 100)), [2, 2]);
     assert.deepEqual(attempts[1].result, attempts[0].result, "The Worker replays the original result");
     assert.equal(sends().length, baseline + 1, "Only one reply reaches Telnyx");
+
+    await inbox.setViewportSize({ width: 320, height: 640 });
+    await composer.fill(scheduledText);
+    await inbox.getByRole("button", { name: "Send later", exact: true }).click();
+    const scheduledUrl = new URL("/v1/scheduled-messages", api).href;
+    const [scheduled] = await Promise.all([
+      inbox.waitForResponse((response) => response.request().method() === "POST" && response.url() === scheduledUrl),
+      inbox.getByRole("menuitem", { name: /^Tomorrow/ }).click(),
+    ]);
+    assert.equal(scheduled.status(), 201);
+    const preview = inbox.getByRole("button", { name: new RegExp(scheduledText) });
+    const cancel = inbox.getByRole("button", { name: /^Cancel the message scheduled for/ });
+    await preview.scrollIntoViewIfNeeded();
+    for (const [button, minHeight] of [[preview, 44], [cancel, 24]]) {
+      const box = await button.boundingBox();
+      assert.ok(box && box.width >= 24 && box.height >= minHeight && box.x >= 0 && box.x + box.width <= 320);
+    }
+    await preview.click();
+    assert.equal(await preview.getAttribute("aria-expanded"), "true");
+    await cancel.click();
+    await preview.waitFor({ state: "hidden" });
 
     await inbox.setViewportSize({ width: 390, height: 640 });
     await incomingMessage.click({ button: "right" });
@@ -329,7 +351,7 @@ try {
   } finally {
     await browser.close();
   }
-  console.log("web-journey: live text, idempotent reply, job creation, draft quote controls, short-screen payment actions and STOP passed");
+  console.log("web-journey: live text, idempotent reply, scheduled message controls, job creation, draft quote controls, short-screen payment actions and STOP passed");
 } catch (error) {
   console.error("web-journey failed", error);
   process.exitCode = 1;
