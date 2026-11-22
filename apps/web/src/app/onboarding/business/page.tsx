@@ -190,38 +190,35 @@ export default function BusinessIdentityPage() {
   useEffect(() => {
     if (!ready || seeded) return;
     setSeeded(true);
-    void (async () => {
-      const data = brandRow?.data ?? {};
-      const sole = brandRow?.sole_proprietor === true && "firstName" in data;
-      let email = asString(data.email);
-      if (email === "") {
-        const { data: auth } = await getSupabaseBrowser().auth.getUser();
-        email = auth.user?.email ?? "";
+    const data = brandRow?.data ?? {};
+    const sole = brandRow?.sole_proprietor === true && "firstName" in data;
+    const email = asString(data.email);
+    form.reset({
+      ...EMPTY_VALUES,
+      hasEin: sole ? "no" : "yes",
+      companyName: sole ? "" : asString(data.companyName),
+      ein: sole ? "" : asString(data.ein),
+      firstName: asString(data.firstName),
+      lastName: asString(data.lastName),
+      mobilePhone: asString(data.mobilePhone),
+      street: asString(data.street),
+      city: asString(data.city),
+      state: asString(data.state),
+      postalCode: asString(data.postalCode),
+      website: asString(data.website),
+      email,
+      phone: asString(data.phone),
+      vertical: TCR_VERTICALS.includes(data.vertical as never)
+        ? (data.vertical as FormValues["vertical"])
+        : "PROFESSIONAL",
+    });
+    if (email) return;
+    void getSupabaseBrowser().auth.getUser().then(({ data: auth }) => {
+      const accountEmail = auth.user?.email;
+      if (accountEmail && form.getValues("email") === "") {
+        form.setValue("email", accountEmail, { shouldValidate: true });
       }
-      // The form is interactive during the getUser() round-trip (~50-300ms); if
-      // the user already started typing, don't wipe their input with the seed
-      // reset (mirrors the name step's pristine guard).
-      if (form.formState.isDirty) return;
-      form.reset({
-        ...EMPTY_VALUES,
-        hasEin: sole ? "no" : "yes",
-        companyName: sole ? "" : asString(data.companyName),
-        ein: sole ? "" : asString(data.ein),
-        firstName: asString(data.firstName),
-        lastName: asString(data.lastName),
-        mobilePhone: asString(data.mobilePhone),
-        street: asString(data.street),
-        city: asString(data.city),
-        state: asString(data.state),
-        postalCode: asString(data.postalCode),
-        website: asString(data.website),
-        email,
-        phone: asString(data.phone),
-        vertical: TCR_VERTICALS.includes(data.vertical as never)
-          ? (data.vertical as FormValues["vertical"])
-          : "PROFESSIONAL",
-      });
-    })();
+    });
   }, [ready, seeded, brandRow, form]);
 
   if (state.status === "error") return <StepError onRetry={state.handleRetry} />;
