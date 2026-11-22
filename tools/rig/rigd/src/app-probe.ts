@@ -191,6 +191,30 @@ export class AppProbe implements AppApi {
     return subscriptions.length > 0;
   }
 
+  async inboundAlertCooldown(args: { tenant: string; fromRole: string; toRole: string }) {
+    const companyId = this.#tenant(args.tenant).company_id;
+    const rows = await this.#rest<{ id: string; last_notified_at: string }[]>("conversations", {
+      company_id: `eq.${companyId}`,
+      phone_number_id: `eq.${stableUuid(companyId, args.toRole)}`,
+      contact_phone_e164: `eq.${this.#number(args.fromRole)}`,
+      closed_at: "is.null",
+      deleted_at: "is.null",
+      last_notified_at: "not.is.null",
+      select: "id,last_notified_at",
+      limit: "2",
+    });
+    if (rows.length > 1) throw new Error("app probe: multiple inbound alert fixture conversations");
+    const [conversation] = rows;
+    return conversation ? { conversationId: conversation.id, lastNotifiedAt: conversation.last_notified_at } : null;
+  }
+
+  async setInboundAlertTime(args: { tenant: string; conversationId: string; lastNotifiedAt: string | null }): Promise<void> {
+    await this.#write("PATCH", "conversations", {
+      company_id: `eq.${this.#tenant(args.tenant).company_id}`,
+      id: `eq.${args.conversationId}`,
+    }, { last_notified_at: args.lastNotifiedAt }, "return=minimal");
+  }
+
   async pushTokens(args: { member: string }): Promise<string[]> {
     const rows = await this.#rest<{ token: string }[]>("device_push_tokens", {
       user_id: `eq.${await this.#userIdOf(args.member)}`,

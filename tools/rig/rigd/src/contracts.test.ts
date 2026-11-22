@@ -283,6 +283,38 @@ describe("the app probe and the seed's tenants", () => {
     expect(Object.fromEntries(params)).toEqual({ user_id: `eq.${USER}`, endpoint: `eq.${endpoint}`, select: "id", limit: "1" });
   });
 
+  it("reads and restores the alert time on the owned inbound thread", async () => {
+    const tenant = "QA-W";
+    const companyId = "00000000-0000-4000-8000-000000000001";
+    const conversationId = "robot-thread";
+    const lastNotifiedAt = "2026-11-22T02:39:00.784738+00:00";
+    const { probe, requests } = probeWith({
+      "GET http://127.0.0.1:54321/rest/v1/conversations": () => json([{ id: conversationId, last_notified_at: lastNotifiedAt }]),
+      "PATCH http://127.0.0.1:54321/rest/v1/conversations": () => json([]),
+    });
+    await expect(probe.inboundAlertCooldown({ tenant, fromRole: "ROBOT-1", toRole: "DEV-W1" }))
+      .resolves.toEqual({ conversationId, lastNotifiedAt });
+    await probe.setInboundAlertTime({ tenant, conversationId, lastNotifiedAt: null });
+    await probe.setInboundAlertTime({ tenant, conversationId, lastNotifiedAt });
+
+    const read = new URL(requests[0]!.url).searchParams;
+    expect(Object.fromEntries(read)).toEqual({
+      company_id: `eq.${companyId}`,
+      phone_number_id: `eq.${stableUuid(companyId, "DEV-W1")}`,
+      contact_phone_e164: "eq.+14165550101",
+      closed_at: "is.null",
+      deleted_at: "is.null",
+      last_notified_at: "not.is.null",
+      select: "id,last_notified_at",
+      limit: "2",
+    });
+    for (const [index, timestamp] of [null, lastNotifiedAt].entries()) {
+      const write = requests[index + 1]!;
+      expect(Object.fromEntries(new URL(write.url).searchParams)).toEqual({ company_id: `eq.${companyId}`, id: `eq.${conversationId}` });
+      expect(JSON.parse(write.body!)).toEqual({ last_notified_at: timestamp });
+    }
+  });
+
   it("points the workspace's webhooks at the robot's sink, once, and needs the sink's secret to", async () => {
     let endpoints: { id: string; url: string; events: string[]; active: boolean }[] = [];
     const { probe, requests } = probeWith(
