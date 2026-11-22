@@ -13,7 +13,7 @@ import type { GuardHealth } from "@loonext/rig-protocol";
 import type { DeviceState, HostdHealth, NetworkShape, RigDeviceName } from "@loonext/rig-lanes";
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
 import { MAX_WORD_ERROR, VOICEMAIL_PHRASE } from "./calls.ts";
-import { audioFault, audioReady, fail, infra, pass, poll, wordErrorRate } from './context.ts';
+import { audioFault, audioReady, fail, infra, pass, poll, prepareWebPush, wordErrorRate } from './context.ts';
 import type { AudioLinkApi, DeviceApi, RigHealthReport, ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 const TENANT = "QA-A";
@@ -531,15 +531,9 @@ const OUTCOME_SHOWS_MS = 30_000;
 export const D08: ScenarioRunner = {
   id: "D08",
   async run(ctx) {
-    const page = await ctx.browser.open(DISPATCHER, DISPATCHER, "/", { push: true });
-    if (!(await page.enablePush())) {
-      return infra(
-        "push-target",
-        "the dispatcher's browser could not subscribe to push: Web Push needs Google Chrome (RIG_CHROME_BIN), and Chromium has no push service",
-      );
-    }
-    const saved = await poll(ctx, async () => (await ctx.app.pushTargets({ member: DISPATCHER })) > 0, 10_000);
-    if (!saved) return fail("push_subscription_not_saved", "the page subscribed to push but the API kept no subscription");
+    const page = await ctx.browser.open(DISPATCHER, DISPATCHER, "/inbox", { push: true });
+    const pushSetup = await prepareWebPush(ctx, page, DISPATCHER);
+    if (pushSetup) return pushSetup;
     ctx.evidence.audience_before = await setAudience(ctx, { [DISPATCHER]: "text", [TECHNICIAN]: "note" });
     await page.background();
 

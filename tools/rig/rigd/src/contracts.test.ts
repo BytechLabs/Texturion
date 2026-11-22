@@ -271,6 +271,18 @@ describe("the app probe and the seed's tenants", () => {
     expect([calls.get("direction"), calls.get("caller_e164")]).toEqual(["eq.outbound", "eq.+14165550101"]);
   });
 
+  it("looks up the current Web Push endpoint for only the signed-in member", async () => {
+    const endpoint = "https://push.example.test/path?one=2";
+    const { probe, requests } = probeWith({
+      "GET http://127.0.0.1:54321/rest/v1/push_subscriptions": (request) =>
+        json(new URL(request.url).searchParams.get("endpoint") === `eq.${endpoint}` ? [{ id: "a" }] : []),
+    });
+    await expect(probe.hasWebPushSubscription({ member: "qa-w-owner", endpoint })).resolves.toBe(true);
+    await expect(probe.hasWebPushSubscription({ member: "qa-w-owner", endpoint: "https://push.example.test/stale" })).resolves.toBe(false);
+    const params = new URL(requests.find((request) => request.url.includes("/push_subscriptions?"))!.url).searchParams;
+    expect(Object.fromEntries(params)).toEqual({ user_id: `eq.${USER}`, endpoint: `eq.${endpoint}`, select: "id", limit: "1" });
+  });
+
   it("points the workspace's webhooks at the robot's sink, once, and needs the sink's secret to", async () => {
     let endpoints: { id: string; url: string; events: string[]; active: boolean }[] = [];
     const { probe, requests } = probeWith(

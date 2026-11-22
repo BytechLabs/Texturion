@@ -171,6 +171,7 @@ export class FakeApp implements AppApi {
   beacons: { tenant: string; member?: string; stage: string; platform: string; occurred_at: string; call_session_id: string | null }[] = [];
   /** Push subscriptions and device tokens by member. */
   targets = new Map<string, number>([["qa-w-owner", 1]]);
+  webPushEndpoints = new Map<string, string>();
   /** Webhook endpoints by member: the events each delivers to the robot's sink. */
   webhooks = new Map<string, string[]>();
   /** Set to make ensureRobotWebhook fail the way a rig without the sink's secret does. */
@@ -292,6 +293,9 @@ export class FakeApp implements AppApi {
   }
   async pushTargets(args: { member: string }) {
     return this.targets.get(args.member) ?? 0;
+  }
+  async hasWebPushSubscription(args: { member: string; endpoint: string }) {
+    return this.webPushEndpoints.get(args.member) === args.endpoint;
   }
   /** The FCM tokens the API stores, by member. */
   storedTokens = new Map<string, string[]>([["qa-a-technician", ["fcm-token-1"]]]);
@@ -583,6 +587,7 @@ export interface FakePageScript {
   /** Whether the browser can subscribe to push; called back when it does. */
   canPush?: boolean;
   onPush?: (member: string) => void;
+  pushEndpoint?: string;
   notifications?: { title: string; body: string; tag: string }[];
   /** Makes a consult transfer fail the way a call bar with no consult control does. */
   noConsult?: boolean;
@@ -658,6 +663,9 @@ export class FakeBrowser implements BrowserApi {
         if (!script.canPush) return false;
         script.onPush?.(member);
         return true;
+      },
+      async pushEndpoint() {
+        return script.pushEndpoint ?? null;
       },
       async background() {
         actions.push(`${member} background`);

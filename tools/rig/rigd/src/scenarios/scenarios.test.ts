@@ -6,10 +6,14 @@ import { isQuietHour, S20, S21, S23, S24, S25 } from "./texts.ts";
 
 const TENANT_OF_MEMBER: Record<string, string> = { "qa-w-owner": "QA-W", "qa-e-owner": "QA-E" };
 const TENANT_OF_NUMBER: Record<string, string> = { "DEV-W1": "QA-W", "DEV-E1": "QA-E" };
+const WEB_PUSH_ENDPOINT = "https://push.example.test/current-browser";
 
 function textWorld(scenario: string) {
   const world = fakeContext(scenario);
   const { app, browser, robot, time } = world;
+  browser.script.canPush = true;
+  browser.script.pushEndpoint = WEB_PUSH_ENDPOINT;
+  app.webPushEndpoints.set("qa-w-owner", WEB_PUSH_ENDPOINT);
   app.onSend = (send, id) => {
     app.thread(TENANT_OF_MEMBER[send.member]!, send.body, "outbound");
     app.usage.set(id, [{ type: "sms", quantity: 1, stripe_reported_at: new Date(time.now).toISOString() }]);
@@ -98,21 +102,25 @@ describe("S21, inbound text", () => {
     await expect(S21.run(stale.ctx)).resolves.toMatchObject({ failure_class: "no_realtime_update" });
   });
 
-  it("subscribes the owner's browser when the owner has nowhere to push to", async () => {
+  it("subscribes the current browser even when the owner has other targets", async () => {
     const fresh = textWorld("S21");
-    fresh.app.targets.clear();
-    fresh.browser.script.canPush = true;
-    fresh.browser.script.onPush = (member) => fresh.app.targets.set(member, 1);
+    fresh.browser.script.pushEndpoint = undefined;
+    fresh.app.webPushEndpoints.set("qa-w-owner", "https://push.example.test/old-browser");
+    fresh.browser.script.onPush = (member) => {
+      fresh.browser.script.pushEndpoint = WEB_PUSH_ENDPOINT;
+      fresh.app.webPushEndpoints.set(member, WEB_PUSH_ENDPOINT);
+    };
     expect((await S21.run(fresh.ctx)).outcome).toBe("pass");
     expect(fresh.browser.actions).toContain("qa-w-owner enable push");
+  });
 
+  it("requires the current endpoint to be saved before texting", async () => {
     const unsaved = textWorld("S21");
-    unsaved.app.targets.clear();
-    unsaved.browser.script.canPush = true;
+    unsaved.app.webPushEndpoints.set("qa-w-owner", "https://push.example.test/old-browser");
     await expect(S21.run(unsaved.ctx)).resolves.toMatchObject({ failure_class: "push_subscription_not_saved" });
+    expect(unsaved.robot.sent).toEqual([]);
 
     const unable = textWorld("S21");
-    unable.app.targets.clear();
     unable.browser.script.canPush = false;
     await expect(S21.run(unable.ctx)).resolves.toMatchObject({ outcome: "infra", component: "push-target" });
     expect(unable.robot.sent).toEqual([]);

@@ -68,6 +68,7 @@ export interface MemberPageApi {
   waitForText(text: string, timeoutMs: number): Promise<boolean>;
   /** Turns on this browser's push the way a member does; false when the browser cannot subscribe. */
   enablePush(): Promise<boolean>;
+  pushEndpoint(): Promise<string | null>;
   /** Puts another tab in front, so this page carries on as a background tab. */
   background(): Promise<void>;
   /** The notifications the app's service worker is showing now. */
@@ -263,6 +264,7 @@ export interface AppApi {
   >;
   /** A member's push subscriptions and device tokens: the places a push can go. */
   pushTargets(args: { member: string }): Promise<number>;
+  hasWebPushSubscription(args: { member: string; endpoint: string }): Promise<boolean>;
   /** The FCM tokens the API stores for a member's Android devices, for D10 and D12 to match against the device's own. */
   pushTokens(args: { member: string }): Promise<string[]>;
   /** The ring beacons a tenant's devices reported, oldest first; with `member`, that member's only. From PostHog: see EVENT_INGEST_MS. */
@@ -810,6 +812,17 @@ export async function audioReady(device: DeviceApi): Promise<ScenarioResult | un
   if (!(await device.audio.proven())) return infra(AUDIO_UNPROVEN, UNPROVEN_DETAIL);
   if (!(await device.audio.connected())) return infra("pixel-audio", `${device.name}'s gRPC audio link does not answer getStatus`);
   return undefined;
+}
+
+export async function prepareWebPush(ctx: ScenarioContext, page: MemberPageApi, member: string): Promise<ScenarioResult | undefined> {
+  if (!(await page.enablePush())) {
+    return infra("push-target", "the active browser could not subscribe; Web Push needs Google Chrome (RIG_CHROME_BIN)");
+  }
+  const saved = await poll(ctx, async () => {
+    const endpoint = await page.pushEndpoint();
+    return endpoint !== null && await ctx.app.hasWebPushSubscription({ member, endpoint });
+  }, 10_000);
+  if (!saved) return fail("push_subscription_not_saved", "the API did not save the active browser's subscription");
 }
 
 /** Polls until `probe` returns something, or undefined at the deadline. */
