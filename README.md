@@ -36,9 +36,9 @@ API 36 at 320 × 640 and 840 × 920. [Clipboard confirmation](android/after/en-C
 
 iPhone 17 Pro Simulator. The app targets iPhone. [Baseline workflow](https://github.com/BytechLabs/Texturion/actions/runs/44972616852) · [Candidate workflow](https://github.com/BytechLabs/Texturion/actions/runs/45062336935).
 
-| Language | Theme | Before |
+| Language | Theme | Before | After | Scheduled after |
 | --- | --- | --- |
-| English | light | [Messages](ios/before/en-light.png) |
-| English | dark | [Messages](ios/before/en-dark.png) |
-| Canadian French | light | [Messages](ios/before/fr-CA-light.png) |
-| Canadian French | dark | [Messages](ios/before/fr-CA-dark.png) |
+| English | light | [Messages](ios/before/en-light.png) | [Messages](ios/after/en-light-conversations.png) | [Scheduled](ios/after/en-light-scheduled.png) |
+| English | dark | [Messages](ios/before/en-dark.png) | [Messages](ios/after/en-dark-conversations.png) | [Scheduled](ios/after/en-dark-scheduled.png) |
+| Canadian French | light | [Messages](ios/before/fr-CA-light.png) | [Messages](ios/after/fr-CA-light-conversations.png) | [Scheduled](ios/after/fr-CA-light-scheduled.png) |
+| Canadian French | dark | [Messages](ios/before/fr-CA-dark.png) | [Messages](ios/after/fr-CA-dark-conversations.png) | [Scheduled](ios/after/fr-CA-dark-scheduled.png) |
