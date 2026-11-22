@@ -98,6 +98,17 @@ describe("SendLaterDialog clock switch (#539)", () => {
     expect(screen.getByRole("button", { name: "Their time" })).toBeInstanceOf(Element);
   });
 
+  it("translates both clock choices and the selected clock's input label", () => {
+    render(
+      <LocaleProvider userLocale="fr-CA">
+        <SendLaterDialog open clock={VANCOUVER} onOpenChange={vi.fn()} onConfirm={vi.fn()} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByLabelText("Date et heure d'envoi, votre heure locale")).toBeInstanceOf(Element);
+    fireEvent.click(screen.getByRole("button", { name: "Son heure locale" }));
+    expect(screen.getByLabelText("Date et heure d'envoi, son heure locale")).toBeInstanceOf(Element);
+  });
+
   it("starts on the reader's own clock", () => {
     // A datetime-local field reads and writes the DEVICE's zone, so starting on
     // "theirs" would mean the value shown is not the value held.

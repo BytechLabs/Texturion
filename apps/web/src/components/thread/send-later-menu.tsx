@@ -4,7 +4,15 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CalendarClock, Clock } from "lucide-react";
 import { useState } from "react";
 
-import { CLOCK_CHOICE_DEFAULT, CLOCK_CHOICE_LABELS, DEFAULT_LOCALE, instantForWallClock, sameClock, SCHEDULED_HORIZON_DAYS, scheduledClockProvenance,schedulePresets } from '@loonext/shared';
+import {
+  CLOCK_CHOICE_DEFAULT,
+  DEFAULT_LOCALE,
+  instantForWallClock,
+  sameClock,
+  SCHEDULED_HORIZON_DAYS,
+  scheduledClockProvenance,
+  schedulePresets,
+} from "@loonext/shared";
 import type { ClockChoice } from '@loonext/shared';
 
 import {
@@ -136,6 +144,10 @@ export function SendLaterDialog({
   const [choice, setChoice] = useState<ClockChoice>(CLOCK_CHOICE_DEFAULT);
   const canSwitch =
     clock !== null && !sameClock(nowIn(zone), nowIn(here));
+  const clockLabels: Record<ClockChoice, string> = {
+    yours: t("domain.twoClocksChoiceYours"),
+    theirs: t("domain.twoClocksChoiceTheirs"),
+  };
 
   // Smart Defaults: starts on the next preset, so this is an adjustment rather
   // than a blank form. Read at OPEN time, not at mount, so a dialog opened
@@ -216,7 +228,7 @@ export function SendLaterDialog({
                     : "text-app-muted hover:text-app-ink",
                 )}
               >
-                {CLOCK_CHOICE_LABELS[option]}
+                {clockLabels[option]}
               </button>
             ))}
           </div>
@@ -227,7 +239,7 @@ export function SendLaterDialog({
           aria-label={
             canSwitch
               ? t("thread.sendDateTimeClockAria", {
-                  clock: CLOCK_CHOICE_LABELS[choice].toLowerCase(),
+                  clock: clockLabels[choice].toLowerCase(),
                 })
               : t("thread.sendDateTimeAria")
           }
