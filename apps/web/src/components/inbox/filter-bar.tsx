@@ -351,7 +351,7 @@ function Chip({
 function FilterPopover({
   dimension,
   filters,
-  lines = [],
+  lines,
   onChange,
   disabled,
 }: {
@@ -457,7 +457,7 @@ function FilterPopover({
                 );
               })}
             </CommandGroup>}
-            {!dimension && lines.length > 1 && (
+            {!dimension && lines && lines.length > 1 && (
               <CommandGroup heading={t("inbox.filterGroupLine")}>
                 {lines.map((line) => {
                   const active = filters.line === line.id;

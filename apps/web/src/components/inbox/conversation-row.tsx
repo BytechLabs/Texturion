@@ -16,7 +16,6 @@ import { avatarInitials, isFlaggedUrgent, mmsMediaKind, URGENT_BADGE_LABEL } fro
 import type { MmsMediaKind } from '@loonext/shared';
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import { useT } from "@/i18n/provider";
-import { MemberAvatar } from "./member-avatar";
 import type { ThreadData } from "@/lib/api/cache";
 import { keys } from "@/lib/api/keys";
 import type {
@@ -41,7 +40,7 @@ import { useConversationActions } from "../thread/conversation-actions";
 import { deferralReturnLabel } from "../thread/snooze-menu";
 
 import { avatarColorClass } from "../shell/avatar-color";
-import { useMemberNames } from "./member-avatar";
+import { MemberAvatar, useMemberNames } from "./member-avatar";
 
 interface Snippet {
   direction: MessageDirection;
