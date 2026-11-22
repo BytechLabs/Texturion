@@ -119,6 +119,9 @@ export function PaymentsCard() {
     state.readiness === "not_connected" ||
     state.readiness === "onboarding_incomplete";
   const busy = onboarding.isPending || dashboard.isPending;
+  const requirementLabels = [...new Set(
+    state.requirements_due.map((requirement) => requirementWords(requirement, t)),
+  )];
 
   return (
     <SettingsCard id="payments-setup"
@@ -129,18 +132,18 @@ export function PaymentsCard() {
         {readinessWords(state.detail_key, state.detail, t)}
       </p>
 
-      {state.requirements_due.length > 0 && (
+      {requirementLabels.length > 0 && (
         <div className="mt-4 rounded-app-ctrl border border-app-amber-line bg-app-amber-bg/60 px-3 py-2.5">
           <p className="text-[13px] font-medium text-app-amber-ink">
             {t("payments.stripeNeeds")}
           </p>
           <ul className="mt-1 space-y-0.5">
-            {state.requirements_due.map((requirement) => (
+            {requirementLabels.map((label) => (
               <li
-                key={requirement}
+                key={label}
                 className="text-[13px] text-app-amber-ink/90"
               >
-                {requirementWords(requirement, t)}
+                {label}
               </li>
             ))}
           </ul>

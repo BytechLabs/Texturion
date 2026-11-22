@@ -175,6 +175,14 @@ class PaymentsTest {
             Payments.requirementCopy("individual.verification.document"),
         )
         assertEquals("Your bank account details", Payments.requirementCopy("external_account"))
+        assertEquals(
+            "L'acceptation des conditions de Stripe",
+            Payments.requirementCopy("tos_acceptance.ip", "fr-CA"),
+        )
+        assertEquals(
+            Payments.requirementCopy("tos_acceptance.date", "fr-CA"),
+            Payments.requirementCopy("tos_acceptance.ip", "fr-CA"),
+        )
     }
 
     @Test

@@ -211,6 +211,9 @@ export interface PayoutAccountFacts {
 export function payoutReadiness(account: PayoutAccountFacts | null): PayoutReadiness {
   if (!account || !account.connected) return "not_connected";
   if (account.charges_enabled) return "ready";
+  if (!account.details_submitted && account.disabled_reason === "requirements.past_due") {
+    return "onboarding_incomplete";
+  }
   if (account.disabled_reason) return "restricted";
   if (!account.details_submitted) return "onboarding_incomplete";
   return "pending_verification";
@@ -387,6 +390,7 @@ const PAYOUT_REQUIREMENT_KEYS = {
   "company.tax_id": "payments.reqBusinessNumber",
   "company.verification.document": "payments.reqBusinessDocument",
   "tos_acceptance.date": "payments.reqTos",
+  "tos_acceptance.ip": "payments.reqTos",
   "representative.verification.document": "payments.reqSignatoryId",
 } as const;
 

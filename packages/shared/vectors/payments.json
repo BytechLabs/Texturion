@@ -196,6 +196,26 @@
     "account": {
       "connected": true,
       "charges_enabled": false,
+      "details_submitted": false,
+      "disabled_reason": "requirements.past_due"
+    },
+    "readiness": "onboarding_incomplete"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": false,
+      "details_submitted": false,
+      "disabled_reason": "rejected.fraud"
+    },
+    "readiness": "restricted"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": false,
       "details_submitted": true,
       "disabled_reason": "requirements.past_due"
     },

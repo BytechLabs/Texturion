@@ -518,6 +518,18 @@ const PAYOUT_ACCOUNT_INPUTS = [
   {
     connected: true,
     charges_enabled: false,
+    details_submitted: false,
+    disabled_reason: "requirements.past_due",
+  },
+  {
+    connected: true,
+    charges_enabled: false,
+    details_submitted: false,
+    disabled_reason: "rejected.fraud",
+  },
+  {
+    connected: true,
+    charges_enabled: false,
     details_submitted: true,
     disabled_reason: "requirements.past_due",
   },

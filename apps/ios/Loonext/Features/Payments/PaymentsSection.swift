@@ -158,12 +158,14 @@ struct PaymentsSectionView: View {
 
     /// What Stripe is still waiting for, in words an owner can act on.
     private func requirements(_ due: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        var seen = Set<String>()
+        let labels = due.map { payoutRequirementCopy($0, appLocale) }.filter { seen.insert($0).inserted }
+        return VStack(alignment: .leading, spacing: 3) {
             Text(AppStrings.translate(appLocale, "payments.stripeNeeds"))
                 .font(.golos(12.5, weight: .semibold))
                 .foregroundStyle(BrandColor.overdueAmber)
-            ForEach(due, id: \.self) { requirement in
-                Text("· " + payoutRequirementCopy(requirement, appLocale))
+            ForEach(labels, id: \.self) { label in
+                Text("· " + label)
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.overdueAmber)
                     .fixedSize(horizontal: false, vertical: true)
