@@ -1322,7 +1322,7 @@ final class InboxController {
 
 @MainActor
 private struct InboxList: View {
-    @AppStorage("inbox.compact") private var compact = false
+    @AppStorage("inbox_compact") private var compact = false
     let graph: AppGraph
     let companyId: String
     let me: Me
