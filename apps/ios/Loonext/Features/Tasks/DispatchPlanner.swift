@@ -524,19 +524,24 @@ struct DispatchPlanner: View {
 
     @ViewBuilder
     private func taskRow(_ task: DispatchTask, _ block: DispatchBlock?, allowEdit: Bool = false, dragEnabled: Bool = false) -> some View {
-        let row = PaperCard {
+        PaperCard {
             VStack(alignment: .leading, spacing: 6) {
-                Button {
-                    dismiss()
-                    onTask(task.id)
-                } label: {
+                HStack(spacing: 6) {
                     if dragEnabled {
-                        Label(task.title, systemImage: "line.3.horizontal")
-                    } else {
-                        Text(task.title)
+                        Image(systemName: "line.3.horizontal")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BrandColor.muted700)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                            .draggable("task:\(task.id)")
+                            .accessibilityHidden(true)
                     }
+                    Button(task.title) {
+                        dismiss()
+                        onTask(task.id)
+                    }
+                    .font(.headline)
                 }
-                .font(.headline)
                 if let block {
                     Text(dispatchClock(block.starts_at, zone: zone, locale: locale)
                         + " – " + dispatchClock(block.ends_at, zone: zone, locale: locale))
@@ -562,14 +567,6 @@ struct DispatchPlanner: View {
             .font(.subheadline)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
-        }
-        if dragEnabled {
-            row.contentShape(Rectangle())
-                .draggable("task:\(task.id)")
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("dispatch-queue-task-\(task.id)")
-        } else {
-            row
         }
     }
 

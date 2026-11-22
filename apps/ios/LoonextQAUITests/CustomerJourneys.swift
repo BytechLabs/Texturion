@@ -165,14 +165,14 @@ final class CustomerJourneys: XCTestCase {
         dismissNotificationPrimer(language)
         try waitFor(button(text("Tasks", "Tâches"))).tap()
         try waitFor(button(text("Planner", "Planificateur"))).tap()
-        let pending = app.descendants(matching: .any)["dispatch-queue-task-test-task"].firstMatch
-        try waitFor(pending)
+        let pending = try waitFor(button("Test boiler"))
         let lane = app.descendants(matching: .any)["dispatch-lane-20000000-0000-4000-8000-000000000002"].firstMatch
         try waitFor(lane)
         XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
         shot("Planner schedule \(suffix)")
         let previewCount = try await allWrites().filter { $0.path == "/v1/dispatch/preview" }.count
-        pending.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).press(
+        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
+        grip.press(
             forDuration: 0.9, thenDragTo: lane.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)),
             withVelocity: .slow, thenHoldForDuration: 0.4)
         let resize = try waitFor(button(text("Change duration", "Modifier la durée")))
