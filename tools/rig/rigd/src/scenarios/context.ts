@@ -417,14 +417,14 @@ export interface AppApi {
    * paid webhook skips buying one. The undo is `app.release-signup-number`,
    * registered before this call with the key from signUpNumberKey.
    */
-  assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber>;
+  assignSignUpNumber(args: { ownerEmail: string; nonce: string; runId?: string }): Promise<SignUpNumber>;
   releaseSignUpNumber(args: { provisioningKey: string }): Promise<void>;
   /** The sign-up workspace's number rows, released ones included. */
   signUpNumbers(args: { ownerEmail: string }): Promise<SignUpNumberRow[]>;
   /** The paid webhook's ledger row for the sign-up workspace's Checkout, or null before Stripe delivered it. */
   checkoutEvent(args: { ownerEmail: string }): Promise<CheckoutEvent | null>;
   /** Unreleased fixture rows anywhere, and rows on a sign-up's workspace that are not fixtures. */
-  signUpNumberLeak(): Promise<{ fixtures: number; foreign: string[] }>;
+  signUpNumberLeak(): Promise<SignUpNumberLeak>;
   /** Suppresses the app's mail to a sign-up's address until deleteSignUp, so the run spends no Resend send. */
   muteSignUpMail(args: { email: string }): Promise<void>;
   /** Invites an address to the member's workspace; the answer is the invite row itself. The undo is `app.revoke-invite`. */
@@ -665,6 +665,12 @@ export interface SignUpNumberRow {
   id: string;
   status: string;
   provisioning_key: string;
+}
+
+export interface SignUpNumberLeak {
+  fixtures: number;
+  fixture_runs: { row_id: string; run_id: string | null }[];
+  foreign: string[];
 }
 
 export interface CheckoutEvent {

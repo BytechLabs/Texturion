@@ -707,13 +707,13 @@ describe("the app probe's workspaces", () => {
         return posts === 1 ? json({ code: "23505" }, 409) : json([{ id: "fixture-1" }], 201);
       },
     });
-    const fixture = await probe.assignSignUpNumber({ ownerEmail: owner, nonce: "Run 1" });
+    const fixture = await probe.assignSignUpNumber({ ownerEmail: owner, nonce: "Run 1", runId: "QA_run-01" });
     expect(fixture.row_id).toBe("fixture-1");
-    expect(fixture.provisioning_key).toBe("rig-signup-s32-run-1");
+    expect(fixture.provisioning_key).toBe("rig-signup-s32-run.QA_run-01.run-1");
     expect(fixture.number_e164).toMatch(/^\+141655501\d\d$/);
     const inserts = requests.filter((r) => r.method === "POST" && r.url.startsWith(rest("phone_numbers"))).map((r) => JSON.parse(r.body!));
     expect(inserts).toHaveLength(2);
-    expect(inserts[1]).toMatchObject({ company_id: "company-new", status: "active", country: "CA", telnyx_phone_number_id: null, provisioning_key: signUpNumberKey("Run 1") });
+    expect(inserts[1]).toMatchObject({ company_id: "company-new", status: "active", country: "CA", telnyx_phone_number_id: null, provisioning_key: fixture.provisioning_key });
     expect(inserts[0].number_e164).not.toBe(inserts[1].number_e164);
 
     await expect(probe.assignSignUpNumber({ ownerEmail: "delivered+rig-qa-w-owner@resend.dev", nonce: "x" })).rejects.toThrow(/sign-up scenario/);
@@ -736,13 +736,23 @@ describe("the app probe's workspaces", () => {
     await probe.releaseSignUpNumber({ provisioningKey: signUpNumberKey("run-1") });
     expect(query(requests.at(-1)!)).toEqual({ provisioning_key: `eq.${signUpNumberKey("run-1")}`, status: "neq.released" });
     expect(JSON.parse(requests.at(-1)!.body!)).toEqual({ status: "released", released_at: new Date(NOW).toISOString() });
+    const tracedKey = signUpNumberKey("run-1", "QA_run-01");
+    await probe.releaseSignUpNumber({ provisioningKey: tracedKey });
+    expect(query(requests.at(-1)!)).toEqual({ provisioning_key: `eq.${tracedKey}`, status: "neq.released" });
 
     const leak = probeWith({
-      [`GET ${rest("phone_numbers")}?provisioning_key`]: () => json([{ id: "fixture-left" }]),
+      [`GET ${rest("phone_numbers")}?provisioning_key`]: () => json([
+        { id: "fixture-left", provisioning_key: tracedKey },
+        { id: "legacy-fixture", provisioning_key: signUpNumberKey("legacy") },
+      ]),
       [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
       [`GET ${rest("phone_numbers")}?company_id`]: () => json([{ id: "fixture-left", provisioning_key: signUpNumberKey("x") }, { id: "bought-1", provisioning_key: "cs_test_1" }]),
     });
-    await expect(leak.probe.signUpNumberLeak()).resolves.toEqual({ fixtures: 1, foreign: ["bought-1"] });
+    await expect(leak.probe.signUpNumberLeak()).resolves.toEqual({
+      fixtures: 2,
+      fixture_runs: [{ row_id: "fixture-left", run_id: "QA_run-01" }, { row_id: "legacy-fixture", run_id: null }],
+      foreign: ["bought-1"],
+    });
     expect(query(leak.requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `in.(${SIGN_UP_USER})` });
   });
 

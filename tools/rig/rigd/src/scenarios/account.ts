@@ -791,11 +791,11 @@ export const S32: ScenarioRunner = {
     ctx.evidence.number_step = choice;
     if (!choice.continued) return numberStepFailed(ctx, choice);
 
-    const provisioningKey = signUpNumberKey(ctx.nonce);
+    const provisioningKey = signUpNumberKey(ctx.nonce, ctx.runId);
     ctx.lease.registerUndo({ kind: "app.release-signup-number", params: { provisioningKey } });
     let fixture: SignUpNumber;
     try {
-      fixture = await ctx.app.assignSignUpNumber({ ownerEmail: email, nonce: ctx.nonce });
+      fixture = await ctx.app.assignSignUpNumber({ ownerEmail: email, nonce: ctx.nonce, runId: ctx.runId });
     } catch (error) {
       return infra("app-probe", `the fixture number could not be assigned: ${(error as Error).message}`);
     }
@@ -818,9 +818,10 @@ export const S32: ScenarioRunner = {
     const leak = await ctx.app.signUpNumberLeak();
     ctx.evidence.leak = leak;
     if (leak.fixtures > 0 || leak.foreign.length > 0) {
+      const runs = leak.fixture_runs.map(({ run_id, row_id }) => run_id ?? `unknown run (row ${row_id})`);
       return fail(
         "signup_number_leaked",
-        `${leak.fixtures} fixture number row(s) stayed unreleased and ${leak.foreign.length} sign-up workspace row(s) the rig did not assign (${leak.foreign.join(", ") || "none"}) are held`,
+        `${leak.fixtures} fixture number row(s) stayed unreleased (${runs.join(", ") || "none"}) and ${leak.foreign.length} sign-up workspace row(s) the rig did not assign (${leak.foreign.join(", ") || "none"}) are held`,
         { critical: true },
       );
     }

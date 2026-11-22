@@ -42,6 +42,7 @@ import type {
   ScenarioLanes,
   SendResult,
   SignUpNumber,
+  SignUpNumberLeak,
   SignUpNumberRow,
   SignUpWorkspace,
   StripeApi,
@@ -511,7 +512,7 @@ export class FakeApp implements AppApi {
   /** The paid webhook's ledger row by sign-up address. */
   checkoutEvents = new Map<string, CheckoutEvent>();
   /** What signUpNumberLeak answers. */
-  leak = { fixtures: 0, foreign: [] as string[] };
+  leak: SignUpNumberLeak = { fixtures: 0, fixture_runs: [], foreign: [] };
   readonly mutedMail: string[] = [];
   async sendPasswordReset(args: { member: string }) {
     this.passwordResets.push(args.member);
@@ -520,8 +521,8 @@ export class FakeApp implements AppApi {
   async workspaceOf(args: { ownerEmail: string }) {
     return this.signUps.get(args.ownerEmail) ?? null;
   }
-  async assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber> {
-    const row = { id: `fixture-${args.nonce}`, status: "active", provisioning_key: signUpNumberKey(args.nonce) };
+  async assignSignUpNumber(args: { ownerEmail: string; nonce: string; runId?: string }): Promise<SignUpNumber> {
+    const row = { id: `fixture-${args.nonce}`, status: "active", provisioning_key: signUpNumberKey(args.nonce, args.runId) };
     this.signUpRows.set(args.ownerEmail, [...(this.signUpRows.get(args.ownerEmail) ?? []), row]);
     return { row_id: row.id, number_e164: "+14165550142", provisioning_key: row.provisioning_key };
   }
