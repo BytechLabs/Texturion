@@ -105,10 +105,14 @@ enum AppStrings {
     ) -> String {
         let raw = table(locale)[key] ?? en[key] ?? key
         if vars.isEmpty { return raw }
-        var out = raw
-        for (name, value) in vars {
-            out = out.replacingOccurrences(of: "{" + name + "}", with: value)
+        var out = ""
+        var start = raw.startIndex
+        for match in raw.matches(of: #/\{([A-Za-z0-9_]+)\}/#) {
+            out.append(contentsOf: raw[start..<match.range.lowerBound])
+            out.append(vars[String(match.output.1)] ?? String(match.output.0))
+            start = match.range.upperBound
         }
+        out.append(contentsOf: raw[start...])
         return out
     }
 }

@@ -93,6 +93,18 @@ final class AppStringsTests: XCTestCase {
         )
     }
 
+    func testInterpolationKeepsPlaceholderTextInsideValues() {
+        let names = ["first": "{second}", "second": "{first}"]
+        XCTAssertEqual(
+            AppStrings.translate("en", "thread.presenceViewingTwo", names),
+            "{second} and {first} are also here"
+        )
+        XCTAssertEqual(
+            AppStrings.translate("fr-CA", "thread.presenceViewingTwo", names),
+            "{second} et {first} sont aussi là"
+        )
+    }
+
     func testTheTwoLanguagesAgreeAboutWhichKeysInterpolate() {
         // A French sentence that drops {amount} shows a bill with no figure on
         // it. Cheap to check, and invisible to every other test here.
