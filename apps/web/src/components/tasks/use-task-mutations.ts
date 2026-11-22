@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api/error";
 
 import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
+import { scheduledKeys } from "@/lib/api/scheduled-messages";
 import { useCompanyId } from "@/lib/company/provider";
 import type { Message, Page, Task, TaskDetail } from "@/lib/api/types";
 import { showBookingCorrection } from "./task-correction-toast";
@@ -250,7 +251,7 @@ export function useSetTaskReminders() {
       // The thread strip shows what is queued, and switching this just changed
       // it. Without this the crew sees a reminder they have cancelled.
       void queryClient.invalidateQueries({
-        queryKey: ["scheduled-messages", companyId],
+        queryKey: scheduledKeys.all(companyId),
       });
     },
     onError: () => {

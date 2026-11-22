@@ -45,6 +45,7 @@ export const REALTIME_FED: ReadonlySet<string> = new Set([
   "conversations",
   "contacts",
   "messages",
+  "scheduled-messages",
   "tasks",
   "for-you",
   "notifications",
@@ -403,6 +404,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     async function handleMessageCreated(event: MessageCreatedEvent) {
       const { conversation_id, message_id, direction } = event;
       refreshSoon(scheduledKeys.thread(companyId, conversation_id));
+      refreshSoon(scheduledKeys.lists(companyId));
 
       const cachedRow = findListRow(queryClient, companyId, conversation_id);
       const thread = queryClient.getQueryData<ThreadData>(

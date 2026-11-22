@@ -715,6 +715,7 @@ final class ThreadController {
             try? await refreshPinned()
             try? await refreshContact()
             try? await refreshBlocked()
+            if !scheduled.isEmpty { try? await refreshScheduled() }
         }
     }
 
@@ -731,11 +732,9 @@ final class ThreadController {
             let direction = payloadString(event, "direction")
             Task {
                 try? await self.refreshMessagesFirstPage()
-                if direction == MessageDirection.inbound {
-                    self.newInboundTick += 1
-                    // #233: a customer answering HOLDS anything queued for
-                    // them — the API decides that, and the strip has to stop
-                    // saying "Sending Tue, 8:00 AM" the moment it does.
+                if direction == MessageDirection.inbound { self.newInboundTick += 1 }
+                if direction == MessageDirection.inbound
+                    || (direction == MessageDirection.outbound && !self.scheduled.isEmpty) {
                     try? await self.refreshScheduled()
                 }
                 self.markRead()
