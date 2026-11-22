@@ -82,7 +82,7 @@ export function useMe(enabled = true, userId?: string) {
     queryFn: async () => {
       const me = await fetchMe();
       if (userId && me.user_id !== userId) {
-        throw new Error("The signed-in user changed while loading the workspace.");
+        throw new Error("authenticated_user_mismatch");
       }
       return me;
     },
