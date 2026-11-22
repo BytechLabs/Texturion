@@ -35,11 +35,7 @@ if (typeof document !== "undefined") {
   });
 }
 
-/**
- * The browser's IANA timezone (D15: captured silently at onboarding and sent
- * on POST /v1/companies). Undefined when the runtime reports nothing usable —
- * the caller omits the field and the server default applies.
- */
+/** The browser's display timezone can be a named zone or a fixed offset. */
 export function browserTimezone(): string | undefined {
   browserZone ??= { zone: readBrowserTimezone() };
   return browserZone.zone;

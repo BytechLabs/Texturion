@@ -23,7 +23,6 @@ import { keys } from "@/lib/api/keys";
 import { useCreateCompany } from "@/lib/api/companies";
 import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
 import { writeCompanyCookie } from "@/lib/company/cookie";
-import { browserTimezone } from "@/lib/format/time";
 import {
   clearReferralCode,
   referralCodeForCreate,
@@ -179,8 +178,6 @@ export default function NumberStepPage() {
       mode: "new",
     });
 
-    // D15: the creating browser's timezone rides along silently.
-    const timezone = browserTimezone();
     try {
       const created = await createCompany.mutateAsync({
         locale: t.locale,
@@ -189,7 +186,6 @@ export default function NumberStepPage() {
         requested_area_code: requestedAreaCode,
         ...(full ? { chosen_number_e164: chosenNumber } : {}),
         us_texting_enabled: country === "US" || usTexting,
-        ...(timezone ? { timezone } : {}),
         // #370: the crew size answered back on the name step.
         ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
         // #288: and how they say they heard about us.
