@@ -458,6 +458,25 @@ function ThreadLoaded({
         })
       : null;
 
+  const threadNotices = (
+    <>
+      {!banner && conversation.viewer_level === "text" && (
+        <TheirTime clock={conversation.destination_clock} />
+      )}
+      <AlertBanner
+        conversationId={conversationId}
+        alert={conversation.open_alert ?? null}
+        viewerId={me.data?.user_id ?? null}
+      />
+    </>
+  );
+  const threadActions = (
+    <>
+      <ScheduledStrip conversationId={conversationId} clock={conversation.destination_clock} />
+      <PresenceStrip viewers={presence.viewers} />
+    </>
+  );
+
   return (
     <div className="flex h-full min-h-0">
       {/* The thread column: calm paper, structure by hairlines not wash. */}
@@ -543,31 +562,16 @@ function ThreadLoaded({
                 canCall: conversation.viewer_level === "text",
               }}
             />
+            {threadNotices}
             {/* Keyed so the draft state cannot survive into a different
                 conversation: without it the half-typed reply to one customer
                 appeared in the box for the next one. The key is namespaced
                 because the composer and the message list are siblings: React
                 requires keys to be unique among siblings, and matching two
                 different components on one key is undefined behaviour. */}
-            {/* #233: shown even here. A banner means something is wrong with
-                sending, which is exactly when a queued text is HELD and most
-                needs saying out loud. */}
-            {/* #244: above the scheduled strip, because this is the only
-                thing on the screen with a clock running on it — somebody is
-                waiting for a callback, and if nobody claims it the alert
-                widens to the whole crew. Shown in BOTH composer branches for
-                the same reason the strip above is: a notes-only member can
-                still be the one who is awake.
-                *Applying: Prioritize Intent — the core action first.* */}
-            <AlertBanner
-              conversationId={conversationId}
-              alert={conversation.open_alert ?? null}
-              viewerId={me.data?.user_id ?? null}
-            />
-            <ScheduledStrip conversationId={conversationId} clock={conversation.destination_clock} />
-            <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
+              threadActions={threadActions}
               conversationId={conversationId}
               noteOnly
             />
@@ -576,28 +580,10 @@ function ThreadLoaded({
           // #106: a notes-only member (viewer_level 'note') gets the note
           // composer — texting the customer needs level 'text' on this number.
           <>
-            {/* #225: only when it is actually quiet where they are, and only
-                for somebody who can text. A reply is never blocked — this
-                exists so nobody finds out from an annoyed customer. */}
-            {conversation.viewer_level === "text" && (
-              <TheirTime clock={conversation.destination_clock} />
-            )}
-            {/* #244: above the scheduled strip, because this is the only
-                thing on the screen with a clock running on it — somebody is
-                waiting for a callback, and if nobody claims it the alert
-                widens to the whole crew. Shown in BOTH composer branches for
-                the same reason the strip above is: a notes-only member can
-                still be the one who is awake.
-                *Applying: Prioritize Intent — the core action first.* */}
-            <AlertBanner
-              conversationId={conversationId}
-              alert={conversation.open_alert ?? null}
-              viewerId={me.data?.user_id ?? null}
-            />
-            <ScheduledStrip conversationId={conversationId} clock={conversation.destination_clock} />
-            <PresenceStrip viewers={presence.viewers} />
+            {threadNotices}
             <Composer
               key={`composer-${conversationId}`}
+              threadActions={threadActions}
               conversationId={conversationId}
               noteOnly={conversation.viewer_level === "note"}
               onTyping={() => presence.onTyping()}

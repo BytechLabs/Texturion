@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
   appendIdentificationSuffix,
@@ -584,12 +585,14 @@ export function useAutoGrow(value: string) {
 export function Composer({
   conversationId,
   noteOnly = false,
+  threadActions,
   onTyping,
   contactLocale,
   catchUp,
 }: {
   conversationId: string;
   noteOnly?: boolean;
+  threadActions?: ReactNode;
   /** #228 — the customer's language, for the one body this view composes. */
   contactLocale?: string | null;
   /**
@@ -1470,44 +1473,35 @@ export function Composer({
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
-      {/* #520: absent unless this thread has a job due today, so it is never a
-          control somebody has to work out the meaning of. Above the input
-          rather than inside the toolbar: sending an ETA is a whole act, not a
-          sixth way to change the draft. Not on a note — a note goes to the
-          crew, and "on my way" is for the customer. */}
-      {!noteOnly && (
-        <OnMyWay conversationId={conversationId} contactLocale={contactLocale} />
-      )}
-      {/* #224: what this thread is owed, and what it was paid. Above the input
-          for the same reason the scheduled strip is — it is state, not history,
-          and it changes without anybody here doing anything. Never on a note. */}
-      {!noteOnly && <PaymentStrip conversationId={conversationId} />}
-      {/* #287: what this thread has been quoted, and the way to quote it.
-          Beside the payment strip because they are the same kind of thing —
-          state that changes without anybody here doing anything. Never on a
-          note: a note goes to the crew, and a quote goes to the customer. */}
-      {!noteOnly && (
-        <QuoteStrip
-          conversationId={conversationId}
-          canSend={canQuote}
-          draftOpen={!isNote && quoteDraftOpen}
-          onCloseDraft={() => {
-            setQuoteDraftOpen(false);
-            quoteActionTrigger.current?.focus();
-          }}
-          onAskForPayment={setPaymentPrefill}
-        />
-      )}
-      {/* #224: absent entirely unless the workspace can actually take a card,
-          so a crew never meets a control they cannot action. */}
-      {!noteOnly && (
-        <AskForPayment
-          conversationId={conversationId}
-          contactLocale={contactLocale}
-          prefill={paymentPrefill}
-          onPrefillUsed={() => setPaymentPrefill(null)}
-        />
-      )}
+      <div className="-mx-3 max-h-[min(12rem,20dvh)] overflow-y-auto overscroll-contain md:-mx-4 md:max-h-[min(12rem,35dvh)]">
+        {threadActions}
+        <div className="px-3 empty:hidden md:px-4">
+          {!noteOnly && (
+            <OnMyWay conversationId={conversationId} contactLocale={contactLocale} />
+          )}
+          {!noteOnly && (
+            <>
+              <PaymentStrip conversationId={conversationId} />
+              <QuoteStrip
+                conversationId={conversationId}
+                canSend={canQuote}
+                draftOpen={!isNote && quoteDraftOpen}
+                onCloseDraft={() => {
+                  setQuoteDraftOpen(false);
+                  quoteActionTrigger.current?.focus();
+                }}
+                onAskForPayment={setPaymentPrefill}
+              />
+              <AskForPayment
+                conversationId={conversationId}
+                contactLocale={contactLocale}
+                prefill={paymentPrefill}
+                onPrefillUsed={() => setPaymentPrefill(null)}
+              />
+            </>
+          )}
+        </div>
+      </div>
       {!isNote && (suggestions.length > 0 || suggestReplies.isPending) && (
         <ReplySuggestionChips
           suggestions={suggestions}
