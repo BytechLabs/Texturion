@@ -39,7 +39,7 @@ export const HOSTD_PORT = 15_900;
 /** The rig's own adb server (5137 on the host), tunnelled to this port on the VM's loopback. */
 export const ADB_VM_PORT = 15_037;
 /** How many emulators the host runs at once, the device lane's included. */
-export const MAX_BOOTED = 3;
+export const MAX_BOOTED = 4;
 
 export function isRigDevice(name: unknown): name is RigDeviceName {
   return typeof name === "string" && Object.hasOwn(RIG_DEVICES, name);

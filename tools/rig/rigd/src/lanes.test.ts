@@ -898,11 +898,11 @@ describe("the rig box", () => {
     expect(world.calls.some((line) => /\bemulator\b.*-avd/.test(line))).toBe(false);
   });
 
-  it("stops another E01 AVD to stay within max_booted, never the device lane's", async () => {
+  it("boots the fourth AVD without stopping another lane's emulator", async () => {
     const world = hostdDevices({ up: ["emulator-5560", "emulator-5554", "emulator-5558"] });
     await world.devices.bootEmulator(35);
-    expect(world.hostd).toEqual(['kill emulator-34 {"hard":false}', 'boot emulator-35 {"cold":false,"wipe":false}']);
-    expect(world.up).toEqual(new Set(["emulator-5560", "emulator-5558", "emulator-5556"]));
+    expect(world.hostd).toEqual(['boot emulator-35 {"cold":false,"wipe":false}']);
+    expect(world.up).toEqual(new Set(["emulator-5560", "emulator-5554", "emulator-5558", "emulator-5556"]));
   });
 
   it("cold-restarts a device: hostd kills it hard and boots it cold, then the PIN and Doze", async () => {

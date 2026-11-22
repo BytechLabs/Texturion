@@ -77,7 +77,7 @@ Open `http://localhost:3100/login` with the credentials in [dev-seed.mjs](../scr
 | `emulator-35` | `rig-api35` | 35 | `emulator-5556` |
 | `emulator-36` | `rig-api36` | 36 | `emulator-5558` |
 
-From Windows, use `node tools/rig/host/hostd.mjs devices boot <device>` and wait for `booted`. The cap is three concurrent AVDs. Stop a rotation AVD you control before booting a fourth. Keep the Pixel available for the device lane.
+From Windows, use `node tools/rig/host/hostd.mjs devices boot <device>` and wait for `booted`. All four configured AVDs can run together. Keep the Pixel available for the device lane.
 
 In the VM, build and install a checked, signed `.nonprod` APK. Fetch the desired branch into the tooling repository if the ref has not reached the VM. Build the older ref first for an upgrade test. `--worktree` and `--debuggable` print their build path instead of replacing `current.apk`; pass that path through `--apk`. Downgrades may require a fresh rotation AVD.
 

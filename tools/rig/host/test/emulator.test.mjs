@@ -155,13 +155,21 @@ test("the console token is read from the rig's emulator home first", () => {
 /** createDevices with every side effect faked. */
 const QEMU = { image: "qemu-system-x86_64", startedMs: 500 };
 
-function fakeDevices({ bootAfter = 2, alive = new Set(), discover = () => null, processes = new Map(), removed = [], noSdk = false } = {}) {
+function fakeDevices({
+  bootAfter = 2,
+  alive = new Set(),
+  discover = () => null,
+  processes = new Map(),
+  removed = [],
+  noSdk = false,
+  maxBooted = contract.max_booted,
+} = {}) {
   let clock = 0;
   const spawned = [];
   const killed = [];
   const polls = new Map();
   const devices = createDevices({
-    contract,
+    contract: { ...contract, max_booted: maxBooted },
     paths: rigPaths(mkdtempSync(join(tmpdir(), "rig-host-"))),
     sdk: "sdk",
     spawn: (file, args, options) => {
@@ -218,10 +226,10 @@ test("with no SDK installed, a boot answers 502 instead of throwing", async () =
   assert.deepEqual(await devices.boot("pixel"), { status: 502, body: { error: "emulator.exited" } });
 });
 
-test("max_booted devices at once, and a 409 past it", async () => {
-  const { devices } = fakeDevices();
-  for (const name of ["pixel", "emulator-34", "emulator-35"]) assert.equal((await devices.boot(name)).status, 200);
-  assert.deepEqual(await devices.boot("emulator-36"), { status: 409, body: { error: "max_booted", max_booted: 3 } });
+test("a lower configured limit still returns 409", async () => {
+  const { devices } = fakeDevices({ maxBooted: 1 });
+  assert.equal((await devices.boot("pixel")).status, 200);
+  assert.deepEqual(await devices.boot("emulator-34"), { status: 409, body: { error: "max_booted", max_booted: 1 } });
   assert.equal((await devices.boot("nope")).status, 404);
 });
 
