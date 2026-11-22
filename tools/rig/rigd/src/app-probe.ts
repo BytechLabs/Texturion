@@ -34,6 +34,7 @@ import type {
   NumberRow,
   SendResult,
   SignUpNumber,
+  SignUpNumberLeak,
   SignUpNumberRow,
   VoiceCapState,
   WorkspaceState,
@@ -983,7 +984,7 @@ export class AppProbe implements AppApi {
    * data: a fictional 555-01xx number with no Telnyx id, which every path that
    * reaches Telnyx skips. Its undo is `app.release-signup-number`.
    */
-  async assignSignUpNumber(args: { ownerEmail: string; nonce: string }): Promise<SignUpNumber> {
+  async assignSignUpNumber(args: { ownerEmail: string; nonce: string; runId?: string }): Promise<SignUpNumber> {
     if (!SIGN_UP_ADDRESS.test(args.ownerEmail)) throw new Error("app probe: only a sign-up scenario's own workspace gets a fixture number");
     const company = await this.#signUpCompany(args.ownerEmail);
     if (!company) throw new Error("app probe: the sign-up has no workspace yet");
@@ -994,7 +995,7 @@ export class AppProbe implements AppApi {
     const held = await this.#rest<{ id: string }[]>("phone_numbers", { company_id: `eq.${company.id}`, status: "neq.released", select: "id" });
     if (held.length > 0) throw new Error(`app probe: the sign-up's workspace already holds ${held.length} number(s)`);
 
-    const provisioningKey = signUpNumberKey(args.nonce);
+    const provisioningKey = signUpNumberKey(args.nonce, args.runId);
     const start = Number.parseInt(createHash("sha256").update(args.nonce).digest("hex").slice(0, 8), 16) % 100;
     for (let i = 0; i < 100; i++) {
       const numberE164 = `+1${areaCode}55501${String((start + i) % 100).padStart(2, "0")}`;
@@ -1056,18 +1057,22 @@ export class AppProbe implements AppApi {
    * Fixture rows any run left unreleased, and the rows a sign-up's workspace
    * holds that are not fixtures: one of those may name a real Telnyx number.
    */
-  async signUpNumberLeak(): Promise<{ fixtures: number; foreign: string[] }> {
-    const fixtures = await this.#rest<{ id: string }[]>("phone_numbers", {
+  async signUpNumberLeak(): Promise<SignUpNumberLeak> {
+    const fixtures = await this.#rest<{ id: string; provisioning_key: string }[]>("phone_numbers", {
       provisioning_key: `like.${SIGN_UP_NUMBER_PREFIX}*`,
       status: "neq.released",
-      select: "id",
+      select: "id,provisioning_key",
     });
     const owners = await this.#signUpOwners();
     const companies = owners.length > 0
       ? await this.#rest<{ id: string }[]>("companies", { owner_user_id: `in.(${owners.join(",")})`, select: "id" })
       : [];
     const rows = await this.#heldNumbers(companies.map((company) => company.id));
-    return { fixtures: fixtures.length, foreign: rows.filter((row) => !row.provisioning_key.startsWith(SIGN_UP_NUMBER_PREFIX)).map((row) => row.id) };
+    return {
+      fixtures: fixtures.length,
+      fixture_runs: fixtures.map((row) => ({ row_id: row.id, run_id: SIGN_UP_NUMBER_KEY.exec(row.provisioning_key)?.[1] ?? null })),
+      foreign: rows.filter((row) => !row.provisioning_key.startsWith(SIGN_UP_NUMBER_PREFIX)).map((row) => row.id),
+    };
   }
 
   async #heldNumbers(companyIds: string[]): Promise<{ id: string; provisioning_key: string }[]> {
@@ -1587,9 +1592,9 @@ export const SIGN_UP_ADDRESS = /^delivered\+rig-s3[25]-[a-z0-9-]+@resend\.dev$/;
 /** The addresses S34 gives an account: a `+s34-acct-` sub-address, which no seeded member's address matches. */
 export const MAIL_ACCOUNT_ADDRESS = /^[a-z0-9._-]+\+s34-acct-[a-z0-9-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 
-/** S32's fixture number rows are keyed by this prefix and the run's nonce. */
+/** Both versions of S32's fixture number key begin with this prefix. */
 export const SIGN_UP_NUMBER_PREFIX = "rig-signup-";
-const SIGN_UP_NUMBER_KEY = /^rig-signup-s3[2]-[a-z0-9-]+$/;
+const SIGN_UP_NUMBER_KEY = /^rig-signup-s32-(?:run\.([A-Za-z0-9_-]{1,80})\.)?[a-z0-9-]+$/;
 const SIGN_UP_NUMBER_LABEL = "Rig S32 fixture";
 /** The subscription states the app treats as paid (apps/web/src/app/onboarding/steps.ts). */
 const PAID_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "unpaid"]);
@@ -1604,8 +1609,11 @@ export function nonceSlug(nonce: string): string {
 }
 
 /** The fixture number's provisioning key for a run. */
-export function signUpNumberKey(nonce: string): string {
-  return `${SIGN_UP_NUMBER_PREFIX}s32-${nonceSlug(nonce)}`;
+export function signUpNumberKey(nonce: string, runId?: string): string {
+  const run = runId === undefined ? "" : `run.${runId}.`;
+  const key = `${SIGN_UP_NUMBER_PREFIX}s32-${run}${nonceSlug(nonce)}`;
+  if (!SIGN_UP_NUMBER_KEY.test(key)) throw new Error("app probe: invalid run ID for a signup number fixture");
+  return key;
 }
 
 type WriteError = Error & { status?: number };

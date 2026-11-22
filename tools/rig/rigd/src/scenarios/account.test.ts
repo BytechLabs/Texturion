@@ -999,7 +999,7 @@ describe("S32, sign-up through Checkout and the portal", () => {
       "public continue to checkout",
       "public checkout M5V 3L9",
     ]);
-    const key = signUpNumberKey(ctx.nonce);
+    const key = signUpNumberKey(ctx.nonce, ctx.runId);
     expect(undo.slice(0, 2)).toEqual([
       { kind: "app.delete-sign-up", params: { email } },
       { kind: "app.release-signup-number", params: { provisioningKey: key } },
@@ -1126,9 +1126,9 @@ describe("S32, sign-up through Checkout and the portal", () => {
   it("fails critically after release when a fixture or a foreign number is left held", async () => {
     const world = signUpWorld("S32");
     await expect(S32.afterRelease!(world.ctx)).resolves.toBeUndefined();
-    world.app.leak = { fixtures: 1, foreign: [] };
-    await expect(S32.afterRelease!(world.ctx)).resolves.toMatchObject({ failure_class: "signup_number_leaked", critical: true });
-    world.app.leak = { fixtures: 0, foreign: ["row-1"] };
+    world.app.leak = { fixtures: 1, fixture_runs: [{ row_id: "fixture-row", run_id: "older-S32" }], foreign: [] };
+    await expect(S32.afterRelease!(world.ctx)).resolves.toMatchObject({ failure_class: "signup_number_leaked", critical: true, detail: expect.stringContaining("older-S32") });
+    world.app.leak = { fixtures: 0, fixture_runs: [], foreign: ["row-1"] };
     await expect(S32.afterRelease!(world.ctx)).resolves.toMatchObject({ failure_class: "signup_number_leaked", detail: expect.stringContaining("row-1") });
   });
 });
