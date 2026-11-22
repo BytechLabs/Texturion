@@ -265,6 +265,8 @@ export interface AppApi {
   /** A member's push subscriptions and device tokens: the places a push can go. */
   pushTargets(args: { member: string }): Promise<number>;
   hasWebPushSubscription(args: { member: string; endpoint: string }): Promise<boolean>;
+  inboundAlertCooldown(args: { tenant: string; fromRole: StandingRole; toRole: StandingRole }): Promise<{ conversationId: string; lastNotifiedAt: string } | null>;
+  setInboundAlertTime(args: { tenant: string; conversationId: string; lastNotifiedAt: string | null }): Promise<void>;
   /** The FCM tokens the API stores for a member's Android devices, for D10 and D12 to match against the device's own. */
   pushTokens(args: { member: string }): Promise<string[]>;
   /** The ring beacons a tenant's devices reported, oldest first; with `member`, that member's only. From PostHog: see EVENT_INGEST_MS. */

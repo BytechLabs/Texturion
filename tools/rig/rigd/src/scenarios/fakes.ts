@@ -172,6 +172,7 @@ export class FakeApp implements AppApi {
   /** Push subscriptions and device tokens by member. */
   targets = new Map<string, number>([["qa-w-owner", 1]]);
   webPushEndpoints = new Map<string, string>();
+  inboundAlert: { conversationId: string; lastNotifiedAt: string } | null = null;
   /** Webhook endpoints by member: the events each delivers to the robot's sink. */
   webhooks = new Map<string, string[]>();
   /** Set to make ensureRobotWebhook fail the way a rig without the sink's secret does. */
@@ -296,6 +297,12 @@ export class FakeApp implements AppApi {
   }
   async hasWebPushSubscription(args: { member: string; endpoint: string }) {
     return this.webPushEndpoints.get(args.member) === args.endpoint;
+  }
+  async inboundAlertCooldown() {
+    return this.inboundAlert;
+  }
+  async setInboundAlertTime(args: { tenant: string; conversationId: string; lastNotifiedAt: string | null }) {
+    this.inboundAlert = args.lastNotifiedAt === null ? null : { conversationId: args.conversationId, lastNotifiedAt: args.lastNotifiedAt };
   }
   /** The FCM tokens the API stores, by member. */
   storedTokens = new Map<string, string[]>([["qa-a-technician", ["fcm-token-1"]]]);

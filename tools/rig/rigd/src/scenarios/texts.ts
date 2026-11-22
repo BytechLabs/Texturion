@@ -15,6 +15,8 @@ const USAGE_REPORT_CRON = "0 * * * *";
 /** The five-minute cron that delivers the workspace's outbound webhooks. */
 const OUTBOUND_WEBHOOK_CRON = "*/5 * * * *";
 
+const INBOUND_ALERT_COOLDOWN_MS = 15 * 60_000;
+
 /** The robot's sink must be a webhook endpoint of the workspace before its events can arrive there. */
 async function robotWebhook(ctx: ScenarioContext, member: string, events: string[]): Promise<ScenarioResult | undefined> {
   try {
@@ -88,26 +90,35 @@ export const S21: ScenarioRunner = {
     const page = await ctx.browser.open(member, member, "/inbox", { push: true });
     const pushSetup = await prepareWebPush(ctx, page, member);
     if (pushSetup) return pushSetup;
+
+    const tenant = "QA-W";
+    const fromRole = "ROBOT-1";
+    const toRole = "DEV-W1";
+    const cooldown = await ctx.app.inboundAlertCooldown({ tenant, fromRole, toRole });
+    if (cooldown && ctx.now() - Date.parse(cooldown.lastNotifiedAt) <= INBOUND_ALERT_COOLDOWN_MS) {
+      ctx.lease.registerUndo({ kind: "app.inbound-alert-time", params: { tenant, ...cooldown } });
+      await ctx.app.setInboundAlertTime({ tenant, conversationId: cooldown.conversationId, lastNotifiedAt: null });
+    }
     const since = ctx.now();
     const body = `Rig S21 inbound ${ctx.nonce}`;
-    await ctx.robot.sms({ from_role: "ROBOT-1", to_role: "DEV-W1", text: body, scenario: ctx.scenario });
+    await ctx.robot.sms({ from_role: fromRole, to_role: toRole, text: body, scenario: ctx.scenario });
 
     const shown = page.waitForText(body, 15_000);
     const threaded = await poll(ctx, async () => {
-      const rows = await ctx.app.messages({ tenant: "QA-W", body, since });
+      const rows = await ctx.app.messages({ tenant, body, since });
       return rows.length > 0 ? rows : undefined;
     }, 15_000);
     if (!threaded) return fail("not_threaded", "the text was not threaded within 15 s");
     // A duplicate shows up as the webhook's retry, seconds later.
     await ctx.sleep(5000);
-    const rows = await ctx.app.messages({ tenant: "QA-W", body, since });
+    const rows = await ctx.app.messages({ tenant, body, since });
     ctx.evidence.rows = rows.length;
     if (rows.length !== 1) return fail("threaded_twice", `threaded ${rows.length} times`);
     if (rows[0]!.direction !== "inbound") return fail("wrong_direction", `threaded as ${rows[0]!.direction}`);
     if (!(await shown)) return fail("no_realtime_update", "the owner's page did not show the text within 15 s");
 
     const push = await poll(ctx, async () => {
-      const attempts = (await ctx.app.pushAttempts({ tenant: "QA-W", since }))
+      const attempts = (await ctx.app.pushAttempts({ tenant, since }))
         .filter((attempt) => attempt.platform === "web" && attempt.purpose === "alert");
       return attempts.length > 0 ? attempts : undefined;
     }, 30_000 + EVENT_INGEST_MS, EVENT_POLL_MS);

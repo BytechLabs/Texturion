@@ -89,6 +89,35 @@ describe("S21, inbound text", () => {
     expect(browser.opened[0]).toMatchObject({ member: "qa-w-owner" });
   });
 
+  it("clears the recent alert timestamp before each send and records how to restore it", async () => {
+    const { ctx, app, robot, undo } = textWorld("S21");
+    const cooldown = { conversationId: "robot-thread", lastNotifiedAt: new Date(ctx.now()).toISOString() };
+    const restore = { tenant: "QA-W", ...cooldown };
+    app.inboundAlert = cooldown;
+    const receive = robot.onSms;
+    robot.onSms = (message) => {
+      expect(app.inboundAlert).toBeNull();
+      expect(undo.at(-1)).toEqual({ kind: "app.inbound-alert-time", params: restore });
+      expect(message).toMatchObject({ from_role: "ROBOT-1", to_role: "DEV-W1" });
+      receive(message);
+    };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      expect((await S21.run(ctx)).outcome).toBe("pass");
+      await app.setInboundAlertTime(restore);
+    }
+    expect(app.inboundAlert).toEqual(cooldown);
+    expect(undo).toHaveLength(2);
+  });
+
+  it("leaves an expired cooldown untouched", async () => {
+    const { ctx, app, undo } = textWorld("S21");
+    const cooldown = { conversationId: "robot-thread", lastNotifiedAt: new Date(ctx.now() - 16 * 60_000).toISOString() };
+    app.inboundAlert = cooldown;
+    expect((await S21.run(ctx)).outcome).toBe("pass");
+    expect(app.inboundAlert).toEqual(cooldown);
+    expect(undo).toEqual([]);
+  });
+
   it("fails a text threaded twice, and one the page never shows", async () => {
     const twice = textWorld("S21");
     const thread = twice.robot.onSms;

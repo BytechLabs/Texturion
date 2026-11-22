@@ -301,6 +301,12 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
     "app.disarm-automations": async (params) => {
       await parts.app().disarmAutomations({ tenant: String(params.tenant), nonce: String(params.nonce) });
     },
+    "app.inbound-alert-time": async ({ tenant, conversationId, lastNotifiedAt }) => {
+      if (typeof tenant !== "string" || typeof conversationId !== "string" || typeof lastNotifiedAt !== "string") {
+        throw new TypeError("app.inbound-alert-time undo needs tenant, conversationId and lastNotifiedAt");
+      }
+      await parts.app().setInboundAlertTime({ tenant, conversationId, lastNotifiedAt });
+    },
     "app.flag": async (params) => {
       if (typeof params.key !== "string" || !(typeof params.enabled === "boolean" || params.enabled === null)) {
         throw new Error("app.flag undo needs key and enabled (true, false or null)");
