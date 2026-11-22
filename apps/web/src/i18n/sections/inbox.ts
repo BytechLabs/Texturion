@@ -449,6 +449,7 @@ export const inboxEn = {
   // holds Android and iOS to the same sentences.
   responseTimeTitle: "Response time",
   responseWindowAria: "Window",
+  analyticsWindowDays: "{days}d",
   responseLoadFailed: "Could not load your response time.",
   responseNoLeads:
     "No new customers texted you in the last {days} days, so there is nothing " +
@@ -969,6 +970,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   // --- Response time ---------------------------------------------------------
   responseTimeTitle: "Temps de réponse",
   responseWindowAria: "Période",
+  analyticsWindowDays: "{days}j",
   responseLoadFailed: "Impossible de charger votre temps de réponse.",
   responseNoLeads:
     "Aucun nouveau client ne vous a texté dans les {days} derniers jours, " +

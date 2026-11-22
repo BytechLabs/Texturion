@@ -337,3 +337,10 @@ ${readFileSync(IOS_CATALOGUE, "utf8")}`);
     }
   });
 });
+
+it("uses the localized day label for the satisfaction window", () => {
+  for (const platform of ["web", "android"]) {
+    expect(readFileSync(SOURCES[platform], "utf8")).toContain('"inbox.analyticsWindowDays"');
+  }
+  expect(readFileSync(SOURCES.ios, "utf8")).toContain("ReportWindowControl(days: days, onSelect: onWindow)");
+});

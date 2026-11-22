@@ -48,11 +48,7 @@ import {
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
 
-const WINDOWS: { days: ResponseTimeWindow; label: string }[] = [
-  { days: 7, label: "7d" },
-  { days: 30, label: "30d" },
-  { days: 90, label: "90d" },
-];
+const WINDOWS: readonly ResponseTimeWindow[] = [7, 30, 90];
 
 /**
  * The arc, in the words the owner would use.
@@ -289,9 +285,9 @@ export function SatisfactionCard() {
           ariaLabel={t("inbox.responseWindowAria")}
           value={String(days)}
           onChange={(value) => setDays(Number(value) as ResponseTimeWindow)}
-          options={WINDOWS.map((w) => ({
-            value: String(w.days),
-            label: w.label,
+          options={WINDOWS.map((option) => ({
+            value: String(option),
+            label: t("inbox.analyticsWindowDays", { days: option }),
           }))}
         />
       }

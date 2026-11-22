@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.ResponseTimeBaseline
 import com.loonext.android.core.model.ResponseTimeReport
@@ -25,6 +26,15 @@ class ResponseTimeCopyTest {
      * French to the same keys and the same interpolation.
      */
     private val locale = MessageLocale.DEFAULT
+
+    @Test
+    fun `the compact analytics days use the reader locale`() {
+        for (days in listOf(7, 30, 90)) {
+            val values = mapOf("days" to days.toString())
+            assertEquals("${days}d", AppStrings.translate(MessageLocale.EN, "inbox.analyticsWindowDays", values))
+            assertEquals("${days}j", AppStrings.translate(MessageLocale.FR_CA, "inbox.analyticsWindowDays", values))
+        }
+    }
 
     private fun report(
         median: Double? = 240.0,

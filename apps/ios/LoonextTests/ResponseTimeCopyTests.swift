@@ -10,6 +10,14 @@ import XCTest
 /// there.
 final class ResponseTimeCopyTests: XCTestCase {
 
+    func testCompactAnalyticsDaysUseTheReaderLocale() {
+        for days in [7, 30, 90] {
+            let values = ["days": String(days)]
+            XCTAssertEqual(AppStrings.translate("en", "inbox.analyticsWindowDays", values), "\(days)d")
+            XCTAssertEqual(AppStrings.translate("fr-CA", "inbox.analyticsWindowDays", values), "\(days)j")
+        }
+    }
+
     private func report(
         median: Double? = 240,
         improved: Double? = nil,

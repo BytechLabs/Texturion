@@ -388,6 +388,7 @@ object InboxStrings : AppStrings.Section {
         // --- Response time (#239) ------------------------------------------------------------
         // Read verbatim by components/for-you/response-time-parity.test.ts.
         "inbox.responseTimeTitle" to "Response time",
+        "inbox.analyticsWindowDays" to "{days}d",
         "inbox.responseLoading" to "Working out your response time…",
         "inbox.responseNoLeads" to
             "No new customers texted you in the last {days} days, so " +
@@ -808,6 +809,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Response time -------------------------------------------------------------------------------
         "inbox.responseTimeTitle" to "Temps de réponse",
+        "inbox.analyticsWindowDays" to "{days}j",
         "inbox.responseLoading" to "Calcul de votre temps de réponse…",
         "inbox.responseNoLeads" to
             "Aucun nouveau client ne vous a texté dans les {days} derniers jours, " +

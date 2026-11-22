@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { inboxEn } from "@/i18n/sections/inbox";
+import { makeTranslate } from "@/i18n/translate";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
@@ -327,4 +328,15 @@ describe("#239 response-time copy is the same on every client", () => {
       expect(copyOf(platform), platform).toContain("Up from ");
     }
   });
+});
+
+it("uses the reader locale for the compact analytics days", () => {
+  for (const days of [7, 30, 90]) {
+    expect(makeTranslate("en")("inbox.analyticsWindowDays", { days })).toBe(`${days}d`);
+    expect(makeTranslate("fr-CA")("inbox.analyticsWindowDays", { days })).toBe(`${days}j`);
+  }
+
+  for (const source of Object.values(SOURCES)) {
+    expect(readFileSync(source, "utf8")).toContain('"inbox.analyticsWindowDays"');
+  }
 });

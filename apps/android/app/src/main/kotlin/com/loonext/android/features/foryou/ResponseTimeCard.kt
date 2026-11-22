@@ -141,7 +141,9 @@ fun ResponseTimeCard(
             // Segmented, not a menu: three choices are faster to hit, and the
             // current window stays readable at a glance.
             SegmentedControl(
-                segments = listOf(7, 30, 90).map { Segment(it, "${it}d") },
+                segments = listOf(7, 30, 90).map { option ->
+                    Segment(option, t("inbox.analyticsWindowDays", "days" to option.toString()))
+                },
                 selected = days,
                 onSelect = onWindow,
                 size = SegmentedSize.Sm,

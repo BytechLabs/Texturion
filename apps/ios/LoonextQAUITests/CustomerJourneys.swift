@@ -88,6 +88,39 @@ final class CustomerJourneys: XCTestCase {
         try waitFor(button(pickerName)).tap()
         try waitFor(button(allLines)).tap()
         try waitFor(label(text("2 things need you", "2 choses demandent votre attention")))
+        try reportWindows(language, suffix)
+    }
+
+    private func reportWindows(_ language: Language, _ suffix: String) throws {
+        let unit = language.label("d", "j")
+        let captions = [7, 30, 90].map { "\($0)\(unit)" }
+        let buttons = app.buttons.matching(NSPredicate(format: "label IN %@", argumentArray: [captions]))
+        try waitFor(buttons.firstMatch)
+        XCTAssertEqual(buttons.count, 6)
+        for control in buttons.allElementsBoundByIndex {
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+        }
+        try app.performAccessibilityAudit(for: [.contrast, .hitRegion, .sufficientElementDescription]) { issue in
+            !captions.contains(issue.element?.label ?? "")
+        }
+
+        func options(_ days: Int) -> XCUIElementQuery {
+            app.buttons.matching(NSPredicate(format: "label == %@", "\(days)\(unit)"))
+        }
+        func verify(_ days: Int) throws {
+            try waitFor(label(language.label("last \(days) days", "les \(days) derniers jours")))
+            try waitFor(label(language.label("from \(days) answers", "à partir de \(days) réponses")))
+            XCTAssertEqual(options(days).count, 2)
+            XCTAssertTrue(options(days).allElementsBoundByIndex.allSatisfy(\.isSelected))
+        }
+
+        try verify(30)
+        shot("For You report windows \(suffix)")
+        try reveal(options(7).element(boundBy: 0)).tap()
+        try verify(7)
+        try reveal(options(90).element(boundBy: 1)).tap()
+        try verify(90)
     }
 
     private func workspace(_ language: Language, _ theme: String) async throws {

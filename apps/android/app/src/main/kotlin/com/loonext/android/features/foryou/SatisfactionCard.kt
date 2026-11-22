@@ -118,7 +118,9 @@ fun SatisfactionCard(
         // is to use the same component rather than to copy its styling.
         MeasureHeader(t("inbox.satisfactionTitle")) {
             SegmentedControl(
-                segments = listOf(7, 30, 90).map { Segment(it, "${it}d") },
+                segments = listOf(7, 30, 90).map { option ->
+                    Segment(option, t("inbox.analyticsWindowDays", "days" to option.toString()))
+                },
                 selected = days,
                 onSelect = onWindow,
                 size = SegmentedSize.Sm,
