@@ -97,13 +97,14 @@ describe("draftIsExpired (#381: identity data does not live in localStorage fore
         savedAt,
         port: { ...port, ssnSinLast4: "1234" },
       })),
+      removeItem: vi.fn(),
       setItem: vi.fn(),
     };
     vi.stubGlobal("window", { localStorage: storage });
     try {
-      expect(readOnboardingDraft(now)).toEqual({ mode: "port", port });
+      expect(readOnboardingDraft("onboarding-user", now)).toEqual({ mode: "port", port });
       expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(
-        "loonext:onboarding-draft",
+        "loonext:onboarding-draft:onboarding-user",
         JSON.stringify({ mode: "port", port, savedAt }),
       );
     } finally {

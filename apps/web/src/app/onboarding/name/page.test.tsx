@@ -17,10 +17,12 @@ import { CREW_SIZE_LABELS } from "@loonext/shared";
 
 import { sayEnglish } from "@/i18n/translate";
 import { trackOnboardingStepViewed } from "@/lib/analytics/events";
-import { readOnboardingDraft } from "../local-draft";
+import { readOnboardingDraft, writeOnboardingDraft } from "../local-draft";
+import type { OnboardingDraft } from "../steps";
 
 /** #228 — the labels are catalogue KEYS now, so this says them. */
 const say = sayEnglish;
+const USER_ID = "onboarding-user";
 
 
 const push = vi.fn();
@@ -53,7 +55,7 @@ vi.mock("../use-onboarding-state", () => ({
         canManageRegistration: false,
         draft: guard.draft,
       },
-      refreshDraft: vi.fn(),
+      saveDraft: (patch: Partial<OnboardingDraft>) => writeOnboardingDraft(USER_ID, patch),
     },
   }),
 }));
@@ -121,7 +123,7 @@ describe("#370 crew size on the name step", () => {
     fireEvent.click(screen.getByText(say(CREW_SIZE_LABELS["2_3"])));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/onboarding/number"));
-    expect(readOnboardingDraft().crewSize).toBe("2_3");
+    expect(readOnboardingDraft(USER_ID).crewSize).toBe("2_3");
   });
 
   it("stores NOTHING when the question is skipped", async () => {
@@ -129,7 +131,7 @@ describe("#370 crew size on the name step", () => {
     typeName();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/onboarding/number"));
-    const draft = readOnboardingDraft();
+    const draft = readOnboardingDraft(USER_ID);
     expect(draft.name).toBe("Mike's Plumbing");
     expect("crewSize" in draft).toBe(false);
   });

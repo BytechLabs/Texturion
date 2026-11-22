@@ -37,7 +37,10 @@ vi.mock("@/lib/supabase/browser", () => ({
   getSupabaseBrowser: () => ({ auth: { signOut: vi.fn() } }),
 }));
 vi.mock("@/lib/auth/use-session-ready", () => ({
-  useSessionReady: () => state.sessionReady,
+  useSession: () => ({
+    state: state.sessionReady ? "ready" : "signed-out",
+    userId: state.sessionReady ? "gate-user" : null,
+  }),
 }));
 vi.mock("@/lib/api/me", () => ({
   useMe: () => ({ data: state.me }),

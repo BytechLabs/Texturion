@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
-import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
 import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
@@ -72,7 +71,7 @@ export default function PortAddressPage() {
       );
       return;
     }
-    writeOnboardingPortDraft({
+    onboarding.savePortDraft({
       serviceStreet: street.trim(),
       serviceExtended: extended.trim() || undefined,
       serviceLocality: locality.trim(),

@@ -18,7 +18,6 @@ import { keys } from "@/lib/api/keys";
 import type { CreatePortRequestInput } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 
-import { clearOnboardingDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
 import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
 
@@ -123,7 +122,7 @@ export default function PortTimingPage() {
       });
       // The port draft now exists (deferred to the paid webhook). Clear the
       // local draft and hand off to the dispatcher → registration or plan.
-      clearOnboardingDraft();
+      onboarding.clearDraft();
       await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
       trackOnboardingStepCompleted("port_timing");
       router.push("/onboarding");

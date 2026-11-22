@@ -16,7 +16,10 @@ import { OnboardingSessionGate } from "./session-gate";
 const sessionState = vi.hoisted(() => ({ current: "ready" as string }));
 
 vi.mock("@/lib/auth/use-session-ready", () => ({
-  useSessionState: () => sessionState.current,
+  useSession: () => ({
+    state: sessionState.current,
+    userId: sessionState.current === "ready" ? "onboarding-user" : null,
+  }),
   useSessionReady: () => sessionState.current === "ready",
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
