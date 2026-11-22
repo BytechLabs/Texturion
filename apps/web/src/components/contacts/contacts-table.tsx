@@ -103,7 +103,7 @@ function ContactSearch({
   }, [input, onSettle]);
   return (
     <SearchField
-      containerClassName="min-w-0 max-w-sm flex-1"
+      containerClassName="min-w-0 basis-full sm:max-w-sm sm:flex-1"
       value={input}
       onValueChange={setInput}
       placeholder={t("contacts.searchPlaceholder")}
@@ -400,7 +400,7 @@ export function ContactsTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
         <ContactSearch query={query} onSettle={writeQuery} />
         <SimpleSelect
           ariaLabel={t("contacts.sort")}

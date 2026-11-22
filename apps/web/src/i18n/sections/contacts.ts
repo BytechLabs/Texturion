@@ -183,7 +183,7 @@ export const contactsEn = {
   filterShowEveryone: "Show everyone again",
 
   // ── The contacts table ──────────────────────────────────────────────────
-  searchPlaceholder: "Search name, number or address",
+  searchPlaceholder: "Name, number or address",
   sort: "Sort contacts",
   sortName: "Name",
   sortRecent: "Recent activity",
@@ -673,7 +673,7 @@ export const contactsFr: Translated<typeof contactsEn> = {
   filterShowEveryone: "Afficher tout le monde",
 
   // ── Le tableau des clients ──────────────────────────────────────────────
-  searchPlaceholder: "Chercher un nom, un numéro ou une adresse",
+  searchPlaceholder: "Nom, numéro ou adresse",
   sort: "Trier les contacts",
   sortName: "Nom",
   sortRecent: "Activité récente",

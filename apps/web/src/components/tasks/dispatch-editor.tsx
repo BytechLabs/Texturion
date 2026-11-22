@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, Lock, Plus, Search, Trash2 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { MemberAvatar } from "@/components/inbox/member-avatar";
@@ -54,6 +54,7 @@ export function DispatchEditor({ plan, task, day, block, initialAssignee, initia
   const t = useT();
   const prefix = useId();
   const { openTask } = useTaskDrawer();
+  const heading = useRef<HTMLHeadingElement>(null);
   const id = useRef<string | null>(null);
   function blockId() {
     id.current ??= block?.id ?? crypto.randomUUID();
@@ -78,6 +79,10 @@ export function DispatchEditor({ plan, task, day, block, initialAssignee, initia
   const label = "grid min-w-0 gap-1.5 text-sm font-medium";
   const bottom = "flex flex-wrap items-center gap-2";
 
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+
   function details(): DispatchDetail | null {
     const next = windows.map((w) => ({
       start: instant(w.start, plan.timezone),
@@ -100,7 +105,7 @@ export function DispatchEditor({ plan, task, day, block, initialAssignee, initia
   return (
     <section aria-labelledby={`${prefix}-title`} className="space-y-4 rounded-xl border bg-card p-4 text-card-foreground">
       <div>
-        <h2 id={`${prefix}-title`} className="flex items-center gap-2 font-semibold">
+        <h2 ref={heading} tabIndex={-1} id={`${prefix}-title`} className="flex items-center gap-2 font-semibold">
           {block?.locked ? <Lock className="size-4" aria-hidden /> : <CalendarClock className="size-4" aria-hidden />}
           {t(block ? "tasks.dispatchEditBlock" : "tasks.dispatchNewBlock")}
         </h2>

@@ -2003,7 +2003,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   navGroupSupport: "Aide et journal d'audit",
   navSomethingNew: "Quelque chose de nouveau",
   settingsSearchLabel: "Rechercher dans les paramètres",
-  settingsSearchPlaceholder: "Rechercher un paramètre",
+  settingsSearchPlaceholder: "Trouver un réglage",
   settingsSearchNone: "Aucun paramètre ne correspond à « {query} ».",
   settingsSearchClear: "Effacer la recherche",
   settingsSearchResultsAria: "Paramètres correspondants",

@@ -366,7 +366,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
                       <span className={cn("block", NAV_LINK_CLASS)}>
                         {t(section.label)}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block text-xs text-muted-foreground">
                         {t(section.description)}
                       </span>
                     </span>
