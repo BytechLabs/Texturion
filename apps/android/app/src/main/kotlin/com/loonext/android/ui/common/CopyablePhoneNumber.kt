@@ -42,7 +42,8 @@ fun Modifier.copyPhoneNumberOnHold(number: String?, onClick: (() -> Unit)? = nul
     if (onClick != null) {
         return combinedClickable(onClick = onClick, onLongClickLabel = label, onLongClick = { copy() })
     }
-    return pointerInput(number) { detectTapGestures(onLongPress = { copy() }) }
+    return touchTarget()
+        .pointerInput(number) { detectTapGestures(onLongPress = { copy() }) }
         .semantics {
             onLongClick(label) {
                 copy()
