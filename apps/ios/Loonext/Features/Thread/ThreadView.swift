@@ -90,6 +90,29 @@ struct ThreadView: View {
     }
 }
 
+@MainActor
+struct ThreadActionCards<Content: View>: View {
+    private let content: () -> Content
+    @State private var contentHeight: CGFloat = 1
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0, content: content)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    contentHeight = min(height, 192)
+                }
+        }
+        .frame(height: contentHeight)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+}
+
 /// The loaded thread — split out so the controller is non-optional inside.
 /// The chained detail sheets off the thread header (#186 item 3). One
 /// `.sheet(item:)` swaps between them in place, so the conversation card's
@@ -552,80 +575,83 @@ private struct ThreadBody: View {
                 )
 
                 presenceStrip(detail: detail)
-                // #233: what this thread is about to say. Above the composer
-                // and below the transcript, because a scheduled message is not
-                // a message — it has no delivery status and may never become
-                // one, and putting it in the history would mean a reader has to
-                // check a badge before believing anything above the fold
-                // actually went. Rendered outside the banner branch so a HELD
-                // text still says why: a banner means something is wrong with
-                // sending, which is exactly when a queued text is stuck and
-                // most needs saying out loud.
-                // #244: above the scheduled strip, because this is the only
-                // thing on the screen with a clock running on it — somebody is
-                // waiting for a callback, and if nobody claims it the alert
-                // widens to the whole crew.
-                AlertBanner(
-                    alert: detail.open_alert,
-                    viewerId: me.user_id
-                ) { id in
-                    controller.acknowledgeAlert(id)
+                ThreadActionCards {
+                    // #233: what this thread is about to say. Above the composer
+                    // and below the transcript, because a scheduled message is not
+                    // a message — it has no delivery status and may never become
+                    // one, and putting it in the history would mean a reader has to
+                    // check a badge before believing anything above the fold
+                    // actually went. Rendered outside the banner branch so a HELD
+                    // text still says why: a banner means something is wrong with
+                    // sending, which is exactly when a queued text is stuck and
+                    // most needs saying out loud.
+                    // #244: above the scheduled strip, because this is the only
+                    // thing on the screen with a clock running on it — somebody is
+                    // waiting for a callback, and if nobody claims it the alert
+                    // widens to the whole crew.
+                    AlertBanner(
+                        alert: detail.open_alert,
+                        viewerId: me.user_id
+                    ) { id in
+                        controller.acknowledgeAlert(id)
+                    }
+                    ScheduledStrip(
+                        rows: controller.scheduled,
+                        clock: detail.destination_clock,
+                        onUpdate: controller.updateScheduled,
+                        onCancel: controller.cancelScheduled
+                    )
+                    // #224: what this thread is owed, what it was paid, and the ask.
+                    // Directly above the composer for the same reason the scheduled
+                    // strip is — it is STATE, not history, and it changes without
+                    // anybody here doing anything: a customer pays, a bank pulls a
+                    // payment back, a link expires. Below the scheduled strip
+                    // because a text that has not gone yet is about to leave this
+                    // phone, and a bill that was already sent is not.
+                    //
+                    // Draws nothing on almost every thread, and nothing at all for a
+                    // notes-only viewer.
+                    ThreadPaymentsPane(
+                        api: graph.api,
+                        companyId: detail.company_id,
+                        conversationId: detail.id,
+                        role: viewerRole,
+                        viewerLevel: detail.viewer_level,
+                        messageLocale: MessageLocale.resolve(
+                            contact: detail.contact.locale,
+                            company: controller.company?.locale
+                        ),
+                        businessName: controller.company?.name,
+                        // #607: the strip's live wire. The controller is the thread's
+                        // only realtime listener, so a `payment.updated` naming this
+                        // conversation arrives there and is handed down as a tick —
+                        // which the pane turns into one refetch of its list.
+                        paymentChangedTick: controller.paymentChangedTick,
+                        // The ask sends an ordinary text, so the transcript has a
+                        // message it has not seen. The same catch-up the socket
+                        // re-JOIN runs, rather than a second refetch path that could
+                        // disagree with it.
+                        onSent: { controller.refreshAfterReconnect() }
+                    )
+                    // #287: beside the payment strip because they are the same kind
+                    // of thing — state that changes without anybody here doing
+                    // anything. Never on a note: a note goes to the crew, a quote
+                    // goes to the customer.
+                    ThreadQuotesPane(
+                        api: graph.api,
+                        companyId: detail.company_id,
+                        conversationId: detail.id,
+                        quoteChangedTick: controller.quoteChangedTick,
+                        role: viewerRole,
+                        viewerLevel: detail.viewer_level,
+                        draftOpen: Binding(
+                            get: { quoteDraftOpen && composer.mode == .text },
+                            set: { quoteDraftOpen = $0 }
+                        ),
+                        onSent: { controller.refreshAfterReconnect() }
+                    )
                 }
-                ScheduledStrip(
-                    rows: controller.scheduled,
-                    clock: detail.destination_clock,
-                    onUpdate: controller.updateScheduled,
-                    onCancel: controller.cancelScheduled
-                )
-                // #224: what this thread is owed, what it was paid, and the ask.
-                // Directly above the composer for the same reason the scheduled
-                // strip is — it is STATE, not history, and it changes without
-                // anybody here doing anything: a customer pays, a bank pulls a
-                // payment back, a link expires. Below the scheduled strip
-                // because a text that has not gone yet is about to leave this
-                // phone, and a bill that was already sent is not.
-                //
-                // Draws nothing on almost every thread, and nothing at all for a
-                // notes-only viewer.
-                ThreadPaymentsPane(
-                    api: graph.api,
-                    companyId: detail.company_id,
-                    conversationId: detail.id,
-                    role: viewerRole,
-                    viewerLevel: detail.viewer_level,
-                    messageLocale: MessageLocale.resolve(
-                        contact: detail.contact.locale,
-                        company: controller.company?.locale
-                    ),
-                    businessName: controller.company?.name,
-                    // #607: the strip's live wire. The controller is the thread's
-                    // only realtime listener, so a `payment.updated` naming this
-                    // conversation arrives there and is handed down as a tick —
-                    // which the pane turns into one refetch of its list.
-                    paymentChangedTick: controller.paymentChangedTick,
-                    // The ask sends an ordinary text, so the transcript has a
-                    // message it has not seen. The same catch-up the socket
-                    // re-JOIN runs, rather than a second refetch path that could
-                    // disagree with it.
-                    onSent: { controller.refreshAfterReconnect() }
-                )
-                // #287: beside the payment strip because they are the same kind
-                // of thing — state that changes without anybody here doing
-                // anything. Never on a note: a note goes to the crew, a quote
-                // goes to the customer.
-                ThreadQuotesPane(
-                    api: graph.api,
-                    companyId: detail.company_id,
-                    conversationId: detail.id,
-                    quoteChangedTick: controller.quoteChangedTick,
-                    role: viewerRole,
-                    viewerLevel: detail.viewer_level,
-                    draftOpen: Binding(
-                        get: { quoteDraftOpen && composer.mode == .text },
-                        set: { quoteDraftOpen = $0 }
-                    ),
-                    onSent: { controller.refreshAfterReconnect() }
-                )
+
                 // #716: Lou's catch-up offer, one line beside the input.
                 // Answering it (Recap or Not now) hides it until somebody else
                 // sends something newer; the conversation sheet keeps Catch me up.

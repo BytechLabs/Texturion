@@ -9,6 +9,7 @@ enum A11yAuditSurface: String, CaseIterable {
     case forgot
     case inbox
     case thread
+    case threadActionCards
     case calls
     case tasks
     case contacts
@@ -76,6 +77,8 @@ struct A11yAuditHost: View {
                 threadTimelineFixture()
                 composerFixture()
             }
+        case .threadActionCards:
+            threadActionCardsFixture()
         case .calls:
             callLogFixture()
         case .tasks:
@@ -110,6 +113,30 @@ struct A11yAuditHost: View {
             A11ySettingsSurface(kind: .onCall)
         case .callingSettings:
             A11ySettingsSurface(kind: .calling)
+        }
+    }
+
+    private func threadActionCardsFixture() -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            ThreadActionCards {
+                ScheduledStrip(
+                    rows: (0..<24).map { index in
+                        ScheduledMessage(
+                            id: "queued-\(index)",
+                            conversation_id: "thread",
+                            body: "Queued \(index)",
+                            send_at: "2027-01-15T16:00:00Z",
+                            clock_timezone: "America/Toronto",
+                            status: "pending"
+                        )
+                    },
+                    clock: nil,
+                    onUpdate: { _, _, _, _ in .failed },
+                    onCancel: { _ in }
+                )
+            }
+            composerFixture()
         }
     }
 }
