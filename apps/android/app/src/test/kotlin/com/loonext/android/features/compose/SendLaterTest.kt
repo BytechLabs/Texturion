@@ -1,7 +1,10 @@
 package com.loonext.android.features.compose
 
 import com.loonext.android.core.model.DestinationClock
+import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
+import com.loonext.android.features.thread.sendAtOf
+import com.loonext.android.features.thread.sendAtSpokenOf
 import java.time.Instant
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
@@ -136,5 +139,44 @@ class SendLaterTest {
         val now = Instant.parse("2026-01-13T16:00:00Z")
         assertEquals("Thu 8:00 AM", sendAtLabel(at, vancouver, now))
         assertEquals("Thu 11:00 AM", sendAtLabel(at, toronto, now))
+    }
+
+    @Test
+    fun `scheduled rows use the reader locale in visible and spoken clock labels`() {
+        val at = Instant.parse("2026-01-15T16:00:00Z")
+        val here = ZoneId.systemDefault()
+        val there = if (here.rules.getOffset(at) == toronto.rules.getOffset(at)) vancouver else toronto
+        val row = ScheduledMessage(
+            id = "scheduled",
+            conversation_id = "thread",
+            body = "Test",
+            send_at = at.toString(),
+            clock_timezone = there.id,
+            status = "pending",
+        )
+
+        val visible = sendAtOf(row, "fr-CA")
+        val spoken = sendAtSpokenOf(row, "fr-CA")
+        assertTrue(visible, visible.contains("à leur heure · ") && visible.endsWith("à la vôtre"))
+        assertTrue(spoken, spoken.contains("à leur heure, ce qui fait ") && spoken.endsWith("à la vôtre"))
+        val english = sendAtOf(row, "en")
+        assertTrue(english, english.contains("their time · ") && english.endsWith("yours"))
+    }
+
+    @Test
+    fun `scheduled rows show one clock when the zones match`() {
+        val here = ZoneId.systemDefault()
+        val at = Instant.parse("2026-01-15T16:00:00Z")
+        val row = ScheduledMessage(
+            id = "scheduled",
+            conversation_id = "thread",
+            body = "Test",
+            send_at = at.toString(),
+            clock_timezone = here.id,
+            status = "pending",
+        )
+
+        assertEquals(sendAtLabel(at, here), sendAtOf(row, "fr-CA"))
+        assertEquals(sendAtOf(row, "fr-CA"), sendAtSpokenOf(row, "fr-CA"))
     }
 }

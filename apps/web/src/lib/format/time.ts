@@ -1,7 +1,7 @@
 import {
-  bothClocks,
-  bothClocksSpoken,
   DEFAULT_LOCALE,
+  resolveLocale,
+  sameClock,
   timestampShape,
 } from "@loonext/shared";
 
@@ -303,9 +303,7 @@ export function formatTimestamp(
  * "8:00 AM", read their own clock, and was three hours out — with nothing on the
  * screen to argue with.
  *
- * One instant, two wall clocks, and the shared rule decides whether the second
- * one is worth saying: `bothClocks` stays quiet when the two read the same, so a
- * crew whose customers are all in town never sees the label at all.
+ * Equal wall clocks need no label, even when their zone names differ.
  *
  * `destinationZone` is the zone the time was CHOSEN in — `clock_timezone` on a
  * scheduled row, the resolved destination clock on a picker.
@@ -321,10 +319,7 @@ export function twoClockLabel(
   readerZone?: string,
   locale?: string,
 ): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
-  const here = wallClock(at, readerZone, undefined, locale);
-  return bothClocks(wallClock(at, destinationZone, here, locale), here);
+  return formatTwoClocks("domain.twoClocksLine", iso, destinationZone, readerZone, locale);
 }
 
 /** The same two facts as a sentence, for an accessible name. */
@@ -334,10 +329,22 @@ export function twoClockSpoken(
   readerZone?: string,
   locale?: string,
 ): string {
+  return formatTwoClocks("domain.twoClocksSpoken", iso, destinationZone, readerZone, locale);
+}
+
+function formatTwoClocks(
+  key: "domain.twoClocksLine" | "domain.twoClocksSpoken",
+  iso: string,
+  destinationZone: string,
+  readerZone?: string,
+  locale?: string,
+): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const here = wallClock(at, readerZone, undefined, locale);
-  return bothClocksSpoken(wallClock(at, destinationZone, here, locale), here);
+  const here = wallClock(at, readerZone, undefined, locale).trim();
+  const there = wallClock(at, destinationZone, here, locale).trim();
+  if (sameClock(there, here) || !here) return there;
+  return makeTranslate(resolveLocale(locale, null))(key, { there, here });
 }
 
 /**
