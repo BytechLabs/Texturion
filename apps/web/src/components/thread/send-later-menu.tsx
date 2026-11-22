@@ -26,7 +26,7 @@ import { makeTranslate, useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import type { DestinationClock } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
-import { formatTimestamp } from "@/lib/format/time";
+import { formatCompactWallHour, formatTimestamp } from "@/lib/format/time";
 
 /**
  * #233 — "send this Monday at 8", from the composer.
@@ -292,7 +292,7 @@ export function QuietHoursConfirm({
           {localHour === null
             ? t("thread.quietHoursNoHour")
             : t("thread.quietHoursAround", {
-                hour: formatHour(localHour),
+                hour: formatCompactWallHour(localHour, t.locale),
               })}{" "}
           {t("thread.quietHoursTail")}
         </>
@@ -310,12 +310,6 @@ export function QuietHoursConfirm({
 /** "Tue 8:00 AM" in the DESTINATION's zone — enough to know what you picked. */
 function formatPresetHint(at: Date, timeZone: string, t: Translate): string {
   return formatTimestamp(at.toISOString(), { style: "long", t, timeZone });
-}
-
-function formatHour(hour: number): string {
-  const suffix = hour < 12 ? "am" : "pm";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${twelve}${suffix}`;
 }
 
 /** The browser's own zone, when we have no contact to resolve one from. */

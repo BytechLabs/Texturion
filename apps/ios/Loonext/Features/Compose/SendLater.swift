@@ -350,12 +350,10 @@ func quietHoursScheduleMessage(localHour: Int?, locale: String? = nil) -> String
         return ScheduledSend.copyLine("quiet_hours_unknown", locale: locale) + " "
             + ScheduledSend.copyLine("quiet_hours_choice", locale: locale)
     }
-    let suffix = localHour < 12 ? "am" : "pm"
-    let twelve = localHour % 12 == 0 ? 12 : localHour % 12
     return AppStrings.translate(
         locale,
         "thread.quietHoursAround",
-        ["hour": "\(twelve)\(suffix)"]
+        ["hour": TimestampFormat.compactWallHour(localHour, locale: locale)]
     )
         + " "
         + ScheduledSend.copyLine("quiet_hours_choice", locale: locale)

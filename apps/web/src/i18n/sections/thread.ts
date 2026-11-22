@@ -447,6 +447,10 @@ export const threadEn = {
   landsLateTitle: "That lands late where they are",
   quietHoursNoHour: "That time is inside this customer's quiet hours.",
   quietHoursAround: "That is around {hour} for this customer.",
+  theirTimeAbout: "It's about {time} where they are ({source}).",
+  clockFromContact: "set on their contact",
+  clockFromAreaCode: "from their area code",
+  clockFromWorkspace: "your workspace's timezone — we don't know theirs",
   quietHoursTail: "You can send it anyway, or pick a time in their morning.",
   pickAnotherTime: "Pick another time",
   scheduleItAnyway: "Schedule it anyway",
@@ -1270,6 +1274,10 @@ export const threadFr: Translated<typeof threadEn> = {
   quietHoursNoHour:
     "Cette heure tombe dans les heures de silence de ce client.",
   quietHoursAround: "Il sera environ {hour} chez ce client.",
+  theirTimeAbout: "Il est environ {time} chez lui ({source}).",
+  clockFromContact: "inscrit à sa fiche de contact",
+  clockFromAreaCode: "d'après son indicatif régional",
+  clockFromWorkspace: "le fuseau horaire de votre espace de travail — nous ne connaissons pas le sien",
   quietHoursTail:
     "Vous pouvez l'envoyer quand même, ou choisir une heure le matin chez eux.",
   pickAnotherTime: "Choisir une autre heure",

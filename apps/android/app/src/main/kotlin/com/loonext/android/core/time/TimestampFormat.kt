@@ -62,6 +62,13 @@ object TimestampFormat {
     fun clock(at: java.time.LocalTime, locale: String? = null): String =
         clock(at.atDate(java.time.LocalDate.EPOCH).atZone(ZoneId.of("UTC")), locale)
 
+    fun compactWallHour(hour: Int, locale: String?): String {
+        if (locale == MessageLocale.FR_CA) return "$hour h"
+        val twelve = if (hour % 12 == 0) 12 else hour % 12
+        val suffix = if (hour < 12) "am" else "pm"
+        return "$twelve$suffix"
+    }
+
     fun weekday(day: DayOfWeek, locale: String? = null): String =
         day.getDisplayName(TextStyle.FULL, tagOf(locale))
 

@@ -45,6 +45,14 @@ class DestinationClockCopyTest {
     }
 
     @Test
+    fun `uses a Canadian French hour for the destination clock`() {
+        val line = theirTimeLine(clock(), locale = "fr-CA")!!
+        assertTrue(line, line.startsWith("Il est environ 21 h chez lui (d'après son indicatif régional)."))
+        val midnight = theirTimeLine(clock(hour = 0, source = "contact"), locale = "fr-CA")!!
+        assertTrue(midnight, midnight.startsWith("Il est environ 0 h chez lui"))
+    }
+
+    @Test
     fun `handles midnight and noon without saying zero`() {
         assertTrue(theirTimeLine(clock(hour = 0))!!.contains("12am"))
         // Noon is never quiet under the default window, but Texas Sundays make

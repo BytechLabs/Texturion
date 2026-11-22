@@ -131,6 +131,11 @@ final class SendLaterTests: XCTestCase {
         )
     }
 
+    func testTheQuietHoursWarningUsesACanadianFrenchHour() {
+        let message = quietHoursScheduleMessage(localHour: 21, locale: "fr-CA")
+        XCTAssertTrue(message.hasPrefix("Il sera environ 21 h chez ce client."), message)
+    }
+
     func testAndFallsBackToTheHourlessSentenceWhenTheClockIsUnknown() {
         // #225 ask 2 is warned, never blocked — so the version with no hour to
         // quote still has to offer the choice, not just state the problem.
