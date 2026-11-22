@@ -241,7 +241,7 @@ object TelecomCallReducer {
 
     /** What the addCall block must reconcile the instant the scope becomes
      *  available (the platform executes this under the per-entry lock). */
-    enum class ScopeReconcile { DISCONNECT, ANSWER, NONE }
+    enum class ScopeReconcile { DISCONNECT, ANSWER, SET_ACTIVE, SET_INACTIVE, NONE }
 
     /**
      * The addCall block acquired the [CallControlScope] — the ONE moment a
@@ -254,12 +254,19 @@ object TelecomCallReducer {
      *    teardown backstop then no-ops on terminated too; HIGH re-review finding).
      *  - else the I3 catch-up: the user answered before the scope existed — issue
      *    the OS answer now.
-     *  - else nothing (a plain ring waiting on the user).
+     *  - else mirror a media state that arrived before the OS scope.
      */
-    fun reconcileOnScope(terminated: Boolean, answerRequested: Boolean, answered: Boolean): ScopeReconcile =
+    fun reconcileOnScope(
+        terminated: Boolean,
+        answerRequested: Boolean,
+        answered: Boolean,
+        lastAction: ScopeAction? = null,
+    ): ScopeReconcile =
         when {
             terminated -> ScopeReconcile.DISCONNECT
             shouldAnswerOnCatchUp(answerRequested, answered) -> ScopeReconcile.ANSWER
+            lastAction == ScopeAction.SET_ACTIVE -> ScopeReconcile.SET_ACTIVE
+            lastAction == ScopeAction.SET_INACTIVE -> ScopeReconcile.SET_INACTIVE
             else -> ScopeReconcile.NONE
         }
 

@@ -273,6 +273,22 @@ class TelecomCallReducerTest {
     }
 
     @Test
+    fun `scope registration catches up to the latest media state`() {
+        assertEquals(
+            TelecomCallReducer.ScopeReconcile.SET_ACTIVE,
+            TelecomCallReducer.reconcileOnScope(false, false, false, TelecomCallReducer.ScopeAction.SET_ACTIVE),
+        )
+        assertEquals(
+            TelecomCallReducer.ScopeReconcile.SET_INACTIVE,
+            TelecomCallReducer.reconcileOnScope(false, false, true, TelecomCallReducer.ScopeAction.SET_INACTIVE),
+        )
+        assertEquals(
+            TelecomCallReducer.ScopeReconcile.DISCONNECT,
+            TelecomCallReducer.reconcileOnScope(true, false, false, TelecomCallReducer.ScopeAction.SET_ACTIVE),
+        )
+    }
+
+    @Test
     fun `the addCall block catch-up owes the OS answer only while unissued (I3)`() {
         // Requested + not yet issued → the block must issue answer() now.
         assertTrue(TelecomCallReducer.shouldAnswerOnCatchUp(answerRequested = true, answered = false))
