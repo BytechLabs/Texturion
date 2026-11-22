@@ -60,7 +60,6 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +79,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.AppAccessibilityLanguage
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.i18n.rememberReaderLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
@@ -402,13 +402,7 @@ class MainActivity : FragmentActivity() {
             // rewrites both from every /v1/me, so the mirror is never the
             // authority — only the fast answer.
             //
-            val configuration = LocalConfiguration.current
-            val deviceTag = remember(configuration) { UiLocale.deviceTag(this) }
-            val userLocale by graph.prefs.uiLocale
-                .collectAsStateWithLifecycle(initialValue = null)
-            val workspaceLocale by graph.prefs.workspaceLocale
-                .collectAsStateWithLifecycle(initialValue = null)
-            val appLocale = UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
+            val appLocale = rememberReaderLocale(graph.prefs)
             LaunchedEffect(graph) {
                 graph.prefs.uiLocale.distinctUntilChanged().collect {
                     UiLocale.applyPlatformPreference(this@MainActivity, it)

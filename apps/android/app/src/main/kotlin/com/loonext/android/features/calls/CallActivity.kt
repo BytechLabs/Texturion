@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +47,9 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
+import com.loonext.android.core.i18n.AppAccessibilityLanguage
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.rememberReaderLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.CallNotifier
@@ -166,6 +170,7 @@ class CallActivity : ComponentActivity() {
             .getOrNull() ?: run { finish(); return }
 
         setContent {
+            val locale = rememberReaderLocale(graph.prefs)
             val themePref by graph.prefs.theme
                 .collectAsStateWithLifecycle(initialValue = "system")
             val darkTheme = when (themePref) {
@@ -174,24 +179,22 @@ class CallActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             LoonextTheme(darkTheme = darkTheme) {
-                // #199 host contract for this STANDALONE activity: the call
-                // surface has zero text inputs today, so imeHost is inert -
-                // but the day a call-note or search field lands here, the
-                // host already pads it above the keyboard and the debug
-                // guard already watches it. No screen inside may add its own
-                // ime handling (ImeContractLintTest).
-                Box(Modifier.fillMaxSize().imeHost("call-activity").exposeCallTestTags()) {
-                    CallSurface(
-                        manager = manager,
-                        repo = remember { CallsRepository(graph.api) },
-                        session = session,
-                        callerName = callerName,
-                        callerNumber = callerNumber,
-                        answerOnOpen = answerOnOpen,
-                        onDismissKeyguard = ::dismissKeyguard,
-                        onOpenConversation = ::openConversationInShell,
-                        onClose = { finish() },
-                    )
+                CompositionLocalProvider(LocalAppLocale provides locale) {
+                    AppAccessibilityLanguage(locale) {
+                        Box(Modifier.fillMaxSize().imeHost("call-activity").exposeCallTestTags()) {
+                            CallSurface(
+                                manager = manager,
+                                repo = remember { CallsRepository(graph.api) },
+                                session = session,
+                                callerName = callerName,
+                                callerNumber = callerNumber,
+                                answerOnOpen = answerOnOpen,
+                                onDismissKeyguard = ::dismissKeyguard,
+                                onOpenConversation = ::openConversationInShell,
+                                onClose = { finish() },
+                            )
+                        }
+                    }
                 }
             }
         }
