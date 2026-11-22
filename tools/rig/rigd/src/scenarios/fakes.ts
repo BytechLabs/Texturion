@@ -664,8 +664,8 @@ export class FakeBrowser implements BrowserApi {
       async notifications() {
         return script.notifications ?? [];
       },
-      async hear(options: HearOptions = {}): Promise<PageHearing> {
-        hearingOptions.push(options);
+      async hear(hearOptions: HearOptions = {}): Promise<PageHearing> {
+        hearingOptions.push(hearOptions);
         const heard = script.heard ?? null;
         return {
           detection: {

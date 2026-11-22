@@ -296,7 +296,7 @@ describe("S01, the browser calls ROBOT-1", () => {
     expect(browser.actions).toEqual(["qa-w-owner dial ROBOT-1"]);
     expect(ctx.evidence.call).toMatchObject({ ids: { call_session_id: "session-1" } });
     expect(browser.hearingOptions).toEqual([
-      { answeredAt: expect.any(Number), windowStartMs: 2000, windowEndMs: 25000 },
+      { answeredAt: expect.any(Number), windowStartMs: 2000, windowEndMs: 25_000 },
     ]);
   });
 
@@ -312,7 +312,7 @@ describe("S01, the browser calls ROBOT-1", () => {
 
     await expect(S01.run(ctx)).resolves.toMatchObject({ outcome: "pass" });
     expect(browser.hearingOptions).toEqual([
-      { answeredAt: Date.parse(answeredAt), windowStartMs: 6960, windowEndMs: 25000 },
+      { answeredAt: Date.parse(answeredAt), windowStartMs: 6960, windowEndMs: 25_000 },
     ]);
     expect(ctx.evidence.robot_playback_delay_ms).toBe(6960);
   });
