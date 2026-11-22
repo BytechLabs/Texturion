@@ -995,6 +995,21 @@ for (const width of [375, 320]) {
       }
       await openAuditSurface(page, surface);
       await page.waitForTimeout(400);
+      if (surface.checkReflow) {
+        const documentWidth = await page.evaluate(async () => {
+          await document.fonts.ready;
+          return document.documentElement.scrollWidth;
+        });
+        if (documentWidth > width) {
+          problems.push({
+            theme: phone,
+            surface: surface.label,
+            kind: "REFLOW",
+            what: surface.path,
+            detail: `the document is ${documentWidth}px wide in a ${width}px viewport`,
+          });
+        }
+      }
       const faults = await page.evaluate(A11Y, true);
       for (const fault of faults) {
         if (fault.kind !== "SMALL-TAP") continue; // names/alt already covered
@@ -1091,6 +1106,7 @@ for (const kind of [
   "AUTH",
   "EMPTY",
   "DOC-SCROLL",
+  "REFLOW",
   "ESCAPED-SCOPE",
   "CONTRAST",
   "NO-NAME",

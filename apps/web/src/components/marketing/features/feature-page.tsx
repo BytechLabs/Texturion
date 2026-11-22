@@ -67,7 +67,7 @@ export function FeatureHero({
   return (
     <FrSection
       className="pt-10 md:pt-16"
-      containerClassName="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:gap-16"
+      containerClassName="grid grid-cols-1 items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:gap-16"
     >
       <div>
         {/* The sole decorative page-header mark on subpages (Law 3): the

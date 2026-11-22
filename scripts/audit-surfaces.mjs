@@ -53,6 +53,8 @@ const fixedSurfaces = [
   // lang="fr-CA".
   { path: "/fr", label: "marketing home (fr-CA)", auth: false },
   { path: "/fr/tarifs", label: "marketing pricing (fr-CA)", auth: false },
+  { path: "/features/contacts", label: "marketing contacts", auth: false, checkReflow: true },
+  { path: "/fr/contacts", label: "marketing contacts (fr-CA)", auth: false, checkReflow: true },
   // The form page and the page that makes the accessibility claims.
   { path: "/contact", label: "marketing contact (form)", auth: false },
   { path: "/legal/accessibility", label: "accessibility statement", auth: false },
