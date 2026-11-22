@@ -49,7 +49,7 @@ run_scenario() {
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-* || "$name" == customer-journeys ]]; then
+  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-* || "$name" == customer-journeys || "$name" == settings-audit ]]; then
     test_timeout=420
   fi
 
@@ -120,7 +120,7 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|customer-journeys|workspace-switch|for-you|planner|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
+  all|customer-journeys|workspace-switch|for-you|planner|settings-audit|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
 if [[ "$scenario" == for-you ]]; then
@@ -131,11 +131,7 @@ if [[ "$scenario" == workspace-switch ]]; then
   run_scenario workspace-switch LoonextQAUITests/CustomerJourneys/testWorkspace{English,French}{Light,Dark}
   exit $?
 fi
-if [[ "$scenario" == planner ]]; then
-  run_scenario planner LoonextQAUITests/CustomerJourneys/testPlanner{English,French}{Light,Dark}
-  exit $?
-fi
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys planner settings-audit; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -161,7 +157,9 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
     attachment-send) run_scenario "$name" "$ui/testPhotoLibrarySendsAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
-    customer-journeys) run_scenario "$name" "LoonextQAUITests/CustomerJourneys" || failed=1 ;;
+    customer-journeys) run_scenario "$name" LoonextQAUITests/CustomerJourneys/test{Owner,Technician,Bookkeeper,Fieldwork,Workspace,ForYou}{English,French}{Light,Dark} || failed=1 ;;
+    planner) run_scenario "$name" LoonextQAUITests/CustomerJourneys/testPlanner{English,French}{Light,Dark} || failed=1 ;;
+    settings-audit) run_scenario "$name" LoonextQAUITests/CustomerJourneys/testSettings{English,French}{Light,Dark} || failed=1 ;;
   esac
 done
 exit "$failed"

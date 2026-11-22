@@ -199,7 +199,7 @@ export function NumberCard({
       )}
       {number.status === "provisioning" && (
         <p className="mt-2 text-sm text-muted-foreground">
-          {provisioningWaitCopy(number.created_at, now)}
+          {provisioningWaitCopy(number.created_at, now, t)}
         </p>
       )}
       {number.status === "provision_failed" && (

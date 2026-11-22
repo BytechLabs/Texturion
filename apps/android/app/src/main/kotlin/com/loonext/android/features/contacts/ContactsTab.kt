@@ -825,7 +825,6 @@ private fun ContactListScreen(
                                 importMenuOpen = importMenuOpen,
                                 onImportMenuOpenChange = { importMenuOpen = it },
                                 onImport = { attestingImport = it },
-                                onExport = { exportLauncher.launch("contacts.csv") },
                             )
                         }
                     } else {
@@ -1398,7 +1397,7 @@ private fun ListFooter(
     importMenuOpen: Boolean,
     onImportMenuOpenChange: (Boolean) -> Unit,
     onImport: (ContactImportKind) -> Unit,
-    onExport: () -> Unit,
+    onExport: (() -> Unit)? = null,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (canImport) {
@@ -1443,24 +1442,19 @@ private fun ListFooter(
                 }
             }
         }
-        TextButton(
-            enabled = !exporting,
-            colors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            onClick = onExport,
-        ) {
-            Text(
-                if (exporting) {
-                    t("contactsTasks.exporting")
-                } else {
-                    t("contactsTasks.exportCsv")
-                },
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+        if (onExport != null) {
+            TextButton(
+                enabled = !exporting,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 ),
-            )
+                onClick = onExport,
+            ) {
+                Text(
+                    t(if (exporting) "contactsTasks.exporting" else "contactsTasks.exportCsv"),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                )
+            }
         }
     }
 }

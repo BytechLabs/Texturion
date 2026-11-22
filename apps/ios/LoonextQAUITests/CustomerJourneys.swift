@@ -65,6 +65,11 @@ final class CustomerJourneys: XCTestCase {
     func testPlannerFrenchLight() async throws { try await planner(.french, "light") }
     func testPlannerFrenchDark() async throws { try await planner(.french, "dark") }
 
+    func testSettingsEnglishLight() async throws { try await settings(.english, "light") }
+    func testSettingsEnglishDark() async throws { try await settings(.english, "dark") }
+    func testSettingsFrenchLight() async throws { try await settings(.french, "light") }
+    func testSettingsFrenchDark() async throws { try await settings(.french, "dark") }
+
     private func forYou(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -126,6 +131,29 @@ final class CustomerJourneys: XCTestCase {
         try verify(7)
         try reveal(options(90).element(boundBy: 1)).tap()
         try verify(90)
+    }
+
+    private func settings(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "owner", stage: "active")
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button(text("More", "Plus"))).tap()
+        shot("Settings account \(suffix)")
+        try waitFor(button(text("Settings", "Paramètres"))).tap()
+        try waitFor(button("settings-section-workspace"))
+        shot("Settings index \(suffix)")
+
+        for section in ["workspace", "team", "ai", "hours", "automaticTexts", "templates", "numbers", "calling",
+                        "usage", "billing", "payments", "notifications", "profile", "devices", "webhooks", "apiKeys",
+                        "help", "whatsNew"] {
+            try reveal(button("settings-section-\(section)")).tap()
+            let back = try waitFor(app.navigationBars.buttons.firstMatch)
+            shot("Settings \(section) \(suffix)")
+            back.tap()
+        }
     }
 
     private func planner(_ language: Language, _ theme: String) async throws {

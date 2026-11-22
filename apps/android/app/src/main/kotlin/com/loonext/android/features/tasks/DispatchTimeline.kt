@@ -10,16 +10,22 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +42,7 @@ import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TimestampFormat
-import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.SectionHeader
 import java.time.Duration
 import java.time.Instant
@@ -143,14 +149,21 @@ internal fun DispatchTimeline(
                     val movable = editable && !block.locked
                     Row(
                         Modifier.offset(x = minOf(left, maxOf(0.dp, width - blockWidth)), y = 8.dp).width(blockWidth)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
-                            .dispatchDrag("block:${block.id}", movable),
+                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { onTask(task.id) }, modifier = Modifier.weight(1f)) {
-                            Column {
+                        Column(Modifier.weight(1f)) {
+                            TextButton(onClick = { onTask(task.id) }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                                 Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = 20.dp).dispatchDrag("block:${block.id}", movable)
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (movable) Icon(Icons.Outlined.DragHandle, contentDescription = null,
+                                    modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                                 Text("${label(start)} – ${label(end)}", maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -175,12 +188,14 @@ internal fun DispatchTimeline(
                                     resized = maxOf(start.plusSeconds(5 * 60), minOf(next, dayEnd, start.plusSeconds(12 * 3600)))
                                 }
                             } else Modifier
-                            PaperIconButton(
-                                icon = if (movable) Icons.Outlined.DragHandle else Icons.Outlined.Lock,
-                                contentDescription = t(if (movable) "contactsTasks.dispatchResizeBlock" else "contactsTasks.dispatchEditBlock"),
-                                modifier = resize,
-                                onClick = { onEdit(task, block) },
-                            )
+                            IconButton(onClick = { onEdit(task, block) }, modifier = resize.size(44.dp)) {
+                                Icon(
+                                    if (movable) Icons.Outlined.DragHandle else Icons.Outlined.Lock,
+                                    contentDescription = t(if (movable) "contactsTasks.dispatchResizeBlock" else "contactsTasks.dispatchEditBlock"),
+                                    modifier = Modifier.size(18.dp).rotate(if (movable) 90f else 0f),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
                         }
                     }
                 }
@@ -206,6 +221,7 @@ private fun DispatchSlotTarget(
             override fun onEnded(event: DragAndDropEvent) = highlight(null)
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 val text = event.toAndroidDragEvent().clipData.getItemAt(0).text?.toString() ?: return false
+                highlight(null)
                 return drop(text)
             }
         }
