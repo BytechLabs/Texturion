@@ -398,65 +398,77 @@ private struct QuoteStripRow: View {
         // changes billing currency must not restate old prices.
         let money = quote.amountLabel(locale: appLocale)
 
-        HStack(spacing: 6) {
-            Image(systemName: "doc.text")
-                .foregroundStyle(BrandColor.muted500)
-            Text(money)
-                .font(.golos(13, weight: .medium))
-            Text(quote.description)
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted500)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            Text(AppStrings.translate(appLocale, QuoteStatus.keys[status] ?? "quotes.statusDraft"))
-                .font(.golos(13))
-                .foregroundStyle(statusTint(status))
-            if status == QuoteStatus.draft, canSend {
-                // The amount rides on the button: this is the act the customer
-                // sees, and it binds a price.
-                Button(
-                    sending
-                        ? AppStrings.translate(appLocale, "quotes.sending")
-                        : AppStrings.translate(appLocale, "quotes.sendFor", ["amount": money])
-                ) {
-                    onSend()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(BrandColor.muted500)
+                Text(money)
+                    .font(.golos(13, weight: .medium))
+                Text(quote.description)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(AppStrings.translate(appLocale, QuoteStatus.keys[status] ?? "quotes.statusDraft"))
+                    .font(.golos(13))
+                    .foregroundStyle(statusTint(status))
+            }
+            if (status == QuoteStatus.draft && canSend) || canWithdraw || canDecline || canUndo || canEdit || canDelete {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { actions(status: status, money: money) }
+                    VStack(alignment: .leading, spacing: 4) { actions(status: status, money: money) }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actions(status: String, money: String) -> some View {
+        if status == QuoteStatus.draft, canSend {
+            // The amount rides on the button: this is the act the customer
+            // sees, and it binds a price.
+            Button(
+                sending
+                    ? AppStrings.translate(appLocale, "quotes.sending")
+                    : AppStrings.translate(appLocale, "quotes.sendFor", ["amount": money])
+            ) {
+                onSend()
+            }
+            .font(.golos(13, weight: .semibold))
+            .foregroundStyle(BrandColor.olive)
+            .disabled(sending)
+        }
+        if canWithdraw {
+            Button(AppStrings.translate(appLocale, "quotes.withdraw"), action: onWithdraw)
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
                 .disabled(sending)
-            }
-            if canWithdraw {
-                Button(AppStrings.translate(appLocale, "quotes.withdraw"), action: onWithdraw)
-                    .font(.golos(13, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                    .disabled(sending)
-            }
-            if canDecline {
-                Button(AppStrings.translate(appLocale, "quotes.markDeclined"), action: onDecline)
-                    .font(.golos(13, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                    .disabled(sending)
-            }
-            if canUndo {
-                Button(AppStrings.translate(appLocale, "quotes.undoAcceptance"), action: onUndo)
-                    .font(.golos(13, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                    .disabled(sending)
-            }
-            if canEdit {
-                Button(action: onEdit) {
-                    Image(systemName: "pencil")
-                }
-                .accessibilityLabel(AppStrings.translate(appLocale, "quotes.editDraft"))
+        }
+        if canDecline {
+            Button(AppStrings.translate(appLocale, "quotes.markDeclined"), action: onDecline)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
                 .disabled(sending)
-            }
-            if canDelete {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                }
-                .accessibilityLabel(AppStrings.translate(appLocale, "quotes.deleteDraft"))
+        }
+        if canUndo {
+            Button(AppStrings.translate(appLocale, "quotes.undoAcceptance"), action: onUndo)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
                 .disabled(sending)
+        }
+        if canEdit {
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
             }
+            .accessibilityLabel(AppStrings.translate(appLocale, "quotes.editDraft"))
+            .disabled(sending)
+        }
+        if canDelete {
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .accessibilityLabel(AppStrings.translate(appLocale, "quotes.deleteDraft"))
+            .disabled(sending)
         }
     }
 

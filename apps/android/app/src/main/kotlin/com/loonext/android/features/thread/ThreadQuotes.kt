@@ -2,6 +2,8 @@ package com.loonext.android.features.thread
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -364,6 +366,7 @@ fun ThreadQuotes(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuoteRow(
     quote: Quote,
@@ -386,73 +389,80 @@ private fun QuoteRow(
     // billing currency must not restate old prices.
     val money = formatMoney(quote.amount_cents, quote.money, locale = LocalAppLocale.current)
 
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            Icons.Outlined.Description,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(money, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Text(
-            quote.description,
-            fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            t(QUOTE_STATUS_KEYS[status] ?: "quotes.statusDraft"),
-            fontSize = 13.sp,
-            color = when (status) {
-                QuoteStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
-                QuoteStatus.EXPIRED, QuoteStatus.DECLINED, QuoteStatus.WITHDRAWN ->
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-        )
-        if (status == QuoteStatus.DRAFT && canSend) {
-            // The amount rides on the button: this is the act the customer
-            // sees, and it binds a price.
-            TextButton(onClick = onSend, enabled = !sending) {
-                Icon(
-                    Icons.Outlined.Send,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp),
-                )
-                Text(
-                    if (sending) t("quotes.sending") else t("quotes.sendFor", "amount" to money),
-                    fontSize = 13.sp,
-                )
-            }
+    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Description,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(money, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(
+                quote.description,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                t(QUOTE_STATUS_KEYS[status] ?: "quotes.statusDraft"),
+                fontSize = 13.sp,
+                color = when (status) {
+                    QuoteStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
+                    QuoteStatus.EXPIRED, QuoteStatus.DECLINED, QuoteStatus.WITHDRAWN ->
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+            )
         }
-        if (canWithdraw) {
-            TextButton(onClick = { onDecision(QuoteDecision.Withdraw) }) {
-                Text(t("quotes.withdraw"), fontSize = 13.sp)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (status == QuoteStatus.DRAFT && canSend) {
+                // The amount rides on the button: this is the act the customer
+                // sees, and it binds a price.
+                TextButton(onClick = onSend, enabled = !sending) {
+                    Icon(
+                        Icons.Outlined.Send,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
+                    Text(
+                        if (sending) t("quotes.sending") else t("quotes.sendFor", "amount" to money),
+                        fontSize = 13.sp,
+                    )
+                }
             }
-        }
-        if (canDecline) {
-            TextButton(onClick = { onDecision(QuoteDecision.Decline) }) {
-                Text(t("quotes.markDeclined"), fontSize = 13.sp)
+            if (canWithdraw) {
+                TextButton(onClick = { onDecision(QuoteDecision.Withdraw) }) {
+                    Text(t("quotes.withdraw"), fontSize = 13.sp)
+                }
             }
-        }
-        if (canUndo) {
-            TextButton(onClick = { onDecision(QuoteDecision.Undo) }) {
-                Text(t("quotes.undoAcceptance"), fontSize = 13.sp)
+            if (canDecline) {
+                TextButton(onClick = { onDecision(QuoteDecision.Decline) }) {
+                    Text(t("quotes.markDeclined"), fontSize = 13.sp)
+                }
             }
-        }
-        if (canEdit) {
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Outlined.Edit, contentDescription = t("quotes.editDraft"))
+            if (canUndo) {
+                TextButton(onClick = { onDecision(QuoteDecision.Undo) }) {
+                    Text(t("quotes.undoAcceptance"), fontSize = 13.sp)
+                }
             }
-        }
-        if (canDelete) {
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Outlined.DeleteOutline, contentDescription = t("quotes.deleteDraft"))
+            if (canEdit) {
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Outlined.Edit, contentDescription = t("quotes.editDraft"))
+                }
+            }
+            if (canDelete) {
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = t("quotes.deleteDraft"))
+                }
             }
         }
     }

@@ -108,103 +108,107 @@ function QuoteRow({
   const isDraft = quote.effective_status === "draft";
 
   return (
-    <div className="flex items-center gap-2 py-1.5 text-[13px]">
-      <FileText
-        className="size-3.5 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <span className="tabular-nums font-medium">{amount}</span>
-      <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        {quote.description}
-      </span>
-      <span
-        className={cn(
-          "shrink-0",
-          quote.effective_status === "accepted"
-            ? "text-success"
-            : (quote.effective_status === "expired" ||
-                quote.effective_status === "declined" ||
-                quote.effective_status === "withdrawn"
-              ? "text-muted-foreground"
-              : "text-foreground"),
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-[13px]">
+      <div className="flex min-w-0 grow basis-48 items-center gap-2">
+        <FileText
+          className="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span className="shrink-0 tabular-nums font-medium">{amount}</span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {quote.description}
+        </span>
+        <span
+          className={cn(
+            "shrink-0",
+            quote.effective_status === "accepted"
+              ? "text-success"
+              : (quote.effective_status === "expired" ||
+                  quote.effective_status === "declined" ||
+                  quote.effective_status === "withdrawn"
+                ? "text-muted-foreground"
+                : "text-foreground"),
+          )}
+        >
+          {t(QUOTE_STATUS_KEYS[quote.effective_status])}
+        </span>
+      </div>
+      <div className="flex max-w-full flex-wrap items-center gap-1 empty:hidden">
+        {/* #287 — the loop the issue says makes both features worth more than
+            either alone: a price the customer has already agreed to, taken
+            without anybody retyping it. Only on an ACCEPTED quote, because
+            asking for money against one nobody answered is the ask this product
+            does not make. */}
+        {quote.effective_status === "accepted" && canSend && (
+          <button
+            type="button"
+            onClick={onAskForPayment}
+            className="tap-target inline-flex max-w-full items-center gap-1 text-left rounded-app-ctrl px-2 text-[13px] font-medium text-primary hover:underline"
+          >
+            {t("quotes.askForPayment")}
+          </button>
         )}
-      >
-        {t(QUOTE_STATUS_KEYS[quote.effective_status])}
-      </span>
-      {/* #287 — the loop the issue says makes both features worth more than
-          either alone: a price the customer has already agreed to, taken
-          without anybody retyping it. Only on an ACCEPTED quote, because
-          asking for money against one nobody answered is the ask this product
-          does not make. */}
-      {quote.effective_status === "accepted" && canSend && (
-        <button
-          type="button"
-          onClick={onAskForPayment}
-          className="tap-target inline-flex shrink-0 items-center gap-1 rounded-app-ctrl px-2 text-[13px] font-medium text-primary hover:underline"
-        >
-          {t("quotes.askForPayment")}
-        </button>
-      )}
-      {canSend && (quote.allowed_actions?.includes("send") ?? isDraft) && (
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={sending}
-          /* The amount rides on the button: this is the act the customer sees,
-             and it binds a price. */
-          className="tap-target inline-flex shrink-0 items-center gap-1 rounded-app-ctrl px-2 text-[13px] font-medium text-primary hover:underline disabled:opacity-60"
-        >
-          <Send className="size-3.5" aria-hidden="true" />
-          {sending ? t("quotes.sending") : t("quotes.sendFor", { amount })}
-        </button>
-      )}
-      {canSend && quote.allowed_actions?.includes("withdraw") && (
-        <button
-          type="button"
-          onClick={() => onDecision("withdraw")}
-          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
-        >
-          {t("quotes.withdraw")}
-        </button>
-      )}
-      {canSend && quote.allowed_actions?.includes("decline") && (
-        <button
-          type="button"
-          onClick={() => onDecision("decline")}
-          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
-        >
-          {t("quotes.markDeclined")}
-        </button>
-      )}
-      {quote.allowed_actions?.includes("undo_acceptance") && (
-        <button
-          type="button"
-          onClick={() => onDecision("undo-acceptance")}
-          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
-        >
-          {t("quotes.undoAcceptance")}
-        </button>
-      )}
-      {canSend && quote.allowed_actions?.includes("edit") && (
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={t("quotes.editDraft")}
-          className="tap-target rounded-app-ctrl px-2 text-primary"
-        >
-          <Pencil className="size-3.5" aria-hidden />
-        </button>
-      )}
-      {canSend && quote.allowed_actions?.includes("delete") && (
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label={t("quotes.deleteDraft")}
-          className="tap-target rounded-app-ctrl px-2 text-primary"
-        >
-          <Trash2 className="size-3.5" aria-hidden />
-        </button>
-      )}
+        {canSend && (quote.allowed_actions?.includes("send") ?? isDraft) && (
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={sending}
+            /* The amount rides on the button: this is the act the customer sees,
+               and it binds a price. */
+            className="tap-target inline-flex max-w-full items-center gap-1 text-left rounded-app-ctrl px-2 text-[13px] font-medium text-primary hover:underline disabled:opacity-60"
+          >
+            <Send className="size-3.5 shrink-0" aria-hidden="true" />
+            {sending ? t("quotes.sending") : t("quotes.sendFor", { amount })}
+          </button>
+        )}
+        {canSend && quote.allowed_actions?.includes("withdraw") && (
+          <button
+            type="button"
+            onClick={() => onDecision("withdraw")}
+            className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+          >
+            {t("quotes.withdraw")}
+          </button>
+        )}
+        {canSend && quote.allowed_actions?.includes("decline") && (
+          <button
+            type="button"
+            onClick={() => onDecision("decline")}
+            className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+          >
+            {t("quotes.markDeclined")}
+          </button>
+        )}
+        {quote.allowed_actions?.includes("undo_acceptance") && (
+          <button
+            type="button"
+            onClick={() => onDecision("undo-acceptance")}
+            className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+          >
+            {t("quotes.undoAcceptance")}
+          </button>
+        )}
+        {canSend && quote.allowed_actions?.includes("edit") && (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={t("quotes.editDraft")}
+            className="tap-target rounded-app-ctrl px-2 text-primary"
+          >
+            <Pencil className="size-3.5" aria-hidden />
+          </button>
+        )}
+        {canSend && quote.allowed_actions?.includes("delete") && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={t("quotes.deleteDraft")}
+            className="tap-target rounded-app-ctrl px-2 text-primary"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
