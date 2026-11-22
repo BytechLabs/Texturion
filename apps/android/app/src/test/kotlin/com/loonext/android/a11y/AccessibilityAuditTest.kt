@@ -29,9 +29,11 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -143,6 +145,17 @@ class AccessibilityAuditTest(private val fontScale: Float) {
                 conversation("c2", null, unread = false, snippet = "Thanks, payment sent.", closed = true),
             ),
         )
+    }
+
+    @Test fun `compact inbox list`() {
+        show {
+            LoonextTheme {
+                InboxAuditBody(listOf(conversation("c1", "Dana Whitcomb", true, "Can you come by Tuesday morning?")))
+            }
+        }
+        compose.onNode(hasContentDescription("Display options", substring = true) and hasClickAction()).performClick()
+        compose.onNode(hasText("Compact") and hasClickAction()).performClick()
+        report("compact-inbox")
     }
 
     @Test fun `the status filter says which one is on`() {

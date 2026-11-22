@@ -27,17 +27,16 @@ import { LoadError } from "@/components/ui/load-error";
 
 import { BulkBar } from "./bulk-bar";
 import { useInboxShortcuts } from "./use-inbox-shortcuts";
-import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
+import { ConversationRow } from "./conversation-row";
 import {
   ActivationEmptyState,
   FilteredEmptyState,
   InboxListSkeleton,
 } from "./empty-states";
 
-/** Vertical gap between elevated rows (mockup .rows gap). The virtualizer slot
- * is the row box + this gap so absolute offsets leave air between cards. */
 const ROW_GAP = 4;
-const ROW_SLOT = ROW_HEIGHT + ROW_GAP;
+const COMPACT_ROW_ESTIMATE = 56;
+const PREVIEW_ROW_ESTIMATE = 80;
 
 /**
  * FLIP the rows that moved (G4: realtime re-sort animated, subtle). Runs
@@ -130,11 +129,13 @@ function useRowExit(
 }
 
 export function ConversationList({
+  compact,
   filters,
   hasUrlFilters,
   activeConversationId,
   listQuery = "",
 }: {
+  compact: boolean;
   filters: ConversationFilters;
   hasUrlFilters: boolean;
   activeConversationId: string | null;
@@ -220,7 +221,8 @@ export function ConversationList({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_SLOT,
+    estimateSize: () => compact ? COMPACT_ROW_ESTIMATE : PREVIEW_ROW_ESTIMATE,
+    gap: ROW_GAP,
     overscan: 8,
     getItemKey: (index) => rows[index]?.id ?? index,
   });
@@ -378,6 +380,7 @@ export function ConversationList({
               aria-posinset={item.index + 1}
               data-index={item.index}
               ref={(el) => {
+                virtualizer.measureElement(el);
                 if (el) rowElements.current.set(row.id, el);
                 else rowElements.current.delete(row.id);
               }}
@@ -385,6 +388,7 @@ export function ConversationList({
               style={{ transform: `translateY(${item.start}px)` }}
             >
               <ConversationRow
+                compact={compact}
                 conversation={row}
                 active={row.id === activeConversationId}
                 cursor={row.id === shortcuts.cursorId}
@@ -432,6 +436,7 @@ export function ConversationList({
             style={{ transform: `translateY(${ghost.top}px)` }}
           >
             <ConversationRow
+              compact={compact}
               conversation={ghost.row}
               active={false}
               spamView={filters.is_spam === true}

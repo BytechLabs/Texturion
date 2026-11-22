@@ -41,10 +41,6 @@ import { deferralReturnLabel } from "../thread/snooze-menu";
 import { avatarColorClass } from "../shell/avatar-color";
 import { useMemberNames } from "./member-avatar";
 
-/** The fixed row height the virtualizer estimates (avatar + name + 2-line
- * preview + a tag row). Keep in sync with the row's box in ConversationRow. */
-export const ROW_HEIGHT = 96;
-
 interface Snippet {
   direction: MessageDirection;
   body: string;
@@ -120,43 +116,30 @@ function snippetText(snippet: Snippet): string {
   return body;
 }
 
-/** A tag chip (mockup .chip): a small rounded pill. The first tag reads as the
- * petrol "emphasis" chip; the rest are quiet stone chips. */
-function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
+function TagChip({ tag }: { tag: Tag }) {
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-[2.5px] text-[11px] font-semibold leading-none",
-        emphasis
-          ? "border-app-tint-line bg-app-tint text-app-olive-deep"
-          : "border-transparent bg-app-line-soft text-app-muted",
-      )}
+      className="max-w-full truncate rounded-full bg-app-line-soft px-2 py-0.5 text-[11px] font-medium leading-tight text-app-muted"
     >
       {tag.name}
     </span>
   );
 }
 
-/**
- * The APP-SHELL-REDESIGN inbox row (mockup .row): a colored-initial avatar, the
- * contact name + a 2-line preview + a tabular time, an unread petrol dot, and up
- * to two tag chips. Differentiation is calm and hairline-only (PORTAL-UX: no
- * shadows): hover fills the row (stone tint + soft hairline); the SELECTED row
- * lifts to a white card with a solid hairline border (NOT a left accent bar).
- * All behavior (the /inbox/:id link, active state, spam view) is preserved.
- */
 // Memoized: the virtualized inbox list re-renders on every scroll + #11 FLIP
 // animation, but each cached `conversation` object + the boolean props are
 // referentially stable, so a shallow compare skips re-rendering every row.
 export const ConversationRow = memo(ConversationRowView);
 
 function ConversationRowView({
+  compact = false,
   conversation,
   active,
   cursor = false,
   spamView,
   listQuery = "",
 }: {
+  compact?: boolean;
   conversation: ConversationListItem;
   active: boolean;
   /** #694: the keyboard cursor (j/k) is on this row. */
@@ -198,7 +181,8 @@ function ConversationRowView({
     : undefined;
 
   const name = contactDisplayName(conversation.contact);
-  const tags = conversation.tags.slice(0, 2);
+  const tags = compact ? [] : conversation.tags.slice(0, 2);
+  const visibleAssignee = compact ? undefined : assigneeName;
   // #293: only in the Snoozed view does this row exist at all — but it also
   // survives a mid-session return, and a row that came back with no explanation
   // is the thing that makes people stop trusting the list.
@@ -253,11 +237,11 @@ function ConversationRowView({
     <>
     <RecordContextMenu actions={actions}>
     <div
-      style={{ height: ROW_HEIGHT }}
       className={cn(
-        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out",
+        "relative flex min-h-11 items-start gap-3 rounded-app-card border px-3 transition-colors duration-150 ease-out",
+        compact ? "py-2" : "py-3",
         active
-          ? "border-app-line bg-app-paper"
+          ? "border-app-tint-line bg-app-tint"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
         cursor && "ring-2 ring-ring",
       )}
@@ -266,7 +250,8 @@ function ConversationRowView({
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-olive-deep",
+          "grid shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-olive-deep",
+          compact ? "size-8" : "size-10",
           avatarColorClass(conversation.contact_id || name),
         )}
       >
@@ -293,7 +278,8 @@ function ConversationRowView({
           >
             {name}
           </Link>
-          <span aria-hidden className="flex shrink-0 items-center gap-1">
+          <span aria-hidden className="flex shrink-0 items-center gap-1.5">
+            {unread && <span className="size-1.5 rounded-full bg-primary" />}
             {/* #414 ask 2 — "visibly flagged in the inbox". A fourth quiet
                 icon beside the pin and the clip would blend into the row's
                 own rhythm, which is the opposite of what this state needs.
@@ -322,17 +308,14 @@ function ConversationRowView({
             <Timestamp
               at={conversation.last_message_at}
               style="short"
-              className="text-[11.5px] text-app-muted-2"
+              className={cn("text-[11.5px]", active ? "text-app-muted" : "text-app-muted-2")}
             />
           </span>
         </span>
 
-        <span
+        {(previewText || deliveryFailure || snippet?.hasAttachments || snippet?.direction === "note") && <span
           aria-hidden
-          // #61: --app-muted now clears AA on the white active card too
-          // (5.87:1), so the old hardcoded darker hex for the active row is
-          // gone — one token, both states, both themes.
-          className="mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45] text-app-muted"
+          className="mt-0.5 flex items-start gap-1 text-[13px] leading-snug text-app-muted"
         >
           {deliveryFailure && (
             <span className="flex shrink-0 items-center gap-1 font-medium text-destructive">
@@ -358,13 +341,13 @@ function ConversationRowView({
               aria-hidden
             />
           )}
-          <span className="line-clamp-2 min-w-0 break-words">
+          <span className={cn("min-w-0 break-words", compact ? "line-clamp-1" : "line-clamp-2")}>
             {previewText}
           </span>
-        </span>
+        </span>}
 
-        {(tags.length > 0 || spamView || assigneeName || snoozedUntil) && (
-          <span aria-hidden className="mt-[7px] flex flex-wrap items-center gap-[5px]">
+        {(spamView || snoozedUntil || tags.length > 0 || visibleAssignee) && (
+          <span aria-hidden className="mt-1.5 flex flex-wrap items-center gap-1">
             {/* The return time IS the row's reason for being in this view, so
                 it leads — "Snoozed" without a when is the vanishing act #293
                 calls worse than the problem. */}
@@ -387,31 +370,24 @@ function ConversationRowView({
                 {t("inbox.spamLabel")}
               </span>
             )}
-            {tags.map((tag, i) => (
-              <TagChip key={tag.id} tag={tag} emphasis={i === 0 && !spamView} />
+            {tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
             ))}
-            {assigneeName && (
+            {visibleAssignee && (
               // The chip shows only initials, so pointer users read the name
               // from its tooltip; it sits above the stretched link so the
               // tooltip can open. Screen readers hear it in the row's label.
               <span
-                title={t("inbox.rowAssignedToTitle", { name: assigneeName })}
+                title={t("inbox.rowAssignedToTitle", { name: visibleAssignee })}
                 className="relative z-[1] inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
               >
-                {avatarInitials(assigneeName)}
+                {avatarInitials(visibleAssignee)}
               </span>
             )}
           </span>
         )}
       </span>
 
-      {/* Unread petrol dot, top-right (mockup .unread). */}
-      {unread && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute right-3 top-[14px] size-2 rounded-full bg-primary"
-        />
-      )}
     </div>
     </RecordContextMenu>
     {dialogs}

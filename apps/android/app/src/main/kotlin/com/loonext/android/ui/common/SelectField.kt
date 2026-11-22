@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -57,6 +58,7 @@ data class SelectOption<T>(
  *
  * [label] is the question the field answers, spoken with the answer
  * ("Role: Member") for a screen reader.
+ * [triggerIcon] uses a paper button for choices in a screen header.
  */
 @Composable
 fun <T> SelectField(
@@ -68,21 +70,32 @@ fun <T> SelectField(
     placeholder: String = "",
     label: String? = null,
     fillWidth: Boolean = false,
+    triggerIcon: ImageVector? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val chosen = options.firstOrNull { it.value == selected }
+    val text = chosen?.label ?: placeholder
     Box(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(if (fillWidth) Modifier.weight(1f) else Modifier) {
-                SelectTrigger(
-                    text = chosen?.label ?: placeholder,
-                    label = label,
-                    enabled = enabled,
-                    fillWidth = fillWidth,
-                    onClick = { open = true },
-                )
+        if (triggerIcon != null) {
+            PaperIconButton(
+                icon = triggerIcon,
+                contentDescription = if (label == null) text else "$label: $text",
+                enabled = enabled,
+                onClick = { open = true },
+            )
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(if (fillWidth) Modifier.weight(1f) else Modifier) {
+                    SelectTrigger(
+                        text = text,
+                        label = label,
+                        enabled = enabled,
+                        fillWidth = fillWidth,
+                        onClick = { open = true },
+                    )
+                }
+                chosen?.copyValue?.let { CopyPhoneNumberButton(it) }
             }
-            chosen?.copyValue?.let { CopyPhoneNumberButton(it) }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->

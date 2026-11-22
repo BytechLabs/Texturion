@@ -36,7 +36,7 @@ struct SearchField: View {
                 .font(.scaled(IconSize.standard, weight: .medium))
                 .foregroundStyle(BrandColor.muted700)
                 .accessibilityHidden(true)
-            TextField(placeholder, text: $query)
+            TextField(placeholder, text: $query, prompt: Text(placeholder).foregroundStyle(BrandColor.muted700))
                 .font(.golos(13.5))
                 .foregroundStyle(BrandColor.ink)
                 .textInputAutocapitalization(.never)

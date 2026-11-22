@@ -38,6 +38,12 @@ object InboxStrings : AppStrings.Section {
     override val en = mapOf(
         // --- The list's own chrome (InboxTab.kt) ------------------------------
         "inbox.title" to "Inbox",
+        "inbox.displayOptions" to "Display options",
+        "inbox.displayPreview" to "Preview",
+        "inbox.displayCompact" to "Compact",
+        "inbox.displaySearch" to "Search",
+        "inbox.displayTags" to "Tags: {tags}",
+        "inbox.rowAssignedToTitle" to "Assigned to {name}",
         "inbox.unreadChip" to "{count} unread",
         "inbox.scheduledOneAria" to "1 text waiting to send",
         "inbox.scheduledManyAria" to "{count} texts waiting to send",
@@ -455,6 +461,12 @@ object InboxStrings : AppStrings.Section {
     override val frCA = mapOf(
         // --- The list's own chrome --------------------------------------------
         "inbox.title" to "Boîte de réception",
+        "inbox.displayOptions" to "Options d’affichage",
+        "inbox.displayPreview" to "Aperçu",
+        "inbox.displayCompact" to "Compact",
+        "inbox.displaySearch" to "Rechercher",
+        "inbox.displayTags" to "Étiquettes : {tags}",
+        "inbox.rowAssignedToTitle" to "Assignée à {name}",
         "inbox.unreadChip" to "{count} non lues",
         "inbox.scheduledOneAria" to "1 texto en attente d'envoi",
         "inbox.scheduledManyAria" to "{count} textos en attente d'envoi",

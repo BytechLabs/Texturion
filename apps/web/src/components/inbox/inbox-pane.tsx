@@ -33,7 +33,13 @@ import { SearchResults } from "./search-results";
  * now lives app-wide in the shell.) URL owns every filter (G3); `router.replace`
  * keeps back-button history clean while filtering.
  */
-export function InboxPane() {
+export function InboxPane({
+  compact,
+  displayMenu,
+}: {
+  compact: boolean;
+  displayMenu: React.ReactNode;
+}) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
@@ -101,12 +107,14 @@ export function InboxPane() {
         className="px-4 pb-2 pt-4"
         title={t("inbox.title")}
         secondary={
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/inbox/scheduled">
-              <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
-              {t("shell.navScheduled")}
-            </Link>
-          </Button>
+          <>
+            <Button asChild size="icon-sm" variant="ghost" className="size-11 md:size-8">
+              <Link href="/inbox/scheduled" aria-label={t("shell.navScheduled")} title={t("shell.navScheduled")}>
+                <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
+              </Link>
+            </Button>
+            {displayMenu}
+          </>
         }
         primary={
           <Button asChild size="sm">
@@ -129,6 +137,7 @@ export function InboxPane() {
             <GettingStartedCard />
           </div>
           <ConversationList
+            compact={compact}
             filters={toConversationFilters({ ...filters, line: filters.line ?? selected?.id }, userId)}
             hasUrlFilters={hasActiveFilters(filters)}
             activeConversationId={activeConversationId}
