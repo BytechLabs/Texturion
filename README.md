@@ -1,6 +1,6 @@
 # Conversation navigation before and after
 
-Screenshots for [#1081](https://github.com/BytechLabs/Texturion/issues/1081). Web and Android baselines use the signed-in QA rig. Android screenshots mask the rig's phone numbers. The web candidate uses seeded local data and the iOS Simulator uses its own fixtures.
+Screenshots for [#1081](https://github.com/BytechLabs/Texturion/issues/1081). Web and Android baselines use the signed-in QA rig. Android screenshots mask the rig's phone numbers. The web candidate uses seeded local data and the iOS Simulator uses its own fixtures. The web and Android candidate captures include the inbox display options from #1229.
 
 ## Web
 
@@ -34,7 +34,7 @@ API 36 at 320 × 640 and 840 × 920. [Clipboard confirmation](android/after/en-C
 
 ## iOS
 
-iPhone 17 Pro Simulator. The app targets iPhone. [Baseline workflow](https://github.com/BytechLabs/Texturion/actions/runs/44972616852) · [Candidate workflow](https://github.com/BytechLabs/Texturion/actions/runs/45054047216).
+iPhone 17 Pro Simulator. The app targets iPhone. [Baseline workflow](https://github.com/BytechLabs/Texturion/actions/runs/44972616852) · [Candidate workflow](https://github.com/BytechLabs/Texturion/actions/runs/45062336935).
 
 | Language | Theme | Before |
 | --- | --- | --- |
