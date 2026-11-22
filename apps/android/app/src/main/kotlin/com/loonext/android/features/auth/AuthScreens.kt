@@ -189,6 +189,21 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
     private var confirmationEmail: String? = null
     private var confirmationCooldown: Job? = null
 
+    fun resetScreenState(): Boolean {
+        if (_state.value.busy || _state.value.awaitingCaptcha) return false
+        confirmationCooldown?.cancel()
+        confirmationCooldown = null
+        confirmationEmail = null
+        _state.value = _state.value.copy(
+            error = null,
+            confirmationSent = false,
+            confirmationResendReady = false,
+            confirmationResent = false,
+            resetSent = false,
+        )
+        return true
+    }
+
     fun signIn(email: String, password: String, locale: String) =
         attempt(PendingAuthAction.SignIn(email.trim(), password), captchaToken = null, locale)
 
@@ -370,6 +385,10 @@ fun AuthFlow(viewModel: AuthViewModel) {
     val context = LocalContext.current
     val locale = LocalAppLocale.current
 
+    fun showScreen(next: AuthScreen) {
+        if (viewModel.resetScreenState()) screen = next
+    }
+
     // OAuth redirects (buffered across process death by AuthCallbacks) land
     // in the ViewModel while this signed-out surface is mounted.
     DisposableEffect(viewModel) {
@@ -420,8 +439,8 @@ fun AuthFlow(viewModel: AuthViewModel) {
                 error = state.error,
                 onSubmit = { email, password -> viewModel.signIn(email, password, locale) },
                 onGoogle = { viewModel.signInWithGoogle(locale) },
-                onForgot = { screen = AuthScreen.Forgot },
-                onSignUp = { screen = AuthScreen.SignUp },
+                onForgot = { showScreen(AuthScreen.Forgot) },
+                onSignUp = { showScreen(AuthScreen.SignUp) },
             )
 
             AuthScreen.SignUp -> SignUpForm(
@@ -435,7 +454,7 @@ fun AuthFlow(viewModel: AuthViewModel) {
                     viewModel.signUp(name, email, password, locale)
                 },
                 onGoogle = { viewModel.signInWithGoogle(locale) },
-                onLogin = { screen = AuthScreen.Login },
+                onLogin = { showScreen(AuthScreen.Login) },
             )
 
             AuthScreen.Forgot -> ForgotForm(
@@ -443,7 +462,7 @@ fun AuthFlow(viewModel: AuthViewModel) {
                 error = state.error,
                 resetSent = state.resetSent,
                 onSubmit = { email -> viewModel.sendReset(email, locale) },
-                onLogin = { screen = AuthScreen.Login },
+                onLogin = { showScreen(AuthScreen.Login) },
             )
         }
     }
