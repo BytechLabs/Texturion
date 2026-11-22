@@ -43,6 +43,7 @@ export function RoleSelect({
   onValueChange,
   t,
   disabled,
+  className = "w-full sm:w-40",
   ariaLabel,
   id,
   "aria-describedby": ariaDescribedBy,
@@ -52,6 +53,7 @@ export function RoleSelect({
   onValueChange: (role: AssignableRole) => void;
   t: Translate;
   disabled?: boolean;
+  className?: string;
   ariaLabel?: string;
   id?: string;
   "aria-describedby"?: string;
@@ -73,7 +75,7 @@ export function RoleSelect({
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       disabled={disabled}
-      className="w-full sm:w-40"
+      className={className}
     />
   );
 }

@@ -116,31 +116,33 @@ function MemberRow({
   }
 
   return (
-    <div className="flex items-center gap-3 py-3">
-      <Avatar className="size-8">
-        <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-          {avatarInitials(name)}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
-          {name}
-          {isSelf && (
-            <span className="text-muted-foreground">
-              {" "}
-              {t("appShell.teamYouSuffix")}
-            </span>
-          )}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {deactivated
-            ? t("appShell.teamDeactivatedAgo", {
-                when: formatTimestamp(member.deactivated_at!, { style: "long", t }),
-              })
-            : t("appShell.teamJoinedAgo", {
-                when: formatTimestamp(member.created_at, { style: "long", t }),
-              })}
-        </p>
+    <div className="flex flex-wrap items-center gap-3 py-3">
+      <div className="flex min-w-0 basis-full items-center gap-3 sm:grow sm:basis-40">
+        <Avatar className="size-8">
+          <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
+            {avatarInitials(name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">
+            {name}
+            {isSelf && (
+              <span className="text-muted-foreground">
+                {" "}
+                {t("appShell.teamYouSuffix")}
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {deactivated
+              ? t("appShell.teamDeactivatedAgo", {
+                  when: formatTimestamp(member.deactivated_at!, { style: "long", t }),
+                })
+              : t("appShell.teamJoinedAgo", {
+                  when: formatTimestamp(member.created_at, { style: "long", t }),
+                })}
+          </p>
+        </div>
       </div>
       {/* #348: the access model was complete and entirely invisible. Quiet and
           text-only — it answers a question, it is not an action, and the row
@@ -168,6 +170,7 @@ function MemberRow({
           value={member.role}
           t={t}
           ariaLabel={t("appShell.teamRoleForAria", { name })}
+          className="w-36 max-w-full sm:w-40"
           onValueChange={(role) => {
             // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
             //

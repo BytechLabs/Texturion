@@ -164,6 +164,56 @@ async function checkShortPaymentActions(inbox, api) {
   }
 }
 
+async function checkNarrowTeamMember(page, web, api) {
+  const team = await page.context().newPage();
+  const name = "QA-A Warehouse Technician";
+  try {
+    await team.route(new URL("/v1/members", api).href, async (route) => {
+      const response = await route.fetch();
+      if (!response.ok()) {
+        await route.fulfill({ response });
+        return;
+      }
+      const members = await response.json();
+      members.data.push({
+        id: randomUUID(),
+        user_id: randomUUID(),
+        role: "member",
+        deactivated_at: null,
+        created_at: new Date().toISOString(),
+        display_name: name,
+      });
+      await route.fulfill({ response, json: members });
+    });
+
+    await team.setViewportSize({ width: 320, height: 640 });
+    await team.goto(new URL("/settings/team", web).href);
+    const role = team.getByRole("combobox", { name: `Role for ${name}` });
+    await role.waitFor();
+    const row = team.locator("#team-members div").filter({ has: role, hasText: name }).last();
+    const memberName = row.getByText(name, { exact: true });
+    const identityFits = await memberName.evaluate((element) =>
+      element.clientWidth > 0 && element.scrollWidth <= element.clientWidth,
+    );
+    const actions = [
+      ["Role", role],
+      ["Numbers", row.getByRole("button", { name: "Numbers", exact: true })],
+      ["Deactivate", row.getByRole("button", { name: "Deactivate", exact: true })],
+    ];
+    for (const [label, action] of actions) {
+      const fits = await action.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.left >= 0 && bounds.right <= document.documentElement.clientWidth;
+      });
+      assert.ok(fits, `${label} fits in the 320-pixel team row`);
+    }
+    assert.ok(identityFits, "The team row shows the member's name at 320 pixels");
+  } finally {
+    await team.unrouteAll({ behavior: "wait" });
+    await team.close();
+  }
+}
+
 async function checkJourney(page, web, api, telnyx) {
   const marker = randomUUID().slice(0, 8);
   const inbound = `Can you look at the kitchen sink? ${marker}`;
@@ -176,6 +226,7 @@ async function checkJourney(page, web, api, telnyx) {
   await page.locator("input[type=password]").fill(PASSWORD);
   await page.locator("button[type=submit]").click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+  await checkNarrowTeamMember(page, web, api);
 
   const inbox = await page.context().newPage();
   try {
@@ -351,7 +402,10 @@ try {
   } finally {
     await browser.close();
   }
-  console.log("web-journey: live text, idempotent reply, scheduled message controls, job creation, draft quote controls, short-screen payment actions and STOP passed");
+  console.log(
+    "web-journey: live text, idempotent reply, scheduled message controls, job creation, " +
+    "draft quote controls, short-screen payment actions, narrow team rows and STOP passed",
+  );
 } catch (error) {
   console.error("web-journey failed", error);
   process.exitCode = 1;
