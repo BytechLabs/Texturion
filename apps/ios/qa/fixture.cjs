@@ -23,9 +23,11 @@ const task = { id: "test-task", company_id: companyID, title: "Test boiler", cre
   created_at: now(), updated_at: now(), done: false, status: "open", allowed_actions: ["complete", "trash"] };
 const call = { id: "test-call", call_session_id: sessionID, contact_id: contactID, contact_name: "Ada Fixture",
   caller_e164: "+14165550101", direction: "inbound", outcome: "voicemail", has_voicemail: true, voicemail_seconds: 5, started_at: now() };
+const mediaByID = new Map();
 let quote;
-const state = { mode: "online", locale: "en", writes: [], messages: [[], []],
-  includeVoicemail: false, paymentsEnabled: false, paymentRequests: [], company: { id: companyID, name: "Simulator Fixtures",
+const state = { mode: "online", role: "owner", locale: "en", stage: "active", fieldwork: false, writes: [], scheduled: [],
+  invites: [], messages: [[], []], includeVoicemail: false, paymentsEnabled: false, paymentRequests: [],
+  company: { id: companyID, name: "Simulator Fixtures",
   country: "CA", timezone: "America/Toronto", subscription_status: "active", created_at: now(), updated_at: now(),
   us_texting_enabled: false, requested_area_code: "416", quiet_hours_confirm_enabled: false,
   numbers: [line], mctb_enabled: true, mctb_message: "Test message" }, contacts: [
@@ -57,7 +59,8 @@ function thread(index) {
   return { id: threadIDs[index], contact_id: contact.id, company_id: companyID, phone_number_id: lineID,
     status: "open", is_spam: false, created_at: latest.created_at, updated_at: latest.created_at,
     last_message_at: latest.created_at, contact, last_message: { ...latest, has_attachments: false },
-    contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text" };
+    contact_phone_e164: contact.phone_e164, messages: page(state.messages[index]), viewer_level: "text",
+    destination_clock: { timezone: "America/Toronto", source: "area_code", quiet: false } };
 }
 
 function broadcast(event, payload, numberID) {
@@ -108,8 +111,10 @@ function sampleAudio() {
 }
 
 const audio = sampleAudio();
-const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/scheduled-messages",
+const emptyLists = new Set(["/v1/tags", "/v1/saved-views", "/v1/members", "/v1/port-requests", "/v1/text-enablements",
   "/v1/notifications", "/v1/company/setting-choices", "/v1/templates"]);
+const createPaths = new Set(["/v1/tasks", "/v1/scheduled-messages", "/v1/numbers/provision", "/v1/invites", "/v1/quotes", paymentRequestsPath]);
+const handoffPages = new Set(["/onboarding", "/onboarding/plan", "/fixture-billing"]);
 
 const server = createServer(async (req, res) => {
   const { pathname: path, searchParams } = new URL(req.url, origin);
@@ -120,10 +125,28 @@ const server = createServer(async (req, res) => {
   try {
     if (path === "/__qa/health") return json({ ready: true });
     if (path === "/__qa/writes") return json(state.writes);
+    if (req.method === "GET" && handoffPages.has(path)) {
+      state.writes.push({ path, body: {} });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      return res.end("<!doctype html><title>Loonext QA</title><h1>Simulator handoff</h1>");
+    }
     if (path === "/__qa/french" && req.method === "POST") {
       state.locale = "fr-CA";
       state.paymentsEnabled = searchParams.has("payments");
       state.paymentRequests = [];
+      return json({ ok: true });
+    }
+    if (path === "/__qa/profile" && req.method === "POST") {
+      state.role = searchParams.get("role") ?? state.role;
+      state.locale = searchParams.get("locale") ?? state.locale;
+      state.stage = searchParams.get("stage") ?? state.stage;
+      state.fieldwork = searchParams.has("fieldwork");
+      state.company.plan = "pro";
+      if (state.fieldwork) state.contacts[0].notes = "Test notes";
+      if (state.stage === "new") {
+        state.company.numbers = [line];
+        state.invites = [];
+      }
       return json({ ok: true });
     }
     if (path === "/__qa/open-url" && req.method === "POST") {
@@ -190,10 +213,28 @@ const server = createServer(async (req, res) => {
     if (state.mode === "revoked") {
       return json({ error: { code: "unauthorized", message: "Test session revoked" } }, 401);
     }
-    if (path === "/auth/v1/token") {
+    if (path === "/auth/v1/token" || path === "/auth/v1/signup") {
+      if (path.endsWith("/signup")) {
+        let input = "";
+        for await (const chunk of req) input += chunk;
+        const { email, data } = JSON.parse(input);
+        state.writes.push({ path, body: { email, locale: data?.locale } });
+        return json({ id: userID, email });
+      }
       req.resume();
       return json({ access_token: "simulator-session", refresh_token: "simulator-refresh",
         expires_in: 3600, user: { id: userID, email: "qa@example.invalid" } });
+    }
+    if (path === "/auth/v1/logout") return json({});
+    const [, attachmentID] = path.match(/^\/v1\/attachments\/([^/]+)\/url$/) ?? [];
+    if (mediaByID.has(attachmentID)) {
+      return json({ url: origin + "/fixture-media/" + attachmentID,
+        expires_at: new Date(Date.now() + 3600_000).toISOString() });
+    }
+    const media = mediaByID.get(path.startsWith("/fixture-media/") ? path.slice("/fixture-media/".length) : "");
+    if (media) {
+      res.writeHead(200, { "Content-Type": media.contentType, "Content-Length": media.bytes.length });
+      return res.end(media.bytes);
     }
     if (path === "/fixture.wav") {
       const [, first, last] = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/) ?? [];
@@ -208,13 +249,23 @@ const server = createServer(async (req, res) => {
       res.writeHead(first ? 206 : 200, headers);
       return res.end(audio.subarray(start, end + 1));
     }
-    if (path === "/v1/me") return json({ user_id: userID, display_name: "Test Owner", locale: state.locale,
-      company: state.company, memberships: [{ company_id: companyID, name: state.company.name, role: "owner", subscription_status: "active" }] });
+    if (path === "/v1/me") {
+      const company = { ...state.company, subscription_status: state.stage };
+      return json({ user_id: userID, display_name: state.role === "owner" ? "Test Owner" : "Test Crew", locale: state.locale,
+        company: state.stage === "new" ? null : company,
+        memberships: state.stage === "new" ? [] : [{ company_id: companyID, name: company.name,
+          role: state.role, subscription_status: company.subscription_status }] });
+    }
     if (path === "/v1/me/firsts") return json({ replied: true, noted: true, marked_done: true, oriented: true });
     if (path === "/v1/for-you") return json({});
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
-    if (path === "/v1/numbers") return json(page([line]));
+    if (path === "/v1/numbers") return json(page(state.company.numbers));
+    if (path === "/v1/registration") return json({});
+    if (path === "/v1/available-numbers") return json({ data: [], masked: true });
     if (path === "/v1/notifications/unread-count") return json({ count: 0, unread_conversations: 0 });
+    if (path === "/v1/billing/portal" && req.method === "POST") {
+      return json({ url: origin + "/fixture-billing" });
+    }
 
     if (path === "/v1/payments/account") {
       if (state.paymentsEnabled) {
@@ -226,12 +277,26 @@ const server = createServer(async (req, res) => {
       return json({ payment_requests: state.paymentRequests });
     }
 
+    const noteIndex = threadIDs.findIndex((id) => path === `/v1/conversations/${id}/notes`);
+    const suggestionPath = threadIDs.some((id) => path === `/v1/conversations/${id}/reply-suggestions`);
     if (req.method === "PATCH" || path === "/v1/messages/send" ||
-      (req.method === "POST" && ["/v1/tasks", "/v1/quotes", paymentRequestsPath].includes(path))) {
+      (req.method === "POST" && (noteIndex !== -1 || suggestionPath || createPaths.has(path)))) {
       let input = "";
       for await (const chunk of req) input += chunk;
       const body = JSON.parse(input);
+      if (path === "/v1/messages/send" && body.media) {
+        body.media = body.media.map((attachment) => {
+          const id = randomUUID();
+          const bytes = Buffer.from(attachment.base64, "base64");
+          mediaByID.set(id, { contentType: attachment.content_type, bytes });
+          return { id, content_type: attachment.content_type, size_bytes: bytes.length };
+        });
+      }
       state.writes.push({ path, body, idempotencyKey: req.headers["idempotency-key"] });
+      if (suggestionPath) {
+        const ending = state.locale === "fr-CA" ? "vendredi." : "on Friday.";
+        return json({ suggestions: body.draft ? [`${body.draft} ${ending}`] : [] });
+      }
       if (path === `/v1/contacts/${contactID}`) return json(Object.assign(state.contacts[0], body));
       if (path === "/v1/company") return json(Object.assign(state.company, body));
       if (path === "/v1/tasks") return json({ ...task, title: body.title, conversation_id: threadIDs[0] }, 201);
@@ -246,15 +311,45 @@ const server = createServer(async (req, res) => {
         state.paymentRequests.push(request);
         return json(request, 201);
       }
+      if (path === "/v1/numbers/provision") {
+        const number = { ...line, id: randomUUID(), label: "Second test line", number_e164: "+14165550103" };
+        state.company.numbers.push(number);
+        return json(number, 201);
+      }
+      if (path === "/v1/invites") {
+        const invite = { ...body, id: randomUUID(), company_id: companyID, invited_by: userID,
+          created_at: now(), expires_at: new Date(Date.now() + 86400_000).toISOString(), email_sent: true };
+        state.invites.push(invite);
+        return json(invite, 201);
+      }
+      if (path === "/v1/scheduled-messages") {
+        const scheduled = { ...body, id: randomUUID(), clock_timezone: "America/Toronto", status: "pending" };
+        state.scheduled.push(scheduled);
+        return json({ scheduled_message: scheduled }, 201);
+      }
+      if (noteIndex !== -1) {
+        const note = { ...message(noteIndex, body.body, "note"), author_name: "Test Crew" };
+        state.messages[noteIndex].unshift(note);
+        return json(note, 201);
+      }
       if (path === "/v1/messages/send") {
         const index = threadIDs.indexOf(body.conversation_id);
-        const sent = message(index, body.body, "outbound");
+        const sent = { ...message(index, body.body, "outbound"), attachments: body.media };
         state.messages[index].unshift(sent);
         return json(sent, 201);
       }
     }
 
+    if (path === "/v1/scheduled-messages") {
+      const conversation = searchParams.get("conversation_id");
+      const rows = state.scheduled.filter((row) => !conversation || row.conversation_id === conversation);
+      return json({ ...page(rows), upcoming_count: rows.length, held_count: 0 });
+    }
     if (path === "/v1/company") return json(state.company);
+    if (path === "/v1/company/ownership") {
+      return json({ owner_member_id: userID, i_am_owner: state.role === "owner" });
+    }
+    if (path === "/v1/invites") return json(page(state.invites));
     if (path === "/v1/company/ai-settings") return json({ enrich_task_address: false, enrich_task_due: false });
     if (path === "/v1/contact-fields") return json({ data: [], cap: 10 });
     if (path === "/v1/contacts") return json(page(state.contacts));
@@ -266,7 +361,17 @@ const server = createServer(async (req, res) => {
       return json(page());
     }
     if (path === `/v1/contacts/${contactID}`) return json(state.contacts[0]);
-    if (path === "/v1/tasks") return json(page([task]));
+    if (path === "/v1/tasks") {
+      if (!state.fieldwork) return json(page([task]));
+      const due = new Intl.DateTimeFormat("en-CA", { timeZone: state.company.timezone,
+        year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return json(page([{ ...task, due_on: due, lat: 43.6426, lng: -79.3871 }]));
+    }
+    if (path === "/v1/dispatch" && state.fieldwork) {
+      return json({ plan: { revision: 0, timezone: state.company.timezone,
+        members: [{ id: userID, name: "Test Crew" }], days: [], blocks: [],
+        tasks: [{ ...task, scheduled_count: 0, windows: [] }] }, workload: [] });
+    }
     if (path === "/v1/calls") return json(page([call]));
     if (path === `/v1/calls/${sessionID}`) return json(call);
     if (path === `/v1/calls/${sessionID}/voicemail`) return json({ url: `${origin}/fixture.wav`, seconds: 5 });

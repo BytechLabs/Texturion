@@ -44,11 +44,12 @@ run_scenario() {
   local name=$1
   shift
   local output="$evidence/$name"
+  local photo=Loonext/Assets.xcassets/AppIcon.appiconset/icon-1024.png
   local result=0
   local test_timeout=180
   local selection=()
   for test in "$@"; do selection+=("-only-testing:$test"); done
-  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-sources ]]; then
+  if [[ "$name" == accessibility || "$name" == offline || "$name" == thread-workflows || "$name" == attachment-* || "$name" == customer-journeys ]]; then
     test_timeout=420
   fi
 
@@ -63,11 +64,12 @@ run_scenario() {
         | grep -Fx 'group.com.loonext.ios.qa' || return 1
     done
     /usr/libexec/PlistBuddy -c 'Print :NSExtension' "$share" > "$output/share-extension.txt" || return 1
-    local photo=Loonext/Assets.xcassets/AppIcon.appiconset/icon-1024.png
     local documents
     documents="$(xcrun simctl get_app_container "$QA_SIMULATOR" com.loonext.ios.qa data)/Documents" || return 1
     mkdir -p "$documents" || return 1
     cp "$photo" "$documents/QA Share Fixture.png" || return 1
+  fi
+  if [[ "$name" == attachment-* ]]; then
     xcrun simctl addmedia "$QA_SIMULATOR" "$photo" || return 1
   fi
   QA_EVIDENCE="$output" node qa/fixture.cjs > "$output/fixture.log" 2>&1 &
@@ -118,10 +120,10 @@ run_scenario() {
 printf '| Scenario | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
 failed=0
 case "$scenario" in
-  all|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|accessibility) ;;
+  all|customer-journeys|foreground-alerts|notification-actions|notification-reply-transport|calls|offline|autosave|copy-and-media|phone-and-text|thread-workflows|quote-alert|quote-amount|attachment-sources|attachment-send|accessibility) ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
-for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert attachment-sources accessibility quote-amount; do
+for name in foreground-alerts notification-actions notification-reply-transport calls offline autosave copy-and-media phone-and-text thread-workflows quote-alert quote-amount attachment-sources attachment-send accessibility customer-journeys; do
   [[ "$scenario" == all || "$scenario" == "$name" ]] || continue
   case "$name" in
     foreground-alerts) run_scenario "$name" "$ui/testForegroundAlertForAnotherThread" || failed=1 ;;
@@ -145,7 +147,9 @@ for name in foreground-alerts notification-actions notification-reply-transport 
       "$ui/testPaymentLinkPreservesFrenchDecimalAmount" || failed=1 ;;
     attachment-sources) run_scenario "$name" "$ui/testPhotoLibraryStagesAttachment" \
       "$ui/testPhotosShareStagesAttachment" "$ui/testFilesShareStagesAttachment" || failed=1 ;;
+    attachment-send) run_scenario "$name" "$ui/testPhotoLibrarySendsAttachment" || failed=1 ;;
     accessibility) run_scenario "$name" "$audit" || failed=1 ;;
+    customer-journeys) run_scenario "$name" "LoonextQAUITests/CustomerJourneys" || failed=1 ;;
   esac
 done
 exit "$failed"

@@ -174,6 +174,9 @@ The workflow signs in to the loopback fixture with synthetic credentials supplie
 
 | Scenario | Issue | Simulator evidence |
 | --- | --- | --- |
+| `customer-journeys` | | Owner signup and setup states, Canadian number ordering and team invites, technician texts, notes, scheduled sends, Lou draft review and explicit sending, contacts, task calendar, map and planner, and the bookkeeper's billing view. Runs in English and Canadian French in light and dark. The fixture handles external services. |
+| `attachment-sources` | #793 | The app's photo library and the Photos and Files share sheets stage fixture photos for a conversation. |
+| `attachment-send` | #793 | The app's photo library sends one fixture photo. XCTest checks the destination, caption, media type and size, and idempotency key. |
 | `foreground-alerts` | #775 | An inbound broadcast updates the open thread. Simulated alerts exercise foreground suppression for that thread and presentation for another thread. |
 | `notification-actions` | #777 | XCTest attempts a Reply from Notification Center and checks card removal on thread open and on a read broadcast for the same user. A separate test submits a synthetic reply action to the app's handler and checks the outgoing request and idempotency key. |
 | `calls` | #776, #1103 | The call history and in-call controls undergo accessibility audits. A largest-text check exercises the call filters and verifies that Answer and Decline both fit. Unit tests cover synthetic VoIP payloads, caller privacy, wake policy, and the softphone behavior behind CallKit answer and end actions. |
