@@ -54,6 +54,7 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
   const dragged = useRef<DraggedWork | null>(null);
   const touchOrigin = useRef<{ x: number; y: number } | null>(null);
   const resizeOrigin = useRef<{ x: number; laneWidth: number } | null>(null);
+  const resizeMoved = useRef(false);
   const [dropTarget, setDropTarget] = useState<{ assignee: string; start: number } | null>(null);
   const [resize, setResize] = useState<{ id: string; end: number } | null>(null);
   const dayStart = Date.parse(day.start);
@@ -259,9 +260,13 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
                     </button>
                     {movable && <button type="button" aria-label={t("tasks.dispatchResizeBlock", { title: task.title })}
                       className="grid w-6 shrink-0 touch-none cursor-ew-resize place-items-center rounded-r-md border-l text-app-muted hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"
-                      onClick={(event) => { if (event.detail === 0) onSelect(task, item); }}
+                      onClick={(event) => {
+                        if (event.detail === 0 || !resizeMoved.current) onSelect(task, item);
+                        resizeMoved.current = false;
+                      }}
                       onPointerDown={(event) => {
                         if (!event.isPrimary || event.button !== 0) return;
+                        resizeMoved.current = false;
                         resizeOrigin.current = { x: event.clientX, laneWidth: event.currentTarget.parentElement?.parentElement?.clientWidth ?? 1 };
                         event.currentTarget.setPointerCapture(event.pointerId);
                       }} onPointerMove={(event) => {
@@ -272,6 +277,7 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
                         resizeOrigin.current = null;
                         setResize(null);
                         if (next !== null && next !== Date.parse(item.ends_at)) {
+                          resizeMoved.current = true;
                           onStageBlock(task, { ...item, ends_at: new Date(next).toISOString() });
                         }
                       }} onLostPointerCapture={() => { resizeOrigin.current = null; setResize(null); }}>

@@ -63,6 +63,14 @@ const SURFACES = {
     why:
       "Open Add to message and choose Note, or open the Note menu and choose Text.",
   },
+  "apps/android/app/src/main/kotlin/com/loonext/android/features/tasks/DispatchPlanner.kt": {
+    alternative: "if (editable) TextButton(onClick = onEdit)",
+    why: "Schedule work opens the editor for choosing a crew member, date, time and duration.",
+  },
+  "apps/android/app/src/main/kotlin/com/loonext/android/features/tasks/DispatchTimeline.kt": {
+    alternative: "IconButton(onClick = { onEdit(task, block) }",
+    why: "The duration control opens the editor so a tap can move or resize an existing block.",
+  },
   "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/SwipeActions.kt": {
     // The component itself cannot carry the alternative — the actions belong
     // to its callers. What it CAN do is state the obligation where somebody
@@ -79,6 +87,10 @@ const SURFACES = {
     why:
       "The iOS twin: `DragGesture(minimumDistance: 0)` treats a press that did " +
       "not move as a tap, and two taps anchor and finish the mark.",
+  },
+  "apps/ios/Loonext/Features/Tasks/DispatchPlanner.swift": {
+    alternative: "Button(action: onEdit)",
+    why: "Schedule work opens the editor for queued work. The duration control opens it for a booked block.",
   },
   "apps/ios/Loonext/Features/Tasks/TaskBoard.swift": {
     alternative: ".accessibilityLabel(moveLabel)",
@@ -142,6 +154,7 @@ const STARTS_A_DRAG = [
    * been built yet.
    */
   { pattern: /Modifier.draggable|anchoredDraggable|swipeable[(]|rememberDraggableState/, ext: ".kt" },
+  { pattern: /(?:dragAndDropSource|dispatchDrag)\s*[({]/, ext: ".kt" },
   // iOS: SwiftUI's own drag. `.swipeActions` is excluded on purpose — see the
   // header: VoiceOver publishes those buttons itself.
   //
