@@ -185,15 +185,14 @@ struct AccountSheet: View {
 
     private var themeCard: some View {
         PaperCard {
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(AppStrings.translate(appLocale, "shell.theme"))
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Spacer()
-                // Styled segmented control (ink pill), matching Android/web (#186).
                 ThemeSegmentedControl(theme: $prefs.theme)
                     .frame(maxWidth: 230)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
         }
