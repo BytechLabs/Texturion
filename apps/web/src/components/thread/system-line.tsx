@@ -233,7 +233,7 @@ export function eventSentence(
         return seconds > 0
           ? t("thread.sysWithDuration", {
               line: called,
-              duration: formatCallDuration(seconds),
+              duration: formatCallDuration(seconds, t),
             })
           : called;
       }
@@ -262,7 +262,7 @@ export function eventSentence(
         return vmSeconds > 0
           ? t("thread.sysWithDuration", {
               line: left,
-              duration: formatCallDuration(vmSeconds),
+              duration: formatCallDuration(vmSeconds, t),
             })
           : left;
       }
@@ -286,7 +286,7 @@ export function eventSentence(
       return seconds > 0
         ? t("thread.sysWithDuration", {
             line: answered,
-            duration: formatCallDuration(seconds),
+            duration: formatCallDuration(seconds, t),
           })
         : answered;
     }

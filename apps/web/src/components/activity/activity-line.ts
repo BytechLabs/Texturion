@@ -144,7 +144,7 @@ function callSentence(item: ActivityItem, t: Translate): string {
         : t("activity.outcomeMissed"));
   const parts = [t("activity.callLine", { direction, outcome })];
   const talked = typeof item.payload.talk_seconds === "number" ? item.payload.talk_seconds : 0;
-  if (talked > 0) parts.push(t("activity.callTalked", { duration: formatCallDuration(talked) }));
+  if (talked > 0) parts.push(t("activity.callTalked", { duration: formatCallDuration(talked, t) }));
   const why = callEndReason((str(item.payload.ended_reason) as CallEndReason | null) ?? null, t);
   if (why) parts.push(why);
   return parts.join(" · ");
@@ -193,7 +193,7 @@ function callStepSentence(
     case "call_ended": {
       const seconds = typeof item.payload.seconds === "number" ? item.payload.seconds : 0;
       const parts = [t("activity.stepEnded")];
-      if (seconds > 0) parts.push(t("activity.stepLasted", { duration: formatCallDuration(seconds) }));
+      if (seconds > 0) parts.push(t("activity.stepLasted", { duration: formatCallDuration(seconds, t) }));
       const why = isCallEndReason(item.payload.reason) ? callEndReason(item.payload.reason, t) : null;
       if (why) parts.push(why);
       return parts.join(" · ");
@@ -316,7 +316,7 @@ export function activityLine(
         typeof item.payload.voicemail_seconds === "number" ? item.payload.voicemail_seconds : 0;
       return line(
         seconds > 0
-          ? t("activity.voicemailLeftFor", { duration: formatCallDuration(seconds) })
+          ? t("activity.voicemailLeftFor", { duration: formatCallDuration(seconds, t) })
           : t("activity.voicemailLeft"),
         "voicemail",
       );

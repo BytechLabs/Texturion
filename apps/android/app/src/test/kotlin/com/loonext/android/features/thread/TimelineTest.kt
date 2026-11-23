@@ -271,6 +271,14 @@ class TimelineTest {
     }
 
     @Test
+    fun `an answered call uses French duration units in the thread`() {
+        val event = callEvent(
+            mapOf("direction" to "inbound", "outcome" to "answered", "forward_seconds" to "66"),
+        )
+        assertEquals("Appel répondu · 1 min 6 s", eventLine(event, emptyMap(), "Dana", "fr-CA"))
+    }
+
+    @Test
     fun `a voicemail carries the MESSAGE length, not the call outcome`() {
         // Branch order is the point: a voicemail also has outcome=voicemail, so
         // testing outcome first would swallow the message duration.

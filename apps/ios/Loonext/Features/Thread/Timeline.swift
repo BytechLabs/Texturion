@@ -725,7 +725,7 @@ func callCompletedLine(
     func withDuration(_ line: String, _ seconds: Int) -> String {
         say(
             "thread.sysWithDuration",
-            ["line": line, "duration": formatCallDuration(seconds)]
+            ["line": line, "duration": formatCallDuration(seconds, locale: locale)]
         )
     }
     let outcome = event.payload["outcome"]?.stringValue

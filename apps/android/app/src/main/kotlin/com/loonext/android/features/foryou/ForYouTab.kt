@@ -1471,7 +1471,7 @@ private fun RecentCallRow(call: Call, onClick: (() -> Unit)?) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                callOutcomeLabel(call),
+                callOutcomeLabel(call, LocalAppLocale.current),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 11.5.sp,
                     fontWeight = if (actionable) FontWeight.SemiBold else FontWeight.Normal,

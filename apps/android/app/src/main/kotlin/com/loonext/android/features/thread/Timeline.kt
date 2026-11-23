@@ -677,7 +677,7 @@ private fun callCompletedLine(
             say(
                 "thread.sysWithDuration",
                 "line" to line,
-                "duration" to formatCallDuration(forSeconds),
+                "duration" to formatCallDuration(forSeconds, locale),
             )
         } else {
             line

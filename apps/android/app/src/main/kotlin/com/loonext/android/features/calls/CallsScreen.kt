@@ -1271,7 +1271,7 @@ internal fun CallRow(
                             }
                         }
                         Text(
-                            callOutcomeLabel(call),
+                            callOutcomeLabel(call, LocalAppLocale.current),
                             fontSize = 11.5.sp,
                             // Coral for the actionable inbound miss — the row's one
                             // tinted element; everything else stays quiet.

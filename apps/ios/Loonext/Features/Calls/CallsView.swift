@@ -1121,6 +1121,7 @@ private struct CallRow: View {
 /// #734: who, what happened and how it ended. Tapping it opens the call's
 /// details, never the conversation.
 private struct CallRowSummary: View {
+    @Environment(\.appLocale) private var appLocale
     let call: Call
     let name: String
     let directionIcon: String
@@ -1166,7 +1167,7 @@ private struct CallRowSummary: View {
                         // middle of it. #725: two lines at most, not one, because
                         // the line now carries how the call ended and a cut ending
                         // ("Nobody an…") tells nobody anything. Android does the same.
-                        Text(callOutcomeLabel(call))
+                        Text(callOutcomeLabel(call, locale: appLocale))
                             .font(.golos(
                                 11.5,
                                 weight: isActionableMiss(call) ? .semibold : .regular

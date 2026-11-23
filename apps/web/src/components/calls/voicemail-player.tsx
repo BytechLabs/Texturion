@@ -88,8 +88,8 @@ export function VoicemailPlayer({
     playbackLabel = t("shell.voicemailLoadFailed");
   } else if (seconds) {
     playbackLabel = t("shell.playVoicemailWithLength", {
-                duration: formatCallDuration(seconds),
-              });
+      duration: formatCallDuration(seconds, t),
+    });
   } else {
     playbackLabel = t("shell.playVoicemail");
   }

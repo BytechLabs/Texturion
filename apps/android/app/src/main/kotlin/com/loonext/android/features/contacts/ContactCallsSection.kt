@@ -351,7 +351,7 @@ private fun ContactCallRow(
                     modifier = Modifier.size(IconSize.Default),
                 )
                 Text(
-                    contactCallOutcomeLabel(call),
+                    contactCallOutcomeLabel(call, LocalAppLocale.current),
                     fontSize = 13.sp,
                     // Coral for the actionable inbound miss — the row's one
                     // tinted element; everything else stays quiet.

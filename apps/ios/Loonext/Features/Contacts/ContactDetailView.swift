@@ -2003,6 +2003,7 @@ private struct ContactCallsSection: View {
 /// own module-internal functions.
 @MainActor
 private struct ContactCallRow: View {
+    @Environment(\.appLocale) private var appLocale
     let call: Call
     let service: CallsService
     let companyId: String
@@ -2029,7 +2030,7 @@ private struct ContactCallRow: View {
                     .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(metaColor)
                     .frame(width: 20)
-                Text(callOutcomeLabel(call))
+                Text(callOutcomeLabel(call, locale: appLocale))
                     .font(.golos(13, weight: isActionableMiss(call) ? .semibold : .regular))
                     .foregroundStyle(isActionableMiss(call) ? BrandColor.overdueAmber : BrandColor.ink)
                     .lineLimit(1)

@@ -4,10 +4,17 @@ import type { CallEndReason, CallRouting } from '@loonext/shared';
 import { makeTranslate } from '@/i18n/translate';
 import type { MessageKey, Translate } from '@/i18n/translate';
 
-import {formatCallDuration} from "./call-duration";
+import { formatCallDuration as abbreviateCallDuration } from "./call-duration";
 
-export { formatCallDuration } from "./call-duration";
+const callDurationKeys = {
+  hours: "misc.callDurationHours",
+  minutes: "misc.callDurationMinutes",
+  seconds: "misc.callDurationSeconds",
+} as const;
 
+export function formatCallDuration(seconds: number, t: Translate = makeTranslate(DEFAULT_LOCALE)): string {
+  return abbreviateCallDuration(seconds, (unit, count) => t(callDurationKeys[unit], { count }));
+}
 
 /** #721: why no phone rang, or null when the call rang (or predates the column). */
 export function callRoutingReason(
@@ -77,12 +84,7 @@ export function callEndReason(
  *  the crew's side ("You called…"; a customer no-answer is "No answer",
  *  never "Missed" — nothing was missed by the crew). A null outcome is a
  *  session still in flight — say so ("Calling…" / "In progress"), never the
- *  meaningless bare "Call" (#133).
- *
- *  #228: the words live in `i18n/sections/misc.ts` with the other formatters
- *  every list row reads. The DURATION is appended rather than interpolated
- *  because it is a number with a separator, not a clause — and it is the same
- *  "4m 32s" in both languages, since it comes off `formatCallDuration`. */
+ *  meaningless bare "Call" (#133). */
 export function callOutcomeLabel(
   call: {
     outcome: "answered" | "voicemail" | "missed" | null;
@@ -100,8 +102,9 @@ export function callOutcomeLabel(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   const outbound = call.direction === "outbound";
-  const dur =
-    call.forward_seconds > 0 ? ` · ${formatCallDuration(call.forward_seconds)}` : "";
+  const dur = call.forward_seconds > 0
+    ? ` · ${formatCallDuration(call.forward_seconds, t)}`
+    : "";
   const actor = call.answered_by_name ?? null;
   // Where the call went explains a call nobody answered better than how it
   // ended: "After hours, nobody on call" over "The caller hung up".
