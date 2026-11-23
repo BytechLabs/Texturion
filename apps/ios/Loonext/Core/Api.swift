@@ -124,13 +124,13 @@ struct ForYouApi: Sendable {
     /// queue (what needs doing), and it is windowed, so folding it in would make
     /// the queue refetch every time somebody switched 7/30/90 days.
     func responseTime(companyId: String, days: Int) async throws -> ResponseTimeReport {
-        try await api.get("/v1/reports/response-time?days=\(days)", companyId: companyId)
+        try await api.get("/v1/reports/response-time", query: ["days": String(days)], companyId: companyId)
     }
 
     /// #313: how customers rate the work. Windowed like its neighbour above and
     /// read separately for the same reason.
     func satisfaction(companyId: String, days: Int = 30) async throws -> SatisfactionReport {
-        try await api.get("/v1/reports/satisfaction?days=\(days)", companyId: companyId)
+        try await api.get("/v1/reports/satisfaction", query: ["days": String(days)], companyId: companyId)
     }
 
     /// #288: has this crew earned the referral ask?

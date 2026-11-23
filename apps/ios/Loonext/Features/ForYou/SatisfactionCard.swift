@@ -79,22 +79,7 @@ struct SatisfactionCard: View {
             // the card above it" was the comment below, and the way to guarantee
             // that is to use the same component rather than copy its styling.
             MeasureHeader(AppStrings.translate(appLocale, "inbox.satisfactionTitle")) {
-                HStack(spacing: 2) {
-                    ForEach([7, 30, 90], id: \.self) { option in
-                        Button {
-                            onWindow(option)
-                        } label: {
-                            Text("\(option)d")
-                                .font(.golos(10.5, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(
-                                    option == days ? BrandColor.olive : BrandColor.muted400
-                                )
-                                .padding(4)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                ReportWindowControl(days: days, onSelect: onWindow)
             }
 
             PaperCard {

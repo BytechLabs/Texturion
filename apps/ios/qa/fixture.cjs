@@ -288,6 +288,19 @@ const server = createServer(async (req, res) => {
       });
       return json({ waiting_on_you: waiting });
     }
+    if (state.multiLine && (path === "/v1/reports/response-time" || path === "/v1/reports/satisfaction")) {
+      const days = Number(searchParams.get("days"));
+      if (![7, 30, 90].includes(days)) return json({ error: "Expected a report window in days" }, 400);
+      const window = { days };
+      if (path === "/v1/reports/response-time") {
+        const hours = { leads: 0, answered: 0 };
+        return json({ window, leads: 0, answered: 0, unanswered: 0, business_hours: hours,
+          after_hours: hours, per_member_enabled: false, split_truncated: false, split_row_limit: 100 });
+      }
+      return json({ window, asked: days, answered: days, average: 4, sample_too_small: false,
+        minimum_sample: 3, distribution: { 4: days }, poor: 0, per_member_enabled: false,
+        truncated: false, row_limit: 100 });
+    }
     if (path === "/v1/mfa") return json({ enrolled: false, factors: [], aal: "aal1" });
     if (path === "/v1/numbers") return json(page(inBillingWorkspace ? [] : state.company.numbers));
     if (path === "/v1/registration") return json({});

@@ -393,6 +393,7 @@ enum InboxStrings {
             // and Android. Key names and French are Android's
             // `core/i18n/InboxStrings.kt` verbatim.
             "inbox.responseTimeTitle": "Response time",
+            "inbox.analyticsWindowDays": "{days}d",
             "inbox.responseLoading": "Working out your response time…",
             "inbox.responseNoLeads":
                 "No new customers texted you in the last {days} days, so there "
@@ -851,6 +852,7 @@ enum InboxStrings {
 
             // --- Response time (#239 ResponseTimeCard.swift) --------------------------------------
             "inbox.responseTimeTitle": "Temps de réponse",
+            "inbox.analyticsWindowDays": "{days}j",
             "inbox.responseLoading": "Calcul de votre temps de réponse…",
             "inbox.responseNoLeads":
                 "Aucun nouveau client ne vous a texté dans les {days} derniers "

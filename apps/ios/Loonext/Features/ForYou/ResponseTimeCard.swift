@@ -67,6 +67,31 @@ func responseUnansweredLine(_ count: Int, _ locale: String? = nil) -> String {
         )
 }
 
+struct ReportWindowControl: View {
+    let days: Int
+    let onSelect: (Int) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        SegmentedControl(
+            options: [7, 30, 90].map { option in
+                SegmentedOption(
+                    option,
+                    title: AppStrings.translate(appLocale, "inbox.analyticsWindowDays", ["days": String(option)])
+                )
+            },
+            selected: days,
+            size: .compact,
+            fill: false,
+            horizontalPadding: 8,
+            minSegmentWidth: 44,
+            minSegmentHeight: 44,
+            onSelect: { onSelect($0) }
+        )
+    }
+}
+
 struct ResponseTimeCard: View {
     let report: ResponseTimeReport?
     let days: Int
@@ -92,24 +117,7 @@ struct ResponseTimeCard: View {
             // four measures inlined their own, which is how one screen ends up
             // with two species of panel and a list nobody can put a finger on.
             MeasureHeader(AppStrings.translate(appLocale, "inbox.responseTimeTitle")) {
-                // Segmented, not a menu: three choices are faster to hit, and the
-                // current window stays readable at a glance.
-                HStack(spacing: 2) {
-                    ForEach([7, 30, 90], id: \.self) { option in
-                        Button {
-                            onWindow(option)
-                        } label: {
-                            Text("\(option)d")
-                                .font(.golos(10.5, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(
-                                    option == days ? BrandColor.olive : BrandColor.muted400
-                                )
-                                .padding(4)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                ReportWindowControl(days: days, onSelect: onWindow)
             }
 
             PaperCard {
