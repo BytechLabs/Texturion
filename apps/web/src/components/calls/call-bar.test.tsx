@@ -175,6 +175,20 @@ it("offers a separate talk-first action and controls for a connected consult", a
   await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("cancel"));
 });
 
+it("keeps teammate details above the wrapping transfer actions", () => {
+  state.calls = [outboundCall()];
+  state.activeId = "c1";
+  state.live = { isSuccess: true };
+  mount(<CallBar />);
+  fireEvent.click(screen.getByRole("button", { name: "Transfer this call" }));
+  const name = screen.getByText("Sam");
+  const actionRow = screen.getByRole("button", { name: "Transfer to Sam" }).parentElement;
+  expect(name.classList.contains("truncate")).toBe(false);
+  expect(name.parentElement?.nextElementSibling).toBe(actionRow);
+  expect(actionRow?.classList.contains("flex-wrap")).toBe(true);
+  expect(actionRow?.contains(screen.getByRole("button", { name: "Talk first with Sam" }))).toBe(true);
+});
+
 it("moves the focused hold button to Resume and back", () => {
   state.calls = [outboundCall()];
   state.activeId = "c1";

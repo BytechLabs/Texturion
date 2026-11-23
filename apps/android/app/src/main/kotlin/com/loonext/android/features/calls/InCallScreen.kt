@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -884,6 +886,13 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
     }
 }
 
+internal data class TransferRow(
+    val userId: String,
+    val name: String,
+    val busy: Boolean,
+    val hasPushChannel: Boolean?,
+)
+
 @Composable
 private fun TransferSheet(
     manager: SoftphoneManager,
@@ -1007,51 +1016,60 @@ private fun TransferSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TransferTargetRow(
+internal fun TransferTargetRow(
     row: TransferRow,
     enabled: Boolean,
     onTransfer: () -> Unit,
     onConsult: () -> Unit,
 ) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .alpha(if (row.busy) 0.55f else 1f)
             .padding(horizontal = 15.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        InitialsAvatar(row.name, size = 40.dp)
-        Column(Modifier.weight(1f)) {
-            Text(row.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-            LineStatusRow(
-                text = if (row.busy) {
-                    t("contactsTasks.onACall")
-                } else {
-                    t("contactsTasks.available")
-                },
-                dot = if (row.busy) {
-                    MaterialTheme.colorScheme.outline
-                } else {
-                    BrandColor.LimeBright
-                },
-                textColor = if (row.busy) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.secondary
-                },
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            row.hasPushChannel?.let { available ->
-                Text(
-                    if (available) t("contactsTasks.transferAlertsAvailable") else t("contactsTasks.transferNoAlerts"),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            InitialsAvatar(row.name, size = 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text(row.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                LineStatusRow(
+                    text = if (row.busy) {
+                        t("contactsTasks.onACall")
+                    } else {
+                        t("contactsTasks.available")
+                    },
+                    dot = if (row.busy) {
+                        MaterialTheme.colorScheme.outline
+                    } else {
+                        BrandColor.LimeBright
+                    },
+                    textColor = if (row.busy) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    },
+                    modifier = Modifier.padding(top = 2.dp),
                 )
+                row.hasPushChannel?.let { available ->
+                    Text(
+                        if (available) t("contactsTasks.transferAlertsAvailable") else t("contactsTasks.transferNoAlerts"),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
             val transferInteraction = remember { MutableInteractionSource() }
             Surface(
                 onClick = onTransfer,
@@ -1073,13 +1091,6 @@ private fun TransferTargetRow(
         }
     }
 }
-
-private data class TransferRow(
-    val userId: String,
-    val name: String,
-    val busy: Boolean,
-    val hasPushChannel: Boolean?,
-)
 
 /**
  * #180 responsive proof: the active-call surface laid out at every ratio, in the

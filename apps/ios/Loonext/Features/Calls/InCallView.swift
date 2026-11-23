@@ -656,6 +656,7 @@ private struct TransferSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
@@ -734,28 +735,32 @@ private struct TransferSheet: View {
 
     @ViewBuilder
     private func transferRow(_ row: Row) -> some View {
-        HStack(spacing: 11) {
-            InitialsAvatar(name: row.name, size: 40)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(row.name)
-                    .font(.golos(13.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(row.busy ? BrandColor.muted300 : BrandColor.lime)
-                        .frame(width: 6, height: 6)
-                    Text(row.busy ? t("contactsTasks.onACall") : t("contactsTasks.available"))
-                        .font(.golos(11, weight: row.busy ? .regular : .semibold))
-                        .foregroundStyle(row.busy ? BrandColor.muted500 : BrandColor.olive)
-                }
-                if let available = row.hasPushChannel {
-                    Text(available ? t("contactsTasks.transferAlertsAvailable") : t("contactsTasks.transferNoAlerts"))
-                        .font(.golos(11))
-                        .foregroundStyle(BrandColor.muted500)
+        let actionLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 8))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 11) {
+                InitialsAvatar(name: row.name, size: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.name)
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(row.busy ? BrandColor.muted300 : BrandColor.lime)
+                            .frame(width: 6, height: 6)
+                        Text(row.busy ? t("contactsTasks.onACall") : t("contactsTasks.available"))
+                            .font(.golos(11, weight: row.busy ? .regular : .semibold))
+                            .foregroundStyle(row.busy ? BrandColor.muted500 : BrandColor.olive)
+                    }
+                    if let available = row.hasPushChannel {
+                        Text(available ? t("contactsTasks.transferAlertsAvailable") : t("contactsTasks.transferNoAlerts"))
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted500)
+                    }
                 }
             }
-            Spacer()
-            VStack(spacing: 4) {
+            actionLayout {
                 Button {
                     transfer(to: row, talkFirst: false)
                 } label: {
@@ -763,13 +768,19 @@ private struct TransferSheet: View {
                         .font(.golos(11.5, weight: .semibold))
                         .foregroundStyle(BrandColor.paper)
                         .padding(.horizontal, 15)
-                        .padding(.vertical, 8)
+                        .frame(minHeight: 44)
                         .background(BrandColor.ink, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                Button(t("contactsTasks.talkFirst")) { transfer(to: row, talkFirst: true) }
-                    .font(.golos(12, weight: .semibold))
+                Button {
+                    transfer(to: row, talkFirst: true)
+                } label: {
+                    Text(t("contactsTasks.talkFirst"))
+                        .font(.golos(12, weight: .semibold))
+                        .frame(minHeight: 44)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .disabled(row.busy || transferring)
             .opacity(row.busy || transferring ? 0.45 : 1)
         }

@@ -156,9 +156,9 @@ function TransferMenu({
           const name = nameOf(target.user_id);
           const disabled = target.busy || transfer.isPending || startingConsult;
           return (
-            <div key={target.user_id} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm">
-              <div className="min-w-0">
-                <p className="truncate">{name}</p>
+            <div key={target.user_id} className="space-y-2 rounded-md px-2 py-1.5 text-sm">
+              <div className="[overflow-wrap:anywhere]">
+                <p>{name}</p>
                 {target.has_push_channel !== undefined && (
                   <p className="text-xs text-app-muted-2">
                     {target.has_push_channel ? t("shell.transferAlertsAvailable") : t("shell.transferNoAlerts")}
@@ -166,10 +166,11 @@ function TransferMenu({
                 )}
                 {target.busy && <p className="text-xs text-app-muted-2">{t("shell.onACall")}</p>}
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-auto min-h-8 max-w-full whitespace-normal py-1 [overflow-wrap:anywhere]"
                   aria-label={t("shell.transferToTeammate", { name })}
                   disabled={disabled}
                   onClick={() => transfer.mutate({ sessionId, targetUserId: target.user_id }, {
@@ -185,6 +186,7 @@ function TransferMenu({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-auto min-h-8 max-w-full whitespace-normal py-1 [overflow-wrap:anywhere]"
                   aria-label={t("shell.talkFirstWith", { name })}
                   disabled={!softphone || disabled}
                   onClick={() => void consult(target.user_id, name)}
