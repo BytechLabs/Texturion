@@ -213,8 +213,8 @@ describe("CallsView (#129)", () => {
     ];
     mount(<CallsView />);
     const recent = screen.getByRole("heading", { name: "Recent calls" }).closest("section")!;
-    expect(within(recent).getByText("You called · 3m 12s")).toBeTruthy();
-    expect(within(recent).getByText("No answer")).toBeTruthy();
+    expect(within(recent).getByText("You called · 3m 12s")).toBeInstanceOf(Element);
+    expect(within(recent).getByText("No answer")).toBeInstanceOf(Element);
     expect(within(recent).queryByText("Missed")).toBeNull();
     // The warning tint is reserved for inbound misses (accent budget).
     expect(recent.innerHTML).not.toContain("bg-warning/10");

@@ -16,7 +16,7 @@ describe(ThreadFilterBar, () => {
     render(<ThreadFilterBar value={ALL_CATEGORIES_ON} onChange={vi.fn()} />);
 
     const group = screen.getByRole("group", { name: "Show in conversation" });
-    expect(group).toBeTruthy();
+    expect(group).toBeInstanceOf(Element);
 
     const buttons = screen.getAllByRole("button");
     expect(buttons.map((b) => b.textContent)).toEqual(["Messages", "Notes", "Events"]);
