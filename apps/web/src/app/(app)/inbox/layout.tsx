@@ -28,7 +28,7 @@ export default function InboxLayout({
 
   return (
     <InboxFocusProvider>
-      <div className="group/inbox flex h-full min-h-0" data-full-list={fullList || undefined}>
+      <div className="group/inbox flex h-full min-h-0 flex-1 overflow-hidden" data-full-list={fullList || undefined}>
         <section
           aria-label={t("appShell.conversationListAria")}
           className={cn(
@@ -54,8 +54,8 @@ export default function InboxLayout({
         <section
           aria-label={t("thread.conversationPaneAria")}
           className={cn(
-            "h-full min-w-0 flex-1 md:block",
-            inboxIndex ? "hidden" : "block",
+            "h-full min-h-0 min-w-0 flex-1 overflow-hidden",
+            inboxIndex ? "hidden md:flex md:flex-col" : "flex flex-col",
             fullList && inboxIndex && "lg:hidden",
           )}
         >

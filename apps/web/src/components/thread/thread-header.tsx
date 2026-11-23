@@ -197,7 +197,7 @@ export function ThreadHeader({
         if (target.closest("button, a")) return;
         onToggleContactPanel();
       }}
-      className="flex items-center gap-2 border-b border-app-line bg-app-paper px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5"
+      className="@container/header flex shrink-0 items-center gap-2 border-b border-app-line bg-app-paper px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5"
     >
       <Button
         asChild
@@ -271,7 +271,7 @@ export function ThreadHeader({
                 className="flex shrink-0 items-center gap-1 rounded-full bg-app-clay/12 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-app-clay uppercase"
               >
                 <TriangleAlert className="size-3" strokeWidth={2.25} />
-                <span aria-hidden className="hidden sm:inline">
+                <span aria-hidden className="hidden @[28rem]/header:inline">
                   {URGENT_BADGE_LABEL}
                 </span>
               </span>
@@ -299,7 +299,7 @@ export function ThreadHeader({
                 className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase"
               >
                 <Ban className="size-3" strokeWidth={2.25} />
-                <span aria-hidden className="hidden sm:inline">
+                <span aria-hidden className="hidden @[28rem]/header:inline">
                   {t("blockedNumbers.blockedBadge")}
                 </span>
               </span>
@@ -307,7 +307,7 @@ export function ThreadHeader({
             {repeatBadge !== null && (
               <Badge
                 variant="secondary"
-                className="hidden shrink-0 font-normal sm:inline-flex"
+                className="hidden shrink-0 font-normal @[30rem]/header:inline-flex"
               >
                 {repeatBadge}
               </Badge>
@@ -337,7 +337,7 @@ export function ThreadHeader({
               <CopyablePhoneNumber number={phone} iconOnly className={cn("size-6 shrink-0 justify-center text-app-muted-2 hover:text-app-ink", phoneCopyOnHover)} />
             </>
           ) : (
-            <CopyablePhoneNumber number={phone} className="min-h-6 text-[12.5px] tabular-nums text-app-muted" />
+            <CopyablePhoneNumber number={phone} className="min-h-6 whitespace-nowrap text-[12.5px] tabular-nums text-app-muted" />
           )}
         </div>
       </div>
@@ -347,7 +347,7 @@ export function ThreadHeader({
           type="button"
           onClick={bringBack}
           title={t("thread.bringBackTitle")}
-          className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+          className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring @[32rem]/header:flex"
         >
           <AlarmClock className="size-3.5" strokeWidth={1.75} aria-hidden />
           {deferralReturnLabel(

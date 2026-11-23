@@ -2,6 +2,8 @@
 import type { Translated } from "../translated";
 
 export const whatsNewEn = {
+  interactivePlannerTitle: "Drag and resize visits on the Planner timeline",
+  interactivePlannerBody: "Drag unscheduled tasks onto a teammate's timeline, move booked visits between crew members and adjust visit durations directly on the schedule across web, Android and iOS.",
   inboxDisplayOptionsTitle: "Choose how your inbox looks",
   inboxDisplayOptionsBody: "Pick a compact or roomy inbox, choose what each conversation shows and keep your choice on every device.",
   inboxClearFiltersTitle: "Clearer inbox filters",
@@ -24,11 +26,11 @@ export const whatsNewEn = {
   quoteDecisionsBody: "Edit or delete a draft and withdraw a sent quote that is still open. Customers can accept or decline from their link, and your crew gets a notification when a customer accepts.",
   contactImportsAndExportsTitle: "Bring in contacts and take your data with you",
   contactImportsAndExportsBody: "Import contacts with more of their details and review which records were updated. Download media with your workspace export and connect your tools to more events, including new contacts and tasks.",
-  customerDataErasureTitle: "Erase customer data on request",
-  customerDataErasureBody: "When a customer asks you to erase their data, start the request from the contact's Manage section if you have permission. A receipt shows which records were affected.",
 };
 
 export const whatsNewFr: Translated<typeof whatsNewEn> = {
+  interactivePlannerTitle: "Glissez et ajustez les visites au planificateur",
+  interactivePlannerBody: "Glissez les tâches à planifier sur l’horaire d’un coéquipier, déplacez les visites réservées et ajustez leur durée directement sur la grille sur le Web, Android et iOS.",
   inboxDisplayOptionsTitle: "Choisissez l’affichage de votre boîte",
   inboxDisplayOptionsBody: "Optez pour une boîte compacte ou aérée, choisissez ce que chaque conversation affiche et gardez ce choix sur tous vos appareils.",
   inboxClearFiltersTitle: "Des filtres de boîte plus clairs",
@@ -51,6 +53,4 @@ export const whatsNewFr: Translated<typeof whatsNewEn> = {
   quoteDecisionsBody: "Modifiez ou supprimez un brouillon et retirez un devis envoyé qui attend une réponse. Vos clients peuvent accepter ou refuser le devis depuis leur lien. Une acceptation avise votre équipe.",
   contactImportsAndExportsTitle: "Importez vos contacts et emportez vos données",
   contactImportsAndExportsBody: "Importez plus de détails sur vos contacts et voyez les fiches mises à jour. Téléchargez les médias avec votre exportation et reliez vos outils à plus d'événements, comme la création de tâches.",
-  customerDataErasureTitle: "Effacez les données d'un client sur demande",
-  customerDataErasureBody: "Si un client demande l'effacement de ses données, lancez la demande dans la section Gérer de sa fiche si vous avez l'autorisation. Un reçu indique les dossiers touchés.",
 };

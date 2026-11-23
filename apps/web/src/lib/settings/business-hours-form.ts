@@ -32,16 +32,6 @@ export const WEEKDAY_ORDER: Weekday[] = [
   "sun",
 ];
 
-export const WEEKDAY_LABEL: Record<Weekday, string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
-};
-
 const DEFAULT_OPEN = "08:00";
 const DEFAULT_CLOSE = "17:00";
 

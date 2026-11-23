@@ -413,6 +413,19 @@ export function formatCalendarDate(iso: string, locale?: string, timeZone?: stri
   }).format(at);
 }
 
+/** A `yyyy-MM-dd` day as "November 2026" or "Nov 12, 2026" in the reader's language. */
+export function formatWallPeriod(date: string, mode: "month" | "week", locale: string): string {
+  const at = new Date(`${date}T12:00:00Z`);
+  if (Number.isNaN(at.getTime())) return date;
+  return getFormatter(
+    locale,
+    "UTC",
+    mode === "week"
+      ? { month: "short", day: "numeric", year: "numeric" }
+      : { month: "long", year: "numeric" },
+  ).format(at);
+}
+
 /** A `yyyy-MM-dd` day as "Thursday, November 12" in the reader's language. */
 export function formatWallDay(date: string, locale: string): string {
   const at = new Date(`${date}T12:00:00Z`);

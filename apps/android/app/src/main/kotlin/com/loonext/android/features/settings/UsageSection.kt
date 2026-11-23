@@ -436,6 +436,16 @@ private fun CapCard(
  * is a hard stop rather than a fair-use line.
  */
 @Composable
+internal fun AiUsageSummary(features: List<AiFeatureUsage>) {
+    Column {
+        DetailHeader(t("settingsMore.louThisMonth"))
+        DetailLine(t("settingsMore.louThisMonthLine"))
+        Spacer(Modifier.height(8.dp))
+        AiUsageBars(features)
+    }
+}
+
+@Composable
 private fun AiUsageBars(features: List<AiFeatureUsage>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (feature in features) {
@@ -450,10 +460,11 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
             Column {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
                         feature.label.replaceFirstChar { it.uppercase() },
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -467,6 +478,7 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                         } else {
                             t("settingsMore.off")
                         },
+                        softWrap = false,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -545,15 +557,17 @@ private fun StorageBreakdown(storage: UsageStorage) {
     rows.forEach { (key, bytes) ->
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 t(key),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 formatBytes(bytes),
+                softWrap = false,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -625,10 +639,7 @@ private fun DetailsCard(usage: Usage) {
                 StorageBreakdown(usage.storage)
                 if (usage.ai.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    DetailHeader(t("settingsMore.louThisMonth"))
-                    DetailLine(t("settingsMore.louThisMonthLine"))
-                    Spacer(Modifier.height(8.dp))
-                    AiUsageBars(usage.ai)
+                    AiUsageSummary(usage.ai)
                 }
                 if (usage.history.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))

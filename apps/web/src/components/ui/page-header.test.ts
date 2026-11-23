@@ -41,6 +41,7 @@ const OWN_TITLE_ALLOWED = new Set([
   "app/(app)/contacts/[id]/page.tsx",
   "components/calls/call-detail.tsx",
   "components/inbox/new-conversation.tsx",
+  "components/tasks/task-detail-panel.tsx",
   "components/thread/thread-header.tsx",
 ]);
 

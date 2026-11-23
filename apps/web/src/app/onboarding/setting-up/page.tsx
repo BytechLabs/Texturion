@@ -198,7 +198,7 @@ function OtpRow({
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        {REGISTRATION_COPY.otpPending(phone ? formatPhone(phone) : t("onboarding.yourMobileFallback"))}
+        {REGISTRATION_COPY.otpPending(phone ? formatPhone(phone) : t("onboarding.yourMobileFallback"), t)}
         {phone && <CopyablePhoneNumber number={phone} iconOnly className="ms-2 align-middle" />}
       </p>
       {canEnter ? (
@@ -568,7 +568,7 @@ function SettingUp() {
     if (campaignApproved) {
       setupAction = (
         <p className="text-sm text-muted-foreground">
-          {REGISTRATION_COPY.approved}
+          {t("shell.regApproved")}
         </p>
       );
     } else if (registrationStep) {
@@ -590,7 +590,7 @@ function SettingUp() {
       setupAction = (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {REGISTRATION_COPY.rejected(rejectionReason)}
+            {REGISTRATION_COPY.rejected(rejectionReason, t)}
           </p>
           {canActOnRegistration ? (
             <Button asChild variant="outline" size="sm">
@@ -612,7 +612,7 @@ function SettingUp() {
     } else {
       setupAction = (
         <p className="text-sm text-muted-foreground">
-          {REGISTRATION_COPY.registrationPending}
+          {t("shell.regPending")}
         </p>
       );
     }
@@ -654,6 +654,7 @@ function SettingUp() {
               failedNeedsChoice?.failure_reason === "no_inventory"
                 ? (failedNeedsChoice?.requested_area_code ?? null)
                 : null,
+              t,
             )}
           </p>
           <Link
@@ -668,8 +669,8 @@ function SettingUp() {
     return (
       <p className="text-sm text-muted-foreground">
         {provisionFailed
-          ? REGISTRATION_COPY.numberDelayed
-          : provisioningWaitCopy(provisioningNumber?.created_at, now)}
+          ? t("shell.regNumberDelayed")
+          : provisioningWaitCopy(provisioningNumber?.created_at, now, t)}
       </p>
     );
   }

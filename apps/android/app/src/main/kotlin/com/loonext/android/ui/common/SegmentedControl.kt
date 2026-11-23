@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -119,9 +120,10 @@ fun <T> SegmentedControl(
                     Text(
                         segment.label,
                         color = content,
-                        fontSize = if (size == SegmentedSize.Md) 13.sp else 12.sp,
+                        fontSize = if (size == SegmentedSize.Md && labelLines == 1) 13.sp else 12.sp,
                         fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Medium,
                         maxLines = labelLines,
+                        textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis,
                     )
                     segment.badge?.let { count ->

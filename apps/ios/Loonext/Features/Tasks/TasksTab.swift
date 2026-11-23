@@ -385,7 +385,7 @@ struct TasksTab: View {
                 SegmentedOption("mine", title: AppStrings.translate(appLocale, "contactsTasks.myWork")),
                 SegmentedOption("unassigned", title: AppStrings.translate(appLocale, "contactsTasks.unassigned")),
             ],
-            selected: selected, size: .compact, fill: false
+            selected: selected, size: .compact, fill: true, horizontalPadding: 4, labelLines: 2
         ) { preset in
             var next = TaskViewState()
             next.assigneeUserId = preset == "mine" ? assigneeMe : nil
@@ -452,14 +452,16 @@ struct TasksTab: View {
     /// #711: the shared header. One row of status tabs, Filter and Views, and the applied
     /// filters under it only while any is on. Every filter is behind Filter.
     private var controlsRow: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
+            presets
+                .padding(.horizontal, 18)
             ListFilterRow(
                 filterCount: taskFilterCount(currentState),
                 onFilter: { filtersOpen = true },
                 views: viewsModel,
                 sortMenu: AnyView(TasksSortMenu(selection: $sortChoice))
             ) {
-                presets
+                EmptyView()
             }
             ActiveFilterChips(chips: activeFilterChips, onClearAll: clearActiveFilters)
         }

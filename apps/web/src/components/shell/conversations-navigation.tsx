@@ -32,7 +32,9 @@ export function ConversationsNavigation() {
               return (
                 <Link key={href} href={href} aria-current={active && !inScheduled ? "page" : undefined} className={cn(
                   "tap-target flex items-center rounded-md px-3 py-2 text-sm font-medium",
-                  active ? "bg-app-tint text-app-olive-deep" : "text-app-muted hover:bg-app-line-soft",
+                  active && !inScheduled && "bg-primary text-primary-foreground",
+                  active && inScheduled && "bg-app-tint text-app-olive-deep",
+                  !active && "text-app-muted hover:bg-app-line-soft",
                 )}>
                   {t(label)}
                 </Link>
@@ -45,7 +47,7 @@ export function ConversationsNavigation() {
               aria-current={inScheduled ? "page" : undefined}
               className={cn(
                 "tap-target ml-8 mt-1 inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium",
-                inScheduled ? "bg-app-tint text-app-olive-deep" : "text-app-muted hover:bg-app-line-soft",
+                inScheduled ? "bg-primary text-primary-foreground" : "text-app-muted hover:bg-app-line-soft",
               )}
             >
               <CalendarClock className="size-4" aria-hidden />

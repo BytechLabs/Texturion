@@ -3,6 +3,12 @@ import type { WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
   {
+    date: "2026-11-23",
+    title: "whatsNew.interactivePlannerTitle",
+    body: "whatsNew.interactivePlannerBody",
+    href: "/tasks/planner",
+  },
+  {
     date: "2026-11-22",
     title: "whatsNew.inboxDisplayOptionsTitle",
     body: "whatsNew.inboxDisplayOptionsBody",
@@ -66,12 +72,6 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     date: "2026-11-20",
     title: "whatsNew.contactImportsAndExportsTitle",
     body: "whatsNew.contactImportsAndExportsBody",
-    href: "/contacts",
-  },
-  {
-    date: "2026-11-20",
-    title: "whatsNew.customerDataErasureTitle",
-    body: "whatsNew.customerDataErasureBody",
     href: "/contacts",
   },
 ];

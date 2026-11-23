@@ -10,6 +10,19 @@
   ],
   "entries": [
     {
+      "id": "interactivePlanner",
+      "date": "2026-11-23",
+      "href": "/tasks/planner",
+      "en": {
+        "title": "Drag and resize visits on the Planner timeline",
+        "body": "Drag unscheduled tasks onto a teammate's timeline, move booked visits between crew members and adjust visit durations directly on the schedule across web, Android and iOS."
+      },
+      "fr": {
+        "title": "Glissez et ajustez les visites au planificateur",
+        "body": "Glissez les tâches à planifier sur l’horaire d’un coéquipier, déplacez les visites réservées et ajustez leur durée directement sur la grille sur le Web, Android et iOS."
+      }
+    },
+    {
       "id": "inboxDisplayOptions",
       "date": "2026-11-22",
       "href": "/inbox",

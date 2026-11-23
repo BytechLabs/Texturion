@@ -3,6 +3,8 @@ package com.loonext.android.core.i18n
 
 object WhatsNewStrings : AppStrings.Section {
     override val en = mapOf(
+        "whatsNew.interactivePlannerTitle" to "Drag and resize visits on the Planner timeline",
+        "whatsNew.interactivePlannerBody" to "Drag unscheduled tasks onto a teammate's timeline, move booked visits between crew members and adjust visit durations directly on the schedule across web, Android and iOS.",
         "whatsNew.inboxDisplayOptionsTitle" to "Choose how your inbox looks",
         "whatsNew.inboxDisplayOptionsBody" to "Pick a compact or roomy inbox, choose what each conversation shows and keep your choice on every device.",
         "whatsNew.inboxClearFiltersTitle" to "Clearer inbox filters",
@@ -25,11 +27,11 @@ object WhatsNewStrings : AppStrings.Section {
         "whatsNew.quoteDecisionsBody" to "Edit or delete a draft and withdraw a sent quote that is still open. Customers can accept or decline from their link, and your crew gets a notification when a customer accepts.",
         "whatsNew.contactImportsAndExportsTitle" to "Bring in contacts and take your data with you",
         "whatsNew.contactImportsAndExportsBody" to "Import contacts with more of their details and review which records were updated. Download media with your workspace export and connect your tools to more events, including new contacts and tasks.",
-        "whatsNew.customerDataErasureTitle" to "Erase customer data on request",
-        "whatsNew.customerDataErasureBody" to "When a customer asks you to erase their data, start the request from the contact's Manage section if you have permission. A receipt shows which records were affected.",
     )
 
     override val frCA = mapOf(
+        "whatsNew.interactivePlannerTitle" to "Glissez et ajustez les visites au planificateur",
+        "whatsNew.interactivePlannerBody" to "Glissez les tâches à planifier sur l’horaire d’un coéquipier, déplacez les visites réservées et ajustez leur durée directement sur la grille sur le Web, Android et iOS.",
         "whatsNew.inboxDisplayOptionsTitle" to "Choisissez l’affichage de votre boîte",
         "whatsNew.inboxDisplayOptionsBody" to "Optez pour une boîte compacte ou aérée, choisissez ce que chaque conversation affiche et gardez ce choix sur tous vos appareils.",
         "whatsNew.inboxClearFiltersTitle" to "Des filtres de boîte plus clairs",
@@ -52,7 +54,5 @@ object WhatsNewStrings : AppStrings.Section {
         "whatsNew.quoteDecisionsBody" to "Modifiez ou supprimez un brouillon et retirez un devis envoyé qui attend une réponse. Vos clients peuvent accepter ou refuser le devis depuis leur lien. Une acceptation avise votre équipe.",
         "whatsNew.contactImportsAndExportsTitle" to "Importez vos contacts et emportez vos données",
         "whatsNew.contactImportsAndExportsBody" to "Importez plus de détails sur vos contacts et voyez les fiches mises à jour. Téléchargez les médias avec votre exportation et reliez vos outils à plus d'événements, comme la création de tâches.",
-        "whatsNew.customerDataErasureTitle" to "Effacez les données d'un client sur demande",
-        "whatsNew.customerDataErasureBody" to "Si un client demande l'effacement de ses données, lancez la demande dans la section Gérer de sa fiche si vous avez l'autorisation. Un reçu indique les dossiers touchés.",
     )
 }

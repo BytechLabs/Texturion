@@ -28,7 +28,9 @@ struct ThemeSegmentedControl: View {
     }
 
     var body: some View {
-        SegmentedControl(options: options, selection: $theme)
+        SegmentedControl(options: options, selected: theme, horizontalPadding: 4, labelLines: 2) {
+            theme = $0
+        }
     }
 }
 

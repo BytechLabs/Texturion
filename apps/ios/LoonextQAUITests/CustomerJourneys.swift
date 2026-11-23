@@ -60,6 +60,16 @@ final class CustomerJourneys: XCTestCase {
     func testForYouFrenchLight() async throws { try await forYou(.french, "light") }
     func testForYouFrenchDark() async throws { try await forYou(.french, "dark") }
 
+    func testPlannerEnglishLight() async throws { try await planner(.english, "light") }
+    func testPlannerEnglishDark() async throws { try await planner(.english, "dark") }
+    func testPlannerFrenchLight() async throws { try await planner(.french, "light") }
+    func testPlannerFrenchDark() async throws { try await planner(.french, "dark") }
+
+    func testSettingsEnglishLight() async throws { try await settings(.english, "light") }
+    func testSettingsEnglishDark() async throws { try await settings(.english, "dark") }
+    func testSettingsFrenchLight() async throws { try await settings(.french, "light") }
+    func testSettingsFrenchDark() async throws { try await settings(.french, "dark") }
+
     private func forYou(_ language: Language, _ theme: String) async throws {
         let text = language.label
         let suffix = "\(language.rawValue)-\(theme)"
@@ -121,6 +131,62 @@ final class CustomerJourneys: XCTestCase {
         try verify(7)
         try reveal(options(90).element(boundBy: 1)).tap()
         try verify(90)
+    }
+
+    private func settings(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "owner", stage: "active")
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button(text("More", "Plus"))).tap()
+        shot("Settings account \(suffix)")
+        try waitFor(button(text("Settings", "Paramètres"))).tap()
+        try waitFor(button("settings-section-workspace"))
+        shot("Settings index \(suffix)")
+
+        for section in ["workspace", "team", "ai", "hours", "automaticTexts", "templates", "numbers", "calling",
+                        "usage", "billing", "payments", "notifications", "profile", "devices", "webhooks", "apiKeys",
+                        "help", "whatsNew"] {
+            try reveal(button("settings-section-\(section)")).tap()
+            let back = try waitFor(app.navigationBars.buttons.firstMatch)
+            shot("Settings \(section) \(suffix)")
+            back.tap()
+        }
+    }
+
+    private func planner(_ language: Language, _ theme: String) async throws {
+        let text = language.label
+        let suffix = "\(language.rawValue)-\(theme)"
+        try await profile(language, role: "member", stage: "active", fieldwork: true)
+        launch(language, theme, signIn: true)
+        try waitFor(button("Conversations"), timeout: 30)
+        dismissNotificationPrimer(language)
+        try waitFor(button(text("Tasks", "Tâches"))).tap()
+        try waitFor(button(text("Planner", "Planificateur"))).tap()
+        let pending = try waitFor(button("Test boiler"))
+        let lane = app.descendants(matching: .any)["dispatch-lane-20000000-0000-4000-8000-000000000002"].firstMatch
+        try waitFor(lane)
+        XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
+        shot("Planner schedule \(suffix)")
+        let previewCount = try await allWrites().filter { $0.path == "/v1/dispatch/preview" }.count
+        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
+        let dropTarget = lane.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 84, dy: 0))
+        let resizeButton = button(text("Change duration", "Modifier la durée"))
+        for hold in [1.35, 1.5, 1.65] {
+            grip.press(forDuration: hold, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.5)
+            if resizeButton.waitForExistence(timeout: 6) { break }
+        }
+        let resize = try waitFor(resizeButton)
+        shot("Planner staged work \(suffix)")
+        let edge = resize.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        edge.press(forDuration: 0.05, thenDragTo: edge.withOffset(CGVector(dx: 56, dy: 0)))
+        try waitFor(button(text("Change duration", "Modifier la durée")))
+        let writes = try await allWrites()
+        XCTAssertEqual(writes.filter { $0.path == "/v1/dispatch/preview" }.count, previewCount + 2)
+        XCTAssertFalse(writes.contains { $0.path == "/v1/dispatch/publish" })
+        shot("Planner resized work \(suffix)")
     }
 
     private func workspace(_ language: Language, _ theme: String) async throws {

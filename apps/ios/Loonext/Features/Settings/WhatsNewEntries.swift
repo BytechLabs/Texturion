@@ -2,6 +2,11 @@
 /// Newest first, the newest 12.
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
     WhatsNewEntry(
+        date: "2026-11-23",
+        title: "whatsNew.interactivePlannerTitle",
+        body: "whatsNew.interactivePlannerBody"
+    ),
+    WhatsNewEntry(
         date: "2026-11-22",
         title: "whatsNew.inboxDisplayOptionsTitle",
         body: "whatsNew.inboxDisplayOptionsBody"
@@ -55,10 +60,5 @@ let whatsNewGeneratedEntries: [WhatsNewEntry] = [
         date: "2026-11-20",
         title: "whatsNew.contactImportsAndExportsTitle",
         body: "whatsNew.contactImportsAndExportsBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-11-20",
-        title: "whatsNew.customerDataErasureTitle",
-        body: "whatsNew.customerDataErasureBody"
     ),
 ]

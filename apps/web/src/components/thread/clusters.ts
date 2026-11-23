@@ -1,6 +1,9 @@
 import { format, isSameDay, isSameYear, subDays } from "date-fns";
 
+import { makeTranslate } from "@/i18n/translate";
+import type { Translate } from "@/i18n/translate";
 import type { ConversationEvent, Message } from "@/lib/api/types";
+import { browserTimezone, getFormatter } from "@/lib/format/time";
 
 /**
  * Pure thread-timeline builder (G5): messages group into clusters (same
@@ -10,6 +13,7 @@ import type { ConversationEvent, Message } from "@/lib/api/types";
  */
 
 export const CLUSTER_GAP_MS = 3 * 60_000;
+const english = makeTranslate("en");
 
 export interface DividerItem {
   kind: "divider";
@@ -37,11 +41,15 @@ export interface EventItem {
 
 export type ThreadItem = DividerItem | ClusterItem | EventItem;
 
-export function dayDividerLabel(date: Date, now: Date = new Date()): string {
-  if (isSameDay(date, now)) return "Today";
-  if (isSameDay(date, subDays(now, 1))) return "Yesterday";
-  if (isSameYear(date, now)) return format(date, "MMM d");
-  return format(date, "MMM d yyyy");
+export function dayDividerLabel(date: Date, now: Date = new Date(), t: Translate = english, month: "short" | "long" = "short"): string {
+  if (isSameDay(date, now)) return t("thread.dayToday");
+  if (isSameDay(date, subDays(now, 1))) return t("thread.dayYesterday");
+  const sameYear = isSameYear(date, now);
+  if (t.locale !== "en") {
+    return getFormatter(t.locale, browserTimezone(), { day: "numeric", month, year: sameYear ? undefined : "numeric" }).format(date);
+  }
+  if (month === "long") return format(date, sameYear ? "MMMM d" : "MMMM d, yyyy");
+  return format(date, sameYear ? "MMM d" : "MMM d yyyy");
 }
 
 interface Entry {
@@ -69,6 +77,7 @@ export function buildThreadItems(
   messages: readonly Message[],
   events: readonly ConversationEvent[],
   now: Date = new Date(),
+  t: Translate = english,
 ): ThreadItem[] {
   const entries: Entry[] = [
     ...messages.map((message) => ({
@@ -96,7 +105,7 @@ export function buildThreadItems(
       items.push({
         kind: "divider",
         key: `divider:${format(date, "yyyy-MM-dd")}`,
-        label: dayDividerLabel(date, now),
+        label: dayDividerLabel(date, now, t),
       });
       lastDay = date;
       cluster = null;

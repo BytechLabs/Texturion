@@ -386,6 +386,7 @@ struct SettingsHome: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("settings-section-\(section.id)")
                             }
                         }
                     }

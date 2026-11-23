@@ -478,9 +478,9 @@ function ThreadLoaded({
   );
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 w-full flex-1 overflow-hidden">
       {/* The thread column: calm paper, structure by hairlines not wash. */}
-      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-ground">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-app-ground">
         <ThreadHeader
           conversation={conversation}
           contact={contact.data}
@@ -611,7 +611,7 @@ function ThreadLoaded({
               : t("tasks.drawerTitle")
           }
           style={{ width: panelWidth }}
-          className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
+          className="relative hidden h-full min-h-0 shrink-0 overflow-hidden border-l border-app-line bg-app-paper xl:flex xl:flex-col"
         >
           <PanelResizeHandle
             width={panelWidth}

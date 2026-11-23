@@ -5,7 +5,7 @@
  * the inbox, unthreaded rows never dead-link, and the empty states speak the
  * feature's language.
  */
-import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as mount, screen, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -211,12 +211,13 @@ describe("CallsView (#129)", () => {
         forward_seconds: 0,
       }),
     ];
-    const html = render();
-    expect(html).toContain("You called · 3m 12s");
-    expect(html).toContain("No answer");
-    expect(html).not.toContain("Missed</span>");
+    mount(<CallsView />);
+    const recent = screen.getByRole("heading", { name: "Recent calls" }).closest("section")!;
+    expect(within(recent).getByText("You called · 3m 12s")).toBeInstanceOf(Element);
+    expect(within(recent).getByText("No answer")).toBeInstanceOf(Element);
+    expect(within(recent).queryByText("Missed")).toBeNull();
     // The warning tint is reserved for inbound misses (accent budget).
-    expect(html).not.toContain("bg-warning/10");
+    expect(recent.innerHTML).not.toContain("bg-warning/10");
   });
 
   it("D42: empty state says calls will land here and points at the missed-calls settings, never billing", () => {

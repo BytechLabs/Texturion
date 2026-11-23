@@ -146,6 +146,11 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
     setError("");
   }
 
+  function stageBlock(item: DispatchTask, booking: DispatchBlock) {
+    const edit = dispatchEdit(booking, item, original.get(booking.id)?.locked === true);
+    void stage({ ...draft, blocks: replace(draft.blocks, edit, (entry) => entry.id === edit.id) });
+  }
+
   function changeDate(next: string) {
     if (!next || (dirty && weekOf(next) !== week)) return;
     setDate(next);
@@ -276,8 +281,9 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
         </>
       )} />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedControl ariaLabel={t("tasks.planner")} value={pane} onChange={setPane}
-          options={PANES.map(({ id, label, icon: Icon }) => ({ value: id, label: t(label), icon: <Icon className="size-4" aria-hidden /> }))} />
+        <SegmentedControl ariaLabel={t("tasks.planner")} value={pane} onChange={setPane} fill
+          className="w-full flex-none sm:w-auto"
+          options={PANES.map(({ id, label, icon: Icon }) => ({ value: id, label: t(label), icon: <Icon className="hidden size-4 shrink-0 sm:block" aria-hidden /> }))} />
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="icon" disabled={busy || dirty} aria-label={t("tasks.dispatchPrevWeek")}
             onClick={() => changeDate(shift(date, -WEEK_DAYS))}><ChevronLeft aria-hidden /></Button>
@@ -328,10 +334,11 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
               .filter((item) => item.assignee_id === block.assignee_id && item.starts_at > block.starts_at)
               .map((item) => plan.tasks.find((entry) => entry.id === item.task_id)?.title).filter(Boolean).join(", ")}</p>
           )}
-          <DispatchSchedule plan={plan} day={day} focused={person} editable={editable && !busy} onSelect={select} />
+          <DispatchSchedule plan={plan} day={day} focused={person} editable={editable && !busy}
+            onSelect={select} onStageBlock={stageBlock} />
         </>
       )}
-      {pane === "workload" && <DispatchWorkload plan={plan} rows={preview?.workload ?? query.data?.workload ?? []} onFocus={(id, when) => {
+      {pane === "workload" && <DispatchWorkload plan={plan} date={date} rows={preview?.workload ?? query.data?.workload ?? []} onFocus={(id, when) => {
         setPerson(id);
         changeDate(when);
         setPane("schedule");

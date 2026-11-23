@@ -1713,6 +1713,7 @@ private struct InboxStatusTabs: View {
             size: .compact,
             fill: true,
             horizontalPadding: 2,
+            labelLines: 2,
             onSelect: onSelect
         )
     }

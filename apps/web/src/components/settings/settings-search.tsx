@@ -222,7 +222,7 @@ export function SettingsSearchPanel({ children }: { children: React.ReactNode })
                 }
               >
                 <span className="block text-sm font-medium">{hit.label}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="block text-xs text-muted-foreground">
                   {t("settingsMore.settingsSearchPath", {
                     group: t(hit.groupLabel),
                     section: t(hit.sectionLabel),

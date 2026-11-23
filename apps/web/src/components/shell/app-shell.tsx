@@ -103,7 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Full-height sidebar on the left is the whole desktop shell; the content
           column (status banner + destination) fills the rest. */}
         <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <CallBar />
           {/* #100: no mobile top header — the bottom tab bar's avatar sheet now
             carries the workspace switcher, the copyable number(s), the
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               // #714: `relative` makes main the box absolute descendants
               // (sr-only labels among them) are placed in. Without it they
               // were placed in the document and made it scroll too.
-              "relative flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
+              "relative flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
               // Modal scroll locking on the body also needs to reach this inner scroller.
               fixedFrame ? "overflow-hidden" : "overflow-y-auto in-[body[data-scroll-locked]]:overflow-y-hidden",
             )}

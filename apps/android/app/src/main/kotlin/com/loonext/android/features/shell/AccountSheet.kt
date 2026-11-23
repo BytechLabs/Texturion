@@ -20,6 +20,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
@@ -143,6 +145,7 @@ fun AccountSheet(
  * stays reachable even on a square cover display, and condenses its rhythm when
  * height is compact.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AccountSheetContent(
     me: Me,
@@ -220,18 +223,14 @@ internal fun AccountSheetContent(
                                 )
                             }
                         }
-                        activeNumbers.firstOrNull()?.number_e164?.let { number ->
-                            Spacer(Modifier.width(8.dp))
-                            NumberChip(number)
-                        }
                     }
-                    // Extra workspace numbers stay copyable (rare, stacked).
-                    if (activeNumbers.size > 1) {
-                        Row(
+                    if (activeNumbers.isNotEmpty()) {
+                        FlowRow(
                             Modifier.padding(top = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            activeNumbers.drop(1).forEach { number ->
+                            activeNumbers.forEach { number ->
                                 NumberChip(number.number_e164!!)
                             }
                         }
@@ -262,6 +261,7 @@ internal fun AccountSheetContent(
                         selected = theme,
                         onSelect = onSelectTheme,
                         size = SegmentedSize.Sm,
+                        labelPadding = 9.dp,
                     )
                 }
             }

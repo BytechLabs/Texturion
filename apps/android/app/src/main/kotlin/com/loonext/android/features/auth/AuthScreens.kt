@@ -53,11 +53,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -710,28 +713,30 @@ private fun SuccessBanner(text: String) {
 /** Bottom footer link: muted lead-in + bold ink action. */
 @Composable
 private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val strong = MaterialTheme.colorScheme.onBackground
+    val annotated = buildAnnotatedString {
+        withStyle(SpanStyle(color = muted)) { append("$prefix ") }
+        withStyle(SpanStyle(color = strong, fontWeight = FontWeight.Bold)) { append(action) }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
             // One control, so the lead-in and the action are one stop for a screen reader.
             .clearAndSetSemantics { contentDescription = "$prefix $action" }
-            .heightIn(min = 48.dp),
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "$prefix ",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            action,
+            text = annotated,
             style = MaterialTheme.typography.bodySmall.copy(
                 fontSize = 12.5.sp,
-                fontWeight = FontWeight.Bold,
+                lineHeight = 18.sp,
             ),
-            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
         )
     }
 }

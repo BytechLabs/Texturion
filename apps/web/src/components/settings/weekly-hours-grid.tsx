@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
-import { WEEKDAY_LABEL } from '@/lib/settings/business-hours-form';
+import { formatWallWeekday } from "@/lib/format/time";
+import { WEEKDAY_ORDER } from '@/lib/settings/business-hours-form';
 import type { DayFormState } from '@/lib/settings/business-hours-form';
 
 /**
@@ -35,57 +36,55 @@ export function WeeklyHoursGrid({
   const t = useT();
   return (
     <div className="space-y-3">
-      {days.map((day) => (
-        <div
-          key={day.weekday}
-          className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3 last:border-b-0 last:pb-0"
-        >
-          <div className="flex min-w-[9.5rem] items-center gap-2.5">
-            <Switch
-              id={`${idPrefix}-${day.weekday}`}
-              checked={day.enabled}
-              disabled={disabled}
-              onCheckedChange={(enabled) => onChange(day.weekday, { enabled })}
-            />
-            <Label htmlFor={`${idPrefix}-${day.weekday}`} className="text-sm">
-              {WEEKDAY_LABEL[day.weekday]}
-            </Label>
-          </div>
-          {day.enabled ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Input
-                type="time"
-                aria-label={t("settingsMore.hoursOpenAria", {
-                  day: WEEKDAY_LABEL[day.weekday],
-                })}
-                value={day.open}
+      {days.map((day) => {
+        const weekdayIndex = WEEKDAY_ORDER.indexOf(day.weekday) + 1;
+        const label = formatWallWeekday(`2024-01-0${weekdayIndex}`, t.locale);
+        return (
+          <div
+            key={day.weekday}
+            className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3 last:border-b-0 last:pb-0"
+          >
+            <div className="flex min-w-[9.5rem] items-center gap-2.5">
+              <Switch
+                id={`${idPrefix}-${day.weekday}`}
+                checked={day.enabled}
                 disabled={disabled}
-                onChange={(e) => onChange(day.weekday, { open: e.target.value })}
-                className="w-[7.5rem]"
+                onCheckedChange={(enabled) => onChange(day.weekday, { enabled })}
               />
-              <span className="text-muted-foreground">
-                {t("settingsMore.quietTo")}
-              </span>
-              <Input
-                type="time"
-                aria-label={t("settingsMore.hoursCloseAria", {
-                  day: WEEKDAY_LABEL[day.weekday],
-                })}
-                value={day.close}
-                disabled={disabled}
-                onChange={(e) =>
-                  onChange(day.weekday, { close: e.target.value })
-                }
-                className="w-[7.5rem]"
-              />
+              <Label htmlFor={`${idPrefix}-${day.weekday}`} className="text-sm capitalize">
+                {label}
+              </Label>
             </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">
-              {t("settingsMore.hoursClosed")}
-            </span>
-          )}
-        </div>
-      ))}
+            {day.enabled ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Input
+                  type="time"
+                  aria-label={t("settingsMore.hoursOpenAria", { day: label })}
+                  value={day.open}
+                  disabled={disabled}
+                  onChange={(e) => onChange(day.weekday, { open: e.target.value })}
+                  className="w-[7.5rem]"
+                />
+                <span className="text-muted-foreground">
+                  {t("settingsMore.quietTo")}
+                </span>
+                <Input
+                  type="time"
+                  aria-label={t("settingsMore.hoursCloseAria", { day: label })}
+                  value={day.close}
+                  disabled={disabled}
+                  onChange={(e) => onChange(day.weekday, { close: e.target.value })}
+                  className="w-[7.5rem]"
+                />
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {t("settingsMore.hoursClosed")}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

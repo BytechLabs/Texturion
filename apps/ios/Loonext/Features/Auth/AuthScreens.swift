@@ -297,6 +297,7 @@ struct AuthFlow: View {
             .frame(maxWidth: 440, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.top, 64)
+            .padding(.bottom, 32)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -774,7 +775,8 @@ struct PrimaryButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.45)
+        .compositingGroup()
+        .opacity(enabled ? 1 : 0.55)
         .padding(.top, 8)
     }
 }

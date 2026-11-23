@@ -74,8 +74,8 @@ const DRAG_SURFACES: Record<
     why: "A visible 'Move to To do / Move to Done' button on every card.",
   },
   "components/tasks/dispatch-views.tsx": {
-    pointerAlternative: ["onClick={() => onSelect(task)}"],
-    why: "Schedule work opens the assignee, date and time form for each queued task.",
+    pointerAlternative: ["onClick={() => onSelect(task)}", "onClick={() => editable ? onSelect(task, item) : openTask(task.id)}"],
+    why: "Schedule work opens the editor for a queued task. Clicking its booked block opens the same crew, time and duration controls.",
   },
   "components/tasks/views/calendar-view.tsx": {
     // #712: the chip's menu is the task's one action list (task-actions.tsx,

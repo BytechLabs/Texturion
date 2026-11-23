@@ -1125,6 +1125,7 @@ private struct LouTab: View {
     @State private var section: LouSection = .overview
     @State private var activityLineId: String?
     @State private var notice: String?
+    @State private var aiUsage: [AiFeatureUsage] = []
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
@@ -1138,13 +1139,25 @@ private struct LouTab: View {
                         SegmentedOption(.activity, title: t("shell.louActivity")),
                         SegmentedOption(.settings, title: t("shell.settings")),
                     ],
-                    selection: $section
+                    selected: section,
+                    horizontalPadding: 6,
+                    labelLines: 2,
+                    onSelect: { section = $0 }
                 )
                 switch section {
                 case .overview:
-                    Text(t("shell.louOverviewDescription"))
-                        .font(.golos(13))
-                        .foregroundStyle(BrandColor.muted600)
+                    PaperCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(t("shell.louOverviewDescription"))
+                                .font(.golos(13))
+                                .foregroundStyle(BrandColor.muted600)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if !aiUsage.isEmpty {
+                                AiUsageDetail(features: aiUsage)
+                            }
+                        }
+                        .padding(16)
+                    }
                 case .activity:
                     let lines = accessiblePhoneLines(me.company?.numbers ?? [])
                     let selected = lines.first { $0.id == activityLineId }
@@ -1166,6 +1179,10 @@ private struct LouTab: View {
             .padding(18)
         }
         .background(BrandColor.canvas)
+        .task(id: "\(companyId)|\(appLocale)") {
+            let repo = SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
+            aiUsage = (try? await repo.usage(companyId, locale: appLocale))?.ai ?? []
+        }
     }
 }
 

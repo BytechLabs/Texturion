@@ -229,14 +229,16 @@ function TaskDetailContent({
     );
   }
 
-  return <TaskDetailLoaded task={query.data} onClose={onClose} />;
+  return <TaskDetailLoaded task={query.data} standalone={standalone} onClose={onClose} />;
 }
 
 function TaskDetailLoaded({
   task,
+  standalone = false,
   onClose,
 }: {
   task: TaskDetail;
+  standalone?: boolean;
   onClose?: () => void;
 }) {
   const t = useT();
@@ -516,6 +518,7 @@ function TaskDetailLoaded({
         }
         title={
           <>
+            {standalone && <h1 className="sr-only">{task.title}</h1>}
             <TaskNumber task={task} className="ml-1 block" />
             {/* A textarea that grows, so a long title wraps instead of being
                 cut off under the bell and menu. Enter still saves. */}

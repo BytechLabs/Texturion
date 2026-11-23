@@ -563,6 +563,32 @@ private fun TaskListScreen(
                 me.memberships.firstOrNull { it.company_id == companyId }?.role,
                 Capability.SETTINGS_MANAGE,
             )
+            SegmentedControl(
+                segments = listOf(
+                    Segment("all", t("contactsTasks.allTasks")),
+                    Segment("mine", t("contactsTasks.myWork")),
+                    Segment("unassigned", t("contactsTasks.unassigned")),
+                ),
+                selected = when {
+                    filterCount == 0 -> "all"
+                    filterCount == 1 && assigneeChip == ASSIGNEE_ME -> "mine"
+                    filterCount == 1 && unassignedChip -> "unassigned"
+                    else -> ""
+                },
+                onSelect = { preset ->
+                    applyState(currentState.copy(
+                        assigneeChip = ASSIGNEE_ME.takeIf { preset == "mine" },
+                        unassigned = preset == "unassigned",
+                        dueChip = null,
+                        extra = TaskExtraFilters(sort = extra.sort, group = extra.group, columns = extra.columns),
+                    ), null, null)
+                },
+                modifier = Modifier.padding(horizontal = 18.dp),
+                fill = true,
+                labelPadding = 2.dp,
+                labelLines = 2,
+            )
+            Spacer(Modifier.height(8.dp))
             ListFilterRow(
                 filterCount = filterCount,
                 onFilter = { filtersSheetOpen = true },
@@ -619,29 +645,7 @@ private fun TaskListScreen(
                         }
                     },
                 ),
-            ) {
-                SegmentedControl(
-                    segments = listOf(
-                        Segment("all", t("contactsTasks.allTasks")),
-                        Segment("mine", t("contactsTasks.myWork")),
-                        Segment("unassigned", t("contactsTasks.unassigned")),
-                    ),
-                    selected = when {
-                        filterCount == 0 -> "all"
-                        filterCount == 1 && assigneeChip == ASSIGNEE_ME -> "mine"
-                        filterCount == 1 && unassignedChip -> "unassigned"
-                        else -> ""
-                    },
-                    onSelect = { preset ->
-                        applyState(currentState.copy(
-                            assigneeChip = ASSIGNEE_ME.takeIf { preset == "mine" },
-                            unassigned = preset == "unassigned",
-                            dueChip = null,
-                            extra = TaskExtraFilters(sort = extra.sort, group = extra.group, columns = extra.columns),
-                        ), null, null)
-                    },
-                )
-            }
+            )
             val noneLabel = t("taskViews.noAssignee")
             val sourceLabels = mapOf(
                 "text" to t("taskViews.sourceText"),

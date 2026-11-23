@@ -268,9 +268,9 @@ const ROSTER: readonly { file: string; call: string; reason: string }[] = [
     reason: "Day dividers and their yyyy-MM-dd keys: a divider names a calendar day, never a time.",
   },
   {
-    file: "components/thread/gallery-grouping.ts",
-    call: "date-fns",
-    reason: "Gallery day headings: a calendar day, never a time.",
+    file: "components/thread/clusters.ts",
+    call: "getFormatter(",
+    reason: "Conversation and attachment headings name a calendar day in the reader's language.",
   },
   {
     file: "components/thread/send-later-menu.tsx",
