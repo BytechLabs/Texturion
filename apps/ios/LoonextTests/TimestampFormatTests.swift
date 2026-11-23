@@ -21,6 +21,18 @@ final class TimestampFormatTests: XCTestCase {
         XCTAssertEqual(now, expected)
     }
 
+    func testCalendarNamesAndBillingDatesFollowTheReaderAndTheSuppliedZone() throws {
+        let day = try XCTUnwrap(parseWireTimestamp("2026-11-12T17:00:00Z"))
+        XCTAssertEqual(TimestampFormat.monthAndDay(day, locale: "fr-CA", timeZone: toronto), "12 novembre")
+        XCTAssertEqual(TimestampFormat.monthAndDay(day, locale: "en", timeZone: toronto), "November 12")
+        XCTAssertEqual(TimestampFormat.monthAndYear(day, locale: "fr-CA", timeZone: toronto), "novembre 2026")
+
+        let instant = "2026-12-01T00:15:00Z"
+        XCTAssertEqual(TimestampFormat.longDate(instant, locale: "fr-CA", timeZone: .gmt), "1 décembre 2026")
+        XCTAssertEqual(TimestampFormat.longDate(instant, locale: "fr-CA", timeZone: toronto), "30 novembre 2026")
+        XCTAssertEqual(TimestampFormat.longDate(instant, locale: "en", timeZone: .gmt), "December 1, 2026")
+    }
+
     func testShortLabelsFollowTheBuckets() {
         XCTAssertEqual(short("2026-11-10T19:59:40Z"), "now")
         XCTAssertEqual(short("2026-11-10T19:48:00Z"), "12m")

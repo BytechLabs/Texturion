@@ -1,6 +1,8 @@
 package com.loonext.android.core.time
 
 import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,6 +11,20 @@ import org.junit.Test
 class TimestampFormatTest {
     private val zone = ZoneId.of("America/Toronto")
     private val now = Instant.parse("2026-11-10T20:00:00Z") // Tue 3:00 PM EST
+
+    @Test
+    fun calendarNamesAndBillingDatesFollowTheReaderAndTheSuppliedZone() {
+        val day = LocalDate.of(2026, 11, 12)
+        assertEquals("12 novembre", TimestampFormat.monthAndDay(day, "fr-CA"))
+        assertEquals("November 12", TimestampFormat.monthAndDay(day, "en"))
+        assertEquals("novembre 2026", TimestampFormat.monthAndYear(YearMonth.from(day), "fr-CA"))
+
+        val instant = "2026-12-01T00:15:00Z"
+        val utc = ZoneId.of("UTC")
+        assertEquals("1 décembre 2026", TimestampFormat.longDate(instant, "fr-CA", utc))
+        assertEquals("30 novembre 2026", TimestampFormat.longDate(instant, "fr-CA", zone))
+        assertEquals("December 1, 2026", TimestampFormat.longDate(instant, "en", utc))
+    }
 
     private fun short(iso: String, locale: String = "en") =
         TimestampFormat.label(iso, TimestampFormat.Style.SHORT, locale, now, zone)

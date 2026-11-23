@@ -1698,22 +1698,17 @@ final class SettingsLogicTests: XCTestCase {
     /// by definition after the deadline and possibly a year later by somebody
     /// signing back in to find out what happened to their number.
     func testTheReleaseDateCarriesItsYearAndFollowsTheAppLanguage() throws {
+        let canceledAt = "2026-07-05T00:01:00Z"
+        XCTAssertEqual(numberReleaseDay(canceledAt, locale: "en"), "August 4, 2026")
+        XCTAssertEqual(numberReleaseDay(canceledAt, locale: "fr-CA"), "4 août 2026")
+
         let formatter = try topLevelDeclaration(
             try billingSource(),
-            "private func numberReleaseDay("
+            "func numberReleaseDay("
         )
         XCTAssertTrue(
-            formatter.contains("setLocalizedDateFormatFromTemplate(\"MMMMdyyyy\")"),
-            "the release date lost its year or stopped following the app language"
-        )
-        XCTAssertTrue(
-            formatter.contains("locale == MessageLocale.frCA"),
-            "a French app would still print the English release-date shape"
-        )
-        XCTAssertTrue(
-            formatter.contains("TimeZone(identifier: \"UTC\")"),
-            "and stays on the clock runGraceJob runs on: a guessed zone prints a "
-                + "date a day either side of the one the job acts on"
+            formatter.contains("timeZone: .gmt"),
+            "the release date uses the job's UTC date"
         )
     }
 

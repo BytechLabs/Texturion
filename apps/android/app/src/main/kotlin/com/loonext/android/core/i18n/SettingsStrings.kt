@@ -1590,6 +1590,9 @@ private val BILLING_EN = mapOf(
     "settings.planFairUse" to "Allowances reflect fair use. See the policy",
     "settings.planOpenNumbers" to "Open your numbers",
     "settings.planPeriodEnds" to "Current period ends {date}.",
+    "settings.dayToday" to "today",
+    "settings.dayYesterday" to "yesterday",
+    "settings.dayOn" to "on {date}",
     "settings.pausedSince" to "Paused since {date}.",
     /*
      * #228 — the cancel card's answers.
@@ -1959,6 +1962,9 @@ private val BILLING_FR = mapOf(
         "Les allocations respectent l'usage raisonnable. Voir la politique",
     "settings.planOpenNumbers" to "Ouvrir vos numéros",
     "settings.planPeriodEnds" to "La période en cours se termine le {date}.",
+    "settings.dayToday" to "aujourd'hui",
+    "settings.dayYesterday" to "hier",
+    "settings.dayOn" to "le {date}",
     "settings.pausedSince" to "En pause depuis le {date}.",
     "settings.provisionWaitShort" to
         "Nous configurons votre numéro. Cela prend habituellement moins " +

@@ -18,20 +18,12 @@ private func relativeDay(_ iso: String?, locale: String? = nil) -> String? {
     if cal.isDateInYesterday(when) {
         return AppStrings.translate(locale, "settings.dayYesterday")
     }
-    let fmt = DateFormatter()
-    fmt.locale = Locale(identifier: "en_US_POSIX")
-    fmt.dateFormat = "d MMMM"
     // "on 12 July" in English, "le 12 juillet" in French — the preposition is
     // part of the phrase, so it travels with it rather than being prefixed here.
-    return AppStrings.translate(locale, "settings.dayOn", ["date": fmt.string(from: when)])
-}
-
-private func fullDate(_ iso: String?) -> String? {
-    guard let iso, let date = parseWireTimestamp(iso) else { return nil }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "MMMM d, yyyy"
-    return formatter.string(from: date)
+    let date = TimestampFormat.monthAndDay(
+        when, locale: locale, timeZone: cal.timeZone, dayFirstInEnglish: true
+    )
+    return AppStrings.translate(locale, "settings.dayOn", ["date": date])
 }
 
 /// The day this workspace's number goes back to the carrier — "August 14,
@@ -51,20 +43,11 @@ private func fullDate(_ iso: String?) -> String? {
 /// deadline and can be read a year later by somebody signing back in to find
 /// out what happened.
 ///
-/// UTC, because that is the clock `runGraceJob` runs on and the zone
-/// `releaseDateLabel` prints in. Rendering it in the reader's zone would show a
-/// date a day either side of the one the job acts on — which is why this stays
-/// separate from `fullDate` above despite the identical format string: that one
-/// prints a billing period end, which is a moment in the reader's own life.
-private func numberReleaseDay(_ canceledAt: String?, locale: String? = nil) -> String? {
+/// UTC matches the release job and the grace email. Billing periods use the
+/// reader's local date.
+func numberReleaseDay(_ canceledAt: String?, locale: String? = nil) -> String? {
     guard let release = numberReleaseAt(canceledAt) else { return nil }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(
-        identifier: locale == MessageLocale.frCA ? "fr_CA" : "en_CA"
-    )
-    formatter.timeZone = TimeZone(identifier: "UTC")
-    formatter.setLocalizedDateFormatFromTemplate("MMMMdyyyy")
-    return formatter.string(from: release)
+    return TimestampFormat.longDate(release, locale: locale, timeZone: .gmt)
 }
 
 /// Billing (#163): plan card (calling is INCLUDED on every plan — never an
@@ -339,7 +322,7 @@ private struct StatusNotices: View {
             return (t("settings.noticeUnpaid"), t("settings.noticeUpdatePayment"))
         }
         if company.subscriptionActive && company.cancel_at_period_end {
-            let date = fullDate(company.current_period_end)
+            let date = TimestampFormat.longDate(company.current_period_end, locale: appLocale)
             let release = numberReleaseDay(company.current_period_end, locale: appLocale)
             let message: String
             if let date, let release {
@@ -539,13 +522,13 @@ private struct PlanCard: View {
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
-                if let date = fullDate(company.current_period_end) {
+                if let date = TimestampFormat.longDate(company.current_period_end, locale: appLocale) {
                     Text(t("settings.planPeriodEnds", ["date": date]))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 if canManage && company.pending_plan == "starter",
-                   let date = fullDate(company.pending_plan_effective_at) {
+                   let date = TimestampFormat.longDate(company.pending_plan_effective_at, locale: appLocale) {
                     Text(t("settings.starterStarts", ["date": date]))
                     Button(t("settings.keepPro")) {
                         if company.billing_writes_enabled {
@@ -657,7 +640,7 @@ private struct PlanCard: View {
             // Read from the company and true either way, so it stays: it is the
             // one fact that keeps this from looking like a card that lost its
             // contents.
-            if let date = fullDate(company.current_period_end) {
+            if let date = TimestampFormat.longDate(company.current_period_end, locale: appLocale) {
                 Text(t("settings.planPeriodEnds", ["date": date]))
                     .font(.footnote)
                     .foregroundStyle(.secondary)

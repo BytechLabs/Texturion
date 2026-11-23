@@ -510,7 +510,10 @@ internal fun TaskCalendarView(
                             modifier = Modifier.padding(start = 10.dp),
                         ) {
                             Text(
-                                t("contactsTasks.calendarCreateOnDay", "date" to selectedDay.format(CELL_A11Y_DATE)),
+                                t(
+                                    "contactsTasks.calendarCreateOnDay",
+                                    "date" to TimestampFormat.monthAndDay(selectedDay, LocalAppLocale.current),
+                                ),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -595,7 +598,7 @@ private fun MonthNavRow(
             )
         }
         Text(
-            month.format(MONTH_TITLE),
+            TimestampFormat.monthAndYear(month, LocalAppLocale.current),
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center,
             fontSize = 14.5.sp,
@@ -669,7 +672,8 @@ internal fun DayCell(
     onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val createLabel = t("contactsTasks.calendarCreateOnDay", "date" to day.format(CELL_A11Y_DATE))
+    val dateLabel = TimestampFormat.monthAndDay(day, LocalAppLocale.current)
+    val createLabel = t("contactsTasks.calendarCreateOnDay", "date" to dateLabel)
     // Read here rather than inside the semantics lambda, which is not composition.
     val label = t(
         if (tasks.size == 1) {
@@ -677,7 +681,7 @@ internal fun DayCell(
         } else {
             "contactsTasks.calendarDayCellMany"
         },
-        "date" to day.format(CELL_A11Y_DATE),
+        "date" to dateLabel,
         "count" to "${tasks.size}",
     )
     Column(
@@ -809,10 +813,8 @@ private fun dayHeadingLabel(
     return when (date) {
         today -> AppStrings.translate(locale, "contactsTasks.today")
         today.plusDays(1) -> AppStrings.translate(locale, "contactsTasks.tomorrow")
-        else -> date.format(
-            DateTimeFormatter.ofPattern(
-                if (date.year == today.year) "EEE MMM d" else "EEE MMM d yyyy",
-            ),
+        else -> TimestampFormat.weekdayDate(
+            date, includeYear = date.year != today.year, locale = locale,
         )
     }
 }
@@ -820,6 +822,3 @@ private fun dayHeadingLabel(
 /** Local midnight as the offset-bearing ISO the route expects. */
 internal fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
     date.atStartOfDay(zone).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-
-private val MONTH_TITLE = DateTimeFormatter.ofPattern("MMMM yyyy")
-private val CELL_A11Y_DATE = DateTimeFormatter.ofPattern("MMMM d")

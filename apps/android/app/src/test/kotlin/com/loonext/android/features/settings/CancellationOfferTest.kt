@@ -1202,7 +1202,7 @@ class CancellationOfferTest {
         )
         assertTrue(
             "the deadline must come from the shared grace arithmetic",
-            card.contains("releaseDate(canceledAt)"),
+            card.contains("releaseDate(canceledAt, locale)"),
         )
         assertTrue(
             "and the offer must be gated on the window still being open",
@@ -1295,30 +1295,12 @@ class CancellationOfferTest {
      * September" is read, by definition, after the deadline has passed and
      * possibly a winter or a year later, by somebody whose only question is
      * whether that date is behind them. A bare day and month cannot answer it.
-     *
-     * Reads the pattern rather than the sentence, because the pattern is the
-     * thing that would be edited.
      */
     @Test
     fun `the release date carries a year`() {
-        val src = readMainSource(billingSection)
-        val fn = declaration(src, "private fun releaseDate(")
-        val pattern = Regex("ofPattern\\(\"([^\"]+)\"\\)").find(fn)?.groupValues?.get(1)
-            ?: Regex("format\\((\\w+)\\)").find(fn)?.groupValues?.get(1)?.let { named ->
-                Regex("$named = DateTimeFormatter\\.ofPattern\\(\"([^\"]+)\"\\)")
-                    .find(src)?.groupValues?.get(1)
-            }
-        assertNotNull(
-            "could not read the pattern releaseDate formats with. If it was " +
-                "restructured, teach this guard the new shape rather than deleting it",
-            pattern,
-        )
-        assertTrue(
-            "the release date prints as `$pattern`, with no year in it. The email " +
-                "that sends people to this screen prints one, and the expired branch " +
-                "is read after the date has gone by",
-            pattern!!.contains("yyyy") || pattern.contains("uuuu"),
-        )
+        val canceledAt = "2026-07-05T00:01:00Z"
+        assertEquals("August 4, 2026", releaseDate(canceledAt, "en"))
+        assertEquals("4 août 2026", releaseDate(canceledAt, "fr-CA"))
     }
 
     /**
