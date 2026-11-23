@@ -740,6 +740,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.invite" to "Invite",
         "settingsMore.seatsFull" to
             "All seats are taken. Deactivate a teammate or revoke a pending invite first.",
+        "settingsMore.seatsUsed" to "{used} of {limit} seats",
+        "settingsMore.seatsUsedWithUpgrade" to "{used} of {limit} seats. Upgrade for more",
         "settingsMore.pendingInvites" to "Pending invites",
         "settingsMore.invitePending" to "{role} · {when}",
         "settingsMore.inviteExpired" to "Expired, doesn't hold a seat",
@@ -2045,6 +2047,9 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.seatsFull" to
             "Toutes les places sont prises. Désactivez un coéquipier ou révoquez " +
             "une invitation en attente d'abord.",
+        "settingsMore.seatsUsed" to "{used} sur {limit} places",
+        "settingsMore.seatsUsedWithUpgrade" to
+            "{used} sur {limit} places. Passez au forfait supérieur pour en ajouter.",
         "settingsMore.pendingInvites" to "Invitations en attente",
         "settingsMore.invitePending" to "{role} · {when}",
         "settingsMore.inviteExpired" to "Expirée, n'occupe pas de place",

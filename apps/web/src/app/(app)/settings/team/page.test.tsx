@@ -10,6 +10,7 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/i18n/provider";
 import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 import TeamSettingsPage from "./page";
 
@@ -104,6 +105,22 @@ beforeEach(() => {
 
 // Testing Library's automatic cleanup requires Vitest globals.
 afterEach(cleanup);
+
+it("uses the team reader's language for seat usage", () => {
+  const view = render(
+    <LocaleProvider userLocale="fr-CA">
+      <TeamSettingsPage />
+    </LocaleProvider>,
+  );
+  expect(screen.getByText("1 sur 10 places")).toBeInstanceOf(Element);
+
+  view.rerender(
+    <LocaleProvider userLocale="en">
+      <TeamSettingsPage />
+    </LocaleProvider>,
+  );
+  expect(screen.getByText("1 of 10 seats")).toBeInstanceOf(Element);
+});
 
 function noteField(): HTMLTextAreaElement {
   return screen.getByLabelText<HTMLTextAreaElement>(

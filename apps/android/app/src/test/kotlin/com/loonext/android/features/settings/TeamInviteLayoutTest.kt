@@ -76,6 +76,7 @@ class TeamInviteLayoutTest {
             }
         }
 
+        compose.onNodeWithText("0 sur 15 places").assertIsDisplayed()
         compose.onNodeWithText(AppStrings.translate(locale, "settingsMore.email"))
             .performTextInput("bookkeeper")
         compose.onNodeWithText(AppStrings.translate(locale, "settingsMore.roleMember"))

@@ -707,7 +707,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
             </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">{seats.line}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("appShell.teamSeatsUsed", { used: seats.used, limit: seats.limit })}
+          </p>
         )
       }
     >

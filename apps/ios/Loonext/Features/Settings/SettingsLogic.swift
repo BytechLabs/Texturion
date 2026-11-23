@@ -153,15 +153,18 @@ func seatUsage(
     activeMembers: Int,
     pendingInvites: Int,
     plan: String?,
-    servedLimit: Int? = nil
+    servedLimit: Int? = nil,
+    locale: String? = nil
 ) -> SeatUsage {
     let limit = (servedLimit.map { $0 > 0 ? $0 : nil } ?? nil) ?? seatLimit(plan)
     let used = activeMembers + pendingInvites
     let full = used >= limit
     let canUpgrade = full && plan != "pro"
-    let line = canUpgrade
-        ? "\(used) of \(limit) seats. Upgrade for more"
-        : "\(used) of \(limit) seats"
+    let line = AppStrings.translate(
+        locale,
+        canUpgrade ? "settingsMore.seatsUsedWithUpgrade" : "settingsMore.seatsUsed",
+        ["used": String(used), "limit": String(limit)]
+    )
     return SeatUsage(used: used, limit: limit, full: full, canUpgrade: canUpgrade, line: line)
 }
 

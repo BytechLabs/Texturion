@@ -464,6 +464,7 @@ internal fun InvitesCard(
         // #392: the server's number wins. A client copy higher than the API's
         // tells an owner they have room and then the invite is refused.
         servedLimit = company.seat_limit,
+        locale = locale,
     )
     var email by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }

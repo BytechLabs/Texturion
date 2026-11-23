@@ -1626,6 +1626,8 @@ private let settingsMoreIosTeamEn: [String: String] = [
     "settingsMore.seatsFull":
         "All seats are taken. Deactivate a teammate or revoke a pending "
         + "invite first.",
+    "settingsMore.seatsUsed": "{used} of {limit} seats",
+    "settingsMore.seatsUsedWithUpgrade": "{used} of {limit} seats. Upgrade for more",
 ]
 
 private let settingsMoreIosTeamFr: [String: String] = [
@@ -1701,6 +1703,9 @@ private let settingsMoreIosTeamFr: [String: String] = [
     "settingsMore.seatsFull":
         "Toutes les places sont prises. Désactivez un coéquipier ou "
         + "révoquez une invitation en attente d'abord.",
+    "settingsMore.seatsUsed": "{used} sur {limit} places",
+    "settingsMore.seatsUsedWithUpgrade":
+        "{used} sur {limit} places. Passez au forfait supérieur pour en ajouter.",
 ]
 
 private let settingsMoreIosTagsEn: [String: String] = [
