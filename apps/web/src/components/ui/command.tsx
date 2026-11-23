@@ -80,7 +80,7 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-9 items-center gap-2 border-b px-3"
+      className="flex h-10 items-center gap-2 border-b pl-3 pr-10"
     >
       <SearchIcon className="size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
@@ -91,7 +91,7 @@ function CommandInput({
           // the palette opens with focus already in this one: on a phone,
           // pressing the search shortcut lurched the page every time. The
           // desktop size is unchanged.
-          "flex h-10 w-full rounded-md bg-transparent py-3 text-base md:text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-10 w-full rounded-md bg-transparent px-1.5 py-2 text-base md:text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
           // #238 — the palette's search field had `outline-hidden` and nothing
           // in its place: focus arrived and there was no indicator at all
           // (2.4.7). Easy to miss by eye, because the palette opens with focus

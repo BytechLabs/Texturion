@@ -91,7 +91,7 @@ export function InlineDue({ task }: { task: Task }) {
             : undefined}
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "tap-target inline-flex items-center gap-1 rounded-app-ctrl px-1.5 py-1 text-[12px] tabular-nums transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "tap-target inline-flex items-center gap-1 whitespace-nowrap rounded-app-ctrl px-1.5 py-1 text-[12px] tabular-nums transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             task.due_at === null && "text-app-muted-2",
             overdue ? "font-medium text-warning" : "text-app-muted",
           )}

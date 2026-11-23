@@ -206,16 +206,11 @@ export function DispatchSchedule({ plan, day, focused, editable, onSelect, onSta
           </div>
           {plan.members.map((member) => (
             <div className={cn("flex border-b last:border-b-0", focused === member.id && "bg-muted")} key={member.id}>
-<<<<<<< HEAD
               <h3 className="flex w-32 shrink-0 items-start gap-2 break-words px-3 py-3 text-sm font-medium">
                 <MemberAvatar name={member.name ?? t("tasks.teammate")} memberId={member.id} />
                 <span>{member.name ?? t("tasks.teammate")}</span>
               </h3>
-              <div className="relative min-h-24 grow border-l" onDragOver={(event) => {
-=======
-              <h3 className="w-32 shrink-0 break-words px-3 py-3 text-sm font-medium">{member.name ?? t("tasks.teammate")}</h3>
               <div data-dispatch-assignee={member.id} className="relative min-h-24 grow border-l" onDragOver={(event) => {
->>>>>>> 9486b6cf3 (fix: keep planner gestures usable on compact screens)
                 if (editable && dragged.current && event.dataTransfer.types.includes(MIME)) {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "move";

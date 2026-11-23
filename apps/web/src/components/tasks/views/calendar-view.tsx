@@ -33,6 +33,7 @@ import {
   formatScheduledRange,
   formatWallDay,
   formatWallHour,
+  formatWallPeriod,
 } from "@/lib/format/time";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -259,7 +260,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             <ChevronLeft className="size-4" strokeWidth={1.75} />
           </Button>
           <h2 className="min-w-[140px] text-center text-sm font-semibold tabular-nums text-foreground">
-            {format(cursor, mode === "week" ? "MMM d, yyyy" : "MMMM yyyy")}
+            {formatWallPeriod(dayKey(cursor), mode, t.locale)}
           </h2>
           <Button
             variant="ghost"
@@ -299,7 +300,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       <div className="overflow-x-auto">
         {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- The handler coordinates focus between the day buttons. */}
         <div
-          className="min-w-[640px]"
+          className={cn(mode === "week" ? "min-w-[560px]" : "min-w-0")}
           onKeyDown={onGridKeyDown}
           aria-busy={query.isPlaceholderData}
         >
@@ -314,7 +315,10 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             {days.slice(0, 7).map((day) => (
               <div
                 key={dayKey(day)}
-                className={cn(SECTION_LABEL_CLASS, "flex items-center gap-1.5 px-2 py-1.5")}
+                className={cn(
+                  SECTION_LABEL_CLASS,
+                  "flex min-w-0 items-center justify-center gap-1 truncate px-1 py-1.5 sm:justify-start sm:gap-1.5 sm:px-2",
+                )}
               >
                 {t(DOW_KEYS[day.getDay()])}
                 {mode === "week" && (
@@ -388,7 +392,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                   onCreate={createAt}
                   tasks={byCell.get(dayKey(day)) ?? []}
                   work={workByCell.get(dayKey(day)) ?? []}
-                  className="min-h-[104px]"
+                  className="min-h-16 p-1 sm:min-h-[104px] sm:p-1.5"
                   header={
                     <DayNumber
                       day={day}

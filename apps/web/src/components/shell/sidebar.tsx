@@ -158,7 +158,7 @@ function NavItem({
             className={cn(
               "relative flex h-9 items-center justify-center rounded-[9px] transition-colors duration-150 ease-out",
               active
-                ? "bg-app-tint text-app-olive-deep before:absolute before:-left-2 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
+                ? "bg-app-tint text-app-olive-deep before:absolute before:left-0 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
                 : "text-app-ink-soft hover:bg-app-line-soft has-data-pending:bg-app-line-soft",
             )}
           >
@@ -192,7 +192,7 @@ function NavItem({
       className={cn(
         "relative flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium transition-colors duration-150 ease-out",
         active
-          ? "bg-app-tint font-semibold text-app-olive-deep before:absolute before:-left-3 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
+          ? "bg-app-tint font-semibold text-app-olive-deep before:absolute before:left-0 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
           : "text-app-ink-soft hover:bg-app-line-soft has-data-pending:bg-app-line-soft has-data-pending:text-app-olive-deep",
       )}
     >
@@ -582,8 +582,10 @@ function TaskNavigation({
               const active = pathname === href;
               return (
                 <Link key={view.id} href={href} aria-current={active ? "page" : undefined} className={cn(
-                  "block truncate rounded-[9px] px-[11px] py-2 text-[13px] font-medium",
-                  active ? "bg-app-tint text-app-olive-deep" : "text-app-ink-soft hover:bg-app-line-soft",
+                  "relative block truncate rounded-[9px] px-[11px] py-2 text-[13px] font-medium",
+                  active
+                    ? "bg-app-tint font-semibold text-app-olive-deep before:absolute before:left-0 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
+                    : "text-app-ink-soft hover:bg-app-line-soft",
                 )}>
                   {view.name}
                 </Link>

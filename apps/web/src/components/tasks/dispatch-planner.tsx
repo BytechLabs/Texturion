@@ -282,7 +282,7 @@ function DispatchWorkspace({ job, timezone }: { job?: string; timezone: string }
       )} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl ariaLabel={t("tasks.planner")} value={pane} onChange={setPane} fill
-          className="w-full sm:w-auto sm:flex-none"
+          className="w-full flex-none sm:w-auto"
           options={PANES.map(({ id, label, icon: Icon }) => ({ value: id, label: t(label), icon: <Icon className="hidden size-4 shrink-0 sm:block" aria-hidden /> }))} />
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="icon" disabled={busy || dirty} aria-label={t("tasks.dispatchPrevWeek")}

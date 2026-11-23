@@ -73,7 +73,9 @@ export default function BlockedNumbersPage() {
                     ? t("blockedNumbers.blockedBy", { name: who })
                     : t("blockedNumbers.blockedByUnknown")}
                   {" · "}
-                  <Timestamp at={row.created_at} style="long" />
+                  <span className="whitespace-nowrap">
+                    <Timestamp at={row.created_at} style="long" />
+                  </span>
                 </p>
                 {row.reason && (
                   <p className="text-xs text-muted-foreground">
