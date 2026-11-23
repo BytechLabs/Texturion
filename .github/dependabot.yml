@@ -91,6 +91,11 @@ updates:
       # includes 7; TypeScript 6 still arrives as its own PR.
       - dependency-name: typescript
         versions: [">=7.0.0"]
+      # @cloudflare/vitest-pool-workers 0.23.0 (used by api, edge, and guard)
+      # only supports vitest ^4.1.0 and crashes in workerd under vitest 5.
+      # Lift this once those packages migrate to @cloudflare/vitest-plugin.
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
     labels: ["dependencies", "P3"]
     commit-message:
       prefix: chore
