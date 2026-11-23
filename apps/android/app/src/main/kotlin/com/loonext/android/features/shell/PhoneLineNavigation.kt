@@ -117,6 +117,8 @@ internal fun LouTab(graph: AppGraph, companyId: String, me: Me, modifier: Modifi
             selected = section,
             onSelect = { section = it },
             fill = true,
+            labelPadding = 4.dp,
+            labelLines = 2,
         )
         when (section) {
             LouSection.Overview -> LouOverview(graph, companyId)

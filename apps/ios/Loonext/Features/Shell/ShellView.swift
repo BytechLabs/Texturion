@@ -1139,7 +1139,10 @@ private struct LouTab: View {
                         SegmentedOption(.activity, title: t("shell.louActivity")),
                         SegmentedOption(.settings, title: t("shell.settings")),
                     ],
-                    selection: $section
+                    selected: section,
+                    horizontalPadding: 6,
+                    labelLines: 2,
+                    onSelect: { section = $0 }
                 )
                 switch section {
                 case .overview:

@@ -460,10 +460,11 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
             Column {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
                         feature.label.replaceFirstChar { it.uppercase() },
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -477,6 +478,7 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                         } else {
                             t("settingsMore.off")
                         },
+                        softWrap = false,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -555,15 +557,17 @@ private fun StorageBreakdown(storage: UsageStorage) {
     rows.forEach { (key, bytes) ->
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 t(key),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 formatBytes(bytes),
+                softWrap = false,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

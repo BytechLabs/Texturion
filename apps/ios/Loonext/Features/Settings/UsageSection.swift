@@ -664,10 +664,11 @@ private struct StorageDetail: View {
                 )
             )
             ForEach(storageRows, id: \.key) { row in
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(t(row.key))
-                    Spacer()
+                    Spacer(minLength: 0)
                     Text(formatBytes(row.bytes))
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted600)
@@ -721,9 +722,9 @@ struct AiUsageDetail: View {
                 // Say it before it bites, where the number already lives.
                 let nearCap = feature.enabled && pct >= 80
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(feature.label.prefix(1).uppercased() + feature.label.dropFirst())
-                        Spacer()
+                        Spacer(minLength: 0)
                         Text(
                             feature.enabled
                                 ? t(
@@ -732,6 +733,7 @@ struct AiUsageDetail: View {
                                 )
                                 : t("settingsMore.off")
                         )
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.muted600)

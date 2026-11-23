@@ -171,12 +171,12 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
         shot("Planner schedule \(suffix)")
         let previewCount = try await allWrites().filter { $0.path == "/v1/dispatch/preview" }.count
-        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -22, dy: 0))
+        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
         let dropTarget = lane.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 84, dy: 0))
         let resizeButton = button(text("Change duration", "Modifier la durée"))
-        grip.press(forDuration: 1.0, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.45)
-        if !resizeButton.waitForExistence(timeout: 6) {
-            grip.press(forDuration: 1.1, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.5)
+        for hold in [1.35, 1.5, 1.65] {
+            grip.press(forDuration: hold, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.5)
+            if resizeButton.waitForExistence(timeout: 6) { break }
         }
         let resize = try waitFor(resizeButton)
         shot("Planner staged work \(suffix)")
