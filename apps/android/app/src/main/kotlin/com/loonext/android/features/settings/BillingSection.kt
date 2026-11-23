@@ -47,10 +47,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.OpenPrepaidYear
@@ -62,8 +64,9 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,12 +74,9 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private val FULL_DATE = DateTimeFormatter.ofPattern("MMMM d, yyyy")
-
-private fun fullDate(iso: String?): String? = iso?.let {
-    runCatching { Instant.parse(it).atZone(ZoneId.systemDefault()).format(FULL_DATE) }
-        .getOrNull()
-}
+@Composable
+private fun fullDate(iso: String?): String? =
+    TimestampFormat.longDate(iso, LocalAppLocale.current)
 
 /**
  * #490: "today" / "yesterday" / "on 12 July".
@@ -86,21 +86,24 @@ private fun fullDate(iso: String?): String? = iso?.let {
  * work it out. Past a couple of days the date is the more useful answer,
  * because by then the question has become "how long has this been going on".
  */
-private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMMM")
-
-private fun relativeDay(iso: String?): String? = iso?.let {
-    runCatching {
-        val zone = ZoneId.systemDefault()
-        val then = Instant.parse(it).atZone(zone).toLocalDate()
-        when (val days = java.time.temporal.ChronoUnit.DAYS.between(then, java.time.LocalDate.now(zone))) {
-            in Long.MIN_VALUE..0L -> "today"
-            1L -> "yesterday"
-            else -> {
-                @Suppress("UNUSED_EXPRESSION") days
-                "on " + then.format(DAY_MONTH)
+@Composable
+private fun relativeDay(iso: String?): String? {
+    val locale = LocalAppLocale.current
+    return iso?.let {
+        runCatching {
+            val zone = ZoneId.systemDefault()
+            val then = Instant.parse(it).atZone(zone).toLocalDate()
+            when (ChronoUnit.DAYS.between(then, LocalDate.now(zone))) {
+                in Long.MIN_VALUE..0L -> AppStrings.translate(locale, "settings.dayToday")
+                1L -> AppStrings.translate(locale, "settings.dayYesterday")
+                else -> AppStrings.translate(
+                    locale,
+                    "settings.dayOn",
+                    mapOf("date" to TimestampFormat.monthAndDay(then, locale, dayFirstInEnglish = true)),
+                )
             }
-        }
-    }.getOrNull()
+        }.getOrNull()
+    }
 }
 
 /**
@@ -938,7 +941,7 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
         Text(
             // Two whole sentences rather than a clause spliced mid-sentence: the
             // date lands inside the subordinate clause, and French moves it.
-            releaseDate(company.canceled_at)?.let { date ->
+            releaseDate(company.canceled_at, LocalAppLocale.current)?.let { date ->
                 t("settings.offRampIntroDated", "date" to date)
             } ?: t("settings.offRampIntro"),
             style = MaterialTheme.typography.bodySmall,
@@ -999,13 +1002,14 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
  * branch that suffers is the expired one: "the hold ended on 3 September" is
  * read by definition after the deadline has passed, and possibly a winter or a
  * year later, by somebody whose only question is whether that date is behind
- * them. So this is [FULL_DATE], the same shape as the period end on the plan
+ * them. This uses the same date shape as the period end on the plan
  * card above and as `releaseDateLabel` in grace.ts, in UTC rather than the
  * device zone because that is the clock the job releases on.
  */
-private fun releaseDate(canceledAt: String?): String? = numberReleaseAt(canceledAt)
+internal fun releaseDate(canceledAt: String?, locale: String?): String? = numberReleaseAt(canceledAt)
     ?.atZone(ZoneId.of("UTC"))
-    ?.format(FULL_DATE)
+    ?.toLocalDate()
+    ?.let { TimestampFormat.longDate(it, locale) }
 
 private const val OFFRAMP_MAX = 320
 
@@ -1037,9 +1041,6 @@ private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                // `relativeDay` still builds "today" / "on 12 July" in English —
-                // it is a DATE formatter, which this catalogue deliberately does
-                // not own. Named in the extraction report.
                 relativeDay(data.last_at)?.let { day ->
                     t("settings.missedWhileOffNoteDated", "day" to day)
                 } ?: t("settings.missedWhileOffNote"),
@@ -1062,7 +1063,7 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
         company.subscriptionActive && company.cancel_at_period_end -> {
             val date = fullDate(company.current_period_end)
             val days = CANCELLATION_GRACE_DAYS.toString()
-            val release = releaseDate(company.current_period_end)
+            val release = releaseDate(company.current_period_end, LocalAppLocale.current)
             val text = if (date != null && release != null) {
                 t("settings.noticeCancellingOn", "date" to date, "releaseDate" to release)
             } else {
@@ -1195,7 +1196,7 @@ private fun CanceledSubscriptionCard(
         }
     }
 
-    val releaseOn = releaseDate(canceledAt)
+    val releaseOn = releaseDate(canceledAt, locale)
     val released = canceledAt != null && !withinGrace
 
     SettingsCard(title = t("settings.subscriptionTitle"), anchor = "subscription") {

@@ -2,16 +2,22 @@ package com.loonext.android.features.tasks
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.input.key.Key
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.model.MessageLocale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -41,6 +47,33 @@ class TaskCalendarCreateTest {
         assertEquals(ZoneId.systemDefault(), workspaceZone(null))
         assertEquals(ZoneId.systemDefault(), workspaceZone("Not/AZone"))
         assertEquals(ZoneId.of("America/Toronto"), workspaceZone("America/Toronto"))
+    }
+
+    @Test
+    fun calendarCellAndCreationActionFollowTheReaderLanguage() {
+        val locale = mutableStateOf(MessageLocale.FR_CA)
+        compose.setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalAppLocale provides locale.value) {
+                    DayCell(
+                        day = day,
+                        inMonth = true,
+                        today = false,
+                        selected = false,
+                        tasks = emptyList(),
+                        onClick = {},
+                        onCreate = {},
+                    )
+                }
+            }
+        }
+        val french = compose.onNodeWithContentDescription("12 novembre, 0 tâches").fetchSemanticsNode()
+        assertEquals("Nouvelle tâche le 12 novembre", french.config[SemanticsActions.OnLongClick].label)
+
+        compose.runOnIdle { locale.value = MessageLocale.EN }
+
+        val english = compose.onNodeWithContentDescription("November 12, 0 tasks").fetchSemanticsNode()
+        assertEquals("New task on November 12", english.config[SemanticsActions.OnLongClick].label)
     }
 
     private fun showCell(onClick: () -> Unit, onCreate: () -> Unit) {

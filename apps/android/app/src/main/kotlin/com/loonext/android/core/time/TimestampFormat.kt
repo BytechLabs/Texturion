@@ -4,11 +4,14 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MessageLocale
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
+import java.time.temporal.TemporalAccessor
 import java.util.Locale
 
 /**
@@ -72,8 +75,30 @@ object TimestampFormat {
     fun weekday(day: DayOfWeek, locale: String? = null): String =
         day.getDisplayName(TextStyle.FULL, tagOf(locale))
 
-    private fun draw(at: ZonedDateTime, tag: Locale, english: String, french: String): String =
-        at.format(DateTimeFormatter.ofPattern(if (isFrench(tag)) french else english, tag))
+    private fun draw(at: TemporalAccessor, tag: Locale, english: String, french: String): String =
+        DateTimeFormatter.ofPattern(if (isFrench(tag)) french else english, tag).format(at)
+
+    fun monthAndYear(month: YearMonth, locale: String? = null): String =
+        draw(month, tagOf(locale), "MMMM yyyy", "MMMM yyyy")
+
+    fun monthAndDay(date: LocalDate, locale: String? = null, dayFirstInEnglish: Boolean = false): String =
+        draw(date, tagOf(locale), if (dayFirstInEnglish) "d MMMM" else "MMMM d", "d MMMM")
+
+    fun weekdayDate(date: LocalDate, includeYear: Boolean, locale: String? = null): String =
+        if (includeYear) {
+            draw(date, tagOf(locale), "EEE MMM d yyyy", "EEE d MMM yyyy")
+        } else {
+            draw(date, tagOf(locale), "EEE MMM d", "EEE d MMM")
+        }
+
+    fun longDate(date: LocalDate, locale: String? = null): String =
+        draw(date, tagOf(locale), "MMMM d, yyyy", "d MMMM yyyy")
+
+    fun longDate(
+        iso: String?,
+        locale: String? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? = parse(iso)?.atZone(zone)?.toLocalDate()?.let { longDate(it, locale) }
 
     /** A bad or absent timestamp is blank, never "Invalid Date". */
     fun label(

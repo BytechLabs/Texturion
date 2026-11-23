@@ -410,13 +410,9 @@ struct TaskCalendarView: View {
     }
 
     private func createTaskLabel(_ day: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "MMMM d"
+        let date = TimestampFormat.monthAndDay(day, locale: appLocale, timeZone: calendar.timeZone)
         return AppStrings.translate(
-            appLocale, "contactsTasks.calendarCreateOnDay", ["date": formatter.string(from: day)]
+            appLocale, "contactsTasks.calendarCreateOnDay", ["date": date]
         )
     }
 
@@ -624,24 +620,17 @@ struct TaskCalendarView: View {
     }
 
     private var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: month)
+        TimestampFormat.monthAndYear(month, locale: appLocale, timeZone: calendar.timeZone)
     }
 
     private func cellAccessibilityLabel(day: Date, count: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.dateFormat = "MMMM d"
+        let date = TimestampFormat.monthAndDay(day, locale: appLocale, timeZone: calendar.timeZone)
         return AppStrings.translate(
             appLocale,
             count == 1
                 ? "contactsTasks.calendarDayCellOne"
                 : "contactsTasks.calendarDayCellMany",
-            ["date": formatter.string(from: day), "count": String(count)]
+            ["date": date, "count": String(count)]
         )
     }
 
@@ -656,11 +645,9 @@ struct TaskCalendarView: View {
             return AppStrings.translate(appLocale, "contactsTasks.tomorrow")
         }
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: today)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.dateFormat = sameYear ? "EEE MMM d" : "EEE MMM d yyyy"
-        return formatter.string(from: date)
+        return TimestampFormat.weekdayDate(
+            date, includeYear: !sameYear, locale: appLocale, timeZone: calendar.timeZone
+        )
     }
 
     // MARK: Fetch

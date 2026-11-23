@@ -95,6 +95,33 @@ enum TimestampFormat {
         formatter(locale, timeZone, english: english, french: french).string(from: date)
     }
 
+    static func monthAndYear(_ month: Date, locale: String? = nil, timeZone: TimeZone = .current) -> String {
+        draw(month, locale, timeZone, english: "MMMM yyyy", french: "MMMM yyyy")
+    }
+
+    static func monthAndDay(
+        _ date: Date, locale: String? = nil, timeZone: TimeZone = .current, dayFirstInEnglish: Bool = false
+    ) -> String {
+        draw(date, locale, timeZone, english: dayFirstInEnglish ? "d MMMM" : "MMMM d", french: "d MMMM")
+    }
+
+    static func weekdayDate(
+        _ date: Date, includeYear: Bool, locale: String? = nil, timeZone: TimeZone = .current
+    ) -> String {
+        if includeYear {
+            return draw(date, locale, timeZone, english: "EEE MMM d yyyy", french: "EEE d MMM yyyy")
+        }
+        return draw(date, locale, timeZone, english: "EEE MMM d", french: "EEE d MMM")
+    }
+
+    static func longDate(_ date: Date, locale: String? = nil, timeZone: TimeZone = .current) -> String {
+        draw(date, locale, timeZone, english: "MMMM d, yyyy", french: "d MMMM yyyy")
+    }
+
+    static func longDate(_ iso: String?, locale: String? = nil, timeZone: TimeZone = .current) -> String? {
+        parseWireTimestamp(iso).map { longDate($0, locale: locale, timeZone: timeZone) }
+    }
+
     /// A time of day alone ("3:42 PM", "15 h 42"), for a clock that sits under a heading
     /// that names the day.
     static func clock(
