@@ -29,7 +29,7 @@ private func isExpired(_ invite: Invite, now: Date = Date()) -> Bool {
 /// fallback is deliberately NOT translated: it is the server's own word tidied
 /// up, and inventing French for a role this build has never heard of would be
 /// making something up about a permission.
-private func roleLabel(_ role: String, _ locale: String? = nil) -> String {
+func roleLabel(_ role: String, _ locale: String? = nil) -> String {
     switch role {
     case MemberRole.owner: AppStrings.translate(locale, "settingsMore.roleOwner")
     case MemberRole.admin: AppStrings.translate(locale, "settingsMore.roleAdmin")
@@ -478,7 +478,8 @@ private struct InvitesCard: View {
             // #392: the server's number wins. A client copy higher than the
             // API's tells an owner they have room and then the invite is
             // refused.
-            servedLimit: company.seat_limit
+            servedLimit: company.seat_limit,
+            locale: appLocale
         )
     }
 

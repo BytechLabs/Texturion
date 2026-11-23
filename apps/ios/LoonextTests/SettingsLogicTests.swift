@@ -99,6 +99,24 @@ final class SettingsLogicTests: XCTestCase {
         XCTAssertFalse(seatUsage(activeMembers: 2, pendingInvites: 0, plan: nil).full)
     }
 
+    func testFrenchSeatsShowTheAllowanceAndSuggestAnAvailableUpgrade() {
+        XCTAssertEqual(
+            seatUsage(activeMembers: 2, pendingInvites: 0, plan: "pro", servedLimit: 10, locale: "fr-CA").line,
+            "2 sur 10 places"
+        )
+        XCTAssertEqual(
+            seatUsage(activeMembers: 2, pendingInvites: 1, plan: "starter", locale: "fr-CA").line,
+            "3 sur 3 places. Passez au forfait supérieur pour en ajouter."
+        )
+    }
+
+    func testIdentityRolesUseTheReaderLanguage() {
+        XCTAssertEqual(roleLabel(MemberRole.owner, "fr-CA"), "Propriétaire")
+        XCTAssertEqual(roleLabel(MemberRole.member, "fr-CA"), "Membre")
+        XCTAssertEqual(roleLabel(MemberRole.bookkeeper, "fr-CA"), "Comptable")
+        XCTAssertEqual(roleLabel(MemberRole.bookkeeper, "en"), "Bookkeeper")
+    }
+
     // MARK: - The invite note's cap (#521)
 
     func testTheCapIsMeasuredTheWayTheServerMeasuresIt() {

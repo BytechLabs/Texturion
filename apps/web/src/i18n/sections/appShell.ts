@@ -715,6 +715,7 @@ export const appShellEn = {
   teamInviteResendFailed: "Couldn’t resend the invite.",
   teamInviteRevokeFailed: "Couldn't revoke the invite. Try again.",
   teamSeatsFull: "{used} of {limit} seats. Upgrade to add more of your crew.",
+  teamSeatsUsed: "{used} of {limit} seats",
   teamSeePlans: "See plans",
   teamEmailLabel: "Email",
   teamRoleLabel: "Role",
@@ -1839,6 +1840,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
   teamSeatsFull:
     "{used} sièges sur {limit}. Passez à un forfait supérieur pour ajouter " +
     "d'autres membres de votre équipe.",
+  teamSeatsUsed: "{used} sur {limit} places",
   teamSeePlans: "Voir les forfaits",
   teamEmailLabel: "Courriel",
   teamRoleLabel: "Rôle",

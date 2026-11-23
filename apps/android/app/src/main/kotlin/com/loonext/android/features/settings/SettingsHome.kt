@@ -21,7 +21,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,6 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -669,68 +673,84 @@ internal fun SettingsSectionSkeleton(cards: Int = 2) {
 }
 
 /** The ink identity tile: avatar, who you are, and the workspace number. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IdentityCard(
     company: CompanyView,
     me: Me,
     role: String?,
 ) {
+    val number = company.numbers
+        .firstOrNull { it.status == NumberStatus.ACTIVE && it.number_e164 != null }
+        ?.number_e164
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            InitialsAvatar(
-                me.display_name.ifBlank { company.name },
-                46.dp,
-                glyph = 14.sp,
-                container = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
-                // This card sits on `primary`, so the initials took the Surface's
-                // content colour rather than naming one. Passing it keeps that.
-                content = LocalContentColor.current,
-            )
-            Spacer(Modifier.width(13.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    me.display_name.ifBlank { company.name },
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        BoxWithConstraints(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            val stackNumber = maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.3f
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+                maxItemsInEachRow = if (stackNumber) 1 else 2,
+            ) {
+                IdentitySummary(
+                    name = me.display_name.ifBlank { company.name },
+                    workspace = company.name,
+                    role = role,
+                    modifier = Modifier.weight(1f),
                 )
-                Text(
-                    listOfNotNull(
-                        role?.replaceFirstChar { it.uppercase() },
-                        company.name,
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            val number = company.numbers
-                .firstOrNull { it.status == NumberStatus.ACTIVE && it.number_e164 != null }
-                ?.number_e164
-            if (number != null) {
-                Spacer(Modifier.width(8.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ) {
-                    CopyablePhoneNumber(
-                        number = number,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-                    )
+                if (number != null) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ) {
+                        CopyablePhoneNumber(
+                            number = number,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun IdentitySummary(name: String, workspace: String, role: String?, modifier: Modifier) {
+    val locale = LocalAppLocale.current
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        InitialsAvatar(
+            name,
+            46.dp,
+            glyph = 14.sp,
+            container = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+            content = LocalContentColor.current,
+        )
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                listOfNotNull(role?.let { roleLabelIn(locale, it) }, workspace).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }
@@ -767,6 +787,7 @@ private fun HandOverPhoneRow(
     onHandOver: () -> Unit,
     unsentCount: suspend () -> Int,
 ) {
+    val locale = LocalAppLocale.current
     var asking by remember { mutableStateOf(false) }
     // Read when the sheet opens rather than on every recomposition of the hub: this
     // touches disk, and the number is only ever shown inside the confirmation.
@@ -796,7 +817,7 @@ private fun HandOverPhoneRow(
         )
         Spacer(Modifier.width(9.dp))
         Text(
-            HandOverPhone.ACTION,
+            HandOverPhone.action(locale),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -804,14 +825,14 @@ private fun HandOverPhoneRow(
 
     if (asking) {
         ConfirmDialog(
-            title = HandOverPhone.TITLE,
-            body = HandOverPhone.body(unsent),
-            confirmLabel = HandOverPhone.CONFIRM,
+            title = HandOverPhone.title(locale),
+            body = HandOverPhone.body(unsent, locale),
+            confirmLabel = HandOverPhone.confirm(locale),
             // Destructive only when something would actually be lost. Colouring a
             // clean handover as a danger teaches people to ignore the colour on the
             // day it means something.
             destructive = HandOverPhone.costs(unsent),
-            dismissLabel = HandOverPhone.CANCEL,
+            dismissLabel = HandOverPhone.cancel(locale),
             onDismiss = { asking = false },
             onConfirm = {
                 asking = false

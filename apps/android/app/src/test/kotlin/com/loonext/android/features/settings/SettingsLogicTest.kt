@@ -104,6 +104,15 @@ class SettingsLogicTest {
         assertFalse(seatUsage(2, 0, null).full)
     }
 
+    @Test
+    fun `French seats show the allowance and suggest an available upgrade`() {
+        assertEquals("2 sur 10 places", seatUsage(2, 0, "pro", servedLimit = 10, locale = "fr-CA").line)
+        assertEquals(
+            "3 sur 3 places. Passez au forfait supérieur pour en ajouter.",
+            seatUsage(2, 1, "starter", locale = "fr-CA").line,
+        )
+    }
+
     // -- role-gate matrix ------------------------------------------------------
 
     @Test

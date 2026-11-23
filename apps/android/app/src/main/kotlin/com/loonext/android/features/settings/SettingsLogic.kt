@@ -167,14 +167,17 @@ fun seatUsage(
     pendingInvites: Int,
     plan: String?,
     servedLimit: Int? = null,
+    locale: String? = null,
 ): SeatUsage {
     val limit = if (servedLimit != null && servedLimit > 0) servedLimit else seatLimit(plan)
     val used = activeMembers + pendingInvites
     val full = used >= limit
     val canUpgrade = full && plan != "pro"
-    val line =
-        if (canUpgrade) "$used of $limit seats. Upgrade for more"
-        else "$used of $limit seats"
+    val line = AppStrings.translate(
+        locale,
+        if (canUpgrade) "settingsMore.seatsUsedWithUpgrade" else "settingsMore.seatsUsed",
+        mapOf("used" to used.toString(), "limit" to limit.toString()),
+    )
     return SeatUsage(used = used, limit = limit, full = full, canUpgrade = canUpgrade, line = line)
 }
 

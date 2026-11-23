@@ -468,7 +468,7 @@ struct SettingsHome: View {
     /// Spec-28 ink identity card: who you are, your role, and the workspace
     /// number one tap from the clipboard.
     private func identityCard(_ company: CompanyView) -> some View {
-        HStack(spacing: 13) {
+        let summary = HStack(spacing: 13) {
             InitialsAvatar(
                 name: me.display_name.isBlank ? company.name : me.display_name,
                 size: 46,
@@ -485,17 +485,24 @@ struct SettingsHome: View {
                 Text(roleLine(company))
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.paper.opacity(0.55))
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
-            Spacer(minLength: 8)
+        }
+        return Group {
             if let number = activeNumber(company) {
-                CopyablePhoneNumber(number: number)
-                    .font(.golos(11, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(BrandColor.paper)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(BrandColor.paper.opacity(0.1), in: Capsule())
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        summary.fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 0)
+                        identityNumber(number).fixedSize()
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        summary
+                        identityNumber(number)
+                    }
+                }
+            } else {
+                summary
             }
         }
         .padding(16)
@@ -503,9 +510,19 @@ struct SettingsHome: View {
         .background(BrandColor.ink, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
+    private func identityNumber(_ number: String) -> some View {
+        CopyablePhoneNumber(number: number)
+            .font(.golos(11, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(BrandColor.paper)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(BrandColor.paper.opacity(0.1), in: Capsule())
+    }
+
     private func roleLine(_ company: CompanyView) -> String {
         if let role, !role.isEmpty {
-            return "\(role.capitalized) · \(company.name)"
+            return "\(roleLabel(role, appLocale)) · \(company.name)"
         }
         return company.name
     }

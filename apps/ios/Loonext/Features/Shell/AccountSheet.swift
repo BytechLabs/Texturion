@@ -102,15 +102,11 @@ struct AccountSheet: View {
                     .font(.golos(14, weight: .semibold))
                     .foregroundStyle(BrandColor.paper)
                 if let membership {
-                    // The ROLE is still the server's own token ("owner"), as it
-                    // has always been on this screen — web translates it and the
-                    // phones do not, which is a copy change rather than an
-                    // extraction and belongs to whoever makes it on all three.
                     Text(
                         AppStrings.translate(
                             appLocale,
                             "shell.identityLine",
-                            ["name": displayName, "role": membership.role]
+                            ["name": displayName, "role": roleLabel(membership.role, appLocale)]
                         )
                     )
                     .font(.golos(11))
