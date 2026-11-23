@@ -1140,7 +1140,7 @@ private struct CallRowSummary: View {
                         .foregroundStyle(BrandColor.ink)
                         .lineLimit(largeText ? nil : 1)
                         .phoneNumberCopyOnHold(call.contact_name == nil && call.caller_name == nil ? call.caller_e164 : nil)
-                    HStack(spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Image(systemName: directionIcon)
                             .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(metaColor)
@@ -1174,6 +1174,7 @@ private struct CallRowSummary: View {
                             ))
                             .foregroundStyle(metaColor)
                             .lineLimit(largeText ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
                             .truncationMode(.tail)
                     }
                 }

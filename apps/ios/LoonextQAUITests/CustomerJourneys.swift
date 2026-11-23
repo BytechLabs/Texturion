@@ -171,11 +171,14 @@ final class CustomerJourneys: XCTestCase {
         XCTAssertTrue(try waitFor(button(text("Schedule", "Horaire"))).isSelected)
         shot("Planner schedule \(suffix)")
         let previewCount = try await allWrites().filter { $0.path == "/v1/dispatch/preview" }.count
-        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -28, dy: 0))
-        grip.press(
-            forDuration: 0.9, thenDragTo: lane.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5)),
-            withVelocity: .slow, thenHoldForDuration: 0.4)
-        let resize = try waitFor(button(text("Change duration", "Modifier la durée")))
+        let grip = pending.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: -22, dy: 0))
+        let dropTarget = lane.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 84, dy: 0))
+        let resizeButton = button(text("Change duration", "Modifier la durée"))
+        grip.press(forDuration: 1.0, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.45)
+        if !resizeButton.waitForExistence(timeout: 6) {
+            grip.press(forDuration: 1.1, thenDragTo: dropTarget, withVelocity: .slow, thenHoldForDuration: 0.5)
+        }
+        let resize = try waitFor(resizeButton)
         shot("Planner staged work \(suffix)")
         let edge = resize.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         edge.press(forDuration: 0.05, thenDragTo: edge.withOffset(CGVector(dx: 56, dy: 0)))

@@ -165,6 +165,8 @@ struct MeasureHeader<Trailing: View>: View {
     private let label: String
     private let trailing: () -> Trailing
 
+    @Environment(\.dynamicTypeSize) private var textSize
+
     /// Unlabelled, because `MeasureHeader("Quotes")` reads like the heading it is.
     ///
     /// Spelled out rather than left to the memberwise init: the memberwise one
@@ -178,9 +180,14 @@ struct MeasureHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        let layout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 6))
+        layout {
             SectionLabel(label)
-            Spacer(minLength: 8)
+            if !textSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
             trailing()
         }
         .padding(.horizontal, 6)

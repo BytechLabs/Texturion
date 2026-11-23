@@ -296,6 +296,7 @@ struct DispatchPlanner: View {
             .padding(18)
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        .tint(BrandColor.olive)
         .environment(\.timeZone, zone)
         .task(id: "\(key(week)):\(refresh)") { await load() }
         .sheet(isPresented: $review) { publishReview }
@@ -749,6 +750,7 @@ struct DispatchPlanner: View {
         }
         .padding(18)
         .background(BrandColor.canvas.ignoresSafeArea())
+        .tint(BrandColor.olive)
     }
 
     private func issueKey(_ reason: String) -> String {
@@ -950,24 +952,26 @@ private struct DispatchTimelineBlock: View {
     private var movable: Bool { editable && !block.locked }
 
     var body: some View {
-        if movable {
-            tile.draggable("block:\(block.id)")
-        } else {
-            tile
-        }
-    }
-
-    private var tile: some View {
+        let minWidth: CGFloat = movable ? 132 : 104
         let left = max(0, scale.x(start))
         let right = min(scale.width, scale.x(resizing ?? end))
-        return HStack(spacing: 0) {
+        HStack(spacing: 0) {
+            if movable {
+                Image(systemName: "line.3.horizontal")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .draggable("block:\(block.id)")
+                    .accessibilityHidden(true)
+            }
             Button(action: onTask) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task.title).font(.caption.weight(.semibold)).lineLimit(1)
                     Text("\(time(start)) – \(time(resizing ?? end))").font(.caption2.monospacedDigit()).lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .padding(.leading, 6)
+                .padding(.leading, movable ? 2 : 6)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -976,9 +980,9 @@ private struct DispatchTimelineBlock: View {
             }
         }
         .foregroundStyle(BrandColor.ink)
-        .frame(width: max(104, right - left))
+        .frame(width: max(minWidth, right - left))
         .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 7))
-        .offset(x: min(left, max(0, scale.width - 104)), y: 12)
+        .offset(x: min(left, max(0, scale.width - minWidth)), y: 12)
     }
 
     private var resizeControl: some View {

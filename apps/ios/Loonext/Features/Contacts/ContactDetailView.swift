@@ -476,7 +476,9 @@ struct ContactDetailView: View {
                     SegmentedControl(
                         options: paneOptions,
                         selected: pane,
-                        size: .compact
+                        size: .compact,
+                        horizontalPadding: 4,
+                        labelLines: 2
                     ) { pane = $0 }
                 }
                 let block = contactBlockOnScreen(tab: tab, pane: pane)

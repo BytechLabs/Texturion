@@ -682,7 +682,7 @@ private struct StorageDetail: View {
 /// mid-sentence, got a message saying that one thing had stopped, and had no
 /// way to have seen it coming. Unlike storage this IS a meter, because an AI
 /// limit is a hard stop rather than a fair-use line.
-private struct AiUsageDetail: View {
+struct AiUsageDetail: View {
     let features: [AiFeatureUsage]
 
     @Environment(\.appLocale) private var appLocale

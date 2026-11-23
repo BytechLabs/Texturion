@@ -95,6 +95,7 @@ struct PipelineCard: View {
     let onOpenConversation: @MainActor (String) -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dynamicTypeSize) private var textSize
 
     private var headline: String {
         guard let report else { return "" }
@@ -177,7 +178,10 @@ struct PipelineCard: View {
                             }
                         }
                     }
-                    HStack(alignment: .top, spacing: 16) {
+                    let figuresLayout = textSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                        : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
+                    figuresLayout {
                         pipelineFigure(
                             AppStrings.translate(appLocale, "inbox.pipelineQuoted"),
                             report.current.quoted

@@ -93,6 +93,7 @@ struct RootView: View {
         // MOUNTED ABOVE this view (a locked app must not build the inbox at
         // all), so they read `UiLocaleStore` directly. Same store, same answer.
         .environment(\.appLocale, appLocale)
+        .tint(BrandColor.olive)
         // #339: ambient when an update is merely available; a full stop only
         // below the server-set floor (D71). An overlay on the ROUTER, not on
         // the shell, so the block also covers the signed-out and interstitial
