@@ -74,26 +74,21 @@ struct ReportWindowControl: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach([7, 30, 90], id: \.self) { option in
-                let selected = option == days
-                Button {
-                    onSelect(option)
-                } label: {
-                    Text(AppStrings.translate(appLocale, "inbox.analyticsWindowDays", ["days": String(option)]))
-                        .font(.golos(12, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(selected ? BrandColor.ink : Color.clear, in: Capsule())
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selected ? [.isSelected] : [])
-            }
-        }
+        SegmentedControl(
+            options: [7, 30, 90].map { option in
+                SegmentedOption(
+                    option,
+                    title: AppStrings.translate(appLocale, "inbox.analyticsWindowDays", ["days": String(option)])
+                )
+            },
+            selected: days,
+            size: .compact,
+            fill: false,
+            horizontalPadding: 8,
+            minSegmentWidth: 44,
+            minSegmentHeight: 44,
+            onSelect: { onSelect($0) }
+        )
     }
 }
 

@@ -38,6 +38,8 @@ struct SegmentedControl<Value: Hashable>: View {
     var size: Size
     var fill: Bool
     var horizontalPadding: CGFloat?
+    var minSegmentWidth: CGFloat?
+    var minSegmentHeight: CGFloat?
     /// What VoiceOver says for the whole group, such as "Theme".
     var label: String?
 
@@ -48,6 +50,8 @@ struct SegmentedControl<Value: Hashable>: View {
         fill: Bool = true,
         label: String? = nil,
         horizontalPadding: CGFloat? = nil,
+        minSegmentWidth: CGFloat? = nil,
+        minSegmentHeight: CGFloat? = nil,
         onSelect: @escaping @MainActor (Value) -> Void
     ) {
         self.options = options
@@ -56,6 +60,8 @@ struct SegmentedControl<Value: Hashable>: View {
         self.fill = fill
         self.label = label
         self.horizontalPadding = horizontalPadding
+        self.minSegmentWidth = minSegmentWidth
+        self.minSegmentHeight = minSegmentHeight
         self.onSelect = onSelect
     }
 
@@ -111,6 +117,7 @@ struct SegmentedControl<Value: Hashable>: View {
             if let title = option.title {
                 Text(title)
                     .font(.golos(tight ? 12 : 12.5, weight: .semibold))
+                    .monospacedDigit()
                     .lineLimit(1)
             }
         }
@@ -118,7 +125,7 @@ struct SegmentedControl<Value: Hashable>: View {
         .frame(maxWidth: fill ? CGFloat.infinity : nil)
         .padding(.horizontal, horizontalPadding ?? (tight ? 12 : 14))
         .padding(.vertical, tight ? 7 : 9)
-        .frame(minHeight: tight ? 32 : 36)
+        .frame(minWidth: minSegmentWidth, minHeight: minSegmentHeight ?? (tight ? 32 : 36))
         .background(isSelected ? BrandColor.ink : Color.clear, in: Capsule())
         .contentShape(Capsule())
     }
