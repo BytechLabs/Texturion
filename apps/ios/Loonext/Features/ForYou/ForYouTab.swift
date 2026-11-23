@@ -1429,6 +1429,7 @@ private struct OutstandingQuoteRow: View {
 }
 
 private struct RecentCallRow: View {
+    @Environment(\.appLocale) private var appLocale
     let call: Call
     let onTap: (@MainActor () -> Void)?
 
@@ -1461,7 +1462,7 @@ private struct RecentCallRow: View {
                     // capped at 80 characters (routes/me.ts). Android's twin has
                     // had maxLines = 1 since it shipped; this was the last of the
                     // three clients left to wrap.
-                    Text(callOutcomeLabel(call))
+                    Text(callOutcomeLabel(call, locale: appLocale))
                         .font(.golos(11.5, weight: isActionableMiss(call) ? .semibold : .regular))
                         .foregroundStyle(metaColor)
                         .lineLimit(1)

@@ -6,6 +6,8 @@
 import { CALL_END_REASONS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
+import { makeTranslate } from "@/i18n/translate";
+
 import { callEndReason, callOutcomeLabel, formatCallDuration } from "./call";
 
 describe(formatCallDuration, () => {
@@ -46,6 +48,22 @@ describe(formatCallDuration, () => {
 });
 
 describe(callOutcomeLabel, () => {
+  it("uses the Canadian French outcome, reason and elapsed units", () => {
+    const t = makeTranslate("fr-CA");
+    expect(
+      callOutcomeLabel({ outcome: "missed", forward_seconds: 0, ended_reason: "caller_hung_up" }, t),
+    ).toBe("Manqué · L'appelant a raccroché");
+    expect(
+      callOutcomeLabel({ outcome: "voicemail", forward_seconds: 0, ended_reason: "no_answer_in_time" }, t),
+    ).toBe("Message vocal · Personne n'a répondu à temps");
+    expect(
+      callOutcomeLabel({ outcome: "answered", forward_seconds: 66, answered_by_name: "Sam" }, t),
+    ).toBe("Pris par Sam · 1 min 6 s");
+    expect(
+      callOutcomeLabel({ outcome: "answered", forward_seconds: 3666, direction: "outbound", answered_by_name: "Sam" }, t),
+    ).toBe("Sam a appelé · 1 h 1 min");
+  });
+
   it("inbound misses are 'Missed'", () => {
     expect(
       callOutcomeLabel({ outcome: "missed", direction: "inbound", forward_seconds: 0 }),

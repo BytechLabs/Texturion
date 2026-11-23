@@ -162,7 +162,7 @@ func taskCallMeta(_ call: TaskSourceCall, locale: String?) -> TimedText {
         let talk = AppStrings.translate(
             locale,
             "contactsTasks.callTalkTime",
-            ["duration": formatCallDuration(call.forward_seconds)]
+            ["duration": formatCallDuration(call.forward_seconds, locale: locale)]
         )
         return "\(when) · \(talk)"
     }

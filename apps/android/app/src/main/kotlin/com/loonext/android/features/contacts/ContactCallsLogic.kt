@@ -3,6 +3,8 @@ package com.loonext.android.features.contacts
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Page
+import com.loonext.android.features.calls.callOutcomeLabel
+import com.loonext.android.features.calls.formatCallDuration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -93,13 +95,8 @@ internal fun contactCallDayLabel(iso: String, zone: ZoneId, today: LocalDate): S
 }
 
 /** "4m 32s" / "58s" — talk time. Source: features/calls/CallsLogic.kt. */
-internal fun contactCallDuration(seconds: Int): String {
-    val whole = maxOf(0, seconds)
-    val minutes = whole / 60
-    val rest = whole % 60
-    if (minutes == 0) return "${rest}s"
-    return if (rest == 0) "${minutes}m" else "${minutes}m ${rest}s"
-}
+internal fun contactCallDuration(seconds: Int, locale: String? = null): String =
+    formatCallDuration(seconds, locale)
 
 /**
  * The row's plain-language outcome line. Outbound speaks from the crew's side
@@ -109,24 +106,8 @@ internal fun contactCallDuration(seconds: Int): String {
  * outcome is a session still in flight.
  * Source: features/calls/CallsLogic.kt callOutcomeLabel.
  */
-internal fun contactCallOutcomeLabel(call: Call): String {
-    val outbound = call.direction == "outbound"
-    val dur =
-        if (call.forward_seconds > 0) " · ${contactCallDuration(call.forward_seconds)}" else ""
-    val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
-    return when (call.outcome) {
-        CallOutcome.MISSED -> if (outbound) "No answer" else "Missed"
-        CallOutcome.VOICEMAIL -> "Voicemail"
-        CallOutcome.ANSWERED ->
-            if (outbound) {
-                "${if (actor != null) "$actor called" else "You called"}$dur"
-            } else {
-                "${if (actor != null) "Answered by $actor" else "Answered"}$dur"
-            }
-
-        else -> if (outbound) "Calling…" else "In progress"
-    }
-}
+internal fun contactCallOutcomeLabel(call: Call, locale: String? = null): String =
+    callOutcomeLabel(call, locale)
 
 /**
  * An INBOUND miss is the row's one urgent (coral) element; nothing else is.

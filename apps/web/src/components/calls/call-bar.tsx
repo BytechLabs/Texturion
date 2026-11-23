@@ -51,6 +51,7 @@ const CALL_ROW = "pointer-events-auto flex min-w-0 items-center gap-x-3 gap-y-2"
 const END_BUTTON = "bg-[var(--app-call-ring-fill)] text-[var(--app-call-ring-label)] hover:bg-[var(--app-call-ring-fill)]/80 hover:text-[var(--app-call-ring-label)]";
 
 function LiveTimer({ since }: { since: number }) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(() =>
     Math.max(0, Math.floor((Date.now() - since) / 1000)),
   );
@@ -61,7 +62,7 @@ function LiveTimer({ since }: { since: number }) {
     );
     return () => window.clearInterval(id);
   }, [since]);
-  return <span className="tabular-nums">{formatCallDuration(elapsed)}</span>;
+  return <span className="tabular-nums">{formatCallDuration(elapsed, t)}</span>;
 }
 
 function CallIdentity({ call }: { call: CallInfo }) {

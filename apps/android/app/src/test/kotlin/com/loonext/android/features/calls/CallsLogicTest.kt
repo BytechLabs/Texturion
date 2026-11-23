@@ -4,6 +4,7 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.ui.common.CallActionsInput
 import com.loonext.android.ui.common.callActions
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallPhase
@@ -132,6 +133,23 @@ class CallsLogicTest {
         assertEquals("Calling…", callOutcomeLabel(call(outcome = null, direction = "outbound")))
         // Unknown future outcome values degrade to the in-flight copy, never crash.
         assertEquals("In progress", callOutcomeLabel(call(outcome = "some_new_state")))
+    }
+
+    @Test
+    fun `Canadian French translates the call outcome reason actor and duration`() {
+        val locale = MessageLocale.FR_CA
+        val missed = call(outcome = "missed").copy(ended_reason = "caller_hung_up")
+        val voicemail = call(outcome = "voicemail").copy(ended_reason = "no_answer_in_time")
+        val answered = call(outcome = "answered", forwardSeconds = 66, answeredByName = "Sam")
+        val routed = voicemail.copy(routing = "after_hours")
+
+        assertEquals("Manqué · L'appelant a raccroché", callOutcomeLabel(missed, locale))
+        assertEquals("Message vocal · Personne n'a répondu à temps", callOutcomeLabel(voicemail, locale))
+        assertEquals("Message vocal · Hors des heures, personne de garde", callOutcomeLabel(routed, locale))
+        assertEquals("Répondu par Sam · 1 min 6 s", callOutcomeLabel(answered, locale))
+        assertEquals("Sam a appelé · 1 min 6 s", callOutcomeLabel(answered.copy(direction = "outbound"), locale))
+        assertEquals("Appel en cours…", callOutcomeLabel(call(direction = "outbound"), locale))
+        assertEquals("Answered by Sam · 1m 6s", callOutcomeLabel(answered, MessageLocale.EN))
     }
 
     @Test

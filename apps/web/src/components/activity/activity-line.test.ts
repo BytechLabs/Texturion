@@ -66,6 +66,7 @@ describe("#725 call steps", () => {
       `Call ended · after 12s · ${t("misc.callEndedCallerHungUp")}`,
     );
     expect(say(step("call_ended", { reason: "answered", seconds: 0 }))).toBe("Call ended");
+    expect(say(step("call_ended", { reason: "answered", seconds: 66 }), tFr)).toContain("après 1 min 6 s");
   });
 });
 

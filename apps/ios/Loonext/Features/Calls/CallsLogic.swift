@@ -39,7 +39,7 @@ func pushedCallerIdentity(
 }
 
 /// "4m 32s" / "58s" — talk time for answered calls (never ring time).
-func formatCallDuration(_ seconds: Int) -> String {
+func formatCallDuration(_ seconds: Int, locale: String? = nil) -> String {
     let whole = max(0, seconds)
     // #570: hours were missing, so a three-hour call read as "183m 12s". Nothing
     // caps talk time — the call code's timeouts bound RINGING and a transfer, not a
@@ -49,9 +49,18 @@ func formatCallDuration(_ seconds: Int) -> String {
     let hours = whole / 3600
     let minutes = (whole % 3600) / 60
     let rest = whole % 60
-    if hours > 0 { return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m" }
-    if minutes == 0 { return "\(rest)s" }
-    return rest == 0 ? "\(minutes)m" : "\(minutes)m \(rest)s"
+    func unit(_ key: String, _ count: Int) -> String {
+        AppStrings.translate(locale, key, ["count": String(count)])
+    }
+    if hours > 0 {
+        let main = unit("shell.callDurationHours", hours)
+        return minutes > 0 ? main + " " + unit("shell.callDurationMinutes", minutes) : main
+    }
+    if minutes > 0 {
+        let main = unit("shell.callDurationMinutes", minutes)
+        return rest > 0 ? main + " " + unit("shell.callDurationSeconds", rest) : main
+    }
+    return unit("shell.callDurationSeconds", rest)
 }
 
 /// #721: why no phone rang, in the web's words (checked against
@@ -104,29 +113,30 @@ func callWhyLine(_ call: Call, _ locale: String? = nil) -> String? {
 /// crew). A null outcome is a session still in flight. #191: an answered call
 /// names the acting member (placer/answerer) when the server resolved one, so a
 /// crew's log doesn't mis-attribute every member's call to the viewer.
-func callOutcomeLabel(_ call: Call) -> String {
+func callOutcomeLabel(_ call: Call, locale: String? = nil) -> String {
     let outbound = call.direction == "outbound"
-    let dur = call.forward_seconds > 0
-        ? " · \(formatCallDuration(call.forward_seconds))"
+    let duration = call.forward_seconds > 0
+        ? " · \(formatCallDuration(call.forward_seconds, locale: locale))"
         : ""
     let actor = call.answered_by_name
-    let why = callWhyLine(call).map { " · \($0)" } ?? ""
+    let why = callWhyLine(call, locale).map { " · \($0)" } ?? ""
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars)
+    }
+
     switch call.outcome {
     case CallOutcome.missed:
-        return outbound ? "No answer" : "Missed" + why
+        return outbound ? say("shell.outcomeNoAnswer") : say("shell.outcomeMissed") + why
     case CallOutcome.voicemail:
-        return "Voicemail" + why
+        return say("shell.callHistoryVoicemail") + why
     case CallOutcome.answered:
-        if outbound {
-            // "Sam called" when the placer is known; "You called" (crew's-side
-            // framing) for legacy/pre-#191 rows that carry no placer.
-            return (actor.map { "\($0) called" } ?? "You called") + dur
+        if let actor {
+            let key = outbound ? "shell.callHistoryPlacedBy" : "shell.callHistoryAnsweredBy"
+            return say(key, ["name": actor]) + duration
         }
-        // "Answered by Sam" when the answerer is known; bare "Answered" otherwise.
-        return (actor.map { "Answered by \($0)" } ?? "Answered") + dur
+        return say(outbound ? "shell.callHistoryYouCalled" : "shell.outcomeAnswered") + duration
     default:
-        // Unknown future outcomes degrade to the in-flight copy, never crash.
-        return outbound ? "Calling…" : "In progress"
+        return say(outbound ? "shell.callHistoryCalling" : "shell.outcomeInProgress")
     }
 }
 

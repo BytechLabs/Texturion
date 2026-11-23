@@ -680,7 +680,7 @@ function TaskDetailLoaded({
                 <Timestamp at={task.source_call.started_at} style="long" />
                 {task.source_call.forward_seconds > 0 &&
                   ` · ${t("tasks.callTalkTime", {
-                    duration: formatCallDuration(task.source_call.forward_seconds),
+                    duration: formatCallDuration(task.source_call.forward_seconds, t),
                   })}`}
               </p>
               {task.source_call.has_voicemail && (

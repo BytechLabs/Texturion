@@ -123,6 +123,23 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual("In progress", callOutcomeLabel(call(outcome: "some_new_state")))
     }
 
+    func testCanadianFrenchLocalizesOutcomeReasonActorAndDuration() {
+        let locale = "fr-CA"
+        var missed = call(outcome: "missed")
+        missed.ended_reason = "caller_hung_up"
+        var voicemail = call(outcome: "voicemail")
+        voicemail.ended_reason = "no_answer_in_time"
+        let answered = call(outcome: "answered", forwardSeconds: 66, answeredByName: "Sam")
+
+        XCTAssertEqual("Manqué · L'appelant a raccroché", callOutcomeLabel(missed, locale: locale))
+        XCTAssertEqual("Message vocal · Personne n'a répondu à temps", callOutcomeLabel(voicemail, locale: locale))
+        voicemail.routing = "after_hours"
+        XCTAssertEqual("Message vocal · Hors des heures, personne de garde", callOutcomeLabel(voicemail, locale: locale))
+        XCTAssertEqual("Répondu par Sam · 1 min 6 s", callOutcomeLabel(answered, locale: locale))
+        XCTAssertEqual("Appel en cours…", callOutcomeLabel(call(direction: "outbound"), locale: locale))
+        XCTAssertEqual("Answered by Sam · 1m 6s", callOutcomeLabel(answered, locale: "en"))
+    }
+
     func testAnsweredCallNamesTheActingPlacerOrAnswerer() {
         // #191: name the placer of an outbound call and the answerer of an
         // inbound one, mirroring the web's callOutcomeLabel exactly.

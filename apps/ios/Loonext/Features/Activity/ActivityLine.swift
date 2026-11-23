@@ -264,7 +264,7 @@ private func activityCallSentence(_ item: ActivityItem, _ locale: String?) -> St
     ]
     let talked = activitySeconds(payload, "talk_seconds") ?? 0
     if talked > 0 {
-        parts.append(activitySay(locale, "activity.callTalked", ["duration": formatCallDuration(talked)]))
+        parts.append(activitySay(locale, "activity.callTalked", ["duration": formatCallDuration(talked, locale: locale)]))
     }
     if let why = callEndReason(activityText(payload, "ended_reason"), locale) {
         parts.append(why)
@@ -312,7 +312,7 @@ private func activityCallStepSentence(
         let seconds = activitySeconds(payload, "seconds") ?? 0
         var parts: [String] = [activitySay(locale, "activity.stepEnded")]
         if seconds > 0 {
-            parts.append(activitySay(locale, "activity.stepLasted", ["duration": formatCallDuration(seconds)]))
+            parts.append(activitySay(locale, "activity.stepLasted", ["duration": formatCallDuration(seconds, locale: locale)]))
         }
         if let why = callEndReason(activityText(payload, "reason"), locale) {
             parts.append(why)
@@ -417,7 +417,7 @@ func activityLine(
     case "voicemail":
         let seconds = activitySeconds(payload, "voicemail_seconds") ?? 0
         if seconds > 0 {
-            let left = activitySay(locale, "activity.voicemailLeftFor", ["duration": formatCallDuration(seconds)])
+            let left = activitySay(locale, "activity.voicemailLeftFor", ["duration": formatCallDuration(seconds, locale: locale)])
             return line(left, .voicemail)
         }
         return line(activitySay(locale, "activity.voicemailLeft"), .voicemail)

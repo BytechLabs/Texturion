@@ -1,6 +1,7 @@
 package com.loonext.android.features.contacts
 
 import com.loonext.android.core.model.Call
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.Page
 import java.time.LocalDate
 import java.time.ZoneId
@@ -199,5 +200,15 @@ class ContactCallsLogicTest {
         val last = appendContactCallsPage(appended, page(listOf(call(id = "d")), null))
         assertEquals(listOf("a", "b", "c", "d"), last.calls.map { it.id })
         assertNull(last.nextCursor)
+    }
+
+    @Test
+    fun `contact call outcomes and durations localize in Canadian French`() {
+        val locale = MessageLocale.FR_CA
+        val missed = call(outcome = "missed").copy(ended_reason = "caller_hung_up")
+        val answered = call(outcome = "answered", forwardSeconds = 66, answeredByName = "Sam")
+        assertEquals("Manqué · L'appelant a raccroché", contactCallOutcomeLabel(missed, locale))
+        assertEquals("Répondu par Sam · 1 min 6 s", contactCallOutcomeLabel(answered, locale))
+        assertEquals("1 min 6 s", contactCallDuration(66, locale))
     }
 }

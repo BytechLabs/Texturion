@@ -303,7 +303,8 @@ internal fun callMeta(call: TaskSourceCall): TimedText = timedText { time ->
     if (call.forward_seconds <= 0) {
         when_
     } else {
-        val talk = t("contactsTasks.callTalkTime", "duration" to formatCallDuration(call.forward_seconds))
+        val duration = formatCallDuration(call.forward_seconds, LocalAppLocale.current)
+        val talk = t("contactsTasks.callTalkTime", "duration" to duration)
         "$when_ · $talk"
     }
 }

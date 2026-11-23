@@ -55,7 +55,7 @@ fun callerSubLine(name: String, number: String): String? {
 }
 
 /** "4m 32s" / "58s" — talk time for answered calls (never ring time). */
-fun formatCallDuration(seconds: Int): String {
+fun formatCallDuration(seconds: Int, locale: String? = null): String {
     val whole = maxOf(0, seconds)
     // #570: hours were missing, so a three-hour call read as "183m 12s". Nothing
     // caps talk time — the call code's timeouts bound RINGING and a transfer, not a
@@ -65,9 +65,20 @@ fun formatCallDuration(seconds: Int): String {
     val hours = whole / 3600
     val minutes = (whole % 3600) / 60
     val rest = whole % 60
-    if (hours > 0) return if (minutes == 0) "${hours}h" else "${hours}h ${minutes}m"
-    if (minutes == 0) return "${rest}s"
-    return if (rest == 0) "${minutes}m" else "${minutes}m ${rest}s"
+    fun unit(key: String, count: Int): String =
+        AppStrings.translate(locale, key, mapOf("count" to count.toString()))
+
+    return when {
+        hours > 0 -> listOfNotNull(
+            unit("shell.callDurationHours", hours),
+            minutes.takeIf { it > 0 }?.let { unit("shell.callDurationMinutes", it) },
+        ).joinToString(" ")
+        minutes > 0 -> listOfNotNull(
+            unit("shell.callDurationMinutes", minutes),
+            rest.takeIf { it > 0 }?.let { unit("shell.callDurationSeconds", it) },
+        ).joinToString(" ")
+        else -> unit("shell.callDurationSeconds", rest)
+    }
 }
 
 /**
@@ -126,23 +137,32 @@ fun callWhyLine(call: Call, locale: String? = null): String? =
  * "You called"/"Answered" is the fallback for legacy rows with no actor.
  * A null outcome is a session still in flight.
  */
-fun callOutcomeLabel(call: Call): String {
+fun callOutcomeLabel(call: Call, locale: String? = null): String {
     val outbound = call.direction == "outbound"
-    val dur =
-        if (call.forward_seconds > 0) " · ${formatCallDuration(call.forward_seconds)}" else ""
+    val duration = if (call.forward_seconds > 0) {
+        " · ${formatCallDuration(call.forward_seconds, locale)}"
+    } else {
+        ""
+    }
     val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
-    val why = callWhyLine(call)?.let { " · $it" } ?: ""
-    return when (call.outcome) {
-        CallOutcome.MISSED -> if (outbound) "No answer" else "Missed$why"
-        CallOutcome.VOICEMAIL -> "Voicemail$why"
-        CallOutcome.ANSWERED ->
-            if (outbound) {
-                "${if (actor != null) "$actor called" else "You called"}$dur"
-            } else {
-                "${if (actor != null) "Answered by $actor" else "Answered"}$dur"
-            }
+    val why = callWhyLine(call, locale)?.let { " · $it" }.orEmpty()
+    fun say(key: String): String = AppStrings.translate(locale, key)
 
-        else -> if (outbound) "Calling…" else "In progress"
+    return when (call.outcome) {
+        CallOutcome.MISSED -> if (outbound) say("shell.outcomeNoAnswer") else say("shell.outcomeMissed") + why
+        CallOutcome.VOICEMAIL -> say("shell.callHistoryVoicemail") + why
+        CallOutcome.ANSWERED -> {
+            val label = when {
+                actor == null -> say(if (outbound) "shell.callHistoryYouCalled" else "shell.outcomeAnswered")
+                else -> AppStrings.translate(
+                    locale,
+                    if (outbound) "shell.callHistoryPlacedBy" else "shell.callHistoryAnsweredBy",
+                    mapOf("name" to actor),
+                )
+            }
+            label + duration
+        }
+        else -> say(if (outbound) "shell.callHistoryCalling" else "shell.outcomeInProgress")
     }
 }
 

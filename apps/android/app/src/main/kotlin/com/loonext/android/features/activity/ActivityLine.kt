@@ -225,7 +225,7 @@ private fun callSentence(item: ActivityItem, locale: String?): String {
     )
     val parts = mutableListOf(say(locale, "activity.callLine", "direction" to direction, "outcome" to outcome))
     val talked = payload.number("talk_seconds")?.toInt() ?: 0
-    if (talked > 0) parts += say(locale, "activity.callTalked", "duration" to formatCallDuration(talked))
+    if (talked > 0) parts += say(locale, "activity.callTalked", "duration" to formatCallDuration(talked, locale))
     callEndReason(payload.text("ended_reason"), locale)?.let { parts += it }
     return parts.joinToString(" · ")
 }
@@ -267,7 +267,7 @@ private fun callStepSentence(
         "call_ended" -> {
             val seconds = payload.number("seconds")?.toInt() ?: 0
             val parts = mutableListOf(say(locale, "activity.stepEnded"))
-            if (seconds > 0) parts += say(locale, "activity.stepLasted", "duration" to formatCallDuration(seconds))
+            if (seconds > 0) parts += say(locale, "activity.stepLasted", "duration" to formatCallDuration(seconds, locale))
             callEndReason(payload.text("reason"), locale)?.let { parts += it }
             parts.joinToString(" · ")
         }
@@ -349,7 +349,7 @@ fun activityLine(
             val seconds = payload.number("voicemail_seconds")?.toInt() ?: 0
             line(
                 if (seconds > 0) {
-                    say(locale, "activity.voicemailLeftFor", "duration" to formatCallDuration(seconds))
+                    say(locale, "activity.voicemailLeftFor", "duration" to formatCallDuration(seconds, locale))
                 } else {
                     say(locale, "activity.voicemailLeft")
                 },

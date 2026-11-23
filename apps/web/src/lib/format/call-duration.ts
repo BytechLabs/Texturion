@@ -1,3 +1,11 @@
+type DurationUnit = "hours" | "minutes" | "seconds";
+
+const unitAbbreviation: Record<DurationUnit, string> = {
+  hours: "h",
+  minutes: "m",
+  seconds: "s",
+};
+
 /**
  * "58s" / "4m 32s" / "3h 3m" — talk time for answered calls (never ring time).
  *
@@ -20,12 +28,20 @@
  * Next ships it, with the whole two-language app catalogue, to that page. The
  * marketing thread demos need only this function.
  */
-export function formatCallDuration(seconds: number): string {
+export function formatCallDuration(
+  seconds: number,
+  formatUnit: (unit: DurationUnit, count: number) => string =
+    (unit, count) => `${count}${unitAbbreviation[unit]}`,
+): string {
   const whole = Math.max(0, Math.round(seconds));
   const hours = Math.floor(whole / 3600);
   const minutes = Math.floor((whole % 3600) / 60);
   const rest = whole % 60;
-  if (hours > 0) return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-  if (minutes === 0) return `${rest}s`;
-  return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
+  if (hours > 0) {
+    const shownHours = formatUnit("hours", hours);
+    return minutes === 0 ? shownHours : `${shownHours} ${formatUnit("minutes", minutes)}`;
+  }
+  if (minutes === 0) return formatUnit("seconds", rest);
+  const shownMinutes = formatUnit("minutes", minutes);
+  return rest === 0 ? shownMinutes : `${shownMinutes} ${formatUnit("seconds", rest)}`;
 }
