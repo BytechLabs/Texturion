@@ -762,6 +762,7 @@ describe("the emulator's gRPC audio", () => {
         sleeps.push(ms);
         clock += ms;
       },
+      micSettleMs: 0,
     });
     cleanups.push(() => link.close());
     await link.playCode("pixel");
@@ -787,6 +788,92 @@ describe("the emulator's gRPC audio", () => {
     await new Promise((resolve) => { setTimeout(resolve, 300); });
     expect(controller.injected.length).toBeGreaterThan(0);
     link.stop();
+  });
+
+  it("waits micSettleMs after dumpsys audio shows an active recording before opening injectAudio", async () => {
+    let clock = 1000;
+    const events: string[] = [];
+    const link = new EmulatorAudioLink({
+      port: 8560,
+      token: () => GRPC_TOKEN,
+      adb: {
+        shell: async () => {
+          events.push(`dumpsys@${clock}`);
+          return RECORDING;
+        },
+      },
+      proof: () => PROVEN,
+      client: () => ({
+        injectAudio: () => {
+          events.push(`inject@${clock}`);
+          return {
+            write: () => {
+              link.stop();
+              return true;
+            },
+            end: () => {},
+            once: () => {},
+          };
+        },
+        close: () => {},
+      }) as unknown as ControllerClient,
+      now: () => clock,
+      sleep: async (ms) => {
+        events.push(`sleep(${ms})@${clock}`);
+        clock += ms;
+      },
+      micSettleMs: 750,
+    });
+    cleanups.push(() => link.close());
+    await link.playCode("pixel");
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
+    expect(events).toEqual(["dumpsys@1000", "sleep(750)@1000", "dumpsys@1750", "inject@1750"]);
+  });
+
+  it("retries injectAudio when QEMU reports FAILED_PRECONDITION while releasing a prior microphone", async () => {
+    let clock = 1000;
+    let attempts = 0;
+    const writes: number[] = [];
+    let finished!: () => void;
+    const done = new Promise<void>((resolve) => { finished = resolve; });
+    const link = new EmulatorAudioLink({
+      port: 8560,
+      token: () => GRPC_TOKEN,
+      adb: { shell: async () => RECORDING },
+      proof: () => PROVEN,
+      client: () => ({
+        injectAudio: (_metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null) => void) => {
+          attempts += 1;
+          const attempt = attempts;
+          return {
+            write: () => {
+              if (attempt === 1) {
+                callback(Object.assign(new Error("There can be only one microphone active"), { code: grpc.status.FAILED_PRECONDITION, details: "There can be only one microphone active" }) as grpc.ServiceError);
+                return true;
+              }
+              writes.push(attempt);
+              if (writes.length === 2) {
+                link.stop();
+                finished();
+              }
+              return true;
+            },
+            end: () => {},
+            once: () => {},
+          };
+        },
+        close: () => {},
+      }) as unknown as ControllerClient,
+      now: () => clock,
+      sleep: async (ms) => { clock += ms; },
+      micSettleMs: 0,
+    });
+    cleanups.push(() => link.close());
+    await link.playCode("pixel");
+    await done;
+    expect(attempts).toBe(2);
+    expect(writes).toEqual([2, 2]);
+    expect(link.lastError).toBeUndefined();
   });
 
   it("refuses to play or hear until EA1 has proven the path, and calls a wrong token not connected", async () => {

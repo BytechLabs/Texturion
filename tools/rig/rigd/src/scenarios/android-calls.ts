@@ -479,11 +479,11 @@ export const D07: ScenarioRunner = {
     const unplanned = notStarted(plan);
     if (unplanned) return unplanned;
 
-    const unplayed = half.speaks ? await playPixelCode(pixel.audio) : undefined;
-    if (unplayed) return unplayed;
     try {
       const undialed = await dialFromPixel(pixel.device);
       if (undialed) return undialed;
+      const unplayed = half.speaks ? await playPixelCode(pixel.audio) : undefined;
+      if (unplayed) return unplayed;
       const answered = await untilAnswered(ctx, plan.plan_id, 90_000);
       // The emulator's ear opens at answer, the window the robot's code plays in.
       let heard: Detection | undefined;

@@ -23,6 +23,9 @@ export const AUDIO_RATE = 48_000;
 const PACKET_MS = 20;
 const PACKET_SAMPLES = (AUDIO_RATE * PACKET_MS) / 1000;
 const MIC_BUFFER_MS = 120;
+const DEFAULT_MIC_SETTLE_MS = 750;
+const MIC_POLL_MS = 250;
+const MAX_MIC_RETRIES = 6;
 const WHISPER_RATE = 16_000;
 
 export const PROTO_PATH = fileURLToPath(new URL("../../proto/emulator_controller.proto", import.meta.url));
@@ -149,6 +152,8 @@ export interface EmulatorAudioOptions {
   sleep?: (ms: number) => Promise<void>;
   /** How long to wait for the guest's microphone before giving up on a playCode. */
   micWaitMs?: number;
+  /** Delay after dumpsys audio first shows an active recording so HAL pcm_readi starts before injectAudio opens. */
+  micSettleMs?: number;
 }
 
 interface Playing {
@@ -260,30 +265,61 @@ export class EmulatorAudioLink {
     return metadata;
   }
 
+  async #waitForActiveMic(waitUntil: number, settleMs: number, playing: Playing): Promise<boolean> {
+    while (!playing.stopped) {
+      if (!recordingActive(await this.#o.adb.shell("dumpsys", "audio"))) {
+        if (this.#now() >= waitUntil) throw new Error("emulator audio: the guest never opened its microphone");
+        await this.#sleep(MIC_POLL_MS);
+        continue;
+      }
+      if (settleMs > 0) {
+        await this.#sleep(settleMs);
+        if (playing.stopped) return false;
+        if (!recordingActive(await this.#o.adb.shell("dumpsys", "audio"))) continue;
+      }
+      return true;
+    }
+    return false;
+  }
+
   async #inject(surface: Surface, metadata: grpc.Metadata, playing: Playing): Promise<void> {
     const waitUntil = this.#now() + (this.#o.micWaitMs ?? 120_000);
-    while (!playing.stopped && !recordingActive(await this.#o.adb.shell("dumpsys", "audio"))) {
-      if (this.#now() >= waitUntil) throw new Error("emulator audio: the guest never opened its microphone");
-      await this.#sleep(250);
-    }
-    if (playing.stopped) return;
+    const settleMs = this.#o.micSettleMs ?? DEFAULT_MIC_SETTLE_MS;
     const code = s16FromPcm(codeSamples(surface, { sampleRate: AUDIO_RATE, cycles: 1 }));
     const packetBytes = PACKET_SAMPLES * 2;
-    const stream = this.#controller().injectAudio(metadata, (error) => {
-      if (error && error.code !== grpc.status.CANCELLED && !playing.stopped) this.lastError = `injectAudio: ${error.details || error.message}`;
-    });
-    playing.stream = stream;
     const format: AudioFormat = { samplingRate: AUDIO_RATE, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_UNSPECIFIED" };
-    // Keep a short lead so host scheduling delays do not drop microphone samples.
-    const started = this.#now();
-    for (let packet = 0; !playing.stopped; packet++) {
-      const offset = (packet * packetBytes) % code.length;
-      const audio = code.subarray(offset, offset + packetBytes);
-      const at = started + packet * PACKET_MS;
-      const sent = stream.write({ ...(packet === 0 ? { format } : {}), timestamp: Math.round(at * 1000), audio });
-      if (!sent) await new Promise((resolve) => { stream.once("drain", resolve); });
-      const wait = at + PACKET_MS - MIC_BUFFER_MS - this.#now();
-      if (wait > 0) await this.#sleep(wait);
+
+    for (let retries = 0; !playing.stopped; retries++) {
+      if (!(await this.#waitForActiveMic(waitUntil, settleMs, playing))) return;
+
+      const streamState: { error: grpc.ServiceError | null } = { error: null };
+      const stream = this.#controller().injectAudio(metadata, (error) => {
+        if (error) streamState.error = error;
+      });
+      playing.stream = stream;
+      // Keep a short lead so host scheduling delays do not drop microphone samples.
+      const started = this.#now();
+      for (let packet = 0; !playing.stopped && streamState.error === null; packet++) {
+        const offset = (packet * packetBytes) % code.length;
+        const audio = code.subarray(offset, offset + packetBytes);
+        const at = started + packet * PACKET_MS;
+        const sent = stream.write({ ...(packet === 0 ? { format } : {}), timestamp: Math.round(at * 1000), audio });
+        if (!sent) await new Promise((resolve) => { stream.once("drain", resolve); });
+        const wait = at + PACKET_MS - MIC_BUFFER_MS - this.#now();
+        if (wait > 0) await this.#sleep(wait);
+      }
+      if (playing.stopped || streamState.error === null) return;
+
+      const failed = streamState.error;
+      if (failed.code === grpc.status.CANCELLED) return;
+      // QEMU holds the virtual microphone open briefly after the previous stream stops.
+      if (failed.code === grpc.status.FAILED_PRECONDITION && retries < MAX_MIC_RETRIES && this.#now() < waitUntil) {
+        stream.end();
+        await this.#sleep(MIC_POLL_MS);
+        continue;
+      }
+      this.lastError = `injectAudio: ${failed.details || failed.message}`;
+      return;
     }
   }
 
