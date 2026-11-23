@@ -89,6 +89,7 @@ fun ScheduledSheet(
     onDismiss: () -> Unit,
     lineMenu: (@Composable () -> Unit)? = null,
 ) {
+    val locale = LocalAppLocale.current
     val held = rows.filter { it.status == "held" }
     val pending = rows.filter { it.status != "held" }
 
@@ -112,7 +113,7 @@ fun ScheduledSheet(
                     variant = LoadErrorVariant.Inline,
                 )
                 is LoadState.Ready -> Text(
-                    ScheduledSend.copy("nothing_scheduled"),
+                    ScheduledSend.copy("nothing_scheduled", locale),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
