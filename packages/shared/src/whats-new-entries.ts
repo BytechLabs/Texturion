@@ -3,6 +3,24 @@ import type { WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
   {
+    date: "2026-11-22",
+    title: "whatsNew.inboxDisplayOptionsTitle",
+    body: "whatsNew.inboxDisplayOptionsBody",
+    href: "/inbox",
+  },
+  {
+    date: "2026-11-22",
+    title: "whatsNew.inboxClearFiltersTitle",
+    body: "whatsNew.inboxClearFiltersBody",
+    href: "/inbox",
+  },
+  {
+    date: "2026-11-22",
+    title: "whatsNew.forYouNumberFilterTitle",
+    body: "whatsNew.forYouNumberFilterBody",
+    href: "/for-you",
+  },
+  {
     date: "2026-11-20",
     title: "whatsNew.dispatchPlannerTitle",
     body: "whatsNew.dispatchPlannerBody",
@@ -55,23 +73,5 @@ export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
     title: "whatsNew.customerDataErasureTitle",
     body: "whatsNew.customerDataErasureBody",
     href: "/contacts",
-  },
-  {
-    date: "2026-11-20",
-    title: "whatsNew.scheduledStarterDowngradeTitle",
-    body: "whatsNew.scheduledStarterDowngradeBody",
-    href: "/settings/billing",
-  },
-  {
-    date: "2026-11-20",
-    title: "whatsNew.frenchAcrossLoonextTitle",
-    body: "whatsNew.frenchAcrossLoonextBody",
-    href: "/settings/profile",
-  },
-  {
-    date: "2026-11-20",
-    title: "whatsNew.homepageAnimationPauseTitle",
-    body: "whatsNew.homepageAnimationPauseBody",
-    href: null,
   },
 ];

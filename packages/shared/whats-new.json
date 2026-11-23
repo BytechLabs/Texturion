@@ -10,6 +10,45 @@
   ],
   "entries": [
     {
+      "id": "inboxDisplayOptions",
+      "date": "2026-11-22",
+      "href": "/inbox",
+      "en": {
+        "title": "Choose how your inbox looks",
+        "body": "Pick a compact or roomy inbox, choose what each conversation shows and keep your choice on every device."
+      },
+      "fr": {
+        "title": "Choisissez l’affichage de votre boîte",
+        "body": "Optez pour une boîte compacte ou aérée, choisissez ce que chaque conversation affiche et gardez ce choix sur tous vos appareils."
+      }
+    },
+    {
+      "id": "inboxClearFilters",
+      "date": "2026-11-22",
+      "href": "/inbox",
+      "en": {
+        "title": "Clearer inbox filters",
+        "body": "Filters now say what they show, and every teammate has the same avatar across the app, so you can see who owns a conversation at a glance."
+      },
+      "fr": {
+        "title": "Des filtres de boîte plus clairs",
+        "body": "Les filtres disent ce qu’ils montrent, et chaque coéquipier a le même avatar partout, pour voir d’un coup d’œil qui gère une conversation."
+      }
+    },
+    {
+      "id": "forYouNumberFilter",
+      "date": "2026-11-22",
+      "href": "/for-you",
+      "en": {
+        "title": "For You covers your whole workspace",
+        "body": "For You now shows all your numbers together. If you have more than one number, filter it to just one."
+      },
+      "fr": {
+        "title": "Pour vous couvre tout votre espace",
+        "body": "Pour vous montre maintenant tous vos numéros ensemble. Si vous avez plusieurs numéros, filtrez sur un seul."
+      }
+    },
+    {
       "id": "dispatchPlanner",
       "date": "2026-11-20",
       "href": "/tasks/planner",
@@ -401,6 +440,9 @@
     }
   ],
   "quietReleases": [
-    { "date": "2026-11-21", "reason": "The only feature is a marketing page about booked-job text reminders; nothing in the app changed." }
+    {
+      "date": "2026-11-21",
+      "reason": "The only feature is a marketing page about booked-job text reminders; nothing in the app changed."
+    }
   ]
 }

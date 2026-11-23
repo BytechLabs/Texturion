@@ -3,6 +3,9 @@ package com.loonext.android.features.settings
 
 /** Newest first, the newest 12. */
 val WHATS_NEW_ENTRIES: List<WhatsNewEntry> = listOf(
+    WhatsNewEntry("2026-11-22", "whatsNew.inboxDisplayOptionsTitle", "whatsNew.inboxDisplayOptionsBody"),
+    WhatsNewEntry("2026-11-22", "whatsNew.inboxClearFiltersTitle", "whatsNew.inboxClearFiltersBody"),
+    WhatsNewEntry("2026-11-22", "whatsNew.forYouNumberFilterTitle", "whatsNew.forYouNumberFilterBody"),
     WhatsNewEntry("2026-11-20", "whatsNew.dispatchPlannerTitle", "whatsNew.dispatchPlannerBody"),
     WhatsNewEntry("2026-11-20", "whatsNew.liveCallControlsTitle", "whatsNew.liveCallControlsBody"),
     WhatsNewEntry("2026-11-20", "whatsNew.conversationMediaTitle", "whatsNew.conversationMediaBody"),
@@ -12,7 +15,4 @@ val WHATS_NEW_ENTRIES: List<WhatsNewEntry> = listOf(
     WhatsNewEntry("2026-11-20", "whatsNew.quoteDecisionsTitle", "whatsNew.quoteDecisionsBody"),
     WhatsNewEntry("2026-11-20", "whatsNew.contactImportsAndExportsTitle", "whatsNew.contactImportsAndExportsBody"),
     WhatsNewEntry("2026-11-20", "whatsNew.customerDataErasureTitle", "whatsNew.customerDataErasureBody"),
-    WhatsNewEntry("2026-11-20", "whatsNew.scheduledStarterDowngradeTitle", "whatsNew.scheduledStarterDowngradeBody"),
-    WhatsNewEntry("2026-11-20", "whatsNew.frenchAcrossLoonextTitle", "whatsNew.frenchAcrossLoonextBody"),
-    WhatsNewEntry("2026-11-20", "whatsNew.homepageAnimationPauseTitle", "whatsNew.homepageAnimationPauseBody"),
 )
