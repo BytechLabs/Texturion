@@ -69,7 +69,7 @@ export async function endSessionOnThisDevice(
   // tell somebody their sign-out did not land, and `signOut()` can also throw on
   // a network failure. Catching either here would put those two back where they
   // were before — still signed in, with nothing on screen saying so.
-  return whileEndingSessionHere(() => getSupabaseBrowser().auth.signOut());
+  return whileEndingSessionHere(() => getSupabaseBrowser().auth.signOut({ scope: "local" }));
 }
 
 async function revokeThisSession(): Promise<void> {
