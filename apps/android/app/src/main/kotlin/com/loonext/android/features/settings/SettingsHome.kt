@@ -858,16 +858,7 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
             .pressScale(interaction),
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel(caption, modifier = Modifier.weight(1f), color = captionColor)
-                resetsIn(usage.period_end)?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            SectionLabel(caption, color = captionColor)
             // The line swaps with a quiet fade when the status changes.
             AnimatedContent(
                 targetState = usage.status,
@@ -882,6 +873,14 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            resetsIn(usage.period_end)?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }

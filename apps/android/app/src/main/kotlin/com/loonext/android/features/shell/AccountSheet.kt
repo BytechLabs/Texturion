@@ -245,14 +245,13 @@ internal fun AccountSheetContent(
                 color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(
+                Column(
                     Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
                         t("shell.theme"),
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
-                        modifier = Modifier.weight(1f),
                     )
                     SegmentedControl(
                         segments = listOf(
