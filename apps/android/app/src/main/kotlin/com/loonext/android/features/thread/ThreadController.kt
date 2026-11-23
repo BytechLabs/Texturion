@@ -533,7 +533,7 @@ class ThreadController(
         scope.launch {
             try {
                 val receipt = repo.cancelScheduledWithReceipt(companyId, id)
-                notify(ScheduledSend.copy("canceled_confirmation"), actionLabel = say("thread.undo")) {
+                notify(ScheduledSend.copy("canceled_confirmation", locale), actionLabel = say("thread.undo")) {
                     restoreScheduled(id, receipt.canceled_at)
                 }
                 runCatching { refreshScheduled() }

@@ -11,6 +11,7 @@ import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ConversationDetailContact
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.MessageStatus
 import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.Page
@@ -183,6 +184,12 @@ class ThreadControllerTest {
                     request.method == "GET" && path == "/v1/scheduled-messages" &&
                         url.queryParameter("conversation_id") == "c1" ->
                         MockResponse(code = 200, body = respJson.encodeToString(scheduledPage))
+
+                    request.method == "DELETE" && path == "/v1/scheduled-messages/s1" &&
+                        url.queryParameter("undo_receipt") == "1" -> {
+                        scheduledPage = ScheduledMessagePage()
+                        MockResponse(code = 200, body = """{"canceled_at":"$T2"}""")
+                    }
 
                     // #247's catch-up. Held open by [summaryGate] when a test
                     // needs the in-flight window to be observable at all —
@@ -547,6 +554,26 @@ class ThreadControllerTest {
 
         awaitUntil { controller.scheduled.isEmpty() && fired.id in ids(controller) }
         assertEquals(0, controller.newInboundTick)
+    }
+
+    @Test
+    fun `canceling a scheduled text confirms in the thread language`() {
+        val scheduled = ScheduledMessage(
+            id = "s1", conversation_id = "c1", body = "On my way", send_at = T2,
+            clock_timezone = "America/Toronto", status = "pending",
+        )
+        scheduledPage = ScheduledMessagePage(listOf(scheduled))
+        val controller = controller()
+        controller.locale = MessageLocale.FR_CA
+        controller.start()
+        awaitUntil { controller.scheduled == listOf(scheduled) }
+
+        controller.cancelScheduled(scheduled.id)
+        awaitUntil { controller.notice != null }
+
+        assertEquals("Annulé — ce texto ne partira pas.", controller.notice?.text)
+        assertEquals("Annuler", controller.notice?.actionLabel)
+        assertTrue(controller.scheduled.isEmpty())
     }
 
     /**
