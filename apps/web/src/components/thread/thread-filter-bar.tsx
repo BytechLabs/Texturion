@@ -1,17 +1,18 @@
 "use client";
 
-import { useT } from "@/i18n/provider";
+import { Check } from "lucide-react";
 
-import { THREAD_CATEGORIES, threadCategoryLabel, toggleThreadCategory } from './thread-filter';
-import type { ThreadFilter } from './thread-filter';
+import { useT } from "@/i18n/provider";
+import { cn } from "@/lib/utils";
+
+import { THREAD_CATEGORIES, threadCategoryLabel, toggleThreadCategory } from "./thread-filter";
+import type { ThreadFilter } from "./thread-filter";
 
 /**
- * The §5.1 in-thread toggles — Messages · Notes · Events, each an INDEPENDENT
- * on/off (#89): all on by default, mix-and-match, no "All" segment. Same tokens
- * as the inbox status tabs: a QUIET stone active pill, never petrol (§5.1 / §2.1
- * accent budget). `aria-pressed` per toggle (§7 a11y). Three toggles fit at
- * 375px (§7 mobile-first). Near-invisible until used (stone chrome) — "nothing
- * fights for attention".
+ * In-thread multi-select toggles (Messages · Notes · Events): all three start
+ * active and can be mixed independently. Active toggles pair a Check mark with
+ * a raised neutral chip surface so active vs inactive stays unmistakable in
+ * both light and dark mode without competing with the primary Send CTA.
  */
 export function ThreadFilterBar({
   value,
@@ -25,10 +26,7 @@ export function ThreadFilterBar({
     <div
       role="group"
       aria-label={t("thread.showInConversationAria")}
-      // Calm app tokens only — the track + pressed pill carry their own dark
-      // values (mirrors the inbox filter bar) so inactive labels never vanish
-      // into a low-contrast dark blob.
-      className="inline-flex items-center gap-0.5 rounded-full bg-app-line-soft p-0.5 dark:bg-white/5"
+      className="inline-flex flex-wrap items-center gap-1.5"
     >
       {THREAD_CATEGORIES.map((category) => {
         const on = value[category];
@@ -38,14 +36,14 @@ export function ThreadFilterBar({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(toggleThreadCategory(value, category))}
-            className={
-              // tap-target keeps the ≥44px mobile hit area (globals.css).
-              `tap-target rounded-full px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out ${ 
+            className={cn(
+              "tap-target inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12.5px] leading-snug transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               on
-                ? "bg-app-paper text-app-ink"
-                : "text-app-muted hover:text-app-ink"}`
-            }
+                ? "border-app-ink/25 bg-app-paper font-semibold text-app-ink dark:border-app-tint-line dark:bg-app-tint"
+                : "border-app-line bg-transparent font-medium text-app-muted-2 hover:border-app-ink/25 hover:bg-app-hover hover:text-app-ink dark:hover:border-app-tint-line",
+            )}
           >
+            {on && <Check className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />}
             {threadCategoryLabel(category, t)}
           </button>
         );

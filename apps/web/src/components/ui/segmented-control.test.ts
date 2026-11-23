@@ -45,8 +45,6 @@ describe("nextOptionIndex (#11, #733 keyboard)", () => {
  */
 const RADIO_CARD_LISTS: Record<string, string> = {
   "app/onboarding/plan/page.tsx": "radio cards: the plan choice",
-  "components/thread/thread-filter-bar.tsx":
-    "multi-select toggles (aria-pressed): several categories can be on at once, not one choice",
 };
 
 /** The one place a stack of described radio cards is drawn (#746). */

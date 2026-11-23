@@ -39,30 +39,32 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
   if (!clock || !clock.quiet) return null;
 
   return (
-    <p className="flex items-start gap-1.5 px-1 pb-1.5 text-xs text-muted-foreground">
-      <Moon
-        className="mt-0.5 size-3.5 shrink-0"
-        strokeWidth={1.75}
-        aria-hidden
-      />
-      <span>
-        {t("thread.theirTimeAbout", {
-          time: formatCompactWallHour(clock.local_hour, t.locale),
-          source: t(CLOCK_SOURCES[clock.source]),
-        })}{" "}
-        {/* #539: WHY theirs is the clock that counts, and that a wrong guess is
-            correctable. The issue asked "why are we deriving time from customers
-            area codes even? what if i bought my phone number in quebec but now
-            live in alberta?" and the answer was on no screen — the line said
-            where the guess came from without saying what it decides or how to
-            fix it.
+    <div className="shrink-0 px-4 pb-1.5 md:px-6">
+      <p className="mx-auto flex w-full max-w-[42rem] items-start gap-1.5 text-xs text-muted-foreground">
+        <Moon
+          className="mt-0.5 size-3.5 shrink-0"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        <span>
+          {t("thread.theirTimeAbout", {
+            time: formatCompactWallHour(clock.local_hour, t.locale),
+            source: t(CLOCK_SOURCES[clock.source]),
+          })}{" "}
+          {/* #539: WHY theirs is the clock that counts, and that a wrong guess is
+              correctable. The issue asked "why are we deriving time from customers
+              area codes even? what if i bought my phone number in quebec but now
+              live in alberta?" and the answer was on no screen — the line said
+              where the guess came from without saying what it decides or how to
+              fix it.
 
-            Only on the GUESSED rung. Somebody who already set the zone on the
-            contact does not need telling they can, and offering to correct a
-            non-geographic number would be offering to fix an inference we never
-            made. */}
-        {clock.source === "area_code" && <span>{t(CLOCK_AREA_CODE_NOTE)}</span>}
-      </span>
-    </p>
+              Only on the GUESSED rung. Somebody who already set the zone on the
+              contact does not need telling they can, and offering to correct a
+              non-geographic number would be offering to fix an inference we never
+              made. */}
+          {clock.source === "area_code" && <span>{t(CLOCK_AREA_CODE_NOTE)}</span>}
+        </span>
+      </p>
+    </div>
   );
 }
