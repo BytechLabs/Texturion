@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.4](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.3...shared-v0.24.4) (2026-11-23)
+
+
+### Bug Fixes
+
+* **release:** add what's new entries for inbox views and For You numbers ([#1243](https://github.com/BytechLabs/Texturion/issues/1243)) ([80a673b](https://github.com/BytechLabs/Texturion/commit/80a673be6fefbf4e8585bfc1f9088e8ab9dc2d31))
+
 ## [0.24.3](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.2...shared-v0.24.3) (2026-11-22)
 
 

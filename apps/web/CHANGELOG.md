@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.33.1](https://github.com/BytechLabs/Texturion/compare/web-v0.33.0...web-v0.33.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **auth:** scope device sign-out to the current session ([#1242](https://github.com/BytechLabs/Texturion/issues/1242)) ([9213332](https://github.com/BytechLabs/Texturion/commit/92133325e949f222507584147e7ce3d151d16c32))
+* **calls:** localize call history outcomes and durations ([#1245](https://github.com/BytechLabs/Texturion/issues/1245)) ([9614b6f](https://github.com/BytechLabs/Texturion/commit/9614b6f8e598dfcd7b066ff653516f94e0c91cc0))
+* **for-you:** localize analytics period labels ([#1241](https://github.com/BytechLabs/Texturion/issues/1241)) ([133c882](https://github.com/BytechLabs/Texturion/commit/133c8822505fda77949b91560eb5f584966747c5))
+* **release:** add what's new entries for inbox views and For You numbers ([#1243](https://github.com/BytechLabs/Texturion/issues/1243)) ([80a673b](https://github.com/BytechLabs/Texturion/commit/80a673be6fefbf4e8585bfc1f9088e8ab9dc2d31))
+
 ## [0.33.0](https://github.com/BytechLabs/Texturion/compare/web-v0.32.1...web-v0.33.0) (2026-11-22)
 
 
