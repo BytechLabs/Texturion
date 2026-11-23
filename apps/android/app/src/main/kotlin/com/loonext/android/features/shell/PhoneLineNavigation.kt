@@ -20,6 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Me
@@ -27,10 +29,13 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.settings.AiSection
+import com.loonext.android.features.settings.AiUsageSummary
 import com.loonext.android.features.settings.SettingsRepository
 import com.loonext.android.features.settings.SettingsScope
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.SelectOption
@@ -38,6 +43,7 @@ import com.loonext.android.ui.common.Segment
 import com.loonext.android.ui.common.SegmentedControl
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.rememberCacheFirst
 
 private enum class LouSection(val label: String) {
     Overview("shell.louOverview"),
@@ -113,7 +119,7 @@ internal fun LouTab(graph: AppGraph, companyId: String, me: Me, modifier: Modifi
             fill = true,
         )
         when (section) {
-            LouSection.Overview -> Text(t("shell.louOverviewDescription"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LouSection.Overview -> LouOverview(graph, companyId)
             LouSection.Activity -> {
                 val selected = availableLines(numbers).firstOrNull { it.id == activityLineId }
                 PhoneLineMenu(numbers, selected, allowAll = true, onSelect = { activityLineId = it })
@@ -125,6 +131,34 @@ internal fun LouTab(graph: AppGraph, companyId: String, me: Me, modifier: Modifi
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     AiSection(SettingsScope(graph, repo, companyId, me, role) { notice = it })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LouOverview(graph: AppGraph, companyId: String) {
+    val repo = remember(graph) { SettingsRepository(graph.api) }
+    val locale = LocalAppLocale.current
+    val usage = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.usage(companyId) + "/$locale",
+    ) { repo.usage(companyId, locale) }
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        PaperCard(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    t("shell.louOverviewDescription"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val ai = (usage as? LoadState.Ready)?.value?.ai.orEmpty()
+                if (ai.isNotEmpty()) {
+                    AiUsageSummary(ai)
                 }
             }
         }

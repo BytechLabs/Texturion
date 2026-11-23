@@ -773,6 +773,8 @@ private fun ContactDetailBody(
                 onSelect = { pane = it },
                 size = SegmentedSize.Sm,
                 fill = true,
+                labelPadding = 2.dp,
+                labelLines = 2,
             )
         }
 

@@ -436,6 +436,16 @@ private fun CapCard(
  * is a hard stop rather than a fair-use line.
  */
 @Composable
+internal fun AiUsageSummary(features: List<AiFeatureUsage>) {
+    Column {
+        DetailHeader(t("settingsMore.louThisMonth"))
+        DetailLine(t("settingsMore.louThisMonthLine"))
+        Spacer(Modifier.height(8.dp))
+        AiUsageBars(features)
+    }
+}
+
+@Composable
 private fun AiUsageBars(features: List<AiFeatureUsage>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (feature in features) {
@@ -625,10 +635,7 @@ private fun DetailsCard(usage: Usage) {
                 StorageBreakdown(usage.storage)
                 if (usage.ai.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    DetailHeader(t("settingsMore.louThisMonth"))
-                    DetailLine(t("settingsMore.louThisMonthLine"))
-                    Spacer(Modifier.height(8.dp))
-                    AiUsageBars(usage.ai)
+                    AiUsageSummary(usage.ai)
                 }
                 if (usage.history.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
