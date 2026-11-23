@@ -2,6 +2,21 @@
 /// Newest first, the newest 12.
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
     WhatsNewEntry(
+        date: "2026-11-22",
+        title: "whatsNew.inboxDisplayOptionsTitle",
+        body: "whatsNew.inboxDisplayOptionsBody"
+    ),
+    WhatsNewEntry(
+        date: "2026-11-22",
+        title: "whatsNew.inboxClearFiltersTitle",
+        body: "whatsNew.inboxClearFiltersBody"
+    ),
+    WhatsNewEntry(
+        date: "2026-11-22",
+        title: "whatsNew.forYouNumberFilterTitle",
+        body: "whatsNew.forYouNumberFilterBody"
+    ),
+    WhatsNewEntry(
         date: "2026-11-20",
         title: "whatsNew.dispatchPlannerTitle",
         body: "whatsNew.dispatchPlannerBody"
@@ -45,20 +60,5 @@ let whatsNewGeneratedEntries: [WhatsNewEntry] = [
         date: "2026-11-20",
         title: "whatsNew.customerDataErasureTitle",
         body: "whatsNew.customerDataErasureBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-11-20",
-        title: "whatsNew.scheduledStarterDowngradeTitle",
-        body: "whatsNew.scheduledStarterDowngradeBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-11-20",
-        title: "whatsNew.frenchAcrossLoonextTitle",
-        body: "whatsNew.frenchAcrossLoonextBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-11-20",
-        title: "whatsNew.homepageAnimationPauseTitle",
-        body: "whatsNew.homepageAnimationPauseBody"
     ),
 ]

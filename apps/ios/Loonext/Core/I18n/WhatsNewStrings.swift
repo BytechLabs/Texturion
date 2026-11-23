@@ -3,6 +3,12 @@ enum WhatsNewStrings {
     static let section = AppStrings.Section(
         name: "WhatsNewStrings",
         en: [
+            "whatsNew.inboxDisplayOptionsTitle": "Choose how your inbox looks",
+            "whatsNew.inboxDisplayOptionsBody": "Pick a compact or roomy inbox, choose what each conversation shows and keep your choice on every device.",
+            "whatsNew.inboxClearFiltersTitle": "Clearer inbox filters",
+            "whatsNew.inboxClearFiltersBody": "Filters now say what they show, and every teammate has the same avatar across the app, so you can see who owns a conversation at a glance.",
+            "whatsNew.forYouNumberFilterTitle": "For You covers your whole workspace",
+            "whatsNew.forYouNumberFilterBody": "For You now shows all your numbers together. If you have more than one number, filter it to just one.",
             "whatsNew.dispatchPlannerTitle": "Plan visits and dispatch your crew",
             "whatsNew.dispatchPlannerBody": "See bookings, shifts and breaks in the Tasks Planner. Schedule customer visits from the calendar or map, assign them to your crew and turn messages, calls or saved voicemails into tasks.",
             "whatsNew.liveCallControlsTitle": "Keep calls in reach and talk before transferring",
@@ -21,14 +27,14 @@ enum WhatsNewStrings {
             "whatsNew.contactImportsAndExportsBody": "Import contacts with more of their details and review which records were updated. Download media with your workspace export and connect your tools to more events, including new contacts and tasks.",
             "whatsNew.customerDataErasureTitle": "Erase customer data on request",
             "whatsNew.customerDataErasureBody": "When a customer asks you to erase their data, start the request from the contact's Manage section if you have permission. A receipt shows which records were affected.",
-            "whatsNew.scheduledStarterDowngradeTitle": "See or cancel a switch to Starter",
-            "whatsNew.scheduledStarterDowngradeBody": "Open Billing to see when a scheduled switch to Starter will take effect. If your plans change, cancel the switch before that date.",
-            "whatsNew.frenchAcrossLoonextTitle": "Use more of Loonext in Canadian French",
-            "whatsNew.frenchAcrossLoonextBody": "Sign up, manage your account and read billing and call alerts in Canadian French. Customers can open quote and payment links in French, and callers can hear Canadian French prompts.",
-            "whatsNew.homepageAnimationPauseTitle": "Pause the homepage animation",
-            "whatsNew.homepageAnimationPauseBody": "Pause the demo on the Loonext homepage whenever you want to take a closer look.",
         ],
         frCA: [
+            "whatsNew.inboxDisplayOptionsTitle": "Choisissez l’affichage de votre boîte",
+            "whatsNew.inboxDisplayOptionsBody": "Optez pour une boîte compacte ou aérée, choisissez ce que chaque conversation affiche et gardez ce choix sur tous vos appareils.",
+            "whatsNew.inboxClearFiltersTitle": "Des filtres de boîte plus clairs",
+            "whatsNew.inboxClearFiltersBody": "Les filtres disent ce qu’ils montrent, et chaque coéquipier a le même avatar partout, pour voir d’un coup d’œil qui gère une conversation.",
+            "whatsNew.forYouNumberFilterTitle": "Pour vous couvre tout votre espace",
+            "whatsNew.forYouNumberFilterBody": "Pour vous montre maintenant tous vos numéros ensemble. Si vous avez plusieurs numéros, filtrez sur un seul.",
             "whatsNew.dispatchPlannerTitle": "Planifiez les visites et répartissez le travail",
             "whatsNew.dispatchPlannerBody": "Voyez les visites, les quarts et les pauses. Planifiez et assignez les visites depuis le calendrier ou la carte. Créez des tâches à partir de textos, d'appels ou de messages vocaux enregistrés.",
             "whatsNew.liveCallControlsTitle": "Gardez vos appels à portée et parlez avant le transfert",
@@ -47,12 +53,6 @@ enum WhatsNewStrings {
             "whatsNew.contactImportsAndExportsBody": "Importez plus de détails sur vos contacts et voyez les fiches mises à jour. Téléchargez les médias avec votre exportation et reliez vos outils à plus d'événements, comme la création de tâches.",
             "whatsNew.customerDataErasureTitle": "Effacez les données d'un client sur demande",
             "whatsNew.customerDataErasureBody": "Si un client demande l'effacement de ses données, lancez la demande dans la section Gérer de sa fiche si vous avez l'autorisation. Un reçu indique les dossiers touchés.",
-            "whatsNew.scheduledStarterDowngradeTitle": "Consultez ou annulez un passage à Starter",
-            "whatsNew.scheduledStarterDowngradeBody": "Ouvrez la facturation pour voir quand le passage au forfait Starter prendra effet. Si vos plans changent, annulez ce passage avant la date prévue.",
-            "whatsNew.frenchAcrossLoonextTitle": "Utilisez Loonext en français canadien",
-            "whatsNew.frenchAcrossLoonextBody": "Inscrivez-vous, gérez votre compte et lisez vos avis de facturation et d'appel en français canadien. Vos clients peuvent ouvrir leurs liens de devis et de paiement et entendre les messages d'appel en français.",
-            "whatsNew.homepageAnimationPauseTitle": "Mettez en pause l'animation de la page d'accueil",
-            "whatsNew.homepageAnimationPauseBody": "Mettez la démo de la page d'accueil de Loonext en pause quand vous voulez la regarder de plus près.",
         ]
     )
 }
