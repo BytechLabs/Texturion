@@ -24,6 +24,16 @@ EXPIRES=$(date -u -d "+90 days" +%Y-%m-%d)
 VERSIONS=$(printf '%s %s' "${ANDROID_TAG:-}" "${IOS_TAG:-}" | xargs)
 TITLE="Upload to the stores: ${VERSIONS}"
 
+if [ "${IOS_UPLOADED:-false}" = "true" ]; then
+  IOS_SECTION='- [x] Signed `.ipa` uploaded automatically to App Store Connect via `.github/scripts/ios-ship.sh`.
+- [ ] Submit the build in App Store Connect with the generated release notes as "What'\''s new".'
+else
+  IOS_SECTION='- [ ] Download `loonext-ios-archive` from the run, sign it, and upload from Xcode.
+      The archive is deliberately unsigned: it proves the release configuration
+      builds, which is the part that goes wrong.
+- [ ] Paste the generated release notes as "What'\''s new".'
+fi
+
 /usr/bin/env cat > /tmp/handoff-body.md <<BODY
 The artifacts for this release are built and attached to the run. **Signing and
 uploading is the manual half**, because the repo holds no distribution
@@ -57,10 +67,7 @@ before it can be shipped.
 
 ### iOS
 
-- [ ] Download \`loonext-ios-archive\` from the run, sign it, and upload from Xcode.
-      The archive is deliberately unsigned: it proves the release configuration
-      builds, which is the part that goes wrong.
-- [ ] Paste the generated release notes as "What's new".
+${IOS_SECTION}
 
 ### After the stores have it
 
