@@ -1,3 +1,4 @@
+import { trimTrailingCharacters } from "@loonext/shared";
 import { createMiddleware } from "hono/factory";
 import { createRemoteJWKSet, errors, jwtVerify } from "jose";
 
@@ -36,7 +37,7 @@ function remoteJwks(url: string) {
 
 /** The `iss` claim Supabase Auth mints: `<SUPABASE_URL>/auth/v1` (SPEC §10). */
 export function expectedIssuer(supabaseUrl: string): string {
-  return `${supabaseUrl.replace(/\/+$/, "")}/auth/v1`;
+  return `${trimTrailingCharacters(supabaseUrl, "/")}/auth/v1`;
 }
 
 /**

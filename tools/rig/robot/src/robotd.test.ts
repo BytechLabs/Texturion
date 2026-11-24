@@ -174,6 +174,17 @@ describe("robotd's HTTP face and its client", () => {
       text: "START",
     });
     await expect(client.sms({ from_role: "DEV-W1" as never, to_role: "ROBOT-1", text: "x", scenario: "S24" })).rejects.toThrow(/400/);
+
+    const slashedClient = new RobotClient({ base: `${base}///`, token: "local-token" });
+    await expect(slashedClient.inbox({})).resolves.toHaveLength(1);
+    await expect(
+      slashedClient.expect({
+        scenario: "S01",
+        direction: "outbound",
+        role: "ROBOT-1",
+        hangup_after_ms: 1000,
+      }),
+    ).resolves.toMatchObject({ state: "failed", errors: ["expect: the plan is not inbound"] });
   });
 });
 

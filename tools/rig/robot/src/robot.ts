@@ -253,20 +253,26 @@ export class Robot {
 
   expect(plan: CallPlan): CallRecord {
     const record = this.#create(plan, "waiting");
-    try {
-      if (plan.direction !== "inbound") throw new Error("expect: the plan is not inbound");
-      const number = this.#numberOf(plan.role);
-      if (this.#waiting.has(number)) throw new Error(`expect: ${plan.role} already expects a call`);
-      this.#waiting.set(number, record.plan_id);
-      this.#timer(record, plan.expect_within_ms ?? DEFAULT_EXPECT_WITHIN_MS, () => {
-        if (record.state === "waiting") {
-          this.#waiting.delete(number);
-          this.#fail(record, "no call arrived");
-        }
-      });
-    } catch (error) {
-      this.#fail(record, describe(error));
+    if (plan.direction !== "inbound") {
+      this.#fail(record, "expect: the plan is not inbound");
+      return record;
     }
+    const resolved = this.#resolveRobotNumber(plan.role);
+    if ("error" in resolved) {
+      this.#fail(record, resolved.error);
+      return record;
+    }
+    if (this.#waiting.has(resolved.number)) {
+      this.#fail(record, `expect: ${plan.role} already expects a call`);
+      return record;
+    }
+    this.#waiting.set(resolved.number, record.plan_id);
+    this.#timer(record, plan.expect_within_ms ?? DEFAULT_EXPECT_WITHIN_MS, () => {
+      if (record.state === "waiting") {
+        this.#waiting.delete(resolved.number);
+        this.#fail(record, "no call arrived");
+      }
+    });
     return record;
   }
 
@@ -531,11 +537,17 @@ export class Robot {
     return record;
   }
 
-  #numberOf(role: RobotRole): string {
-    if (!isRobotRole(role)) throw new Error(`${String(role)} is not a robot line`);
+  #resolveRobotNumber(role: RobotRole): { number: string } | { error: string } {
+    if (!isRobotRole(role)) return { error: `${String(role)} is not a robot line` };
     const number = this.#o.numbers.number(role);
-    if (!number) throw new Error(`no number is configured for ${role}`);
-    return number;
+    if (!number) return { error: `no number is configured for ${role}` };
+    return { number };
+  }
+
+  #numberOf(role: RobotRole): string {
+    const resolved = this.#resolveRobotNumber(role);
+    if ("error" in resolved) throw new Error(resolved.error);
+    return resolved.number;
   }
 
   async #destination(to: string | undefined): Promise<string> {

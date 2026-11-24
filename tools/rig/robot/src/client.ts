@@ -2,6 +2,7 @@
  * What a scenario run sees of the robot. `RobotClient` speaks to robotd over
  * loopback; tests hand scenarios a fake with the same shape.
  */
+import { stripTrailingSlashes } from "@loonext/rig-protocol";
 import type { InboxMessage, SinkDelivery } from "./inbox.ts";
 import type { CallPlan, CallRecord, RobotRole } from "./robot.ts";
 import { ROBOT_TOKEN_HEADER } from "./server.ts";
@@ -30,7 +31,7 @@ export class RobotClient implements RobotApi {
   readonly #fetch: typeof fetch;
 
   constructor(options: { base: string; token: string; fetch?: typeof fetch }) {
-    this.#base = options.base.replace(/\/+$/, "");
+    this.#base = stripTrailingSlashes(options.base);
     this.#token = options.token;
     this.#fetch = options.fetch ?? fetch;
   }

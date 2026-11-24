@@ -14,6 +14,7 @@
  */
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { stripTrailingSlashes } from "../../rig-protocol/src/index.ts";
 
 /** Refresh this long before the access token lapses. */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -98,7 +99,7 @@ export class MemberSessions {
 
   /** A refused grant returns undefined: the caller falls back to the next kind of sign-in. */
   async #grant(kind, body, member) {
-    const response = await this.#o.fetch(`${this.#o.authUrl.replace(/\/+$/, "")}/token?grant_type=${kind}`, {
+    const response = await this.#o.fetch(`${stripTrailingSlashes(this.#o.authUrl)}/token?grant_type=${kind}`, {
       method: "POST",
       headers: { apikey: this.#o.apiKey, "content-type": "application/json" },
       body: JSON.stringify(body),

@@ -13,7 +13,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS } from '@loonext/rig-protocol';
+import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS, stripTrailingSlashes } from '@loonext/rig-protocol';
 import type { Partition } from '@loonext/rig-protocol';
 import { loadMargins, saveMargins } from "./audio/calibrate.ts";
 import { WhisperTranscriber } from "./audio/transcribe.ts";
@@ -30,7 +30,7 @@ import { GuardedTelnyx } from "./telnyx.ts";
 const MAX_RECORDING_BYTES = 50 * 1024 * 1024;
 
 export async function fetchPartition(edgeOrigin: string, token: string): Promise<Partition> {
-  const url = `${edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.partition}`;
+  const url = `${stripTrailingSlashes(edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.partition}`;
   const response = await fetch(url, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(10_000),
@@ -44,7 +44,7 @@ export async function fetchPartition(edgeOrigin: string, token: string): Promise
  * which answers only for numbers in the partition's billing group.
  */
 export async function heldNumber(edgeOrigin: string, token: string, id: string, doFetch: typeof fetch = fetch): Promise<string | undefined> {
-  const url = `${edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}/v2/phone_numbers/${encodeURIComponent(id)}`;
+  const url = `${stripTrailingSlashes(edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}/v2/phone_numbers/${encodeURIComponent(id)}`;
   const response = await doFetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) });
   if (!response.ok) return undefined;
   const number = ((await response.json()) as { data?: { phone_number?: unknown } }).data?.phone_number;
@@ -83,7 +83,7 @@ export async function downloadRecording(url: string): Promise<Uint8Array> {
 async function main(): Promise<void> {
   const home = rigHome();
   const store = new SecretFiles(home.secrets);
-  const edgeOrigin = store.read("edge-origin").replace(/\/+$/, "");
+  const edgeOrigin = stripTrailingSlashes(store.read("edge-origin"));
   const guardToken = store.read("guard-token-robot");
   const partition = await fetchPartition(edgeOrigin, guardToken);
   const numbers = standingBook(partition.standing ?? store.readJson("standing-numbers.json"), partition.owned_e164);

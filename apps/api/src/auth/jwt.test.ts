@@ -50,6 +50,9 @@ describe(expectedIssuer, () => {
     expect(expectedIssuer("https://x.supabase.co/")).toBe(
       "https://x.supabase.co/auth/v1",
     );
+    expect(expectedIssuer("https://x.supabase.co///")).toBe(
+      "https://x.supabase.co/auth/v1",
+    );
   });
 });
 

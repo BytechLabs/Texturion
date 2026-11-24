@@ -6,7 +6,7 @@
  */
 import { generateKeyPairSync } from "node:crypto";
 
-import { EDGE_PATHS, GUARD_ROUTES } from "../../rig-protocol/src/index.ts";
+import { EDGE_PATHS, GUARD_ROUTES, stripTrailingSlashes } from "../../rig-protocol/src/index.ts";
 
 const PLACEHOLDER = /\{\{\s*([a-z]+)(\?)?([.:])([A-Za-z0-9_.-]+)\s*\}\}|\{\{\s*(edge)\s*\}\}/g;
 
@@ -16,7 +16,7 @@ export function seams(edge) {
   return {
     telnyxApiBase: `${guard}${GUARD_ROUTES.telnyx}`,
     telnyxWebhookUrl: `${edge}${EDGE_PATHS.telnyxMessaging}`,
-    telnyxMediaPublicBase: `${edge}${EDGE_PATHS.mediaPrefix.replace(/\/+$/, "")}`,
+    telnyxMediaPublicBase: `${edge}${stripTrailingSlashes(EDGE_PATHS.mediaPrefix)}`,
     resendApiBase: `${guard}${GUARD_ROUTES.resend}`,
     fcmApiBase: `${guard}${GUARD_ROUTES.fcm}`,
     fcmOauthTokenUrl: `${guard}${GUARD_ROUTES.fcmToken}`,

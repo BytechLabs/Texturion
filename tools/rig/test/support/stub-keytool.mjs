@@ -7,7 +7,7 @@
  *
  * STUB_KEYTOOL_FAIL=1 makes `-genkeypair` fail after writing half a file.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const argv = process.argv.slice(2);
@@ -21,7 +21,20 @@ const fail = (message) => {
   console.error(`keytool error: ${message}`);
   process.exit(1);
 };
-const digest = (text) => createHash("sha256").update(text).digest("hex");
+const fingerprintOf = (text) => createHash("sha256").update(text).digest("hex");
+
+function hashPassword(password) {
+  const passwordSalt = randomBytes(16).toString("hex");
+  const passwordHash = scryptSync(password, passwordSalt, 64).toString("hex");
+  return { passwordSalt, passwordHash };
+}
+
+function verifyPassword(password, salt, expectedHex) {
+  if (typeof salt !== "string" || typeof expectedHex !== "string") return false;
+  const actual = scryptSync(password, salt, 64);
+  const expected = Buffer.from(expectedHex, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 if (argv.some((arg) => arg === "-storepass" || arg === "-keypass")) fail("a password on the command line");
 const passwordOf = (flag) => {
@@ -42,11 +55,11 @@ if (argv[0] === "-genkeypair") {
     writeFileSync(keystore, "{");
     fail("the stub was told to fail");
   }
-  writeFileSync(keystore, JSON.stringify({ alias: value("-alias"), dname: value("-dname"), password: digest(storePassword) }));
+  writeFileSync(keystore, JSON.stringify({ alias: value("-alias"), dname: value("-dname"), ...hashPassword(storePassword) }));
 } else if (argv[0] === "-list") {
   const store = JSON.parse(readFileSync(keystore, "utf8"));
-  if (store.password !== digest(storePassword)) fail("keystore password was incorrect");
-  const fingerprint = digest(readFileSync(keystore, "utf8")).toUpperCase().match(/../g).join(":");
+  if (!verifyPassword(storePassword, store.passwordSalt, store.passwordHash)) fail("keystore password was incorrect");
+  const fingerprint = fingerprintOf(readFileSync(keystore, "utf8")).toUpperCase().match(/../g).join(":");
   console.log(`Alias name: ${store.alias}\nCertificate fingerprints:\n\t SHA256: ${fingerprint}`);
 } else {
   fail(`unknown command ${argv[0]}`);

@@ -1,4 +1,4 @@
-import { isUsCaDestination } from "@loonext/shared";
+import { isUsCaDestination, trimTrailingCharacters } from "@loonext/shared";
 import { z } from "zod";
 
 import type { Env } from "../env";
@@ -133,7 +133,7 @@ export type CampaignDraft = z.infer<typeof campaignDraftSchema>;
 
 /** The single Telnyx webhook URL (SPEC §4.3 S1, §4.4 contract table). */
 export function telnyxWebhookUrl(env: Env): string {
-  return `${env.API_ORIGIN.replace(/\/+$/, "")}/webhooks/telnyx`;
+  return `${trimTrailingCharacters(env.API_ORIGIN, "/")}/webhooks/telnyx`;
 }
 
 /**

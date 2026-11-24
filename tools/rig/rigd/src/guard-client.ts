@@ -7,7 +7,7 @@
  * returned, and a webhook delivery keeps only each attempt's host and status:
  * its URL's path carries the edge's secret segments.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER } from '@loonext/rig-protocol';
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, stripTrailingSlashes } from '@loonext/rig-protocol';
 import type { GuardHealth, GuardRefusal, LeaseActivity, Partition } from '@loonext/rig-protocol';
 import { FICTIONAL_E164 } from './scenarios/context.ts';
 import type { GuardApi, GuardProbe, GuardProbeAnswer, WebhookDelivery } from './scenarios/context.ts';
@@ -136,7 +136,7 @@ export class GuardClient implements GuardApi {
   }
 
   #url(path: string): string {
-    return `${this.#o.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${path}`;
+    return `${stripTrailingSlashes(this.#o.edgeOrigin)}${EDGE_PATHS.guardPrefix}${path}`;
   }
 
   async #json<T>(path: string): Promise<T> {
