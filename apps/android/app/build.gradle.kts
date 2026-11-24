@@ -151,6 +151,24 @@ android {
                 keyPassword = props.getValue("loonextNonprodKeyPassword")
             }
         }
+        // Release signing uses CI upload keystore env vars when present; checks
+        // and local builds without those vars stay unsigned.
+        val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+        val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+        val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+        val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        if (!releaseKeystorePath.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -159,6 +177,7 @@ android {
         debug {
         }
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             buildConfigField("String", "TELEMETRY_ENVIRONMENT", "\"production\"")
             isMinifyEnabled = true
             isShrinkResources = true

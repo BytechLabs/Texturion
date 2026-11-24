@@ -353,6 +353,8 @@ jobs:
     name: android
     runs-on: ubuntu-latest
     environment: production
+    outputs:
+      uploaded: ${{ steps.play.outputs.uploaded }}
     defaults:
       run:
         working-directory: apps/android
@@ -381,14 +383,16 @@ jobs:
       - name: Build release bundle
         env:
           POSTHOG_PROJECT_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           map_id="$(cat /proc/sys/kernel/random/uuid)"
           echo "MAP_ID=$map_id" >> "$GITHUB_ENV"
           mkdir -p app/src/release/assets
           printf 'io.posthog.proguard.mapid=%s\n' "$map_id" > app/src/release/assets/posthog-meta.properties
-          ./gradlew :app:bundleRelease \
-            -PloonextVersionCode="$(git rev-list --count HEAD)" \
-            -PloonextPostHogKey="$POSTHOG_PROJECT_KEY"
+          VERSION_CODE="$(git rev-list --count HEAD)" bash ../../.github/scripts/android-ship.sh build
 
       - name: Upload the R8 mapping to PostHog
         env:
@@ -414,14 +418,15 @@ jobs:
           path: apps/android/app/build/outputs/bundle/release/*.aab
           retention-days: 90
 
-      # What a person still has to do, said on the run rather than in a doc
-      # nobody opens on release day.
-      - name: What is left to do by hand
-        run: |
-          echo "::notice::Android bundle built and attached to this run."
-          echo "::notice::Upload it at play.google.com/console — automating that"
-          echo "::notice::needs ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD"
-          echo "::notice::and PLAY_SERVICE_ACCOUNT_JSON, which this repo does not have."
+      - name: Upload bundle to Google Play
+        id: play
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: bash ../../.github/scripts/android-ship.sh upload
 
   ios:
     name: ios
@@ -541,6 +546,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANDROID_RESULT: ${{ needs.android.result }}
+          ANDROID_UPLOADED: ${{ needs.android.outputs.uploaded || 'false' }}
           IOS_RESULT: ${{ needs.ios.result }}
           IOS_UPLOADED: ${{ needs.ios.outputs.uploaded || 'false' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
