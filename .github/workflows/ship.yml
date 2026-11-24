@@ -427,6 +427,8 @@ jobs:
     name: ios
     runs-on: macos-latest
     environment: production
+    outputs:
+      uploaded: ${{ steps.archive.outputs.uploaded }}
     defaults:
       run:
         working-directory: apps/ios
@@ -451,20 +453,20 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      # Unsigned: signing needs a distribution certificate and a provisioning
-      # profile, neither of which is in this repo. The archive still proves the
-      # release configuration builds, which is the part that goes wrong.
-      - name: Archive
+      - name: Archive, sign, and upload to App Store Connect
+        id: archive
         env:
           POSTHOG_PROJECT_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_SHARE_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_SHARE_PROVISION_PROFILE_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
         run: |
-          xcodebuild archive \
-            -project Loonext.xcodeproj \
-            -scheme Loonext \
-            -archivePath build/Loonext.xcarchive \
-            CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)" \
-            POSTHOG_PROJECT_KEY="$POSTHOG_PROJECT_KEY" \
-            CODE_SIGNING_ALLOWED=NO
+          export VERSION_CODE="$(git rev-list --count HEAD)"
+          bash ../../.github/scripts/ios-ship.sh
 
       # D146: dSYMs let PostHog symbolicate an iOS crash.
       - name: Upload dSYMs to PostHog
@@ -492,6 +494,7 @@ jobs:
           retention-days: 90
 
       - name: What is left to do by hand
+        if: steps.archive.outputs.uploaded != 'true'
         run: |
           echo "::notice::iOS archive built (unsigned) and attached to this run."
           echo "::notice::Sign and upload it from Xcode — automating that needs an"
@@ -539,5 +542,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANDROID_RESULT: ${{ needs.android.result }}
           IOS_RESULT: ${{ needs.ios.result }}
+          IOS_UPLOADED: ${{ needs.ios.outputs.uploaded || 'false' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .github/scripts/store-handoff.sh
