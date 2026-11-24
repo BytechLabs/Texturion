@@ -24,6 +24,15 @@ EXPIRES=$(date -u -d "+90 days" +%Y-%m-%d)
 VERSIONS=$(printf '%s %s' "${ANDROID_TAG:-}" "${IOS_TAG:-}" | xargs)
 TITLE="Upload to the stores: ${VERSIONS}"
 
+if [ "${ANDROID_UPLOADED:-false}" = "true" ]; then
+  ANDROID_SECTION='- [x] Signed `.aab` uploaded automatically to Google Play internal track via `.github/scripts/android-ship.sh`.
+- [ ] Promote the release and paste the generated release notes as "What'\''s new" in Google Play Console.'
+else
+  ANDROID_SECTION='- [ ] Download `loonext-android-release` from the run and upload the `.aab` at
+      play.google.com/console.
+- [ ] Paste the generated release notes as "What'\''s new".'
+fi
+
 if [ "${IOS_UPLOADED:-false}" = "true" ]; then
   IOS_SECTION='- [x] Signed `.ipa` uploaded automatically to App Store Connect via `.github/scripts/ios-ship.sh`.
 - [ ] Submit the build in App Store Connect with the generated release notes as "What'\''s new".'
@@ -36,10 +45,9 @@ fi
 
 /usr/bin/env cat > /tmp/handoff-body.md <<BODY
 The artifacts for this release are built and attached to the run. **Signing and
-uploading is the manual half**, because the repo holds no distribution
-certificate, no App Store Connect key, and no Play service account.
+uploading stay manual when store credentials are absent.**
 
-This issue exists so that half is *tracked*. Before it, the only record was a
+This issue exists so release submission is *tracked*. Before it, the only record was a
 \`::notice::\` in a run log, while the same push tagged a version, wrote a
 changelog, and generated the store's "What's new" text — so a release could look
 complete while the app was never submitted (#443).
@@ -61,9 +69,7 @@ before it can be shipped.
 
 ### Android
 
-- [ ] Download \`loonext-android-release\` from the run and upload the \`.aab\` at
-      play.google.com/console.
-- [ ] Paste the generated release notes as "What's new".
+${ANDROID_SECTION}
 
 ### iOS
 
