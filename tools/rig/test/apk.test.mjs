@@ -204,6 +204,32 @@ test("the first rig apk makes the signing pair, its password never on a command 
   });
 });
 
+test("stub-keytool verifies keystore passwords via scrypt and rejects wrong ones", () => {
+  withKeytool(({ ensure, store, signing }) => {
+    const made = ensure();
+    const secrets = store.readJson(KEYSTORE_SECRETS);
+    const stored = JSON.parse(readFileSync(made.keystorePath, "utf8"));
+    assert.equal("password" in stored, false);
+    assert.match(stored.passwordSalt, /^[0-9a-f]{32}$/);
+    assert.match(stored.passwordHash, /^[0-9a-f]{128}$/);
+    const ok = signing.runner(
+      signing.keytool,
+      ["-list", "-v", "-keystore", made.keystorePath, "-storetype", "PKCS12", "-storepass:env", "KS_PASS"],
+      { env: { KS_PASS: secrets.storePassword } },
+    );
+    assert.match(ok.stdout, /SHA256: ([0-9A-F]{2}:){31}[0-9A-F]{2}/);
+    assert.throws(
+      () =>
+        signing.runner(
+          signing.keytool,
+          ["-list", "-v", "-keystore", made.keystorePath, "-storetype", "PKCS12", "-storepass:env", "KS_PASS"],
+          { env: { KS_PASS: "wrong" } },
+        ),
+      /keystore password was incorrect/,
+    );
+  });
+});
+
 test("the key is RSA 3072, valid for the 25 years the rig must outlive", () => {
   withKeytool(({ ensure, argv }) => {
     ensure();

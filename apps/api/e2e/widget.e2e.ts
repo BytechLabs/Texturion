@@ -171,7 +171,7 @@ describe("#748 the website widget, from a customer's page to the inbox", () => {
     await page.route(/^https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit$/, (route) =>
       route.fulfill({
         contentType: "application/javascript",
-        body: `window.turnstile = { render: (element, options) => options.callback(${JSON.stringify(CAPTCHA_TOKEN)}) };`,
+        body: 'window.turnstile = { render: (_element, options) => options.callback("widget-e2e-token") };',
       }),
     );
     const failures: string[] = [];

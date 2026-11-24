@@ -1,3 +1,5 @@
+import { trimTrailingCharacters } from "@loonext/shared";
+
 import { isOwnDialedLeg } from "../calls/outbound-leg-gate";
 import type { Env } from "../env";
 import { deployEnv } from "./mode";
@@ -172,7 +174,7 @@ export function webPushRoute(env: Env, endpoint: URL): { url: string; bearer?: s
   if (!env.FCM_API_BASE || endpoint.origin !== "https://fcm.googleapis.com" ||
       endpoint.username || endpoint.password || endpoint.search || endpoint.hash) return null;
   return {
-    url: `${env.FCM_API_BASE.replace(/\/+$/, "")}/web-push${endpoint.pathname}`,
+    url: `${trimTrailingCharacters(env.FCM_API_BASE, "/")}/web-push${endpoint.pathname}`,
     bearer: env.TELNYX_API_KEY,
   };
 }

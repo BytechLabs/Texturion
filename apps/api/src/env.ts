@@ -1,4 +1,4 @@
-import { isTollFreeDestination } from "@loonext/shared";
+import { isTollFreeDestination, trimTrailingCharacters } from "@loonext/shared";
 import { z } from "zod";
 
 import { deployPostureRefusals } from "./environments/policy";
@@ -58,7 +58,7 @@ const workersAiSchema = z.custom<WorkersAi>(
  * `https://app.loonext.com/`. Normalizing here, where every origin var flows
  * through, makes a stray slash a non-issue instead of a total outage.
  */
-const originUrl = () => z.url().transform((value) => value.replace(/\/+$/, ""));
+const originUrl = () => z.url().transform((value) => trimTrailingCharacters(value, "/"));
 
 /**
  * Every binding the api Worker requires (SPEC §10). All of these are Worker
@@ -431,7 +431,7 @@ const envSchema = z.object({
   TELNYX_WEBHOOK_URL: z.url().optional(),
   TELNYX_MEDIA_PUBLIC_BASE: z
     .url()
-    .transform((value) => value.replace(/\/+$/, ""))
+    .transform((value) => trimTrailingCharacters(value, "/"))
     .optional(),
   RESEND_API_BASE: originUrl().optional(),
   FCM_API_BASE: originUrl().optional(),

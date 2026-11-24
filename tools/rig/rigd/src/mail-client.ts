@@ -2,6 +2,7 @@
  * Mail as S34 and S35 read it: the robot mailbox the edge stores mail into
  * (mail.ts, under `state/rigd/mail`) and Supabase Auth's local Mailpit.
  */
+import { stripTrailingSlashes } from "@loonext/rig-protocol";
 import type { StoredMail } from "./mail.ts";
 import type { MailApi, MailMessage } from "./scenarios/context.ts";
 
@@ -58,7 +59,7 @@ export class MailClient implements MailApi {
   }
 
   async mailpit(args: { to: string; since: number }): Promise<MailMessage[]> {
-    const base = this.#o.mailpitUrl.replace(/\/+$/, "");
+    const base = stripTrailingSlashes(this.#o.mailpitUrl);
     const listed = await this.#get<{ messages?: MailpitSummary[] }>(`${base}/api/v1/search?query=${encodeURIComponent(`to:"${args.to}"`)}`);
     const recent = (listed.messages ?? []).filter((message) => Date.parse(message.Created) >= args.since);
     const out: MailMessage[] = [];

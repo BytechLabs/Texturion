@@ -13,7 +13,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, stripTrailingSlashes } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
 import { API_ENVIRONMENT } from "./posthog-errors.ts";
 import type { PostHogErrors } from "./posthog-errors.ts";
@@ -101,7 +101,7 @@ export class AppProbe implements AppApi {
     this.#fetch = options.fetch ?? fetch;
     this.#now = options.now ?? Date.now;
     this.#signIns = new MemberSessions({
-      authUrl: `${options.supabaseUrl.replace(/\/+$/, "")}/auth/v1`,
+      authUrl: `${stripTrailingSlashes(options.supabaseUrl)}/auth/v1`,
       apiKey: options.anonKey,
       ...(options.stateDir ? { file: memberSessionsFile(dirname(options.stateDir)) } : {}),
       fetch: this.#fetch,
@@ -123,7 +123,7 @@ export class AppProbe implements AppApi {
     const tenant = this.#tenant(splitMember(args.member).tenant);
     const phoneNumberId = stableUuid(tenant.company_id, fromRole);
     const response = await this.#authorized(args.member, (token) =>
-      this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/conversations`, {
+      this.#fetch(`${stripTrailingSlashes(this.#o.apiBase)}/v1/conversations`, {
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,
@@ -312,7 +312,7 @@ export class AppProbe implements AppApi {
     const secret = this.#o.robotWebhookSecret?.();
     if (!secret) throw new Error("the store has no robot-webhook-secret, so the robot's sink at the edge has no address");
     const { tenant: tenantKey } = splitMember(args.member);
-    const url = `${this.#o.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.robotWebhookPrefix}${secret}/${tenantKey}`;
+    const url = `${stripTrailingSlashes(this.#o.edgeOrigin)}${EDGE_PATHS.robotWebhookPrefix}${secret}/${tenantKey}`;
     const listed = await this.#api<{ endpoints?: { id: string; url: string; events: string[]; active: boolean }[] }>(
       args.member,
       "GET",
@@ -329,7 +329,7 @@ export class AppProbe implements AppApi {
   }
 
   async telnyxRecordings(callSessionId: string): Promise<number> {
-    const base = `${this.#o.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}`;
+    const base = `${stripTrailingSlashes(this.#o.edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.telnyx}`;
     const response = await this.#fetch(`${base}/v2/recordings?filter[call_session_id]=${encodeURIComponent(callSessionId)}`, {
       headers: { authorization: `Bearer ${this.#o.guardToken}` },
       signal: AbortSignal.timeout(10_000),
@@ -341,7 +341,7 @@ export class AppProbe implements AppApi {
 
   /** wrangler 4.106's scheduled route, as the rig's cron timers call it. */
   async fireCron(cron: string, at = this.#now()): Promise<void> {
-    const url = `${this.#o.apiBase.replace(/\/+$/, "")}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent(cron)}&time=${at}`;
+    const url = `${stripTrailingSlashes(this.#o.apiBase)}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent(cron)}&time=${at}`;
     const response = await this.#fetch(url, { signal: AbortSignal.timeout(60_000) });
     if (!response.ok) throw new Error(`app probe: firing ${cron} returned ${response.status}`);
   }
@@ -535,7 +535,7 @@ export class AppProbe implements AppApi {
       throw new Error("app probe: not a storage object");
     }
     const path = args.path.split("/").map(encodeURIComponent).join("/");
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/authenticated/${args.bucket}/${path}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/storage/v1/object/authenticated/${args.bucket}/${path}`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(20_000),
     });
@@ -808,7 +808,7 @@ export class AppProbe implements AppApi {
     const audio = await this.storedObject({ bucket: VOICEMAILS_BUCKET, path: source.voicemail_path });
     const companyId = this.#tenant(args.tenant).company_id;
     const path = seededVoicemailPath(companyId, args.sessionId);
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${VOICEMAILS_BUCKET}/${path}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/storage/v1/object/${VOICEMAILS_BUCKET}/${path}`, {
       method: "POST",
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "audio/mpeg", "x-upsert": "true" },
       body: new Uint8Array(audio),
@@ -841,7 +841,7 @@ export class AppProbe implements AppApi {
     const companyId = this.#tenant(args.tenant).company_id;
     await this.#write("DELETE", "calls", { company_id: `eq.${companyId}`, call_session_id: `eq.${args.sessionId}` }, undefined, "return=minimal");
     const response = await this.#fetch(
-      `${this.#o.supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${VOICEMAILS_BUCKET}/${seededVoicemailPath(companyId, args.sessionId)}`,
+      `${stripTrailingSlashes(this.#o.supabaseUrl)}/storage/v1/object/${VOICEMAILS_BUCKET}/${seededVoicemailPath(companyId, args.sessionId)}`,
       { method: "DELETE", headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` }, signal: AbortSignal.timeout(10_000) },
     );
     if (!response.ok && response.status !== 404) throw new Error(`app probe: deleting the voicemail's copy returned ${response.status}`);
@@ -944,7 +944,7 @@ export class AppProbe implements AppApi {
     const member = this.#member(args.member);
     if (!member.totp_secret) throw new Error(`app probe: tenants.json holds no TOTP secret for ${args.member}`);
     const auth = (path: string, init: { token?: string; body?: unknown; method?: string }) =>
-      this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1${path}`, {
+      this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1${path}`, {
         method: init.method ?? "POST",
         headers: {
           apikey: this.#o.anonKey,
@@ -969,7 +969,7 @@ export class AppProbe implements AppApi {
     if (!verified.ok) return { aal: null, meStatus: verified.status };
     const second = ((await verified.json()) as { access_token?: string }).access_token ?? "";
     const { aal } = claimsOf(second);
-    const me = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/me`, {
+    const me = await this.#fetch(`${stripTrailingSlashes(this.#o.apiBase)}/v1/me`, {
       headers: { authorization: `Bearer ${second}` },
       signal: AbortSignal.timeout(10_000),
     });
@@ -978,7 +978,7 @@ export class AppProbe implements AppApi {
   }
 
   async sendPasswordReset(args: { member: string }): Promise<number> {
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/recover`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/recover`, {
       method: "POST",
       headers: { apikey: this.#o.anonKey, "content-type": "application/json" },
       body: JSON.stringify({ email: this.#member(args.member).email }),
@@ -1151,7 +1151,7 @@ export class AppProbe implements AppApi {
     if (real) throw new Error(`app probe: the sign-up's workspace holds number row ${real.id}, which the rig did not assign; release it by hand`);
     await this.#write("PATCH", "companies", { owner_user_id: `eq.${user}`, deleted_at: "is.null" }, { deleted_at: iso(this.#now()) }, "return=minimal");
     // A workspace's rows keep the owner by a restricting foreign key, so an owner is soft-deleted: no sign-in, its address freed.
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/admin/users/${user}`, {
       method: "DELETE",
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
       body: JSON.stringify({ should_soft_delete: companies.length > 0 }),
@@ -1168,7 +1168,7 @@ export class AppProbe implements AppApi {
   async createMailAccount(args: { email: string }): Promise<number> {
     if (!this.#isMailAccount(args.email)) throw new Error("app probe: only S34's own sub-address can be given an account");
     if (await this.#authUserByEmail(args.email)) return 200;
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/admin/users`, {
       method: "POST",
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
       body: JSON.stringify({ email: args.email, password: `${randomBytes(18).toString("base64url")}Aa1`, email_confirm: true }),
@@ -1183,7 +1183,7 @@ export class AppProbe implements AppApi {
     if (!this.#isMailAccount(args.email)) throw new Error("app probe: only S34's own sub-address can be removed");
     const user = await this.#authUserByEmail(args.email);
     if (!user) return;
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users/${user}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/admin/users/${user}`, {
       method: "DELETE",
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(10_000),
@@ -1209,7 +1209,7 @@ export class AppProbe implements AppApi {
   }
 
   async #authUsers(): Promise<{ id: string; email?: string }[]> {
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(10_000),
     });
@@ -1342,7 +1342,7 @@ export class AppProbe implements AppApi {
   async #membersByUser(tenant: string): Promise<Map<string, string>> {
     const { members } = this.#tenant(tenant);
     const byEmail = new Map(Object.entries(members).map(([key, member]) => [member.email.toLowerCase(), `${tenant.toLowerCase()}-${key}`]));
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(10_000),
     });
@@ -1372,7 +1372,7 @@ export class AppProbe implements AppApi {
 
   /** The API's public routes, which no member signs in to. */
   async #public<T>(path: string, body: unknown): Promise<ApiAnswer<T>> {
-    const response = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.apiBase)}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -1424,7 +1424,7 @@ export class AppProbe implements AppApi {
   #request(memberKey: string, method: string, path: string, body?: unknown): Promise<Response> {
     const tenant = this.#tenant(splitMember(memberKey).tenant);
     return this.#authorized(memberKey, (token) =>
-      this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}${path}`, {
+      this.#fetch(`${stripTrailingSlashes(this.#o.apiBase)}${path}`, {
         method,
         headers: {
           authorization: `Bearer ${token}`,
@@ -1455,7 +1455,7 @@ export class AppProbe implements AppApi {
   /** A PostgREST write with the service key; by default it asks for the written rows back. */
   async #write<T>(method: "POST" | "PATCH" | "DELETE", table: string, query: Record<string, string>, body?: unknown, prefer?: string): Promise<T> {
     const search = new URLSearchParams(query);
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/rest/v1/${table}?${search}`, {
       method,
       headers: {
         apikey: this.#o.serviceRoleKey,
@@ -1472,7 +1472,7 @@ export class AppProbe implements AppApi {
   }
 
   async #rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/rpc/${fn}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/rest/v1/rpc/${fn}`, {
       method: "POST",
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}`, "content-type": "application/json" },
       body: JSON.stringify(args),
@@ -1514,7 +1514,7 @@ export class AppProbe implements AppApi {
 
   async #rest<T>(table: string, query: Record<string, string>): Promise<T> {
     const search = new URLSearchParams(query);
-    const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/rest/v1/${table}?${search}`, {
+    const response = await this.#fetch(`${stripTrailingSlashes(this.#o.supabaseUrl)}/rest/v1/${table}?${search}`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
       signal: AbortSignal.timeout(10_000),
     });

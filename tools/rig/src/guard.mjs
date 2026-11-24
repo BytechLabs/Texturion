@@ -2,7 +2,7 @@
  * The guard, reached through the edge with the rig's `rig-api` caller token.
  * Paths come from the shared wire contract, never spelled here.
  */
-import {EDGE_PATHS, GUARD_ROUTES, HEADER, STANDING_ROLES} from "../../rig-protocol/src/index.ts";
+import {EDGE_PATHS, GUARD_ROUTES, HEADER, STANDING_ROLES, stripTrailingSlashes} from "../../rig-protocol/src/index.ts";
 
 export { STANDING_ROLES } from "../../rig-protocol/src/index.ts";
 
@@ -11,7 +11,7 @@ const E164 = /^\+[1-9][0-9]{7,14}$/;
 
 /** https, or http on loopback for a stub guard on a workstation. */
 export function edgeOrigin(store) {
-  const origin = store.read("edge-origin").replace(/\/+$/, "");
+  const origin = stripTrailingSlashes(store.read("edge-origin"));
   const url = new URL(origin);
   const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
   if ((url.protocol !== "https:" && !(loopback && url.protocol === "http:")) || url.pathname !== "/" || url.search) {

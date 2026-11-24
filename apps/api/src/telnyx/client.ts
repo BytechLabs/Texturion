@@ -1,3 +1,5 @@
+import { trimTrailingCharacters } from "@loonext/shared";
+
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
 import {
@@ -32,7 +34,7 @@ const DEFAULT_TELNYX_API_BASE = "https://api.telnyx.com";
 
 /** The Telnyx base this deployment talks to, without a trailing slash. */
 function telnyxApiBase(env: Env): string {
-  return (env.TELNYX_API_BASE ?? DEFAULT_TELNYX_API_BASE).replace(/\/+$/, "");
+  return trimTrailingCharacters(env.TELNYX_API_BASE ?? DEFAULT_TELNYX_API_BASE, "/");
 }
 
 /**
@@ -54,7 +56,7 @@ export function telnyxUrl(env: Env, path: string): URL {
 export function telnyxMediaUrl(env: Env, url: string): string {
   const base = env.TELNYX_MEDIA_PUBLIC_BASE;
   if (base === undefined) return url;
-  const storage = `${env.SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/`;
+  const storage = `${trimTrailingCharacters(env.SUPABASE_URL, "/")}/storage/v1/`;
   return url.startsWith(storage) ? `${base}/${url.slice(storage.length)}` : url;
 }
 

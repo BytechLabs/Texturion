@@ -11,7 +11,7 @@
  * when storage or the relay is down; it needs no URL at all.
  */
 import type { MEDIA_BUCKETS} from "@loonext/rig-protocol";
-import { EDGE_PATHS, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
+import { EDGE_PATHS, MEDIA_MAX_BYTES, stripTrailingSlashes } from "@loonext/rig-protocol";
 import { codeWav } from "./audio/generate.ts";
 import { gpsJpeg, sha256Hex } from "./media.ts";
 import type { Surface } from "./audio/surfaces.ts";
@@ -62,7 +62,7 @@ export class StorageProbe implements ProbeSource {
     const cached = this.#signed.get(surface);
     if (cached && cached.expiresAt - RESIGN_MARGIN_MS > this.#now()) return cached.url;
     if (!this.#uploaded.has(surface)) await this.#upload(surface);
-    const storage = `${this.#options.supabaseUrl.replace(/\/+$/, "")}/storage/v1`;
+    const storage = `${stripTrailingSlashes(this.#options.supabaseUrl)}/storage/v1`;
     const response = await this.#fetch(`${storage}/object/sign/${BUCKET}/${PREFIX}/${surface}.wav`, {
       method: "POST",
       headers: this.#headers({ "content-type": "application/json" }),
@@ -74,7 +74,7 @@ export class StorageProbe implements ProbeSource {
       throw new Error("probe: storage returned no signed URL");
     }
     // The app maps storage URLs to the relay the same way (telnyxMediaUrl).
-    const url = `${this.#options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`;
+    const url = `${stripTrailingSlashes(this.#options.edgeOrigin)}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`;
     this.#signed.set(surface, { url, expiresAt: this.#now() + SIGNED_FOR_S * 1000 });
     return url;
   }
@@ -83,7 +83,7 @@ export class StorageProbe implements ProbeSource {
   async media(kind: "gps-jpeg"): Promise<{ url: string; sha256: string; content_type: string }> {
     if (kind !== "gps-jpeg") throw new Error("probe: no such picture");
     const bytes = gpsJpeg();
-    const storage = `${this.#options.supabaseUrl.replace(/\/+$/, "")}/storage/v1`;
+    const storage = `${stripTrailingSlashes(this.#options.supabaseUrl)}/storage/v1`;
     const object = `${MEDIA_BUCKET}/${PREFIX}/gps.jpg`;
     const uploaded = await this.#fetch(`${storage}/object/${object}`, {
       method: "POST",
@@ -100,7 +100,7 @@ export class StorageProbe implements ProbeSource {
     const { signedURL } = (await signed.json()) as { signedURL?: string };
     if (typeof signedURL !== "string" || !signedURL.startsWith("/object/sign/")) throw new Error("probe: storage returned no signed URL");
     return {
-      url: `${this.#options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`,
+      url: `${stripTrailingSlashes(this.#options.edgeOrigin)}${EDGE_PATHS.mediaPrefix}${signedURL.slice(1)}`,
       sha256: sha256Hex(bytes),
       content_type: "image/jpeg",
     };
@@ -109,7 +109,7 @@ export class StorageProbe implements ProbeSource {
   async #upload(surface: Surface): Promise<void> {
     const wav = codeWav(surface, { sampleRate: 8000, cycles: PROBE_CYCLES });
     if (wav.byteLength > MEDIA_MAX_BYTES) throw new Error("probe: the code is larger than the relay serves");
-    const storage = `${this.#options.supabaseUrl.replace(/\/+$/, "")}/storage/v1`;
+    const storage = `${stripTrailingSlashes(this.#options.supabaseUrl)}/storage/v1`;
     const response = await this.#fetch(`${storage}/object/${BUCKET}/${PREFIX}/${surface}.wav`, {
       method: "POST",
       headers: this.#headers({ "content-type": "audio/wav", "x-upsert": "true" }),

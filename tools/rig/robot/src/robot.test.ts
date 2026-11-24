@@ -251,6 +251,23 @@ describe("what the robot refuses to do", () => {
     expect((await robot.dial({ ...S02, to: "sip:qa-w-owner@sip.telnyx.test" })).state).toBe("ringing");
   });
 
+  it("records inbound expect rejections cleanly without throwing", () => {
+    const { robot } = setup();
+    expect(robot.expect({ ...S02, direction: "outbound" })).toMatchObject({
+      state: "failed",
+      errors: ["expect: the plan is not inbound"],
+    });
+    expect(robot.expect({ scenario: "S01", direction: "inbound", role: "DEV-W1" as never, hangup_after_ms: 1000 })).toMatchObject({
+      state: "failed",
+      errors: ["DEV-W1 is not a robot line"],
+    });
+    expect(robot.expect({ scenario: "S01", direction: "inbound", role: "ROBOT-1", hangup_after_ms: 1000 }).state).toBe("waiting");
+    expect(robot.expect({ scenario: "S01", direction: "inbound", role: "ROBOT-1", hangup_after_ms: 1000 })).toMatchObject({
+      state: "failed",
+      errors: ["expect: ROBOT-1 already expects a call"],
+    });
+  });
+
   it("dials only from a robot line", async () => {
     const { robot } = setup();
     const record = await robot.dial({ ...S02, role: "DEV-W1" as never });

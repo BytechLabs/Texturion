@@ -1,3 +1,5 @@
+import { trimTrailingCharacters } from "@loonext/shared";
+
 import type { CalendarScheduleSnapshot } from "../sync";
 
 const WALL_CLOCK =
@@ -257,7 +259,7 @@ export function appendUnlinkNote(description: string, note: string): string {
 }
 
 export function taskLinkUrl(appOrigin: string, taskId: string): string {
-  return `${appOrigin.replace(/\/+$/u, "")}/tasks/${taskId}`;
+  return `${trimTrailingCharacters(appOrigin, "/")}/tasks/${taskId}`;
 }
 
 /**

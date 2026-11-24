@@ -8,7 +8,7 @@
  * a second copy of the cryptography. Each secret is written to the store as
  * its own file. No value is ever logged; the result lists names only.
  */
-import { EDGE_PATHS } from "@loonext/rig-protocol";
+import { EDGE_PATHS, stripTrailingSlashes } from "@loonext/rig-protocol";
 import { storeNameOf } from '@loonext/rig-robot';
 import type { SecretFiles } from '@loonext/rig-robot';
 
@@ -46,7 +46,7 @@ export async function deliverSecrets(options: {
   fetch?: typeof fetch;
 }): Promise<DeliveryResult> {
   const doFetch = options.fetch ?? fetch;
-  const response = await doFetch(`${options.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.ctlSecrets}`, {
+  const response = await doFetch(`${stripTrailingSlashes(options.edgeOrigin)}${EDGE_PATHS.ctlSecrets}`, {
     headers: { authorization: `Bearer ${options.store.read(CONTROL_TOKEN_SECRET)}` },
     signal: AbortSignal.timeout(20_000),
   });
