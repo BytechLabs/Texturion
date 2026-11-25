@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.34.0](https://github.com/BytechLabs/Texturion/compare/web-v0.33.1...web-v0.34.0) (2026-11-25)
+
+
+### Features
+
+* **clients:** make planner interactive and polish layouts across the app ([#1248](https://github.com/BytechLabs/Texturion/issues/1248)) ([cc67b6f](https://github.com/BytechLabs/Texturion/commit/cc67b6f2d7a8da0d36e6a1891e372e9af385a429)), closes [#1085](https://github.com/BytechLabs/Texturion/issues/1085)
+
+
+### Bug Fixes
+
+* **calls:** keep transfer targets readable at narrow widths ([#1246](https://github.com/BytechLabs/Texturion/issues/1246)) ([0a36a81](https://github.com/BytechLabs/Texturion/commit/0a36a81ed5155f0b7eb2e0770ce9e795e677905e))
+* **i18n:** localize settings identity and team seats ([#1259](https://github.com/BytechLabs/Texturion/issues/1259)) ([4c83ba5](https://github.com/BytechLabs/Texturion/commit/4c83ba5a39b1c91b385af2a5ff762c7989285363)), closes [#1098](https://github.com/BytechLabs/Texturion/issues/1098)
+* **inbox:** declutter messages top section across clients ([#1265](https://github.com/BytechLabs/Texturion/issues/1265)) ([1ad78c0](https://github.com/BytechLabs/Texturion/commit/1ad78c0ed672b7767773f1bcf184da9de745b6c9))
+
 ## [0.33.1](https://github.com/BytechLabs/Texturion/compare/web-v0.33.0...web-v0.33.1) (2026-11-23)
 
 
