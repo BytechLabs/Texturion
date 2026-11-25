@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("InboxLayout", () => {
+describe(InboxLayout, () => {
   it("renders the conversation list pane beside inbox routes", () => {
     usePathname.mockReturnValue("/inbox");
     render(
