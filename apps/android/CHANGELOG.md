@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.29.0](https://github.com/BytechLabs/Texturion/compare/android-v0.28.1...android-v0.29.0) (2026-11-25)
+
+
+### Features
+
+* **clients:** make planner interactive and polish layouts across the app ([#1248](https://github.com/BytechLabs/Texturion/issues/1248)) ([cc67b6f](https://github.com/BytechLabs/Texturion/commit/cc67b6f2d7a8da0d36e6a1891e372e9af385a429)), closes [#1085](https://github.com/BytechLabs/Texturion/issues/1085)
+
+
+### Bug Fixes
+
+* **android:** localize scheduled inbox and cancellation copy ([#1253](https://github.com/BytechLabs/Texturion/issues/1253)) ([cb52527](https://github.com/BytechLabs/Texturion/commit/cb52527049dc16201436fef13de6553531619b82)), closes [#1109](https://github.com/BytechLabs/Texturion/issues/1109)
+* **calls:** keep transfer targets readable at narrow widths ([#1246](https://github.com/BytechLabs/Texturion/issues/1246)) ([0a36a81](https://github.com/BytechLabs/Texturion/commit/0a36a81ed5155f0b7eb2e0770ce9e795e677905e))
+* **i18n:** localize billing and calendar dates ([#1257](https://github.com/BytechLabs/Texturion/issues/1257)) ([d2290d8](https://github.com/BytechLabs/Texturion/commit/d2290d80d63cda255acfac48525291804fbea0c7)), closes [#1101](https://github.com/BytechLabs/Texturion/issues/1101)
+* **i18n:** localize settings identity and team seats ([#1259](https://github.com/BytechLabs/Texturion/issues/1259)) ([4c83ba5](https://github.com/BytechLabs/Texturion/commit/4c83ba5a39b1c91b385af2a5ff762c7989285363)), closes [#1098](https://github.com/BytechLabs/Texturion/issues/1098)
+* **inbox:** declutter messages top section across clients ([#1265](https://github.com/BytechLabs/Texturion/issues/1265)) ([1ad78c0](https://github.com/BytechLabs/Texturion/commit/1ad78c0ed672b7767773f1bcf184da9de745b6c9))
+* **mobile:** keep compact settings headings readable ([#1247](https://github.com/BytechLabs/Texturion/issues/1247)) ([02b005c](https://github.com/BytechLabs/Texturion/commit/02b005c768925a39d0f2e54c75610ea4918f8201))
+
 ## [0.28.1](https://github.com/BytechLabs/Texturion/compare/android-v0.28.0...android-v0.28.1) (2026-11-23)
 
 

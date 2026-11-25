@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/BytechLabs/Texturion/compare/api-v0.32.0...api-v0.32.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **security:** resolve open CodeQL alerts ([#1261](https://github.com/BytechLabs/Texturion/issues/1261)) ([fb568ea](https://github.com/BytechLabs/Texturion/commit/fb568ea8d61bd6a28f6c6ffa86bbe45baf22a0a0))
+
 ## [0.32.0](https://github.com/BytechLabs/Texturion/compare/api-v0.31.5...api-v0.32.0) (2026-11-22)
 
 

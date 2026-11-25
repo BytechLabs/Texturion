@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.4...shared-v0.25.0) (2026-11-25)
+
+
+### Features
+
+* **clients:** make planner interactive and polish layouts across the app ([#1248](https://github.com/BytechLabs/Texturion/issues/1248)) ([cc67b6f](https://github.com/BytechLabs/Texturion/commit/cc67b6f2d7a8da0d36e6a1891e372e9af385a429)), closes [#1085](https://github.com/BytechLabs/Texturion/issues/1085)
+
+
+### Bug Fixes
+
+* **security:** resolve open CodeQL alerts ([#1261](https://github.com/BytechLabs/Texturion/issues/1261)) ([fb568ea](https://github.com/BytechLabs/Texturion/commit/fb568ea8d61bd6a28f6c6ffa86bbe45baf22a0a0))
+
 ## [0.24.4](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.3...shared-v0.24.4) (2026-11-23)
 
 
