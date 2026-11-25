@@ -7,8 +7,8 @@ const SEARCH_TERM = "water heater";
 
 export async function auditInboxNavigation(page, base) {
   await page.goto(`${base}/inbox?status=open`, { waitUntil: "networkidle" });
-  const status = page.getByRole("radiogroup", { name: "Conversation status" });
-  const open = status.getByRole("radio", { name: /^Open\b/, checked: true });
+  const status = page.getByRole("combobox", { name: "Conversation status" });
+  const open = status.and(page.locator('[data-value="open"]'));
 
   for (const { id, name } of THREADS) {
     const path = `/inbox/${id}`;
@@ -35,12 +35,14 @@ export async function auditInboxNavigation(page, base) {
     `${base}${taskThread}?status=open&task=${TASK_ID}`,
     { waitUntil: "networkidle" },
   );
-  await status.getByRole("radio", { name: "All", exact: true }).click();
+  await status.click();
+  await page.getByRole("option", { name: "All", exact: true }).click();
   await page.waitForURL((url) =>
     url.pathname === taskThread && !url.searchParams.has("status") && url.searchParams.get("task") === TASK_ID,
   );
 
   await page.goto(`${base}/inbox`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Search conversations and contacts" }).click();
   await page.locator("[data-inbox-search]").fill(SEARCH_TERM);
   const matches = page.getByRole("region", { name: "Matching conversations" });
   const result = matches.locator(`a[href^="/inbox/${THREADS[0].id}"]`);

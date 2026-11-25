@@ -1335,7 +1335,8 @@ private struct InboxList: View {
     @Environment(\.appLocale) private var appLocale
 
     @State private var controller: InboxController?
-    @State private var filterSection: InboxFilterSection?
+    @State private var filterSheetOpen = false
+    @State private var searchOpen = false
     /// #233: the workspace's queued texts.
     @State private var scheduledSheetOpen = false
     @State private var assignFor: ConversationListItem?
@@ -1475,21 +1476,26 @@ private struct InboxList: View {
         }
         let outboxStatuses = Dictionary(grouping: queue, by: \.conversationId)
             .mapValues { rows in rows.contains(where: \.blocked) }
+        let searchVisible = searchOpen || !controller.query.isEmpty
         VStack(spacing: 0) {
             InboxScheduledLink(scheduledCount: controller.scheduled.count) {
                 controller.refreshScheduled()
                 scheduledSheetOpen = true
             }
-            InboxTitleRow(compact: $compact)
-
-            HStack(spacing: 6) {
-                searchField(controller)
-                if !controller.searching {
-                    ListFilterButton(count: controller.activeFilterCount) { filterSection = .more }
+            InboxTitleRow(compact: $compact, searchOpen: searchVisible) {
+                if searchVisible {
+                    searchOpen = false
+                    controller.query = ""
+                } else {
+                    searchOpen = true
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 10)
+
+            if searchVisible {
+                searchField(controller)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 10)
+            }
 
             if controller.searching {
                 SearchResultsPane(
@@ -1504,17 +1510,15 @@ private struct InboxList: View {
                     onTextContact: onTextContact
                 )
             } else {
-                statusTabs(controller)
-                    .padding(.horizontal, 18)
-                InboxQuickFilters(
-                    assigneeActive: controller.assigneeUserId != nil || controller.unassignedOnly || controller.tab == .mine,
-                    assigneeEnabled: controller.tab != .mine,
-                    tagActive: controller.tagId != nil,
+                InboxControlsRow(
+                    selected: controller.tab,
+                    onSelect: { controller.selectTab($0) },
+                    filterCount: controller.activeFilterCount,
                     views: viewsModel(controller),
-                    onFilter: { filterSection = $0 }
+                    onFilter: { filterSheetOpen = true }
                 )
                 .padding(.horizontal, 18)
-                .padding(.top, 8)
+                .padding(.bottom, 8)
                 ActiveFilterChips(
                     chips: activeFilterChips(controller),
                     onClearAll: { controller.clearSecondaryFilters() }
@@ -1578,8 +1582,8 @@ private struct InboxList: View {
                 onClose: { savedViewSheetOpen = false }
             )
         }
-        .sheet(item: $filterSection) { section in
-            InboxFilterSheet(controller: controller, meUserId: me.user_id, lines: lines, section: section)
+        .sheet(isPresented: $filterSheetOpen) {
+            InboxFilterSheet(controller: controller, meUserId: me.user_id, lines: lines)
         }
         // #233: what the workspace has queued to go out.
         .sheet(isPresented: $scheduledSheetOpen) {
@@ -1624,14 +1628,6 @@ private struct InboxList: View {
         @Bindable var controller = controller
         return inboxSearchField($controller.query, locale: appLocale)
     }
-
-    /// Spec 20's status tabs, drawn by the shared segmented control. Same
-    /// `selectTab` mutation as before.
-    private func statusTabs(_ controller: InboxController) -> some View {
-        InboxStatusTabs(selected: controller.tab) { next in
-            controller.selectTab(next)
-        }
-    }
 }
 
 private struct InboxScheduledLink: View {
@@ -1660,6 +1656,8 @@ private struct InboxScheduledLink: View {
 
 private struct InboxTitleRow: View {
     @Binding var compact: Bool
+    let searchOpen: Bool
+    let onToggleSearch: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -1667,6 +1665,12 @@ private struct InboxTitleRow: View {
         HStack(spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
             Spacer(minLength: 0)
+            PaperIconButton(
+                systemImage: "magnifyingglass",
+                label: AppStrings.translate(appLocale, "inbox.searchAria"),
+                foreground: searchOpen ? BrandColor.olive : BrandColor.muted700,
+                action: onToggleSearch
+            )
             SelectField(
                 options: [
                     SelectOption(false, title: AppStrings.translate(appLocale, "inbox.displayPreview")),
@@ -1693,84 +1697,44 @@ private func inboxSearchField(_ query: Binding<String>, locale: String) -> some 
     )
 }
 
-/// Open / Mine / All / Closed, drawn by the shared segmented control.
-private struct InboxStatusTabs: View {
+@MainActor
+private struct InboxControlsRow: View {
     let selected: InboxStatusTab
     let onSelect: @MainActor (InboxStatusTab) -> Void
-
-    @Environment(\.appLocale) private var appLocale
-
-    private var options: [SegmentedOption<InboxStatusTab>] {
-        InboxStatusTab.allCases.map { item in
-            SegmentedOption(item, title: item.title(appLocale))
-        }
-    }
-
-    var body: some View {
-        SegmentedControl(
-            options: options,
-            selected: selected,
-            size: .compact,
-            fill: true,
-            horizontalPadding: 2,
-            labelLines: 2,
-            onSelect: onSelect
-        )
-    }
-}
-
-private enum InboxFilterSection: Hashable, Identifiable {
-    case assignee, tag, more
-
-    var id: Self { self }
-
-    var titleKey: String {
-        switch self {
-        case .assignee: "inbox.filterGroupAssignee"
-        case .tag: "inbox.filterGroupTag"
-        case .more: "inbox.filterAction"
-        }
-    }
-}
-
-private struct InboxQuickFilters: View {
-    let assigneeActive: Bool
-    let assigneeEnabled: Bool
-    let tagActive: Bool
+    let filterCount: Int
     let views: ListViewsModel
-    let onFilter: @MainActor (InboxFilterSection) -> Void
+    let onFilter: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 6))
-            : AnyLayout(HStackLayout(spacing: 6))
-        layout {
-            filterButton(.assignee, active: assigneeActive)
-                .disabled(!assigneeEnabled)
-            filterButton(.tag, active: tagActive)
-            ListViewsMenu(model: views, labelled: true)
+    private var statusOptions: [SelectOption<InboxStatusTab>] {
+        InboxStatusTab.allCases.map { item in
+            SelectOption(item, title: item.title(appLocale))
         }
     }
 
-    private func filterButton(_ section: InboxFilterSection, active: Bool) -> some View {
-        Button {
-            onFilter(section)
-        } label: {
-            Text(AppStrings.translate(appLocale, section.titleKey))
-                .font(.golos(12, weight: .semibold))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(BrandColor.ink)
-                .padding(.horizontal, 8)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(active ? BrandColor.insetDeep : BrandColor.paper, in: Capsule())
-                .overlay { Capsule().strokeBorder(BrandColor.muted250) }
-                .contentShape(Capsule())
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+            SelectField(
+                options: statusOptions,
+                selected: selected,
+                label: AppStrings.translate(appLocale, "inbox.statusTablistAria"),
+                showsDetail: false,
+                usesMenu: true,
+                onSelect: onSelect
+            )
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 4)
+            }
+            HStack(spacing: 6) {
+                ListViewsMenu(model: views, labelled: !dynamicTypeSize.isAccessibilitySize)
+                ListFilterButton(count: filterCount, onTap: onFilter)
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
@@ -2235,7 +2199,6 @@ private struct InboxFilterSheet: View {
     let controller: InboxController
     let meUserId: String
     let lines: [(id: String, label: String)]
-    let section: InboxFilterSection
 
     @Environment(\.appLocale) private var appLocale
     @Environment(\.dismiss) private var dismiss
@@ -2255,7 +2218,6 @@ private struct InboxFilterSheet: View {
     ) -> some View {
         Button {
             select()
-            dismiss()
         } label: {
             HStack(spacing: 8) {
                 if let member {
@@ -2279,8 +2241,7 @@ private struct InboxFilterSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                switch section {
-                case .assignee:
+                Section(AppStrings.translate(appLocale, "inbox.filterGroupAssignee")) {
                     option(
                         AppStrings.translate(appLocale, "inbox.filterAnyone"),
                         selected: controller.assigneeUserId == nil && !controller.unassignedOnly
@@ -2298,23 +2259,25 @@ private struct InboxFilterSheet: View {
                             controller.setAssigneeFilter(member)
                         }
                     }
-                case .tag:
-                    option(
-                        AppStrings.translate(appLocale, "inbox.filterAnyTag"),
-                        selected: controller.tagId == nil
-                    ) {
-                        controller.setTagFilter(nil)
-                    }
-                    ForEach(controller.allTags, id: \.id) { tag in
-                        option(tag.name, selected: controller.tagId == tag.id) {
-                            controller.setTagFilter(tag)
+                }
+                if !controller.allTags.isEmpty {
+                    Section(AppStrings.translate(appLocale, "inbox.filterGroupTag")) {
+                        option(
+                            AppStrings.translate(appLocale, "inbox.filterAnyTag"),
+                            selected: controller.tagId == nil
+                        ) {
+                            controller.setTagFilter(nil)
+                        }
+                        ForEach(controller.allTags, id: \.id) { tag in
+                            option(tag.name, selected: controller.tagId == tag.id) {
+                                controller.setTagFilter(tag)
+                            }
                         }
                     }
-                case .more:
-                    advancedFilters
                 }
+                advancedFilters
             }
-            .navigationTitle(AppStrings.translate(appLocale, section.titleKey))
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.filterAction"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -2787,24 +2750,15 @@ private struct InboxAuditScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             InboxScheduledLink(scheduledCount: 2, onOpenScheduled: {})
-            InboxTitleRow(compact: $compact)
-            HStack(spacing: 6) {
-                inboxSearchField(.constant(""), locale: appLocale)
-                ListFilterButton(count: 2, onTap: {})
-            }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 10)
-            InboxStatusTabs(selected: .open, onSelect: { _ in })
-                .padding(.horizontal, 18)
-            InboxQuickFilters(
-                assigneeActive: false,
-                assigneeEnabled: true,
-                tagActive: true,
+            InboxTitleRow(compact: $compact, searchOpen: false, onToggleSearch: {})
+            InboxControlsRow(
+                selected: .open,
+                onSelect: { _ in },
+                filterCount: 2,
                 views: views,
-                onFilter: { _ in }
+                onFilter: {}
             )
             .padding(.horizontal, 18)
-            .padding(.top, 8)
             .padding(.bottom, 8)
             inboxFixtureList(compact: compact)
         }

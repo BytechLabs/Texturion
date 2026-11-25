@@ -106,6 +106,7 @@ export function shortcutForEvent(
 
 const COMPOSER_FOCUS_EVENT = "loonext:focus-composer";
 const COMPOSER_FOCUS_TTL_MS = 5000;
+const INBOX_SEARCH_FOCUS_EVENT = "loonext:focus-inbox-search";
 let composerFocusRequestedAt: number | null = null;
 
 /** Ask the thread's composer to take focus when it is on screen. */
@@ -124,4 +125,14 @@ export function consumeComposerFocus(): boolean {
 export function onComposerFocusRequest(listener: () => void): () => void {
   window.addEventListener(COMPOSER_FOCUS_EVENT, listener);
   return () => window.removeEventListener(COMPOSER_FOCUS_EVENT, listener);
+}
+
+/** Open the inbox search field if collapsed and move focus into it. */
+export function requestInboxSearchFocus(): void {
+  window.dispatchEvent(new Event(INBOX_SEARCH_FOCUS_EVENT));
+}
+
+export function onInboxSearchFocusRequest(listener: () => void): () => void {
+  window.addEventListener(INBOX_SEARCH_FOCUS_EVENT, listener);
+  return () => window.removeEventListener(INBOX_SEARCH_FOCUS_EVENT, listener);
 }

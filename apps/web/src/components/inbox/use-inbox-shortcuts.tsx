@@ -19,7 +19,7 @@ import type { BulkConversationsBody } from "@/lib/inbox/bulk-selection";
 import { queueThreadHeading, useInboxFocus } from "@/lib/inbox/navigation-focus";
 import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
 import { inboxHref } from "@/lib/inbox/thread-href";
-import { requestComposerFocus, shortcutForEvent } from '@/lib/inbox/shortcuts';
+import { requestComposerFocus, requestInboxSearchFocus, shortcutForEvent } from '@/lib/inbox/shortcuts';
 import type { ShortcutAction } from '@/lib/inbox/shortcuts';
 import { contactDisplayName } from "@/lib/format/phone";
 
@@ -131,6 +131,7 @@ export function useInboxShortcuts({
           return;
         }
         case "search": {
+          requestInboxSearchFocus();
           document
             .querySelector<HTMLInputElement>("[data-inbox-search]")
             ?.focus();

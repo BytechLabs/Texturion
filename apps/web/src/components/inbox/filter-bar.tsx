@@ -13,13 +13,15 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
-import { Button } from "@/components/ui/button";
+import { CountPill } from "@/components/ui/count-pill";
 import { FilterButton } from "@/components/ui/filter-button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { SearchField } from "@/components/ui/search-field";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useConversations } from "@/lib/api/conversations";
@@ -29,12 +31,9 @@ import { useMembers } from "@/lib/api/team";
 import type { ConversationStatus } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
-import { CountPill } from "@/components/ui/count-pill";
-import { SearchField } from "@/components/ui/search-field";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 
-import { activeChips, applySegment, clearAllFilters, clearSecondary, formatOpenCount, hasActiveFilters, INBOX_SEGMENTS, isSearchingInbox, OPEN_COUNT_CAP, OPEN_COUNT_FILTERS, segmentOf, serializeInboxFilters, STATUS_CHIP_KEYS } from './filter-url';
-import type { InboxUrlFilters, SecondaryFilterKey } from './filter-url';
+import { activeChips, applySegment, clearAllFilters, clearSecondary, formatOpenCount, INBOX_SEGMENTS, isSearchingInbox, OPEN_COUNT_CAP, OPEN_COUNT_FILTERS, segmentOf, serializeInboxFilters, STATUS_CHIP_KEYS } from './filter-url';
+import type { ActiveChip, InboxSegment, InboxUrlFilters, SecondaryFilterKey } from './filter-url';
 import {
   suggestViewName,
   urlFiltersToView,
@@ -51,9 +50,15 @@ interface InboxLine {
 export function FilterBar({
   filters,
   onChange,
+  searchOpen = false,
+  searchFocusNonce = 0,
+  onCloseSearch,
 }: {
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
+  searchOpen?: boolean;
+  searchFocusNonce?: number;
+  onCloseSearch?: () => void;
 }) {
   const t = useT();
   const segment = segmentOf(filters);
@@ -64,47 +69,41 @@ export function FilterBar({
   ) ?? [];
   const selectedLine = lines.find((line) => line.id === filters.line);
   // #548: a search reads every conversation, so while one is running these
-  // controls cannot narrow anything. They used to stay lit and pressable and
-  // change nothing at all — the tab moved, the results did not.
+  // controls cannot narrow anything.
   const searching = isSearchingInbox(filters);
+  const chips = activeChips(filters);
+  const showSearch = searchOpen || (filters.q ?? "") !== "";
 
   return (
-    <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
+    <div className="space-y-2 border-b border-app-line px-3.5 pb-2 pt-1">
       <div className="flex items-center gap-1">
-        <InboxSearch filters={filters} onChange={onChange} />
-        <FilterPopover filters={filters} lines={lines} onChange={onChange} disabled={searching} />
-      </div>
-      <SegmentedControl
-        fill
-        className="w-full [&>button]:min-w-0 [&>button]:px-1"
-        ariaLabel={t("inbox.statusTablistAria")}
-        disabled={searching}
-        value={segment}
-        onChange={(id) => onChange(applySegment(filters, id))}
-        options={INBOX_SEGMENTS.map(({ id, labelKey }) => {
-          const countLabel = id === "open" ? formatOpenCount(openCount) : "";
-          return {
-            value: id,
-            label: t(labelKey),
-            badge: countLabel === "" ? undefined : (
-              <CountPill
-                aria-label={
-                  openCount > OPEN_COUNT_CAP
-                    ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
-                    : t("inbox.openCountAria", { count: openCount })
-                }
-              >
-                {countLabel}
-              </CountPill>
-            ),
-          };
-        })}
-      />
-      <div className="grid grid-cols-[minmax(max-content,1fr)_minmax(max-content,1fr)_minmax(4.75rem,1fr)] gap-1.5">
-        <FilterPopover dimension="assignee" filters={filters} onChange={onChange} disabled={searching} />
-        <FilterPopover dimension="tag" filters={filters} onChange={onChange} disabled={searching} />
+        <SimpleSelect
+          size="sm"
+          ariaLabel={t("inbox.statusTablistAria")}
+          disabled={searching}
+          value={segment}
+          onValueChange={(id) => onChange(applySegment(filters, id as InboxSegment))}
+          className="mr-auto w-auto border-transparent bg-transparent px-1.5 font-medium text-app-ink shadow-none hover:bg-accent/60 dark:bg-transparent dark:hover:bg-accent/60"
+          options={INBOX_SEGMENTS.map(({ id, labelKey }) => {
+            const countLabel = id === "open" ? formatOpenCount(openCount) : "";
+            return {
+              value: id,
+              label: t(labelKey),
+              trailing: countLabel === "" ? undefined : (
+                <CountPill
+                  aria-label={
+                    openCount > OPEN_COUNT_CAP
+                      ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
+                      : t("inbox.openCountAria", { count: openCount })
+                  }
+                >
+                  {countLabel}
+                </CountPill>
+              ),
+            };
+          })}
+        />
         <SavedViewsMenu
-          outlined
           surface="conversations"
           isCurrent={(view) => viewMatchesUrl(view, filters)}
           onApply={(view) => onChange(viewFiltersToUrl(view, filters))}
@@ -117,14 +116,32 @@ export function FilterBar({
           saveDescription={t("inbox.viewSaveDescription")}
           shareNote={t("inbox.viewShareNote")}
         />
+        <FilterPopover
+          filters={filters}
+          lines={lines}
+          activeCount={chips.length}
+          onChange={onChange}
+          disabled={searching}
+        />
       </div>
-      {/* #711: only while something is applied. */}
-      {hasActiveFilters(filters) && (
-        <ChipRow filters={filters} lines={lines} onChange={onChange} disabled={searching} />
+      {showSearch && (
+        <InboxSearch
+          filters={filters}
+          onChange={onChange}
+          focusNonce={searchFocusNonce}
+          onClose={onCloseSearch}
+        />
+      )}
+      {chips.length > 0 && (
+        <ChipRow
+          filters={filters}
+          chips={chips}
+          lines={lines}
+          onChange={onChange}
+          disabled={searching}
+        />
       )}
       {searching && (
-        // Said once, quietly, instead of leaving the row above to imply
-        // otherwise. It names what search DOES rather than what it ignores.
         <p className="px-0.5 text-[11px] text-app-muted">
           {t("inbox.searchPausesFilters")}
         </p>
@@ -149,13 +166,17 @@ function useOpenCount(): number {
   return rows.length;
 }
 
-/** Debounced search (§2.4): 250ms → URL `q`; ≥2 chars swaps the list for /v1/search. */
+/** Debounced search: 250ms to URL `q`; 2+ chars swaps the list for /v1/search. */
 function InboxSearch({
   filters,
   onChange,
+  focusNonce,
+  onClose,
 }: {
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
+  focusNonce: number;
+  onClose?: () => void;
 }) {
   const t = useT();
   const [searchText, setSearchText] = useState(filters.q ?? "");
@@ -173,6 +194,10 @@ function InboxSearch({
       setSearchText(urlQ);
     }
   }, [urlQ]);
+
+  useEffect(() => {
+    if (focusNonce > 0) inputRef.current?.focus();
+  }, [focusNonce]);
 
   const setSearch = (value: string) => {
     setSearchText(value);
@@ -199,6 +224,15 @@ function InboxSearch({
       containerClassName="min-w-0 flex-1"
       value={searchText}
       onValueChange={setSearch}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        if (searchText === "") {
+          onClose?.();
+        } else {
+          setSearch("");
+        }
+      }}
       placeholder={t("inbox.searchShortPlaceholder")}
       aria-label={t("inbox.searchAria")}
       clearLabel={t("inbox.clearSearchAria")}
@@ -215,17 +249,18 @@ function InboxSearch({
  */
 function ChipRow({
   filters,
+  chips,
   lines,
   onChange,
   disabled,
 }: {
   filters: InboxUrlFilters;
+  chips: readonly ActiveChip[];
   lines: readonly InboxLine[];
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
   const t = useT();
-  const chips = activeChips(filters);
   const tags = useTags();
   const members = useMembers();
 
@@ -293,19 +328,13 @@ function ChipRow({
           />
         ))}
       </div>
-      {/* #548: the way back to the whole list, in one press. Last in the row
-          because it is the exit, not the first thing to reach for, and absent
-          when there is nothing to clear — a control that usually does nothing
-          is furniture. Android and iOS carry the same one. */}
-      {hasActiveFilters(filters) && (
-        <button
-          type="button"
-          onClick={() => onChange(clearAllFilters())}
-          className="tap-target inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-app-muted underline decoration-app-line underline-offset-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {t("inbox.clearAll")}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => onChange(clearAllFilters())}
+        className="tap-target ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-app-muted underline decoration-app-line underline-offset-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t("inbox.clearAll")}
+      </button>
     </div>
   );
 }
@@ -349,15 +378,15 @@ function Chip({
  * visible as a chip.
  */
 function FilterPopover({
-  dimension,
   filters,
   lines,
+  activeCount,
   onChange,
   disabled,
 }: {
-  dimension?: "assignee" | "tag";
   filters: InboxUrlFilters;
-  lines?: readonly InboxLine[];
+  lines: readonly InboxLine[];
+  activeCount: number;
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
@@ -381,30 +410,15 @@ function FilterPopover({
     [members.data],
   );
   const availableTags = tags.data?.data ?? [];
-  const label = dimension && t(dimension === "assignee" ? "inbox.filterGroupAssignee" : "inbox.filterGroupTag");
   const userFilter = filters.assignee === "me" ? userId : filters.assignee;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        {dimension ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            className={cn(
-              "min-w-0 justify-start px-2",
-              filters[dimension] && "bg-secondary text-secondary-foreground",
-            )}
-          >
-            <span className="truncate">{label}</span>
-          </Button>
-        ) : (
-          <FilterButton compact count={activeChips(filters).length} disabled={disabled} />
-        )}
+        <FilterButton compact count={activeCount} disabled={disabled} />
       </PopoverTrigger>
       <PopoverContent
-        align={dimension ? "start" : "end"}
+        align="end"
         sideOffset={6}
         className="w-64 p-0 shadow-lg"
       >
@@ -416,13 +430,13 @@ function FilterPopover({
             return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
           }}
         >
-          <CommandInput aria-label={label} placeholder={t("inbox.filterByPlaceholder")} />
+          <CommandInput aria-label={t("inbox.filterAction")} placeholder={t("inbox.filterByPlaceholder")} />
           <CommandList>
             <CommandEmpty>{t("inbox.filterNone")}</CommandEmpty>
-            {dimension === "assignee" && <CommandGroup heading={label}>
+            <CommandGroup heading={t("inbox.filterGroupAssignee")}>
               <CommandItem
                 value="assignee-none"
-                keywords={[t("inbox.shortcutUnassigned")]}
+                keywords={[t("inbox.shortcutUnassigned"), t("inbox.filterGroupAssignee")]}
                 onSelect={() => set("assignee", filters.assignee === "none" ? undefined : "none")}
               >
                 {t("inbox.shortcutUnassigned")}
@@ -437,7 +451,7 @@ function FilterPopover({
                   <CommandItem
                     key={m.user_id}
                     value={`assignee-${m.user_id}`}
-                    keywords={[name]}
+                    keywords={[name, t("inbox.filterGroupAssignee")]}
                     onSelect={() =>
                       set("assignee", active ? undefined : m.user_id)
                     }
@@ -456,8 +470,8 @@ function FilterPopover({
                   </CommandItem>
                 );
               })}
-            </CommandGroup>}
-            {!dimension && lines && lines.length > 1 && (
+            </CommandGroup>
+            {lines.length > 1 && (
               <CommandGroup heading={t("inbox.filterGroupLine")}>
                 {lines.map((line) => {
                   const active = filters.line === line.id;
@@ -465,7 +479,7 @@ function FilterPopover({
                     <CommandItem
                       key={line.id}
                       value={`line-${line.id}`}
-                      keywords={[line.label]}
+                      keywords={[line.label, t("inbox.filterGroupLine")]}
                       onSelect={() => set("line", active ? undefined : line.id)}
                     >
                       <span className="truncate">{line.label}</span>
@@ -477,15 +491,15 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
-            {dimension === "tag" && (
-              <CommandGroup heading={label}>
+            {availableTags.length > 0 && (
+              <CommandGroup heading={t("inbox.filterGroupTag")}>
                 {availableTags.map((tag) => {
                   const active = filters.tag === tag.id;
                   return (
                     <CommandItem
                       key={tag.id}
                       value={`tag-${tag.id}`}
-                      keywords={[tag.name]}
+                      keywords={[tag.name, t("inbox.filterGroupTag")]}
                       onSelect={() => set("tag", active ? undefined : tag.id)}
                     >
                       <span className="truncate">{tag.name}</span>
@@ -500,17 +514,9 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
-            {!dimension && <CommandGroup heading={t("inbox.filterGroupMore")}>
-              {/* #508: first in the group, because it is the one filter here
-                  that names money leaving. It is also the destination the
-                  response-time card links to, and a destination reachable only
-                  by arriving from one card is a filter half the crew never
-                  learns exists. */}
+            <CommandGroup heading={t("inbox.filterGroupMore")}>
               <CommandItem
                 value="awaiting"
-                // The reader's own word first, then the English aliases: cmdk
-                // matches on this list, so a French crew that never sees the
-                // word "unanswered" still has to be able to type what they see.
                 keywords={[
                   t("inbox.chipUnanswered"),
                   "unanswered",
@@ -559,10 +565,6 @@ function FilterPopover({
                   />
                 )}
               </CommandItem>
-              {/* #293: the way back to what you deferred. A snooze that hid a
-                  thread with no way to find it would be worse than the clutter
-                  it solved, and this popover is where every other hidden
-                  population in the inbox already lives. */}
               <CommandItem
                 value="snoozed"
                 keywords={[
@@ -584,7 +586,7 @@ function FilterPopover({
                   />
                 )}
               </CommandItem>
-            </CommandGroup>}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
