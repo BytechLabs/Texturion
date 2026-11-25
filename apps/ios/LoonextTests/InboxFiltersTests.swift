@@ -46,19 +46,16 @@ final class InboxFiltersTests: XCTestCase {
         XCTAssertEqual(activeInboxFilters(home(segment: "closed")), [.segment])
     }
 
-    func testMineCountsAsTheSegmentMovingWithNoSeparateAssignee() {
+    func testAssignedToMeCountsUnderAssigneeRatherThanSegment() {
         let mine = home(assignedToMe: true)
         XCTAssertTrue(isInboxFiltered(mine))
-        XCTAssertEqual(activeInboxFilters(mine), [.segment])
+        XCTAssertEqual(activeInboxFilters(mine), [.assignee])
     }
 
-    func testMineSubsumesANamedAssigneeRatherThanCountingBoth() {
-        // The request sends the viewer's own id and drops the named one, and the
-        // chip strip hides the assignee while Mine is lit — so counting it is how
-        // an empty Mine tab blamed a filter with nothing to un-set.
+    func testAssignedToMeAndNamedAssigneeCountOnceUnderAssignee() {
         XCTAssertEqual(
             activeInboxFilters(home(assignedToMe: true, assigneeUserId: "u-2")),
-            [.segment]
+            [.assignee]
         )
     }
 
@@ -77,7 +74,7 @@ final class InboxFiltersTests: XCTestCase {
         filtered.lineId = "line-1"
         XCTAssertEqual(activeInboxFilters(filtered), [.assignee, .line, .unread])
         filtered.assignedToMe = true
-        XCTAssertEqual(activeInboxFilters(filtered), [.segment, .line, .unread])
+        XCTAssertEqual(activeInboxFilters(filtered), [.assignee, .line, .unread])
     }
 
     func testEverythingAtOnceInTheDeclaredOrder() {
@@ -98,11 +95,8 @@ final class InboxFiltersTests: XCTestCase {
     }
 
     func testTheSegmentAloneIsNotASecondaryFilter() {
-        // So the empty state keeps its better per-tab sentence: "No closed
-        // conversations" beats "Nothing matches these filters" for somebody who
-        // selected one tab and nothing else.
         XCTAssertFalse(hasSecondaryInboxFilters(home(segment: "closed")))
-        XCTAssertFalse(hasSecondaryInboxFilters(home(assignedToMe: true)))
+        XCTAssertTrue(hasSecondaryInboxFilters(home(assignedToMe: true)))
         XCTAssertTrue(hasSecondaryInboxFilters(home(segment: "closed", tagId: "t-1")))
     }
 
@@ -162,16 +156,11 @@ final class InboxFiltersTests: XCTestCase {
         XCTAssertEqual(names, InboxFilterDimension.allCases.map(\.rawValue))
     }
 
-    /// And that the shared module still masks the assignee under Mine.
-    ///
-    /// A grep rather than a second implementation: this is the one rule whose
-    /// absence is invisible in a boolean, because both answers are "filtered" —
-    /// only the LIST differs, and only the empty-state copy reads it.
-    func testTheSharedModuleStillSubsumesANamedAssigneeUnderMine() throws {
+    func testTheSharedModuleCountsAssignedToMeUnderAssignee() throws {
         XCTAssertTrue(
             try sharedSource()
-                .contains("!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)"),
-            "the Mine-subsumes-assignee guard has gone from the shared module"
+                .contains("state.assignedToMe || state.assigneeUserId !== null || state.unassignedOnly"),
+            "shared inbox-filters.ts no longer counts assignedToMe under assignee"
         )
     }
 }

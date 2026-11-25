@@ -12,8 +12,9 @@ import { AppShell } from "./app-shell";
 
 const drawn = vi.hoisted((): boolean[] => []);
 const useCompany = vi.hoisted(() => vi.fn());
+const usePathname = vi.hoisted(() => vi.fn(() => "/for-you"));
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/for-you" }));
+vi.mock("next/navigation", () => ({ usePathname }));
 vi.mock("@/i18n/provider", () => ({ useT: () => (key: string) => key }));
 vi.mock("@/lib/api/companies", () => ({ useCompany }));
 vi.mock("@/lib/softphone/provider", () => ({
@@ -55,6 +56,7 @@ const KEY = "loonext:sidebar-collapsed";
 beforeEach(() => {
   drawn.length = 0;
   window.localStorage.clear();
+  usePathname.mockReturnValue("/for-you");
   useCompany.mockReturnValue({ data: undefined });
 });
 afterEach(cleanup);
@@ -94,4 +96,14 @@ it.each([
 
   const link = screen.queryByRole("link", { name: "shell.mfaSetupAction" });
   expect(link?.getAttribute("href") ?? null).toBe(href);
+});
+
+it("uses a scrolling document frame for /inbox/scheduled and a fixed frame for /inbox", () => {
+  usePathname.mockReturnValue("/inbox/scheduled");
+  const { rerender } = render(<AppShell>scheduled</AppShell>);
+  expect(screen.getByRole("main").className).toContain("overflow-y-auto");
+
+  usePathname.mockReturnValue("/inbox");
+  rerender(<AppShell>inbox</AppShell>);
+  expect(screen.getByRole("main").className).toContain("overflow-hidden");
 });

@@ -45,9 +45,9 @@ internal enum class InboxFilterDimension {
 internal data class InboxFilterState(
     /** The status segment in this client's own words, or null on the home view. */
     val segment: String?,
-    /** Scoped to whoever is looking ("Mine"), which the SEGMENT owns, not a chip. */
+    /** Relative self-assignment from a saved view, owned by the assignee filter. */
     val assignedToMe: Boolean,
-    /** A named teammate. Ignored while [assignedToMe] — the request ignores it too. */
+    /** A named teammate. Ignored while [assignedToMe] is set. */
     val assigneeUserId: String?,
     val tagId: String?,
     val unreadOnly: Boolean,
@@ -66,12 +66,8 @@ internal data class InboxFilterState(
  */
 internal fun activeInboxFilters(state: InboxFilterState): List<InboxFilterDimension> {
     val active = mutableListOf<InboxFilterDimension>()
-    if (state.segment != null || state.assignedToMe) active += InboxFilterDimension.SEGMENT
-    // MINE SUBSUMES A NAMED ASSIGNEE, deliberately. The request sends the
-    // viewer's own id and drops this field, and the sheet hides the assignee
-    // section while Mine is lit — so counting it here is how an empty "Mine" tab
-    // came to blame a filter the person had no way to un-set.
-    if (!state.assignedToMe && (state.assigneeUserId != null || state.unassignedOnly)) {
+    if (state.segment != null) active += InboxFilterDimension.SEGMENT
+    if (state.assignedToMe || state.assigneeUserId != null || state.unassignedOnly) {
         active += InboxFilterDimension.ASSIGNEE
     }
     if (state.lineId != null) active += InboxFilterDimension.LINE

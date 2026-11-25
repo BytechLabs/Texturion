@@ -59,9 +59,9 @@ export type InboxFilterDimension = (typeof INBOX_FILTER_DIMENSIONS)[number];
 export interface InboxFilterState {
   /** The status segment in the client's own words, or null on its home view. */
   segment: string | null;
-  /** Scoped to whoever is looking ("Mine"), which the SEGMENT owns, not a chip. */
+  /** Relative self-assignment from a saved view or link, owned by the assignee filter. */
   assignedToMe: boolean;
-  /** A named teammate. Ignored while `assignedToMe` — the request ignores it too. */
+  /** A named teammate. Ignored while `assignedToMe` is set. */
   assigneeUserId: string | null;
   unassignedOnly: boolean;
   lineId: string | null;
@@ -82,12 +82,8 @@ export function activeInboxFilters(
   state: InboxFilterState,
 ): InboxFilterDimension[] {
   const active: InboxFilterDimension[] = [];
-  if (state.segment !== null || state.assignedToMe) active.push("segment");
-  // MINE SUBSUMES A NAMED ASSIGNEE, deliberately. Every client's request sends
-  // the viewer's own id and drops this field, and every client hides the
-  // assignee control while Mine is lit — so counting it here is how an empty
-  // "Mine" tab came to blame a filter the person had no way to un-set.
-  if (!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)) {
+  if (state.segment !== null) active.push("segment");
+  if (state.assignedToMe || state.assigneeUserId !== null || state.unassignedOnly) {
     active.push("assignee");
   }
   if (state.lineId !== null) active.push("line");

@@ -215,7 +215,6 @@ import com.loonext.android.ui.common.selectableRow
 // here could only ever hold English.
 internal enum class InboxStatusTab(val labelKey: String) {
     Open("inbox.segmentOpen"),
-    Mine("inbox.segmentMine"),
     All("inbox.segmentAll"),
     Closed("inbox.segmentClosed"),
 }
@@ -347,7 +346,7 @@ private class InboxController(
     private val repo: MessagingRepository,
     private val cache: StoreCache,
     private val companyId: String,
-    private val meUserId: String,
+    val meUserId: String,
     private val scope: CoroutineScope,
     /**
      * #228: the reader's language, handed down from `LocalAppLocale` at the
@@ -374,6 +373,8 @@ private class InboxController(
      * that race is lost.
      */
     var assigneeUserId by mutableStateOf<String?>(null)
+        private set
+    var assignedToMe by mutableStateOf(false)
         private set
     var unassignedOnly by mutableStateOf(false)
         private set
@@ -499,15 +500,16 @@ private class InboxController(
      */
     private val filterKey: String
         get() {
-            val assigneeId = if (tab == InboxStatusTab.Mine) null else assigneeUserId
-            val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
+            val assigneeId = if (assignedToMe) null else assigneeUserId
+            val isDefault = tab == InboxStatusTab.Open && !assignedToMe && assigneeId == null &&
                 tagId == null && !unreadOnly && !spamOnly && !snoozedOnly &&
                 !awaitingOnly && !unassignedOnly && lineId == null
             if (isDefault) return "default"
             return buildString {
                 append(tab.name.lowercase())
+                if (assignedToMe) append("/me")
                 assigneeId?.let { append("/a=").append(it) }
-                if (unassignedOnly && tab != InboxStatusTab.Mine) append("/unassigned")
+                if (unassignedOnly && !assignedToMe) append("/unassigned")
                 lineId?.let { append("/line=").append(it) }
                 tag?.let { append("/t=").append(it.id) }
                 if (unreadOnly) append("/unread")
@@ -549,7 +551,7 @@ private class InboxController(
     private val filterState: InboxFilterState
         get() = InboxFilterState(
             segment = if (tab == InboxStatusTab.Open) null else tab.name.lowercase(),
-            assignedToMe = tab == InboxStatusTab.Mine,
+            assignedToMe = assignedToMe,
             assigneeUserId = assigneeUserId,
             tagId = tagId,
             unreadOnly = unreadOnly,
@@ -571,29 +573,25 @@ private class InboxController(
 
     /**
      * Anything BEYOND the status segment, for the empty-state copy only.
-     *
-     * Not the same question as [isFiltered], and the reason that one cannot simply
-     * replace it: the per-tab sentences below ("Nothing assigned to you.", "No
-     * closed conversations.") are more use than "Nothing matches these filters.",
-     * and a segment-aware predicate here would swallow all three.
      */
     val hasSecondaryFilters: Boolean get() = hasSecondaryInboxFilters(filterState)
 
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
         tab = next
-        if (tab == InboxStatusTab.Mine) unassignedOnly = false
         showPane()
     }
 
     fun setAssigneeFilter(member: Member?) {
         assigneeUserId = member?.user_id
+        assignedToMe = false
         unassignedOnly = false
         showPane()
     }
 
     fun setUnassignedFilter() {
         assigneeUserId = null
+        assignedToMe = false
         unassignedOnly = true
         showPane()
     }
@@ -651,10 +649,11 @@ private class InboxController(
      */
     fun landOnAwaiting() {
         val alreadyThere = awaitingOnly && tab == InboxStatusTab.All &&
-            assigneeUserId == null && tagId == null && !unreadOnly && !spamOnly &&
+            !assignedToMe && assigneeUserId == null && tagId == null && !unreadOnly && !spamOnly &&
             !snoozedOnly && !unassignedOnly && lineId == null
         if (alreadyThere) return
         tab = InboxStatusTab.All
+        assignedToMe = false
         assigneeUserId = null
         unassignedOnly = false
         lineId = null
@@ -672,6 +671,7 @@ private class InboxController(
         // that could not see it made Reset a control that did nothing.
         if (!isFiltered) return
         tab = InboxStatusTab.Open
+        assignedToMe = false
         assigneeUserId = null
         unassignedOnly = false
         lineId = null
@@ -694,6 +694,7 @@ private class InboxController(
     /** #711: "Clear all" on the applied-filters line: everything but the tab. */
     fun clearSecondaryFilters() {
         if (activeFilterCount == 0) return
+        assignedToMe = false
         assigneeUserId = null
         unassignedOnly = false
         lineId = null
@@ -719,14 +720,14 @@ private class InboxController(
     internal val currentSelection: ViewSelection
         get() = ViewSelection(
             tab = tab,
-            assigneeUserId = if (tab == InboxStatusTab.Mine) null else assigneeUserId,
-            assignedToMe = tab == InboxStatusTab.Mine,
+            assigneeUserId = if (assignedToMe) null else assigneeUserId,
+            assignedToMe = assignedToMe,
             tagId = tagId,
             unreadOnly = unreadOnly,
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
             awaitingOnly = awaitingOnly,
-            unassignedOnly = unassignedOnly && tab != InboxStatusTab.Mine,
+            unassignedOnly = unassignedOnly && !assignedToMe,
             lineId = lineId,
         )
 
@@ -742,6 +743,7 @@ private class InboxController(
         // #548: the ids, not a lookup. `members`/`allTags` may not have landed
         // yet — a view applied on a cold start used to lose its assignee and tag
         // to `find` returning null, and nothing said so.
+        assignedToMe = selection.assignedToMe
         assigneeUserId = selection.assigneeUserId
         unassignedOnly = selection.unassignedOnly
         lineId = selection.lineId
@@ -844,10 +846,7 @@ private class InboxController(
                 InboxStatusTab.Closed -> "closed"
                 else -> null
             },
-            assignedUserId = when {
-                tab == InboxStatusTab.Mine -> meUserId
-                else -> assigneeUserId
-            },
+            assignedUserId = if (assignedToMe) meUserId else assigneeUserId,
             tagId = tagId,
             // Spam is hidden from defaults server-side; the chip reveals it.
             spam = if (spamOnly) true else null,
@@ -862,7 +861,7 @@ private class InboxController(
             pinned = pinned,
             cursor = cursor,
             limit = if (pinned == "only") 100 else 25,
-            unassigned = unassignedOnly && tab != InboxStatusTab.Mine,
+            unassigned = unassignedOnly && !assignedToMe,
             phoneNumberId = lineId,
         )
 
@@ -1955,7 +1954,6 @@ private fun ConversationListPane(
                 controller.awaitingOnly -> t("inbox.emptyEveryoneAnswered")
                 controller.hasSecondaryFilters -> t("inbox.emptyNoFilterMatch")
                 controller.tab == InboxStatusTab.Open -> t("inbox.emptyNothingWaiting")
-                controller.tab == InboxStatusTab.Mine -> t("inbox.emptyNothingAssigned")
                 controller.tab == InboxStatusTab.Closed -> t("inbox.emptyNoClosed")
                 else -> t("inbox.emptyNoConversations")
             },
@@ -2514,7 +2512,7 @@ private fun FiltersSheet(
                 ) {
                     FilterPill(
                         text = t("inbox.filterAnyone"),
-                        selected = controller.assigneeUserId == null && !controller.unassignedOnly,
+                        selected = !controller.assignedToMe && controller.assigneeUserId == null && !controller.unassignedOnly,
                         onClick = { controller.setAssigneeFilter(null) },
                     )
                     FilterPill(
@@ -2530,7 +2528,8 @@ private fun FiltersSheet(
                         }
                         FilterPill(
                             text = label,
-                            selected = controller.assigneeUserId == member.user_id,
+                            selected = controller.assigneeUserId == member.user_id ||
+                                (controller.assignedToMe && member.user_id == meUserId),
                             onClick = { controller.setAssigneeFilter(member) },
                             leading = {
                                 InitialsAvatar(
@@ -3503,7 +3502,11 @@ private fun InboxListControls(
 @Composable
 private fun InboxActiveFilters(controller: InboxController, lines: Map<String, String>) {
     val chips = buildList {
-        if (controller.assigneeUserId != null && controller.tab != InboxStatusTab.Mine) {
+        if (controller.assignedToMe) {
+            val name = controller.members.find { it.user_id == controller.meUserId }?.display_name?.ifBlank { null }
+                ?: t("inbox.filterMe")
+            add(ActiveFilterChip(name, memberId = controller.meUserId) { controller.setAssigneeFilter(null) })
+        } else if (controller.assigneeUserId != null) {
             val name = controller.assignee?.display_name?.ifBlank { null }
                 ?: t("inbox.teammateFallback")
             add(ActiveFilterChip(name, memberId = controller.assigneeUserId) { controller.setAssigneeFilter(null) })

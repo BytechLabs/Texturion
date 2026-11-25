@@ -34,18 +34,15 @@ describe("#548 isInboxFiltered", () => {
     expect(activeInboxFilters(home({ segment: "closed" }))).toEqual(["segment"]);
   });
 
-  it("counts Mine as the segment moving, with no separate assignee", () => {
+  it("counts assignedToMe under assignee rather than segment", () => {
     const mine = home({ assignedToMe: true });
     expect(isInboxFiltered(mine)).toBe(true);
-    expect(activeInboxFilters(mine)).toEqual(["segment"]);
+    expect(activeInboxFilters(mine)).toEqual(["assignee"]);
   });
 
-  it("lets Mine subsume a named assignee rather than counting both", () => {
-    // Every client sends the viewer's own id and drops the named one, and every
-    // client hides the assignee control while Mine is lit. Counting it is how an
-    // empty Mine tab blamed a filter with nothing to un-set.
+  it("reports assignee once when assignedToMe and a named assignee are both set", () => {
     const both = home({ assignedToMe: true, assigneeUserId: "u-2" });
-    expect(activeInboxFilters(both)).toEqual(["segment"]);
+    expect(activeInboxFilters(both)).toEqual(["assignee"]);
   });
 
   it("counts a named assignee on its own", () => {
@@ -92,37 +89,24 @@ describe("#548 isInboxFiltered", () => {
     ]);
   });
 
-  it("counts Unassigned with a line and leaves Mine in charge of assignment", () => {
+  it("keeps Unassigned and assignedToMe inside the assignee dimension alongside line", () => {
     const state = home({ unassignedOnly: true, lineId: "line-1" });
     expect(activeInboxFilters(state)).toEqual(["assignee", "line"]);
-    expect(activeInboxFilters({ ...state, assignedToMe: true })).toEqual(["segment", "line"]);
+    expect(activeInboxFilters({ ...state, assignedToMe: true })).toEqual(["assignee", "line"]);
   });
 });
 
 describe("#548 hasSecondaryInboxFilters", () => {
   it("is false when only the segment moved", () => {
-    // So the empty state can use its better per-tab sentence — "No closed
-    // conversations" beats "Nothing matches these filters" for somebody who has
-    // selected one tab and nothing else.
     expect(hasSecondaryInboxFilters(home({ segment: "closed" }))).toBe(false);
-    expect(hasSecondaryInboxFilters(home({ assignedToMe: true }))).toBe(false);
   });
 
-  it("is true as soon as anything else is on", () => {
+  it("is true as soon as anything beyond the segment is on", () => {
+    expect(hasSecondaryInboxFilters(home({ assignedToMe: true }))).toBe(true);
     expect(hasSecondaryInboxFilters(home({ unreadOnly: true }))).toBe(true);
     expect(
       hasSecondaryInboxFilters(home({ segment: "closed", tagId: "t-1" })),
     ).toBe(true);
-  });
-
-  it("is false for a named assignee that Mine has subsumed", () => {
-    // The iOS empty state's exact defect: it blamed an assignee the chip strip
-    // was not showing, because Mine had already absorbed it.
-    expect(
-      hasSecondaryInboxFilters(
-        home({ assignedToMe: true, assigneeUserId: "u-2" }),
-      ),
-    ).toBe(false);
   });
 
   it("never disagrees with isInboxFiltered about the same state", () => {

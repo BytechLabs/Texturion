@@ -20,8 +20,18 @@ import { cn } from "@/lib/utils";
 export default function InboxLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const t = useT();
   const pathname = usePathname();
+  if (pathname === "/inbox/scheduled" || pathname.startsWith("/inbox/scheduled/")) {
+    return children;
+  }
+  return <InboxSplitLayout pathname={pathname}>{children}</InboxSplitLayout>;
+}
+
+function InboxSplitLayout({
+  pathname,
+  children,
+}: Readonly<{ pathname: string; children: React.ReactNode }>) {
+  const t = useT();
   const inboxIndex = pathname === "/inbox";
   const [compact, setCompact] = useLocalStorageFlag("loonext.inbox.compact", false);
   const [fullList, setFullList] = useLocalStorageFlag("loonext.inbox.full-list", false);

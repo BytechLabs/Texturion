@@ -76,27 +76,31 @@ describe(parseInboxSearchParams, () => {
 });
 
 describe("segments", () => {
-  it("maps URL state onto the segmented control", () => {
+  it("maps URL status onto the status control", () => {
     expect(segmentOf({})).toBe("all");
     expect(segmentOf({ status: "open" })).toBe("open");
     expect(segmentOf({ status: "closed" })).toBe("closed");
-    expect(segmentOf({ assignee: "me" })).toBe("mine");
+    expect(segmentOf({ assignee: "me" })).toBe("all");
+    expect(segmentOf({ status: "open", assignee: "me" })).toBe("open");
     // Sheet-picked statuses light no segment ("All" stays honest).
     expect(segmentOf({ status: "waiting" })).toBe("all");
   });
 
-  it("applySegment owns status + the me-assignee but keeps sheet filters", () => {
+  it("applySegment owns status only and keeps assignee and secondary filters", () => {
     const base = { tag: "t-1", unread: true as const, q: "roof" };
     expect(applySegment({ ...base, status: "closed" }, "open")).toEqual({
       ...base,
       status: "open",
     });
-    expect(applySegment({ ...base, status: "open" }, "mine")).toEqual({
+    expect(applySegment({ ...base, assignee: "me" }, "open")).toEqual({
+      ...base,
+      assignee: "me",
+      status: "open",
+    });
+    expect(applySegment({ ...base, assignee: "me", status: "open" }, "all")).toEqual({
       ...base,
       assignee: "me",
     });
-    expect(applySegment({ ...base, assignee: "me" }, "all")).toEqual(base);
-    // A specific member picked in the sheet is NOT cleared by segment taps.
     expect(applySegment({ assignee: "user-9" }, "closed")).toEqual({
       assignee: "user-9",
       status: "closed",
@@ -233,8 +237,9 @@ describe(formatOpenCount, () => {
 describe(activeChips, () => {
   it("lists only removable secondary filters, in a stable order", () => {
     expect(activeChips({})).toEqual([]);
-    // The Mine segment owns the `me` assignee — it is never a chip.
-    expect(activeChips({ assignee: "me" })).toEqual([]);
+    expect(activeChips({ assignee: "me" })).toEqual([
+      { key: "assignee", value: "me" },
+    ]);
     // status is a segment, not a chip; q is search, not a chip.
     expect(activeChips({ status: "open", q: "leak" })).toEqual([]);
     expect(
@@ -289,9 +294,8 @@ describe(unrepresentedStatus, () => {
     expect(unrepresentedStatus({ status: "new" })).toBe("new");
   });
 
-  it("catches a status the Mine segment swallows", () => {
-    // ?status=open&assignee=me lights Mine, which owns no status at all.
-    expect(unrepresentedStatus({ status: "open", assignee: "me" })).toBe("open");
+  it("keeps open status represented alongside assignee=me", () => {
+    expect(unrepresentedStatus({ status: "open", assignee: "me" })).toBeNull();
   });
 
   it("has a label for every status it can return", () => {
