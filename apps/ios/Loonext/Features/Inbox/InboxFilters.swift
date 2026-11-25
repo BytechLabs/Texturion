@@ -40,9 +40,9 @@ enum InboxFilterDimension: String, CaseIterable {
 struct InboxFilterState: Equatable {
     /// The status segment in this client's own words, or nil on the home view.
     var segment: String?
-    /// Scoped to whoever is looking ("Mine"), which the SEGMENT owns, not a chip.
+    /// Relative self-assignment from a saved view, owned by the assignee filter.
     var assignedToMe: Bool
-    /// A named teammate. Ignored while `assignedToMe` — the request ignores it too.
+    /// A named teammate. Ignored while `assignedToMe` is set.
     var assigneeUserId: String?
     var tagId: String?
     var unreadOnly: Bool
@@ -59,12 +59,8 @@ struct InboxFilterState: Equatable {
 /// answers to the same fact instead of two opinions.
 func activeInboxFilters(_ state: InboxFilterState) -> [InboxFilterDimension] {
     var active: [InboxFilterDimension] = []
-    if state.segment != nil || state.assignedToMe { active.append(.segment) }
-    // MINE SUBSUMES A NAMED ASSIGNEE, deliberately. The request sends the viewer's
-    // own id and drops this field, and the chip strip hides the assignee while Mine
-    // is lit — so counting it here is how an empty "Mine" tab came to blame a filter
-    // the person had no way to un-set.
-    if !state.assignedToMe, state.assigneeUserId != nil || state.unassignedOnly {
+    if state.segment != nil { active.append(.segment) }
+    if state.assignedToMe || state.assigneeUserId != nil || state.unassignedOnly {
         active.append(.assignee)
     }
     if state.lineId != nil { active.append(.line) }

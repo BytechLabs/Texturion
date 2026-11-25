@@ -101,38 +101,26 @@ export function serializeInboxFilters(filters: InboxUrlFilters): string {
   return s === "" ? "" : `?${s}`;
 }
 
-export type InboxSegment = "open" | "mine" | "all" | "closed";
+export type InboxSegment = "open" | "all" | "closed";
 
-/**
- * #228: the segment's NAME is a catalogue key, not a string.
- *
- * The ids are the state and travel in the URL; the words are the reader's and
- * live in `i18n/sections/inbox.ts`. Keeping the key here rather than a lookup
- * inside the bar means a fifth segment cannot be added without naming it in
- * both languages — `MessageKey` is typed, so an unknown key does not compile.
- */
 export const INBOX_SEGMENTS: readonly {
   id: InboxSegment;
   labelKey: MessageKey;
 }[] = [
   { id: "open", labelKey: "inbox.segmentOpen" },
-  { id: "mine", labelKey: "inbox.segmentMine" },
   { id: "all", labelKey: "inbox.segmentAll" },
   { id: "closed", labelKey: "inbox.segmentClosed" },
 ];
 
 /** Which segment the current URL filters light up. */
 export function segmentOf(filters: InboxUrlFilters): InboxSegment {
-  if (filters.assignee === "me") return "mine";
   if (filters.status === "open") return "open";
   if (filters.status === "closed") return "closed";
   return "all";
 }
 
 /**
- * Apply a segment tap: segments own `status` + the "me" assignee; the secondary
- * chips (tag, unread, spam), a specific-member assignee, and the search query
- * all survive the switch.
+ * Apply a status segment change while preserving assignee, secondary chips, and search.
  */
 export function applySegment(
   filters: InboxUrlFilters,
@@ -140,10 +128,8 @@ export function applySegment(
 ): InboxUrlFilters {
   const next: InboxUrlFilters = { ...filters };
   delete next.status;
-  if (next.assignee === "me") delete next.assignee;
   if (segment === "open") next.status = "open";
   if (segment === "closed") next.status = "closed";
-  if (segment === "mine") next.assignee = "me";
   return next;
 }
 
@@ -302,12 +288,9 @@ export interface ActiveChip {
  */
 export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   const chips: ActiveChip[] = [];
-  // #548: a status no segment can show gets a chip, so it is at least visible
-  // and removable. First in the row because it is the widest of these — it
-  // decides which conversations exist before any chip narrows them.
   const orphan = unrepresentedStatus(filters);
   if (orphan !== null) chips.push({ key: "status", value: orphan });
-  if (filters.assignee && filters.assignee !== "me") {
+  if (filters.assignee) {
     chips.push({ key: "assignee", value: filters.assignee });
   }
   if (filters.line) chips.push({ key: "line", value: filters.line });

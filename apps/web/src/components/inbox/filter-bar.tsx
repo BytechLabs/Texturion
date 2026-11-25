@@ -263,12 +263,12 @@ function ChipRow({
   const t = useT();
   const tags = useTags();
   const members = useMembers();
+  const { userId } = useActiveCompany();
+  const resolveAssigneeId = (value?: string) => (value === "me" ? userId : value);
 
   const labelFor = (key: SecondaryFilterKey, value?: string): string => {
     switch (key) {
       case "status": {
-        // #548: only ever a status the segments cannot show, so the word alone
-        // would sit beside four tabs meaning the same kind of thing.
         return t("inbox.statusChipLabel", {
           label: value
             ? t(STATUS_CHIP_KEYS[value as ConversationStatus])
@@ -277,9 +277,10 @@ function ChipRow({
       }
       case "assignee": {
         if (value === "none") return t("inbox.shortcutUnassigned");
+        const targetId = resolveAssigneeId(value);
         return (
-          members.data?.data.find((m) => m.user_id === value)?.display_name ||
-          t("inbox.chipAssignee")
+          members.data?.data.find((m) => m.user_id === targetId)?.display_name ||
+          (value === "me" ? t("inbox.segmentMine") : t("inbox.chipAssignee"))
         );
       }
       case "line": {
@@ -322,7 +323,11 @@ function ChipRow({
           <Chip
             key={chip.key}
             label={labelFor(chip.key, chip.value)}
-            memberId={chip.key === "assignee" && chip.value !== "none" ? chip.value : undefined}
+            memberId={
+              chip.key === "assignee" && chip.value !== "none"
+                ? resolveAssigneeId(chip.value)
+                : undefined
+            }
             disabled={disabled}
             onRemove={() => onChange(clearSecondary(filters, chip.key))}
           />

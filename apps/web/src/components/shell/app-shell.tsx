@@ -69,9 +69,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const t = useT();
   const pathname = usePathname();
   const pageName = PAGE_NAMES[pathname] ?? PAGE_NAMES[`/${pathname.split("/")[1]}`];
-  // The inbox is the fixed 3-pane frame (inner panes own the scroll); every
-  // other destination is a calm scrolling document.
-  const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
+  const fixedFrame =
+    pathname === "/inbox" ||
+    (pathname.startsWith("/inbox/") &&
+      pathname !== "/inbox/scheduled" &&
+      !pathname.startsWith("/inbox/scheduled/"));
 
   // Read before the first paint: the shell renders only on the client, under CompanyProvider.
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);

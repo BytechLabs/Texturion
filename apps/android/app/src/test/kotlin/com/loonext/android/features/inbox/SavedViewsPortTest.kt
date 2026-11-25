@@ -153,14 +153,16 @@ class SavedViewsPortTest {
     }
 
     @Test
-    fun `Mine is a tab, not an assignee chip`() {
-        // The tab and the assignee are entangled the same way on web. A view
-        // holding assigned_to_me must select the tab, or it would set a chip
-        // the person cannot see and the list would look unfiltered.
-        val selection = viewToSelection(obj("assigned_to_me" to true))
-        assertEquals(InboxStatusTab.Mine, selection.tab)
+    fun `assigned_to_me stays in the assignee filter and keeps status tab intact`() {
+        val selection = viewToSelection(obj("status" to "open", "assigned_to_me" to true))
+        assertEquals(InboxStatusTab.Open, selection.tab)
         assertNull(selection.assigneeUserId)
         assertTrue(selection.assignedToMe)
+        assertEquals(obj("status" to "open", "assigned_to_me" to true), selectionToView(selection))
+
+        val allMine = viewToSelection(obj("assigned_to_me" to true))
+        assertEquals(InboxStatusTab.All, allMine.tab)
+        assertTrue(allMine.assignedToMe)
     }
 
     @Test

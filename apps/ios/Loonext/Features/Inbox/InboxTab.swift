@@ -134,23 +134,14 @@ enum InboxStatusSwipe {
 
 enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
     case open = "Open"
-    case mine = "Mine"
     case all = "All"
     case closed = "Closed"
 
     var id: String { rawValue }
 
-    /// The pill's label in the reader's language.
-    ///
-    /// The `rawValue` stays the English id — it is this enum's identity and the
-    /// saved-view code keys off it — so the WORD on screen comes from here
-    /// instead. Four literal `translate` calls rather than a computed key,
-    /// because `check-ios-catalogue-keys` reads the literal argument and a key
-    /// chosen at runtime is invisible to it.
     func title(_ locale: String?) -> String {
         switch self {
         case .open: return AppStrings.translate(locale, "inbox.segmentOpen")
-        case .mine: return AppStrings.translate(locale, "inbox.segmentMine")
         case .all: return AppStrings.translate(locale, "inbox.segmentAll")
         case .closed: return AppStrings.translate(locale, "inbox.segmentClosed")
         }
@@ -186,6 +177,7 @@ final class InboxController {
     /// got nil, and dropped the filter along with the label. A saved view is one
     /// tap on a cold start, which is exactly when that race is lost.
     private(set) var assigneeUserId: String?
+    private(set) var assignedToMe = false
     private(set) var unassignedOnly = false
     private var shellLineId: String?
     private var filterLineId: String?
@@ -279,7 +271,7 @@ final class InboxController {
     var filterState: InboxFilterState {
         InboxFilterState(
             segment: tab == .open ? nil : String(describing: tab),
-            assignedToMe: tab == .mine,
+            assignedToMe: assignedToMe,
             assigneeUserId: self.assigneeUserId,
             tagId: self.tagId,
             unreadOnly: unreadOnly,
@@ -313,6 +305,7 @@ final class InboxController {
     func clearFilters() {
         if !isFiltered { return }
         tab = .open
+        assignedToMe = false
         assigneeUserId = nil
         unassignedOnly = false
         lineId = nil
@@ -333,6 +326,7 @@ final class InboxController {
     /// #711: "Clear all" on the applied-filters line: everything but the tab, in one reload.
     func clearSecondaryFilters() {
         if activeFilterCount == 0 { return }
+        assignedToMe = false
         assigneeUserId = nil
         unassignedOnly = false
         lineId = nil
@@ -347,18 +341,19 @@ final class InboxController {
     func selectTab(_ next: InboxStatusTab) {
         if tab == next { return }
         tab = next
-        if tab == .mine { unassignedOnly = false }
         reload(showLoading: true)
     }
 
     func setAssigneeFilter(_ member: Member?) {
         assigneeUserId = member?.user_id
+        assignedToMe = false
         unassignedOnly = false
         reload(showLoading: true)
     }
 
     func setUnassignedFilter() {
         assigneeUserId = nil
+        assignedToMe = false
         unassignedOnly = true
         reload(showLoading: true)
     }
@@ -412,10 +407,11 @@ final class InboxController {
     ///
     /// Idempotent: arriving twice is arriving once.
     func landOnAwaiting() {
-        let alreadyThere = awaitingOnly && tab == .all && assigneeUserId == nil
+        let alreadyThere = awaitingOnly && tab == .all && !assignedToMe && assigneeUserId == nil
             && tagId == nil && !unreadOnly && !spamOnly && !snoozedOnly && !unassignedOnly && lineId == nil
         if alreadyThere { return }
         tab = .all
+        assignedToMe = false
         assigneeUserId = nil
         unassignedOnly = false
         lineId = nil
@@ -434,19 +430,19 @@ final class InboxController {
         let mapped: SavedViewTab
         switch tab {
         case .open: mapped = .open
-        case .mine: mapped = .mine
         case .all: mapped = .all
         case .closed: mapped = .closed
         }
         return ViewSelection(
             tab: mapped,
-            assigneeUserId: tab == .mine ? nil : assigneeUserId,
+            assigneeUserId: assignedToMe ? nil : assigneeUserId,
+            assignedToMe: assignedToMe,
             tagId: tagId,
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
             snoozedOnly: snoozedOnly,
             awaitingOnly: awaitingOnly,
-            unassignedOnly: unassignedOnly && tab != .mine,
+            unassignedOnly: unassignedOnly && !assignedToMe,
             lineId: lineId
         )
     }
@@ -459,13 +455,13 @@ final class InboxController {
         let selection = viewToSelection(view.filters)
         switch selection.tab {
         case .open: tab = .open
-        case .mine: tab = .mine
         case .all: tab = .all
         case .closed: tab = .closed
         }
         // #548: the ids, not a lookup. `members`/`allTags` may not have landed
         // yet — a view applied on a cold start used to lose its assignee and tag
         // to a `first` returning nil, and nothing said so.
+        assignedToMe = selection.assignedToMe
         assigneeUserId = selection.assigneeUserId
         unassignedOnly = selection.unassignedOnly
         lineId = selection.lineId
@@ -575,7 +571,7 @@ final class InboxController {
                 default: nil
                 }
             }(),
-            assignedUserId: tab == .mine ? meUserId : assigneeUserId,
+            assignedUserId: assignedToMe ? meUserId : assigneeUserId,
             tagId: tagId,
             // Spam is hidden from defaults server-side; the chip reveals it.
             spam: spamOnly ? true : nil,
@@ -590,7 +586,7 @@ final class InboxController {
             awaiting: awaitingOnly ? "only" : nil,
             cursor: cursor,
             limit: pinned == "only" ? 100 : 25,
-            unassigned: unassignedOnly && tab != .mine,
+            unassigned: unassignedOnly && !assignedToMe,
             phoneNumberId: lineId
         )
     }
@@ -1929,7 +1925,6 @@ private struct ConversationListPane: View {
         }
         switch controller.tab {
         case .open: return AppStrings.translate(appLocale, "inbox.emptyNothingWaiting")
-        case .mine: return AppStrings.translate(appLocale, "inbox.emptyNothingAssigned")
         case .closed: return AppStrings.translate(appLocale, "inbox.emptyNoClosed")
         case .all: return AppStrings.translate(appLocale, "inbox.emptyNoConversations")
         }
@@ -2244,7 +2239,7 @@ private struct InboxFilterSheet: View {
                 Section(AppStrings.translate(appLocale, "inbox.filterGroupAssignee")) {
                     option(
                         AppStrings.translate(appLocale, "inbox.filterAnyone"),
-                        selected: controller.assigneeUserId == nil && !controller.unassignedOnly
+                        selected: !controller.assignedToMe && controller.assigneeUserId == nil && !controller.unassignedOnly
                     ) {
                         controller.setAssigneeFilter(nil)
                     }
@@ -2255,7 +2250,12 @@ private struct InboxFilterSheet: View {
                         controller.setUnassignedFilter()
                     }
                     ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
-                        option(memberName(member), selected: controller.assigneeUserId == member.user_id, member: member) {
+                        option(
+                            memberName(member),
+                            selected: controller.assigneeUserId == member.user_id ||
+                                (controller.assignedToMe && member.user_id == meUserId),
+                            member: member
+                        ) {
                             controller.setAssigneeFilter(member)
                         }
                     }
@@ -3091,7 +3091,16 @@ extension InboxList {
 
     fileprivate func activeFilterChips(_ controller: InboxController) -> [ActiveFilterChip] {
         var chips: [ActiveFilterChip] = []
-        if let memberId = controller.assigneeUserId, controller.tab != .mine {
+        if controller.assignedToMe {
+            let name = controller.members.first { $0.user_id == controller.meUserId }?.display_name ?? ""
+            chips.append(ActiveFilterChip(
+                id: "assignee",
+                label: name.isBlank
+                    ? AppStrings.translate(appLocale, "inbox.filterMe")
+                    : name,
+                memberId: controller.meUserId
+            ) { controller.setAssigneeFilter(nil) })
+        } else if let memberId = controller.assigneeUserId {
             let name = controller.assignee?.display_name ?? ""
             chips.append(ActiveFilterChip(
                 id: "assignee",

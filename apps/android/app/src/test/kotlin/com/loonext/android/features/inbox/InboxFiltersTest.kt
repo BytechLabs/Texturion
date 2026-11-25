@@ -58,19 +58,16 @@ class InboxFiltersTest {
     }
 
     @Test
-    fun `Mine counts as the segment moving, with no separate assignee`() {
+    fun `assignedToMe counts under assignee rather than segment`() {
         val mine = home(assignedToMe = true)
         assertTrue(isInboxFiltered(mine))
-        assertEquals(listOf(InboxFilterDimension.SEGMENT), activeInboxFilters(mine))
+        assertEquals(listOf(InboxFilterDimension.ASSIGNEE), activeInboxFilters(mine))
     }
 
     @Test
-    fun `Mine subsumes a named assignee rather than counting both`() {
-        // The request sends the viewer's own id and drops the named one, and the
-        // sheet hides the assignee section while Mine is lit — so counting it is
-        // how an empty Mine tab blamed a filter with nothing to un-set.
+    fun `assignedToMe and a named assignee count once under assignee`() {
         assertEquals(
-            listOf(InboxFilterDimension.SEGMENT),
+            listOf(InboxFilterDimension.ASSIGNEE),
             activeInboxFilters(home(assignedToMe = true, assigneeUserId = "u-2")),
         )
     }
@@ -105,7 +102,7 @@ class InboxFiltersTest {
             activeInboxFilters(filtered),
         )
         assertEquals(
-            listOf(InboxFilterDimension.SEGMENT, InboxFilterDimension.LINE, InboxFilterDimension.UNREAD),
+            listOf(InboxFilterDimension.ASSIGNEE, InboxFilterDimension.LINE, InboxFilterDimension.UNREAD),
             activeInboxFilters(filtered.copy(assignedToMe = true)),
         )
     }
@@ -138,11 +135,8 @@ class InboxFiltersTest {
 
     @Test
     fun `the segment alone is not a SECONDARY filter`() {
-        // So the empty state keeps its better per-tab sentence: "No closed
-        // conversations" beats "Nothing matches these filters" for somebody who
-        // selected one tab and nothing else.
         assertFalse(hasSecondaryInboxFilters(home(segment = "closed")))
-        assertFalse(hasSecondaryInboxFilters(home(assignedToMe = true)))
+        assertTrue(hasSecondaryInboxFilters(home(assignedToMe = true)))
         assertTrue(hasSecondaryInboxFilters(home(segment = "closed", tagId = "t-1")))
     }
 
@@ -194,19 +188,12 @@ class InboxFiltersTest {
         assertEquals(names, InboxFilterDimension.entries.map { it.name })
     }
 
-    /**
-     * And that the shared module still masks the assignee under Mine.
-     *
-     * A grep rather than a second implementation: this is the one rule in the file
-     * whose absence would be invisible in a boolean, because both answers are
-     * "filtered" — only the LIST differs, and only the empty-state copy reads it.
-     */
     @Test
-    fun `the shared module still subsumes a named assignee under Mine`() {
+    fun `the shared module counts assignedToMe under assignee`() {
         val shared = repoFile("packages/shared/src/inbox-filters.ts")
         assertTrue(
-            "the Mine-subsumes-assignee guard has gone from the shared module",
-            shared.contains("!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)"),
+            "shared inbox-filters.ts no longer counts assignedToMe under assignee",
+            shared.contains("state.assignedToMe || state.assigneeUserId !== null || state.unassignedOnly"),
         )
     }
 }

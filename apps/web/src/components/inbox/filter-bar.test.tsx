@@ -111,6 +111,23 @@ describe("FilterBar (#1264 compact top section)", () => {
     expect(onChange).toHaveBeenCalledWith({});
   });
 
+  it("omits Mine from the status selector and shows assignee=me as an assignee filter", () => {
+    const { onChange } = mountBar({ status: "open", assignee: "me" });
+
+    expect(screen.getByRole("button", { name: "Filters: 1 on" })).toBeInstanceOf(Element);
+    const removeChip = screen.getByRole("button", { name: "Remove Sam Lee filter" });
+    fireEvent.click(removeChip);
+    expect(onChange).toHaveBeenCalledWith({ status: "open" });
+
+    const status = screen.getByRole("combobox", { name: "Conversation status" });
+    expect(status.dataset.value).toBe("open");
+    fireEvent.click(status);
+    expect(screen.getByRole("option", { name: /Open/ })).toBeInstanceOf(Element);
+    expect(screen.getByRole("option", { name: "All" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("option", { name: "Closed" })).toBeInstanceOf(Element);
+    expect(screen.queryByRole("option", { name: "Mine" })).toBeNull();
+  });
+
   it("shows and focuses search when opened, closes on Escape, and pauses filters during active search", () => {
     const onCloseSearch = vi.fn();
     mountBar({ status: "open" }, { searchOpen: true, searchFocusNonce: 1, onCloseSearch });

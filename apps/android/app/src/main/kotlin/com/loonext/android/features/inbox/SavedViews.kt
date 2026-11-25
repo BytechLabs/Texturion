@@ -168,10 +168,9 @@ internal fun viewToSelection(filters: JsonObject): ViewSelection {
     val clean = sanitizeConversationFilters(filters)
     val assignedToMe = clean.bool("assigned_to_me")
     val status = clean.str("status")
-    val tab = when {
-        assignedToMe -> InboxStatusTab.Mine
-        status == "open" -> InboxStatusTab.Open
-        status == "closed" -> InboxStatusTab.Closed
+    val tab = when (status) {
+        "open" -> InboxStatusTab.Open
+        "closed" -> InboxStatusTab.Closed
         else -> InboxStatusTab.All
     }
     return ViewSelection(
@@ -194,9 +193,9 @@ internal fun selectionToView(selection: ViewSelection): JsonObject {
         when (selection.tab) {
             InboxStatusTab.Open -> put("status", JsonPrimitive("open"))
             InboxStatusTab.Closed -> put("status", JsonPrimitive("closed"))
-            InboxStatusTab.Mine -> put("assigned_to_me", JsonPrimitive(true))
             InboxStatusTab.All -> Unit
         }
+        if (selection.assignedToMe) put("assigned_to_me", JsonPrimitive(true))
         selection.assigneeUserId?.let { put("assigned_user_id", JsonPrimitive(it)) }
         if (selection.unassignedOnly) put("unassigned", JsonPrimitive(true))
         selection.lineId?.let { put("phone_number_id", JsonPrimitive(it)) }
@@ -238,12 +237,15 @@ internal fun suggestViewName(
     when (selection.tab) {
         InboxStatusTab.Open -> parts.add(say(InboxStatusTab.Open.labelKey))
         InboxStatusTab.Closed -> parts.add(say(InboxStatusTab.Closed.labelKey))
-        InboxStatusTab.Mine -> parts.add(say(InboxStatusTab.Mine.labelKey))
         InboxStatusTab.All -> Unit
     }
-    assignee?.let {
-        if (selection.assigneeUserId != null) {
-            parts.add(it.display_name.ifBlank { say("inbox.viewNameAssigned") })
+    if (selection.assignedToMe) {
+        parts.add(say("inbox.segmentMine"))
+    } else {
+        assignee?.let {
+            if (selection.assigneeUserId != null) {
+                parts.add(it.display_name.ifBlank { say("inbox.viewNameAssigned") })
+            }
         }
     }
     if (selection.unassignedOnly) parts.add(say("inbox.forYouSectionUnassigned"))

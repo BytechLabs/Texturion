@@ -122,13 +122,19 @@ final class SavedViewsPortTests: XCTestCase {
         XCTAssertFalse(viewToSelection(["assigned_to_me": .bool(true), "unassigned": .bool(true)]).unassignedOnly)
     }
 
-    func testMineIsATabNotAnAssigneeChip() {
-        // The tab and the assignee are entangled the same way on web and
-        // Android. A view holding assigned_to_me must select the tab, or it
-        // would set a chip the person cannot see while the list stays filtered.
-        let selection = viewToSelection(["assigned_to_me": .bool(true)])
-        XCTAssertEqual(selection.tab, .mine)
-        XCTAssertNil(selection.assigneeUserId)
+    func testAssignedToMeStaysInAssigneeFilterAndPreservesStatusTab() {
+        let openMine = viewToSelection(["status": .string("open"), "assigned_to_me": .bool(true)])
+        XCTAssertEqual(openMine.tab, .open)
+        XCTAssertNil(openMine.assigneeUserId)
+        XCTAssertTrue(openMine.assignedToMe)
+        XCTAssertEqual(
+            selectionToView(openMine),
+            ["status": .string("open"), "assigned_to_me": .bool(true)]
+        )
+
+        let allMine = viewToSelection(["assigned_to_me": .bool(true)])
+        XCTAssertEqual(allMine.tab, .all)
+        XCTAssertTrue(allMine.assignedToMe)
     }
 
     func testMatchesTheArrangementCurrentlyOnScreen() {

@@ -165,13 +165,14 @@ func resolveAssignee(_ filters: [String: JSONValue], viewerUserId: String) -> St
 
 /// Which status tab a view selects.
 enum SavedViewTab: String, Sendable, Equatable {
-    case open, mine, all, closed
+    case open, all, closed
 }
 
 /// The inbox controller state a view describes.
 struct ViewSelection: Sendable, Equatable {
     var tab: SavedViewTab
     var assigneeUserId: String?
+    var assignedToMe = false
     var tagId: String?
     var unreadOnly: Bool
     var spamOnly: Bool
@@ -183,18 +184,12 @@ struct ViewSelection: Sendable, Equatable {
 }
 
 /// A view's stored filters as the inbox's own controls.
-///
-/// The tab and the assignee are entangled here exactly as they are on the web:
-/// "Mine" is a TAB rather than an assignee chip, so a view holding
-/// `assigned_to_me` selects that tab instead of setting a chip nobody can see.
 func viewToSelection(_ filters: [String: JSONValue]) -> ViewSelection {
     let clean = sanitizeConversationFilters(filters)
     let assignedToMe = filterBool(clean, "assigned_to_me")
     let status = filterString(clean, "status")
     let tab: SavedViewTab
-    if assignedToMe {
-        tab = .mine
-    } else if status == "open" {
+    if status == "open" {
         tab = .open
     } else if status == "closed" {
         tab = .closed
@@ -204,6 +199,7 @@ func viewToSelection(_ filters: [String: JSONValue]) -> ViewSelection {
     return ViewSelection(
         tab: tab,
         assigneeUserId: assignedToMe ? nil : filterString(clean, "assigned_user_id"),
+        assignedToMe: assignedToMe,
         tagId: filterString(clean, "tag_id"),
         unreadOnly: filterBool(clean, "unread"),
         spamOnly: filterBool(clean, "is_spam"),
@@ -220,9 +216,9 @@ func selectionToView(_ selection: ViewSelection) -> [String: JSONValue] {
     switch selection.tab {
     case .open: raw["status"] = .string("open")
     case .closed: raw["status"] = .string("closed")
-    case .mine: raw["assigned_to_me"] = .bool(true)
     case .all: break
     }
+    if selection.assignedToMe { raw["assigned_to_me"] = .bool(true) }
     if let assignee = selection.assigneeUserId { raw["assigned_user_id"] = .string(assignee) }
     if selection.unassignedOnly { raw["unassigned"] = .bool(true) }
     if let lineId = selection.lineId { raw["phone_number_id"] = .string(lineId) }
@@ -256,10 +252,11 @@ func suggestViewName(
     switch selection.tab {
     case .open: parts.append("Open")
     case .closed: parts.append("Closed")
-    case .mine: parts.append("Mine")
     case .all: break
     }
-    if selection.assigneeUserId != nil, let assigneeName, !assigneeName.isEmpty {
+    if selection.assignedToMe {
+        parts.append("Mine")
+    } else if selection.assigneeUserId != nil, let assigneeName, !assigneeName.isEmpty {
         parts.append(assigneeName)
     }
     if selection.unassignedOnly {
