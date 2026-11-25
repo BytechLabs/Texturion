@@ -162,10 +162,9 @@ class AccessibilityAuditTest(private val fontScale: Float) {
         show {
             LoonextTheme { InboxAuditBody(listOf(conversation("c1", "Dana Whitcomb", true, "Hi"))) }
         }
-        // Selected is a colour change in the pill; a screen reader only knows
-        // it from the semantics.
-        compose.onNode(hasText("Open") and hasClickAction()).assertIsSelected()
-        compose.onNode(hasText("Closed") and hasClickAction()).assertIsNotSelected()
+        val status = compose.onNode(hasContentDescription("Status: Open") and hasClickAction())
+        status.performClick()
+        compose.onNode(hasText("Closed") and hasClickAction()).assertExists()
     }
 
     // --- thread and composer ---------------------------------------------------

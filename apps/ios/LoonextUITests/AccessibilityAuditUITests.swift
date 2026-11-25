@@ -438,11 +438,13 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(app.buttons["Se connecter"].firstMatch.waitForExistence(timeout: 10))
         }
         if surface == "inbox" {
-            let filters = canadianFrench ? ["Responsable", "Étiquette", "Vues"] : ["Assignee", "Tag", "Views"]
-            for filter in filters {
-                let button = app.buttons[filter].firstMatch
-                XCTAssertTrue(button.waitForExistence(timeout: 10))
-                XCTAssertTrue(button.isHittable)
+            let controls = canadianFrench
+                ? ["Statut des conversations", "Vues", "Filtres : 2 actifs", "Rechercher"]
+                : ["Conversation status", "Views", "Filters: 2 on", "Search"]
+            for control in controls {
+                let button = app.buttons[control].firstMatch
+                XCTAssertTrue(button.waitForExistence(timeout: 10), "\(control) missing on inbox")
+                XCTAssertTrue(button.isHittable, "\(control) not hittable on inbox")
             }
         }
         if canadianFrench && surface == "tasks" {

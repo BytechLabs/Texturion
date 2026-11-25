@@ -18,14 +18,16 @@ export type SimpleSelectOption = {
   disabled?: boolean;
   copyValue?: string | null;
   leading?: ReactNode;
+  trailing?: ReactNode;
 };
 
 function optionLabel(option: SimpleSelectOption | undefined) {
-  if (!option?.leading) return option?.label;
+  if (!option?.leading && !option?.trailing) return option?.label;
   return (
-    <span className="flex min-w-0 items-center gap-2">
+    <span className="flex min-w-0 items-center gap-1.5">
       {option.leading}
       <span className="truncate">{option.label}</span>
+      {option.trailing}
     </span>
   );
 }

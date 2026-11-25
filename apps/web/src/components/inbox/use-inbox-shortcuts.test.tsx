@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConversationListItem } from "@/lib/api/types";
 import { writeSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
+import { onInboxSearchFocusRequest } from "@/lib/inbox/shortcuts";
 import { useInboxShortcuts } from "./use-inbox-shortcuts";
 
 afterEach(cleanup);
@@ -116,6 +117,18 @@ describe("inbox shortcuts", () => {
     expect(screen.getByText("Next conversation")).toBeInstanceOf(Element);
     expect(screen.getByText("Alt+T")).toBeInstanceOf(Element);
     expect(screen.getByText("Focus the notifications and Undo actions")).toBeInstanceOf(Element);
+  });
+
+  it("/ requests inbox search focus even while search is collapsed", () => {
+    const requested = vi.fn();
+    const stop = onInboxSearchFocusRequest(requested);
+    try {
+      render(<Harness />);
+      fireEvent.keyDown(document.body, { key: "/" });
+      expect(requested).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+    }
   });
 
   it("does nothing when single-key shortcuts are turned off", () => {

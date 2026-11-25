@@ -166,20 +166,16 @@ struct ListViewsMenu: View {
                 if labelled {
                     Text(activeName)
                         .font(.golos(12, weight: .semibold))
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
             }
                 .foregroundStyle(model.activeId != nil ? BrandColor.paper : BrandColor.muted700)
-                .padding(.horizontal, labelled ? 8 : 12)
-                .frame(maxWidth: labelled ? .infinity : nil)
+                .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .background(
                     model.activeId != nil ? BrandColor.ink : BrandColor.paper,
                     in: Capsule()
                 )
-                .overlay {
-                    if labelled { Capsule().strokeBorder(BrandColor.muted250) }
-                }
                 .contentShape(Capsule())
         }
         .accessibilityLabel(

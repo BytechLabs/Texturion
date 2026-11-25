@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { SquarePen } from "lucide-react";
+import { Search, SquarePen } from "lucide-react";
 import Link from "next/link";
 import {
   useParams,
@@ -9,7 +9,7 @@ import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConversationsNavigation } from "@/components/shell/conversations-navigation";
@@ -17,7 +17,9 @@ import { usePhoneLine } from "@/components/shell/phone-line";
 import { useT } from "@/i18n/provider";
 import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
+import { onInboxSearchFocusRequest } from "@/lib/inbox/shortcuts";
 import { inboxHref, mergeInboxListParams } from "@/lib/inbox/thread-href";
+import { cn } from "@/lib/utils";
 
 import { ConversationList } from "./conversation-list";
 import { FilterBar } from "./filter-bar";
@@ -90,6 +92,33 @@ export function InboxPane({
   }, [savedViews.data, currentQuery, router, pathname]);
 
   const q = searchQueryOf(filters);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocusNonce, setSearchFocusNonce] = useState(0);
+  const searchVisible = searchOpen || (filters.q ?? "") !== "";
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    setSearchFocusNonce((n) => n + 1);
+  }, []);
+
+  useEffect(() => onInboxSearchFocusRequest(openSearch), [openSearch]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    if (filters.q !== undefined) {
+      const { q: _cleared, ...rest } = filters;
+      setFilters(rest);
+    }
+  }, [filters, setFilters]);
+
+  const toggleSearch = useCallback(() => {
+    if (searchVisible) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
+  }, [closeSearch, openSearch, searchVisible]);
+
   // #548: the same rule the filter bar goes quiet on. Written out twice, the
   // bar could leave a status tab lit over results that ignore it.
   const searching = isSearchingInbox(filters);
@@ -102,19 +131,47 @@ export function InboxPane({
     <div className="flex h-full min-h-0 flex-col bg-app-ground">
       <ConversationsNavigation />
       <PageHeader
-        className="px-4 pb-2 pt-4"
+        className="px-3.5 pb-1 pt-3.5"
         title={t("inbox.title")}
-        secondary={displayMenu}
+        secondary={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("inbox.searchAria")}
+              aria-expanded={searchVisible}
+              title={t("inbox.searchAria")}
+              className={cn(
+                "text-muted-foreground",
+                searchVisible && "bg-accent text-app-ink",
+              )}
+              onClick={toggleSearch}
+            >
+              <Search className="size-4" strokeWidth={1.75} aria-hidden />
+            </Button>
+            {displayMenu}
+          </>
+        }
         primary={
-          <Button asChild size="sm">
-            <Link href={inboxHref({ conversationId: "new", listQuery: currentQuery })}>
+          <Button asChild size="icon-sm">
+            <Link
+              href={inboxHref({ conversationId: "new", listQuery: currentQuery })}
+              aria-label={t("inbox.newTextAction")}
+              title={t("inbox.newTextAction")}
+            >
               <SquarePen className="size-4" strokeWidth={1.75} aria-hidden />
-              {t("inbox.newTextAction")}
             </Link>
           </Button>
         }
       />
-      <FilterBar filters={filters} onChange={setFilters} />
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        searchOpen={searchVisible}
+        searchFocusNonce={searchFocusNonce}
+        onCloseSearch={closeSearch}
+      />
       {searching ? (
         <SearchResults q={q} listQuery={currentQuery} activeConversationId={activeConversationId} />
       ) : (

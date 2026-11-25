@@ -192,15 +192,13 @@ fun ListViewsMenu(views: ListViews, modifier: Modifier = Modifier, labelled: Boo
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
-            border = if (labelled) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
             modifier = Modifier
-                .then(if (labelled) Modifier.fillMaxWidth() else Modifier)
                 .touchTarget()
                 .asButton()
                 .semantics { contentDescription = name },
         ) {
             Row(
-                Modifier.padding(horizontal = if (labelled) 8.dp else 12.dp, vertical = 10.dp),
+                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
