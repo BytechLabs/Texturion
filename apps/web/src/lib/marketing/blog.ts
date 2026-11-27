@@ -23,6 +23,8 @@ export interface BlogPost {
   datePublished: string;
   /** ISO date for <time>, JSON-LD, sitemap, and RSS, e.g. "2026-07-10". */
   datePublishedIso: string;
+  /** ISO date when article copy or FAQs were substantively updated. */
+  dateModifiedIso?: string;
   /** Honest estimate at ~220 words per minute, whole minutes. */
   readingMinutes: number;
 }
@@ -49,6 +51,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "GUIDE",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 6,
   },
   {
@@ -70,6 +73,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "PRICING",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 8,
   },
   {
@@ -92,6 +96,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "TEMPLATES",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 7,
   },
   {
@@ -103,6 +108,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "NUMBERS",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 5,
   },
   {
@@ -124,6 +130,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "NUMBERS",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 5,
   },
   {
@@ -134,6 +141,7 @@ export const BLOG_POSTS: BlogPost[] = [
     dateline: "COMPLIANCE",
     datePublished: "July 10, 2026",
     datePublishedIso: "2026-07-10",
+    dateModifiedIso: "2026-11-27",
     readingMinutes: 6,
   },
   {

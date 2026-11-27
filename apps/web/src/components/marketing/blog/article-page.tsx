@@ -50,6 +50,7 @@ export function ArticlePage({
           description: post.description,
           path,
           datePublishedIso: post.datePublishedIso,
+          dateModifiedIso: post.dateModifiedIso,
           imagePath: `/og/blog/${post.slug}`,
         })}
       />

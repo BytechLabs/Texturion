@@ -125,6 +125,16 @@ export const compareQuoEn = {
     "$57 seats + their $1.50 to $3 monthly maintenance; extra numbers $5 each and any automated SMS on top.",
   footnote:
     "Loonext's numbers come straight from our published plans. Quo figures are from quo.com/pricing, re-verified {date}: Starter $15/user/mo on annual billing or $19/user/mo monthly, US and Canada messaging unlimited under their Fair Usage Policy, automated SMS (API, Zapier, Make) at $0.01/segment, extra numbers $5/mo each, and a $1.50 to $3 monthly carrier maintenance fee. Neither total includes AI usage beyond Quo's 1,000 included automation credits, which is about ten calls at 100 credits each. One-time registration fees are excluded from both totals: ours is $29, and Quo discloses a $19.50 one-time Campaign Registry review right on its pricing page, disclosure done right. If any figure changes, tell us and we'll fix it.",
+  faqTitle: "Quo pricing and switching questions",
+  faqPriceQ: "How much is Quo (formerly OpenPhone) per month?",
+  faqPriceA:
+    "As checked {month} on quo.com/pricing, Quo Starter is $19 per user per month on monthly billing (or $15 per user per month billed annually). For a 3-person crew paying monthly, seats alone are $57 a month plus a $1.50 to $3 monthly carrier maintenance fee, compared to Loonext Starter at $29 a month flat for up to 3 people.",
+  faqExtrasQ: "Does Quo charge extra for texting, phone numbers, or AI?",
+  faqExtrasA:
+    "US and Canada person-to-person messaging is unlimited under Quo's Fair Usage Policy, while automated SMS via API, Zapier, or Make bills at 1 cent per segment, extra phone numbers are $5 a month each, and Sona AI includes 1,000 automation credits (about ten calls at 100 credits) before charging $0.45 to $1.00 per call. Quo also lists a $19.50 one-time Campaign Registry review fee. Loonext includes fair-use texting, 1 number on Starter (2 on Pro at $79/mo), and Lou AI suggestions in the flat monthly price, with a one-time $29 US registration fee (waived for Canadian-only texting).",
+  faqFitQ: "When is Quo a better fit than Loonext?",
+  faqFitA:
+    "Quo fits better if unlimited US and Canada voice calling across native desktop and mobile apps, integrations, or an API is your main workflow. Loonext is built for small service crews whose front door is a shared texting and calls inbox at one flat company price rather than a per-seat phone system.",
 } as const;
 
 export const compareQuoFr: Translated<typeof compareQuoEn> = {
@@ -250,6 +260,16 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
     "57 $ US de places + 1,50 à 3 $ US d'entretien mensuel; chaque numéro supplémentaire et les SMS automatisés s'ajoutent.",
   footnote:
     "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Quo viennent de quo.com/pricing, revérifiés le {date} : Starter à 15 $ US/personne/mois avec facturation annuelle ou 19 $ US avec facturation mensuelle, messagerie États-Unis et Canada illimitée selon leur politique d'utilisation équitable, SMS automatisés (API, Zapier, Make) à 0,01 $ US/segment, numéros supplémentaires à 5 $ US/mois et entretien mensuel de 1,50 à 3 $ US. Aucun total ne comprend l'IA au-delà des 1 000 crédits Sona inclus, soit environ dix appels à 100 crédits chacun. Les frais uniques d'inscription sont exclus : les nôtres sont de 29 $ US et Quo affiche clairement une révision Campaign Registry unique de 19,50 $ US. Si un chiffre change, dites-le-nous et nous le corrigerons.",
+  faqTitle: "Questions sur les tarifs Quo et le changement",
+  faqPriceQ: "Combien coûte Quo (anciennement OpenPhone) par mois ?",
+  faqPriceA:
+    "Selon la vérification de {month} sur quo.com/pricing, Quo Starter coûte 19 $ US par personne et par mois en facturation mensuelle (ou 15 $ US par personne avec engagement annuel). Pour une équipe de 3 personnes en facturation mensuelle, les places totalisent 57 $ US par mois plus 1,50 $ à 3 $ US d'entretien mensuel, contre 29 $ US par mois au prix fixe chez Loonext Starter pour jusqu'à 3 personnes.",
+  faqExtrasQ: "Quo facture-t-il des suppléments pour les textos, les numéros ou l'IA ?",
+  faqExtrasA:
+    "La messagerie États-Unis et Canada est illimitée selon la politique d'utilisation équitable de Quo, tandis que les SMS automatisés (API, Zapier, Make) coûtent 0,01 $ US par segment, chaque numéro supplémentaire coûte 5 $ US par mois et Sona comprend 1 000 crédits (environ dix appels à 100 crédits) avant de facturer de 0,45 $ à 1,00 $ US par appel. Quo affiche aussi une révision unique de 19,50 $ US. Loonext inclut les textos selon l'utilisation équitable, 1 numéro dans Starter (2 dans Pro à 79 $ US/mois) et l'assistant Lou dans le prix fixe mensuel, avec des frais uniques de 29 $ US aux États-Unis (aucuns frais pour les textos canadiens seulement).",
+  faqFitQ: "Quand Quo convient-il mieux que Loonext ?",
+  faqFitA:
+    "Quo convient mieux si les appels vocaux illimités États-Unis/Canada sur des applications natives bureau et mobiles, les intégrations ou une API sont au coeur de votre travail. Loonext est conçu pour les petites équipes de service qui veulent une boîte partagée pour textos et appels à un seul prix fixe par entreprise.",
 };
 
 const COPY = { en: compareQuoEn, "fr-CA": compareQuoFr } as const;

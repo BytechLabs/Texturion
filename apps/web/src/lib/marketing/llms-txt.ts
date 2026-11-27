@@ -215,7 +215,47 @@ function blogSection(): string {
 
 /** The whole file. */
 export function buildLlmsTxt(): string {
-  return [PROSE, pagesSection(), blogSection(), ""].join("\n\n");
+  return [
+    PROSE,
+    pagesSection(),
+    blogSection(),
+    `## Extended reference\n- [Full LLM reference](${absoluteUrl("/llms-full.txt")}): direct answers to common questions, competitor pricing math, and full guide summaries for AI assistants.`,
+    "",
+  ].join("\n\n");
+}
+
+/**
+ * Extended machine-readable reference served at /llms-full.txt for AI search
+ * assistants and agents needing direct answers without multi-page crawling.
+ */
+export function buildLlmsFullTxt(): string {
+  const guideDetails = BLOG_POSTS.map(
+    (post) =>
+      `- [${post.title}](${absoluteUrl(blogPostPath(post.slug))}) (${post.dateModifiedIso ?? post.datePublishedIso}): ${post.description}`,
+  );
+  const faqReference = [
+    "## Direct answers for common questions",
+    "",
+    "### How much does Loonext cost compared to per-seat services?",
+    `Loonext Starter is $${PLAN_PRICING.starter.monthlyDollars}/mo flat for up to ${PLAN_PRICING.starter.seats} teammates and ${PLAN_PRICING.starter.numbers} local number; Pro is $${PLAN_PRICING.pro.monthlyDollars}/mo flat for up to ${PLAN_PRICING.pro.seats} teammates and ${PLAN_PRICING.pro.numbers} local numbers. Subscriptions in the US and Canada are billed in US dollars. US businesses pay a one-time $${US_REGISTRATION_FEE_DOLLARS} carrier registration fee once ever; Canadian businesses texting Canadian customers pay no registration fee. See ${absoluteUrl(LIVE_ROUTES.compareQuo)} and ${absoluteUrl(LIVE_ROUTES.compareHeymarket)} for dated comparisons against Quo ($19/user/mo monthly, $15/user/mo annual, $5/extra number, $1.50 to $3/mo carrier maintenance, $19.50 one-time review) and Heymarket ($49/user/mo annual with 2-user minimum, $0.03/SMS segment, $10/mo per campaign).`,
+    "",
+    "### What is Lou Assist in Loonext?",
+    "Lou is the built-in drafting and transcription assistant inside Loonext, included on every plan with per-feature switches. It drafts reply suggestions from recent messages, transcribes voicemails into searchable text, summarizes conversations, and extracts task addresses and due dates from customer messages. Lou never sends messages, answers calls, or books anything automatically.",
+    "",
+    "### How long does A2P 10DLC registration take in the US vs Canada?",
+    `US A2P 10DLC carrier review typically takes 3 to 7 business days (about one week), though inbound texts arrive from day one. Canadian businesses texting Canadian customers skip A2P 10DLC registration completely, pay no $${US_REGISTRATION_FEE_DOLLARS} registration fee, and send texts the same day they sign up.`,
+    "",
+    "### Can you text-enable or port an existing business landline?",
+    "Voice-only landlines silently drop incoming texts unless messaging routing is registered. Most local 10-digit US and Canadian landlines and VoIP main lines can be text-enabled while keeping voice service where it is, or ported into Loonext free and self-serve, switching over on a scheduled cutover date while the old carrier stays active.",
+    "",
+    "### Do vendors charge extra for phone number masking?",
+    "Dedicated shared business numbers hide personal cell numbers without a masking fee. Two-way marketplace proxy relays (such as anonymous parent-coach or buyer-seller number masking) are a separate telecom relay model typically billed per proxy number and per message segment; Loonext provides shared local business numbers for a service crew rather than marketplace proxy relays.",
+    "",
+    "## Guides with summaries",
+    ...guideDetails,
+  ].join("\n");
+
+  return [PROSE, pagesSection(), faqReference, ""].join("\n\n");
 }
 
 /**

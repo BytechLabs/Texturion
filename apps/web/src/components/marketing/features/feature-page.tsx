@@ -407,14 +407,16 @@ export function RelatedLinks({
 /* -------------------------------------------------------------------------- */
 
 export function FeatureFaq({
+  id,
   heading,
   faqs,
 }: {
+  id?: string;
   heading: ReactNode;
   faqs: { q: string; a: ReactNode }[];
 }) {
   return (
-    <FrSection>
+    <FrSection id={id}>
       <div className="mx-auto max-w-3xl">
         <h2 className="fr-h2 text-[color:var(--fr-ink)]">{heading}</h2>
         <div className="mt-10 space-y-3">

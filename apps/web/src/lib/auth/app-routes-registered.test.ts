@@ -127,6 +127,7 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   "og",
   "fonts",
   "llms.txt",
+  "llms-full.txt",
   // RFC 9116 disclosure contact. Found by this guard on its first run, which is
   // the point: a dotted directory is invisible to a `ls */` and was invisible to
   // every test in this file.

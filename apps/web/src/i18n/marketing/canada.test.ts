@@ -87,6 +87,7 @@ describe("the French /canada is French", () => {
       canadaFr.faqCaslQ,
       canadaFr.faqDataQ,
       canadaFr.faqCurrencyQ,
+      canadaFr.faq10dlcQ,
       canadaFr.usTitle,
     ].filter((line) => line.includes("?"));
     expect(questions.length).toBeGreaterThan(5);

@@ -123,6 +123,16 @@ export const compareHeymarketEn = {
   totalRival: "~$172/mo",
   footnote:
     "Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified {date}: Standard $49/user/mo (annual) with a 2-user minimum, SMS $0.03/segment (MMS 2 credits), and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. Neither total includes any AI usage: theirs bills AI Agent messages at 3x the base rate, and ours is included. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.",
+  faqTitle: "Heymarket pricing and switching questions",
+  faqPriceQ: "How much does Heymarket cost per month?",
+  faqPriceA:
+    "As checked {month} on heymarket.com/pricing, Heymarket Standard is $49 per user per month on annual billing, plus $0.03 per SMS segment (2 credits for MMS) and a $10/mo-per-campaign 10DLC fee. For 3 seats sending 500 single-segment texts on one campaign, that totals about $172 a month before AI Agent messages, compared to $29 a month flat on Loonext Starter.",
+  faqMinQ: "Does Heymarket have a minimum seat requirement or self-serve signup?",
+  faqMinA:
+    "Heymarket Standard carries a 2-user minimum (a $98/mo seat floor before messages or carrier fees), leads with annual billing, and routes Standard, Plus, and Pro buttons to booking a demo. Loonext is month to month, starts with self-serve online signup at $29/mo flat for up to 3 people, and backs the first 30 days with a full refund.",
+  faqFitQ: "When is Heymarket a better fit than Loonext?",
+  faqFitA:
+    "Heymarket fits larger or regulated teams that need SOC 2 Type 2, HIPAA support (on Pro and Enterprise), email alongside SMS in one inbox, or deep Salesforce and HubSpot integrations. Loonext fits small service crews that want texts and calls in one shared inbox with flat company pricing.",
 } as const;
 
 export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
@@ -247,6 +257,16 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
   totalRival: "Environ 172 $ US/mois",
   footnote:
     "Les chiffres Loonext viennent de nos forfaits publiés. Les chiffres Heymarket viennent de heymarket.com/pricing, revérifiés le {date} : Standard à 49 $ US/personne/mois (annuel), minimum de 2 places, SMS à 0,03 $ US/segment (MMS : 2 crédits) et frais 10DLC de 10 $ US/mois par campagne. Le total d'environ 172 $ US suppose 3 places, 500 textos d'un segment et une campagne; les textos de plus de 160 caractères comptent plusieurs segments et coûtent davantage. Aucun total ne comprend l'utilisation de l'IA : Heymarket facture les messages AI Agent à trois fois le tarif de base et la nôtre est incluse. Les frais uniques d'inscription sont exclus des deux totaux (les nôtres sont de 29 $ US). Si un chiffre change, dites-le-nous et nous le corrigerons.",
+  faqTitle: "Questions sur les tarifs Heymarket et le changement",
+  faqPriceQ: "Combien coûte Heymarket par mois ?",
+  faqPriceA:
+    "Selon la vérification de {month} sur heymarket.com/pricing, Heymarket Standard coûte 49 $ US par personne et par mois avec facturation annuelle, plus 0,03 $ US par segment SMS (2 crédits par MMS) et 10 $ US par mois par campagne 10DLC. Pour 3 places et 500 textos d'un segment sur une campagne, le total est d'environ 172 $ US par mois avant les messages AI Agent, contre 29 $ US par mois au prix fixe chez Loonext Starter.",
+  faqMinQ: "Heymarket exige-t-il un minimum de places ou une démo ?",
+  faqMinA:
+    "Heymarket Standard impose un minimum de 2 places (un plancher de 98 $ US/mois avant messages et frais de campagne), met de l'avant la facturation annuelle et dirige les boutons Standard, Plus et Pro vers une prise de démo. Loonext est de mois en mois, en libre-service en ligne à 29 $ US/mois fixe pour jusqu'à 3 personnes, avec garantie de remboursement complet de 30 jours.",
+  faqFitQ: "Quand Heymarket convient-il mieux que Loonext ?",
+  faqFitA:
+    "Heymarket convient aux équipes plus grandes ou réglementées qui ont besoin de SOC 2 Type 2, de la prise en charge HIPAA (Pro et Enterprise), des courriels avec les SMS dans la même boîte, ou d'intégrations poussées à Salesforce et HubSpot. Loonext convient aux petites équipes de service qui veulent textos et appels dans une boîte partagée à prix fixe.",
 };
 
 const COPY = { en: compareHeymarketEn, "fr-CA": compareHeymarketFr } as const;

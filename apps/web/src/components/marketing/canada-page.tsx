@@ -329,6 +329,10 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
             q: copy.faqCurrencyQ,
             a: copy.faqCurrencyA,
           },
+          {
+            q: copy.faq10dlcQ,
+            a: copy.faq10dlcA,
+          },
         ]}
       />
 

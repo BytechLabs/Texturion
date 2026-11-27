@@ -7,7 +7,7 @@ import { EXTRA_NUMBER_CURRENCY, EXTRA_NUMBER_MONTHLY_CENTS, formatMoney } from "
 import { describe, expect, it } from "vitest";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { buildLlmsTxt, notedRoutes } from "@/lib/marketing/llms-txt";
+import { buildLlmsFullTxt, buildLlmsTxt, notedRoutes } from "@/lib/marketing/llms-txt";
 import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 
@@ -219,5 +219,26 @@ describe("llms.txt keeps up with what shipped", () => {
           `wrong is worse than one it omits: a machine repeats it as fact.`,
       ).toContain(written);
     }
+  });
+});
+
+describe("llms-full.txt summarizes guides and pricing", () => {
+  const FULL = buildLlmsFullTxt();
+
+  it("links from llms.txt to /llms-full.txt", () => {
+    expect(LLMS).toContain(absoluteUrl("/llms-full.txt"));
+  });
+
+  it("includes every blog post description, URL, plan prices, and zero em/en dashes", () => {
+    for (const post of BLOG_POSTS) {
+      expect(FULL).toContain(post.description);
+      expect(FULL).toContain(absoluteUrl(blogPostPath(post.slug)));
+    }
+    for (const pricing of Object.values(PLAN_PRICING)) {
+      expect(FULL).toContain(`$${pricing.monthlyDollars}/mo`);
+    }
+    expect(FULL).toContain("US dollars");
+    expect(FULL).toContain("Lou");
+    expect(FULL).not.toMatch(/[–—]/);
   });
 });

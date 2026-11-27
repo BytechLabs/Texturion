@@ -31,9 +31,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       path: blogPostPath(post.slug),
       priority: 0.5,
       changeFrequency: "monthly" as const,
-      // Real publish date. A `new Date()` here (the launch-batch shape) stamps
+      // Real publish or substantive update date. A `new Date()` here (the launch-batch shape) stamps
       // every crawl as "changed now", which teaches engines the field is noise.
-      lastModified: new Date(post.datePublishedIso),
+      lastModified: new Date(post.dateModifiedIso ?? post.datePublishedIso),
     })),
 
     // Feature pages (BLUEPRINT §2, §5).

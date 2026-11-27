@@ -96,6 +96,9 @@ export const assistantEn = {
   relatedSubprocessorsBody: "Every third party that sees customer data, named.",
 
   faqTitle: "Assistant questions, straight answers.",
+  faqWhatIsLouQ: "What is Lou Assist in Loonext?",
+  faqWhatIsLouA:
+    "Lou is the built-in drafting and transcription assistant inside Loonext. It drafts reply suggestions from recent conversation history, writes voicemails down as searchable text, summarizes threads, and fills in task addresses and due dates from customer messages. Lou never sends messages, never answers calls, and never books anything on its own, and every feature is included on every plan with individual off switches.",
   faqSendQ: "Will Lou reply to my customers without me?",
   faqSendA:
     "Your team sends Lou’s replies. Each draft waits in the composer for a teammate to read, edit or delete. Your after-hours reply and missed-call text-back use the wording you set.",
@@ -206,6 +209,9 @@ export const assistantFr: Translated<typeof assistantEn> = {
   relatedSubprocessorsBody: "Chaque tiers qui voit des données de clients, nommé.",
 
   faqTitle: "Questions sur l'adjoint, réponses directes.",
+  faqWhatIsLouQ: "Qu'est-ce que l'assistant Lou dans Loonext ?",
+  faqWhatIsLouA:
+    "Lou est l'assistant de rédaction et de transcription intégré à Loonext. Il prépare des suggestions de réponses à partir des messages récents, transcrit les messages vocaux en texte consultable, résume les conversations et remplit l'adresse et la date d'échéance des tâches à partir des mots du client. Lou n'envoie jamais de message, ne répond jamais aux appels et ne réserve rien à votre place, et chaque fonction est incluse dans tous les forfaits avec son propre interrupteur.",
   faqSendQ: "Est-ce que Lou répondra à mes clients sans moi ?",
   faqSendA:
     "Votre équipe envoie les réponses que Lou rédige. Chaque brouillon reste dans le champ de saisie jusqu’à ce qu’une personne de l’équipe le lise, le modifie ou le supprime. La réponse après les heures et le texto de retour d’appel manqué utilisent le texte que vous choisissez.",
