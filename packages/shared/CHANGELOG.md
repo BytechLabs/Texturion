@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.25.0...shared-v0.25.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **inbox:** remove mine status option and isolate scheduled view ([#1268](https://github.com/BytechLabs/Texturion/issues/1268)) ([5c2d95d](https://github.com/BytechLabs/Texturion/commit/5c2d95df2a0758ce89dc8ad4fccfe706f743fbd9))
+
 ## [0.25.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.24.4...shared-v0.25.0) (2026-11-25)
 
 

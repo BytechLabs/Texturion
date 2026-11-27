@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.34.1](https://github.com/BytechLabs/Texturion/compare/web-v0.34.0...web-v0.34.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **inbox:** remove mine status option and isolate scheduled view ([#1268](https://github.com/BytechLabs/Texturion/issues/1268)) ([5c2d95d](https://github.com/BytechLabs/Texturion/commit/5c2d95df2a0758ce89dc8ad4fccfe706f743fbd9))
+* **marketing:** answer common customer texting questions across the site ([#1270](https://github.com/BytechLabs/Texturion/issues/1270)) ([81a85df](https://github.com/BytechLabs/Texturion/commit/81a85dfbf9da7435561ee1fb1850384daa2d641c))
+
 ## [0.34.0](https://github.com/BytechLabs/Texturion/compare/web-v0.33.1...web-v0.34.0) (2026-11-25)
 
 
