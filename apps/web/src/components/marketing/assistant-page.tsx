@@ -181,6 +181,10 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
         heading={copy.faqTitle}
         faqs={[
           {
+            q: copy.faqWhatIsLouQ,
+            a: copy.faqWhatIsLouA,
+          },
+          {
             q: copy.faqSendQ,
             a: copy.faqSendA,
           },

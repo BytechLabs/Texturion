@@ -144,6 +144,9 @@ export const canadaEn = {
   faqCurrencyQ: "What currency will I pay in from Canada?",
   faqCurrencyA:
     "Loonext bills in US dollars. Your card issuer may convert the charge to Canadian dollars, so the amount on your statement can depend on the exchange rate.",
+  faq10dlcQ: "Do Canadian businesses need A2P 10DLC registration?",
+  faq10dlcA:
+    "No, not for texting Canadian customers. A2P 10DLC is a US carrier requirement, so Canadian businesses texting Canadian local numbers pay no registration fee and start sending the same day. The one-time registration fee and 3 to 7 business day carrier review apply only if you turn on US texting later.",
 
   ctaTitle: "Text your Canadian customers today.",
   ctaBody:
@@ -273,6 +276,9 @@ export const canadaFr: Translated<typeof canadaEn> = {
   faqCurrencyQ: "Dans quelle devise vais-je payer depuis le Canada ?",
   faqCurrencyA:
     "Loonext facture en dollars américains. L’émetteur de votre carte peut convertir le montant en dollars canadiens. Le montant sur votre relevé peut donc varier selon le taux de change.",
+  faq10dlcQ: "Les entreprises canadiennes ont-elles besoin de l'enregistrement A2P 10DLC ?",
+  faq10dlcA:
+    "Non, pas pour texter des clients canadiens. L'enregistrement A2P 10DLC est une exigence des transporteurs américains : une entreprise canadienne qui texte des numéros canadiens locaux ne paie aucuns frais d'inscription et commence à envoyer le jour même. Les frais uniques d'inscription et la révision de 3 à 7 jours ouvrables ne s'appliquent que si vous activez les textos vers les États-Unis plus tard.",
 
   ctaTitle: "Écrivez à vos clients canadiens dès aujourd'hui.",
   ctaBody:

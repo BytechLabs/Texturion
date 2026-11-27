@@ -27,6 +27,7 @@ import {
 } from "./compare/compare-sections";
 import { LedgerTable } from "./compare/ledger-table";
 import { CountryOnly } from "./country";
+import { FeatureFaq } from "./features/feature-page";
 import { JsonLd } from "./ui/json-ld";
 
 export function CompareQuoPageBody({
@@ -157,6 +158,19 @@ export function CompareQuoPageBody({
           ]}
         />
       </CountryOnly>
+
+      <FeatureFaq
+        id="faq"
+        heading={copy.faqTitle}
+        faqs={[
+          {
+            q: copy.faqPriceQ,
+            a: copy.faqPriceA.replace("{month}", compareMonth(locale)),
+          },
+          { q: copy.faqExtrasQ, a: copy.faqExtrasA },
+          { q: copy.faqFitQ, a: copy.faqFitA },
+        ]}
+      />
 
       <CompareCta
         locale={locale}
